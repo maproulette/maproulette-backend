@@ -158,14 +158,14 @@ trait ParentController[T <: BaseObject[Long], C <: BaseObject[Long]] extends CRU
     *
     * @param id     The parent id
     * @param limit  The limit of how many objects to be returned
-    * @param offset For paging
+    * @param page   for paging
     * @return 200 OK with json array of children objects
     */
-  def listChildren(id: Long, limit: Int, offset: Int): Action[AnyContent] = Action.async {
+  def listChildren(id: Long, limit: Int, page: Int): Action[AnyContent] = Action.async {
     implicit request =>
       implicit val writes: Writes[C] = this.cWrites
       this.sessionManager.userAwareRequest { implicit user =>
-        Ok(Json.toJson(this.dal.listChildren(limit, offset)(id).map(this.childController.inject)))
+        Ok(Json.toJson(this.dal.listChildren(limit, page)(id).map(this.childController.inject)))
       }
   }
 
