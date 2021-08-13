@@ -331,7 +331,6 @@ case class ArchivableChallenge(
    val name: String = "",
    val deleted: Boolean,
    val is_archived: Boolean
-//   val tasks: Array[Long]
 )
 
 case class ArchivableTask(

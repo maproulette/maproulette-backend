@@ -86,7 +86,7 @@ class ChallengeService @Inject() (
 
   /**
     * Retrieve a list of challenges not yet archived
-    *
+    * @return list of challenges
     */
   def staleChallenges(): List[ArchivableChallenge] = {
     this.repository.staleChallenges()
@@ -94,7 +94,8 @@ class ChallengeService @Inject() (
 
   /**
     * Retrieve a list of tasks by challenge id
-    *
+    * @param challengeId
+    * @return list of tasks
     */
   def getTasksByParentId(id: Long): List[ArchivableTask] = {
     this.repository.getTasksByParentId(id);
@@ -102,7 +103,7 @@ class ChallengeService @Inject() (
 
   /**
     * archive challenge
-    *
+    * @param challenge
     */
   def archiveChallenge(challenge: ArchivableChallenge): Unit = {
     this.repository.archiveChallenge(challenge.id)

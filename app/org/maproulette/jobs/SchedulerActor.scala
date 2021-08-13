@@ -544,8 +544,14 @@ class SchedulerActor @Inject() (
       })
   }
 
-  def findStaleTasks = (tasks: List[ArchivableTask], sixMonthsAgo: String) => {
-    tasks.find(task => task.modified.toString() > sixMonthsAgo)
+  /**
+    * finds the first task with a modified data sooner than the restriction param
+    * @param tasks - the list of tasks in question
+    * @param restrictionDate - the date used to check against the modifiedDate of the tasks
+    * @return a task or undefined
+  */
+  def findNonStaleTask = (tasks: List[ArchivableTask], restrictionDate: String) => {
+    tasks.find(task => task.modified.toString() > restrictionDate)
   }
 
   def handleArchiveChallenges(action: String) = {
@@ -558,14 +564,12 @@ class SchedulerActor @Inject() (
       challenge.created.toString("yyyy-MM-dd") < sixMonthsAgo
     ).foreach(challenge => {
       val tasks = this.serviceManager.challenge.getTasksByParentId(challenge.id);
-      val nonStaleTasks = findStaleTasks(tasks, sixMonthsAgo)
+      val nonStaleTasks = findNonStaleTask(tasks, sixMonthsAgo)
 
       if (nonStaleTasks.isEmpty) {
         this.serviceManager.challenge.archiveChallenge(challenge);
       }
     })
-
-    logger.info("heyyyyyyy");
   }
 
   def sendDigestNotificationEmails(action: String) = {

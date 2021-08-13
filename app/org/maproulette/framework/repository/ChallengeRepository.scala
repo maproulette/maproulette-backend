@@ -89,6 +89,7 @@ class ChallengeRepository @Inject() (override val db: Database) extends Reposito
 
   /**
     * Retrieve all challenges that are not yet deleted or archived
+    * @return list of challenges
     */
   def staleChallenges()(implicit c: Option[Connection] = None): List[ArchivableChallenge] = {
     withMRConnection { implicit c =>
@@ -104,6 +105,7 @@ class ChallengeRepository @Inject() (override val db: Database) extends Reposito
 
   /**
     * Retrieve all tasks by challenge ID
+    * @return list of tasks
     */
   def getTasksByParentId(id: Long)(implicit c: Option[Connection] = None): List[ArchivableTask] = {
     withMRConnection { implicit c =>
@@ -119,6 +121,7 @@ class ChallengeRepository @Inject() (override val db: Database) extends Reposito
 
   /**
     * Archive challenge by ID
+    * @param challengeId
     */
   def archiveChallenge(challengeId: Long)(implicit c: Option[Connection] = None): Unit = {
     withMRConnection { implicit c =>
@@ -266,7 +269,7 @@ object ChallengeRepository {
   }
 
   /**
-    *
+    * The row parser for archive-related chalenge data
     */
   val archivedChallengesParser: RowParser[ArchivableChallenge] = {
     get[Long]("challenges.id") ~
@@ -282,7 +285,7 @@ object ChallengeRepository {
   }
 
   /**
-    *
+    * The row parser for archive-related task data
     */
   val archivedTaskParser: RowParser[ArchivableTask] = {
     get[Long]("tasks.id") ~
