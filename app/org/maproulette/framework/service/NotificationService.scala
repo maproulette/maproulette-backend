@@ -205,8 +205,8 @@ class NotificationService @Inject() (
               userId = mentionedUser.id,
               notificationType = UserNotification.NOTIFICATION_TYPE_MENTION,
               fromUsername = Some(fromUser.osmProfile.displayName),
-              taskId = Some(challenge.id),
-              challengeId = Some(challenge.general.parent),
+              taskId = None,
+              challengeId = Some(challenge.id),
               targetId = Some(comment.id),
               extra = Some(comment.comment)
             ),
