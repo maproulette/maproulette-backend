@@ -111,6 +111,9 @@ class ChallengeController @Inject() (
       case Some(local) => Some(Json.stringify(local))
       case None        => None
     }
+
+    // TODO: Block large challenges
+
     if (!this.challengeProvider.buildTasks(user, createdObject, localJson)) {
       super.extractAndCreate(body, createdObject, user)
     }
@@ -992,6 +995,8 @@ class ChallengeController @Inject() (
             val updatedBody =
               this.updateCreateBody(Utils.insertIntoJson(challengeJson, "parent", projectId), user)
             if (challengeID > 0) {
+              // TODO: get new task count
+
               // if rebuild set to true, remove all the tasks first from the challenge before recreating them
               this.dal.deleteTasks(user, challengeID)
               // if you provide the ID in the post method we will send you to the update path
