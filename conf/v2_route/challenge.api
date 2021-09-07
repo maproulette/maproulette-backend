@@ -454,6 +454,29 @@ GET     /challenges/preferred                             @org.maproulette.contr
 GET     /challenges                                 @org.maproulette.controllers.api.ChallengeController.list(limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= false)
 ###
 # tags: [ Challenge ]
+# summary: Bulk Archive Challenges.
+# produces: [ application/json ]
+# description: Archive or unarchive a list of challenges
+# responses:
+#   '200':
+#     description: A success message
+# parameters:
+#   - name: ids
+#     in: body
+#     description: A JSON array of challenge IDs
+#     required: true
+#     schema:
+#       type: array
+#       items:
+#         type: integer
+#   - name: isArchived
+#     in: body
+#     description: a boolean indicating if challenges should be archived (true) or unarchived (false)
+#     required: true
+###
+POST     /challenges/bulkArchive                    @org.maproulette.controllers.api.ChallengeController.bulkArchive()
+###
+# tags: [ Challenge ]
 # summary: List all the Challenges with review tasks.
 # produces: [ application/json ]
 # description: Lists all the Challenges in the system with review tasks.

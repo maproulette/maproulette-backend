@@ -85,11 +85,12 @@ class ChallengeService @Inject() (
   }
 
   /**
-    * Retrieve a list of challenges not yet archived
+    * Retrieve a list of active challenges
+    * @param archived: include archived if true
     * @return list of challenges
     */
-  def staleChallenges(): List[ArchivableChallenge] = {
-    this.repository.staleChallenges()
+  def activeChallenges(archived: Boolean = false): List[ArchivableChallenge] = {
+    this.repository.activeChallenges(archived);
   }
 
   /**
@@ -110,5 +111,15 @@ class ChallengeService @Inject() (
   def archiveChallenge(challengeId: Long, archiving: Boolean = true, systemArchive: Boolean = false): Boolean = {
     val result = this.repository.archiveChallenge(challengeId, archiving, systemArchive)
     result
+  }
+
+  /**
+   * update challenge completion metrics
+   * @param challengeId
+   * @param tasksRemaining
+   * @param completionPercentage
+   */
+  def updateChallengeCompletionMetrics(challengeId: Long, tasksRemaining: Integer, completionPercentage: Integer): Unit = {
+    this.repository.updateChallengeCompletionMetrics(challengeId, tasksRemaining, completionPercentage);
   }
 }

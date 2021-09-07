@@ -7,20 +7,15 @@ package org.maproulette.controllers.api
 import java.io._
 import java.sql.Connection
 import java.util.zip.{ZipEntry, ZipOutputStream}
-
 import akka.util.ByteString
+
 import javax.inject.Inject
 import org.apache.commons.lang3.StringUtils
 import org.joda.time.{DateTime, DateTimeZone}
 import org.maproulette.Config
 import org.maproulette.controllers.ParentController
 import org.maproulette.data._
-import org.maproulette.exception.{
-  InvalidException,
-  MPExceptionUtil,
-  NotFoundException,
-  StatusMessage
-}
+import org.maproulette.exception.{InvalidException, MPExceptionUtil, NotFoundException, StatusMessage}
 import org.maproulette.framework.model._
 import org.maproulette.framework.psql.Paging
 import org.maproulette.framework.service.{ServiceManager, TagService}
@@ -392,6 +387,32 @@ class ChallengeController @Inject() (
         .getNearbyTasks(User.userOrMocked(user), challengeId, proximityId, excludeSelfLocked, limit)
       Ok(Json.toJson(results))
     }
+  }
+
+  /**
+   * Archive or unarchive a list of challenges
+   *
+   * @body ids  The list of challengeIds
+   * @body isArchived  boolean determining if challenges should be archived(true) or unarchived(false)
+   * @return
+   */
+  def bulkArchive(): Action[JsValue] = Action.async(bodyParsers.json) {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        try {
+          val body = request.body;
+          val challengeIds = (body \ "ids").as[List[Long]]
+          val archiving = (body \ "isArchived").asOpt[Boolean].getOrElse(true);
+
+          this.dalManager.challenge.bulkArchive(challengeIds, archiving);
+
+          Ok(Json.toJson(archiving))
+        } catch {
+          case e: Exception =>
+            logger.error(e.getMessage, e)
+            BadRequest(Json.toJson(StatusMessage("KO", JsString(e.getMessage))))
+        }
+      }
   }
 
   /**

@@ -303,6 +303,10 @@ object Config {
     s"$SUB_GROUP_SCHEDULER.archiveChallenges.interval"
   val KEY_SCHEDULER_ARCHIVE_CHALLENGES_START =
     s"$SUB_GROUP_SCHEDULER.archiveChallenges.startTime"
+  val KEY_SCHEDULER_UPDATE_CHALLENGE_COMPLETION_INTERVAL =
+    s"$SUB_GROUP_SCHEDULER.updateChallengeCompletionMetrics.interval"
+  val KEY_SCHEDULER_UPDATE_CHALLENGE_COMPLETION_START =
+    s"$SUB_GROUP_SCHEDULER.updateChallengeCompletionMetrics.startTime"
   val KEY_SCHEDULER_NOTIFICATION_DIGEST_EMAIL_INTERVAL =
     s"$SUB_GROUP_SCHEDULER.notifications.digestEmail.interval"
   val KEY_SCHEDULER_NOTIFICATION_DIGEST_EMAIL_START =

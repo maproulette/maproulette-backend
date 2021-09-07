@@ -83,7 +83,7 @@ class TaskReviewRepository @Inject() (
         Query
           .simple(List())
           .build(
-            """UPDATE task_review SET review_claimed_by = {userId}, review_claimed_at = NOW()
+            """UPDATE task_review SET review_claimed_by = {userId}, review_claimed_at = NOW(), review_started_at = NOW()
                     WHERE task_id = {taskId} AND review_claimed_at IS NULL"""
           )
           .on(Symbol("taskId") -> task.id, Symbol("userId") -> user.id)
@@ -308,7 +308,7 @@ class TaskReviewRepository @Inject() (
         )
         .executeUpdate()
 
-      // Update task review status on old task reviews to "unecessary"
+      // Update task review status on old task reviews to "unnecessary"
       query
         .build(s"""UPDATE task_review tr
                 SET review_status = ${Task.REVIEW_STATUS_UNNECESSARY},
@@ -348,7 +348,7 @@ class TaskReviewRepository @Inject() (
           s"meta_review_status = ${mr}, reviewed_at = NOW(), meta_review_started_at = task_review.review_claimed_at, "
         case Some(mr) =>
           s"meta_review_status = ${mr}, meta_reviewed_at = NOW(), meta_review_started_at = task_review.review_claimed_at, "
-        case None => "reviewed_at = NOW(), review_started_at = task_review.review_claimed_at,"
+        case None => "reviewed_at = NOW(), "
       }
       val updatedRows =
         SQL(s"""UPDATE task_review SET review_status = $reviewStatus,

@@ -89,15 +89,22 @@ class ChallengeRepository @Inject() (override val db: Database) extends Reposito
 
   /**
     * Retrieve all challenges that are not yet deleted or archived
+    * @param archived: include or exclude archived challenges
     * @return list of challenges
     */
-  def staleChallenges()(implicit c: Option[Connection] = None): List[ArchivableChallenge] = {
+  def activeChallenges(archived: Boolean = false)(implicit c: Option[Connection] = None): List[ArchivableChallenge] = {
     withMRConnection { implicit c =>
+      var archiveQuery = "";
+
+      if (!archived) {
+        archiveQuery = " c.is_archived = false AND";
+      }
+
       SQL(
         s"""
            |SELECT c.id, c.created, c.name, c.deleted, c.is_archived
            |FROM challenges as c
-           |WHERE c.is_archived = false AND c.deleted = false
+           |WHERE${archiveQuery} c.deleted = false
         """.stripMargin
       ).as(ChallengeRepository.archivedChallengesParser.*)
     }
@@ -111,7 +118,7 @@ class ChallengeRepository @Inject() (override val db: Database) extends Reposito
     withMRConnection { implicit c =>
       SQL(
         s"""
-           |SELECT id, modified
+           |SELECT id, modified, status
            |FROM tasks
            |WHERE parent_id = ${id}
         """.stripMargin
@@ -141,6 +148,24 @@ class ChallengeRepository @Inject() (override val db: Database) extends Reposito
       SQL(query).execute()
 
       archiving
+    }
+  }
+
+  /**
+   * Update challenge completion metrics
+   * @param challengeId
+   * @param tasksRemaining
+   * @param completionPercentage
+   */
+  def updateChallengeCompletionMetrics(challengeId: Long, tasksRemaining: Integer, completionPercentage: Integer)(implicit c: Option[Connection] = None): Unit = {
+    withMRConnection { implicit c =>
+      SQL(
+        s"""
+           |UPDATE CHALLENGES
+           |	SET tasks_remaining = ${tasksRemaining}, completion_percentage = ${completionPercentage}
+           |	WHERE id = ${challengeId}
+        """.stripMargin
+      ).execute()
     }
   }
 }
@@ -300,11 +325,13 @@ object ChallengeRepository {
     */
   val archivedTaskParser: RowParser[ArchivableTask] = {
     get[Long]("tasks.id") ~
-      get[DateTime]("tasks.modified") map {
-      case id ~ modified  =>
+      get[DateTime]("tasks.modified") ~
+      get[Long]("tasks.status") map {
+      case id ~ modified ~ status  =>
         new ArchivableTask(
           id,
-          modified
+          modified,
+          status
         )
     }
   }

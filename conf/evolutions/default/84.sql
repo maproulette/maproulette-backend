@@ -1,5 +1,7 @@
 # --- !Ups
-ALTER TABLE challenges ADD COLUMN system_archived_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL;;
+ALTER TABLE challenges ADD COLUMN completion_percentage INTEGER DEFAULT 0;;
+ALTER TABLE challenges ADD COLUMN tasks_remaining INTEGER DEFAULT 0;;
 
 # --- !Downs
-ALTER TABLE IF EXISTS challenges DROP COLUMN system_archived_at;;
+ALTER TABLE IF EXISTS challenges DROP COLUMN completion_percentage;;
+ALTER TABLE IF EXISTS challenges DROP COLUMN tasks_remaining;;
