@@ -172,7 +172,7 @@ case class Challenge(
     location: Option[String] = None,
     bounding: Option[String] = None,
     completionPercentage: Option[Int] = Some(0),
-    tasksRemaining: Option[Int] = Some(0),
+    tasksRemaining: Option[Int] = Some(0)
 ) extends BaseObject[Long]
     with DefaultWrites
     with Identifiable {
@@ -329,15 +329,15 @@ object Challenge extends CommonField {
 }
 
 case class ArchivableChallenge(
-   val id: Long,
-   val created: DateTime,
-   val name: String = "",
-   val deleted: Boolean,
-   val isArchived: Boolean
+    val id: Long,
+    val created: DateTime,
+    val name: String = "",
+    val deleted: Boolean,
+    val isArchived: Boolean
 )
 
 case class ArchivableTask(
     val id: Long,
     val modified: DateTime,
     val status: Long
-  )
+)

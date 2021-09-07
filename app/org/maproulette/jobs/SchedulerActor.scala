@@ -551,7 +551,7 @@ class SchedulerActor @Inject() (
     * @param tasks - the list of tasks in question
     * @param restrictionDate - the date used to check against the modifiedDate of the tasks
     * @return a task or undefined
-  */
+    */
   def findNonStaleTask = (tasks: List[ArchivableTask], restrictionDate: String) => {
     tasks.find(task => task.modified.toString() > restrictionDate)
   }
@@ -559,50 +559,54 @@ class SchedulerActor @Inject() (
   def handleArchiveChallenges(action: String) = {
     logger.info(action)
 
-    val currentDate = DateTime.now()
+    val currentDate  = DateTime.now()
     val sixMonthsAgo = currentDate.minusMonths(6).toString("yyyy-MM-dd");
 
-    this.serviceManager.challenge.activeChallenges().filter(challenge =>
-      challenge.created.toString("yyyy-MM-dd") < sixMonthsAgo
-    ).foreach(challenge => {
+    this.serviceManager.challenge
+      .activeChallenges()
+      .filter(challenge => challenge.created.toString("yyyy-MM-dd") < sixMonthsAgo)
+      .foreach(challenge => {
 
-      val tasks = this.serviceManager.challenge.getTasksByParentId(challenge.id);
-      val nonStaleTasks = findNonStaleTask(tasks, sixMonthsAgo)
+        val tasks         = this.serviceManager.challenge.getTasksByParentId(challenge.id);
+        val nonStaleTasks = findNonStaleTask(tasks, sixMonthsAgo)
 
-      if (nonStaleTasks.isEmpty) {
-        this.serviceManager.challenge.archiveChallenge(challenge.id, true, true);
-      }
-    })
+        if (nonStaleTasks.isEmpty) {
+          this.serviceManager.challenge.archiveChallenge(challenge.id, true, true);
+        }
+      })
   }
 
   def handleUpdateChallengeCompletionMetrics(action: String) = {
     logger.info(action)
 
-    this.serviceManager.challenge.activeChallenges(true).foreach(challenge => {
-      val tasks = this.serviceManager.challenge.getTasksByParentId(challenge.id);
+    this.serviceManager.challenge
+      .activeChallenges(true)
+      .foreach(challenge => {
+        val tasks = this.serviceManager.challenge.getTasksByParentId(challenge.id);
 
-      val taskCount = tasks.length;
-      var tasksRemaining = 0;
-      var completionPercentage = 0;
+        val taskCount            = tasks.length;
+        var tasksRemaining       = 0;
+        var completionPercentage = 0;
 
-      if (taskCount == 0) {
-        completionPercentage = 100;
-      } else {
-        tasks.foreach(task => {
-          if (task.status == 0) {
-            tasksRemaining = tasksRemaining + 1;
+        if (taskCount == 0) {
+          completionPercentage = 100;
+        } else {
+          tasks.foreach(task => {
+            if (task.status == 0) {
+              tasksRemaining = tasksRemaining + 1;
+            }
+          })
+
+          val tasksCompleted = taskCount - tasksRemaining;
+
+          if (tasksCompleted != 0) {
+            completionPercentage = tasksCompleted * 100 / taskCount
           }
-        })
-
-        val tasksCompleted = taskCount - tasksRemaining;
-
-        if (tasksCompleted != 0) {
-          completionPercentage = tasksCompleted * 100 / taskCount
         }
-      }
 
-      this.serviceManager.challenge.updateChallengeCompletionMetrics(challenge.id, tasksRemaining, completionPercentage);
-    })
+        this.serviceManager.challenge
+          .updateChallengeCompletionMetrics(challenge.id, tasksRemaining, completionPercentage);
+      })
   }
 
   def sendDigestNotificationEmails(action: String) = {

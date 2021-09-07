@@ -62,12 +62,13 @@ class CommentController @Inject() (
     * @param challengeId The challenge to retrieve the comments for
     * @return A list of comments
     */
-  def findChallengeComments(challengeId: Long): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.userAwareRequest { implicit user =>
-      Ok(
-        Json.toJson(this.commentService.findChallengeComments(challengeId))
-      )
-    }
+  def findChallengeComments(challengeId: Long): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        Ok(
+          Json.toJson(this.commentService.findChallengeComments(challengeId))
+        )
+      }
   }
 
   /**

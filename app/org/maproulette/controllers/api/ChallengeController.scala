@@ -15,7 +15,12 @@ import org.joda.time.{DateTime, DateTimeZone}
 import org.maproulette.Config
 import org.maproulette.controllers.ParentController
 import org.maproulette.data._
-import org.maproulette.exception.{InvalidException, MPExceptionUtil, NotFoundException, StatusMessage}
+import org.maproulette.exception.{
+  InvalidException,
+  MPExceptionUtil,
+  NotFoundException,
+  StatusMessage
+}
 import org.maproulette.framework.model._
 import org.maproulette.framework.psql.Paging
 import org.maproulette.framework.service.{ServiceManager, TagService}
@@ -390,29 +395,28 @@ class ChallengeController @Inject() (
   }
 
   /**
-   * Archive or unarchive a list of challenges
-   *
-   * @body ids  The list of challengeIds
-   * @body isArchived  boolean determining if challenges should be archived(true) or unarchived(false)
-   * @return
-   */
-  def bulkArchive(): Action[JsValue] = Action.async(bodyParsers.json) {
-    implicit request =>
-      this.sessionManager.authenticatedRequest { implicit user =>
-        try {
-          val body = request.body;
-          val challengeIds = (body \ "ids").as[List[Long]]
-          val archiving = (body \ "isArchived").asOpt[Boolean].getOrElse(true);
+    * Archive or unarchive a list of challenges
+    *
+    * @body ids  The list of challengeIds
+    * @body isArchived  boolean determining if challenges should be archived(true) or unarchived(false)
+    * @return
+    */
+  def bulkArchive(): Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      try {
+        val body         = request.body;
+        val challengeIds = (body \ "ids").as[List[Long]]
+        val archiving    = (body \ "isArchived").asOpt[Boolean].getOrElse(true);
 
-          this.dalManager.challenge.bulkArchive(challengeIds, archiving);
+        this.dalManager.challenge.bulkArchive(challengeIds, archiving);
 
-          Ok(Json.toJson(archiving))
-        } catch {
-          case e: Exception =>
-            logger.error(e.getMessage, e)
-            BadRequest(Json.toJson(StatusMessage("KO", JsString(e.getMessage))))
-        }
+        Ok(Json.toJson(archiving))
+      } catch {
+        case e: Exception =>
+          logger.error(e.getMessage, e)
+          BadRequest(Json.toJson(StatusMessage("KO", JsString(e.getMessage))))
       }
+    }
   }
 
   /**
@@ -1344,18 +1348,18 @@ class ChallengeController @Inject() (
   }
 
   /**
-   * Archives a challenge
-   *
-   * @param challengeId  The challenge id
-   * @body isArchived  boolean indicating whether you are archiving or unarchiving
-   */
+    * Archives a challenge
+    *
+    * @param challengeId  The challenge id
+    * @body isArchived  boolean indicating whether you are archiving or unarchiving
+    */
   def archiveChallenge(challengeId: Long): Action[JsValue] = Action.async(bodyParsers.json) {
     implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
         try {
-          val body = request.body;
+          val body      = request.body;
           val archiving = (body \ "isArchived").asOpt[Boolean].getOrElse(true);
-          val result = serviceManager.challenge.archiveChallenge(challengeId, archiving)
+          val result    = serviceManager.challenge.archiveChallenge(challengeId, archiving)
 
           Ok(Json.toJson(result))
         } catch {

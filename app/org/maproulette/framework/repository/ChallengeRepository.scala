@@ -92,7 +92,9 @@ class ChallengeRepository @Inject() (override val db: Database) extends Reposito
     * @param archived: include or exclude archived challenges
     * @return list of challenges
     */
-  def activeChallenges(archived: Boolean = false)(implicit c: Option[Connection] = None): List[ArchivableChallenge] = {
+  def activeChallenges(
+      archived: Boolean = false
+  )(implicit c: Option[Connection] = None): List[ArchivableChallenge] = {
     withMRConnection { implicit c =>
       var archiveQuery = "";
 
@@ -132,7 +134,11 @@ class ChallengeRepository @Inject() (override val db: Database) extends Reposito
     * @param archiving boolean indicating whether to archive or unarchive the challenge
     * @param systemArchive boolean indicating if the system scheduler is performing the event
     */
-  def archiveChallenge(challengeId: Long, archiving: Boolean = true, systemArchive: Boolean = false)(implicit c: Option[Connection] = None): Boolean = {
+  def archiveChallenge(
+      challengeId: Long,
+      archiving: Boolean = true,
+      systemArchive: Boolean = false
+  )(implicit c: Option[Connection] = None): Boolean = {
     this.withMRConnection { implicit c =>
       var systemArchiveStatement = s", system_archived_at = NULL";
       if (systemArchive && archiving) {
@@ -152,12 +158,16 @@ class ChallengeRepository @Inject() (override val db: Database) extends Reposito
   }
 
   /**
-   * Update challenge completion metrics
-   * @param challengeId
-   * @param tasksRemaining
-   * @param completionPercentage
-   */
-  def updateChallengeCompletionMetrics(challengeId: Long, tasksRemaining: Integer, completionPercentage: Integer)(implicit c: Option[Connection] = None): Unit = {
+    * Update challenge completion metrics
+    * @param challengeId
+    * @param tasksRemaining
+    * @param completionPercentage
+    */
+  def updateChallengeCompletionMetrics(
+      challengeId: Long,
+      tasksRemaining: Integer,
+      completionPercentage: Integer
+  )(implicit c: Option[Connection] = None): Unit = {
     withMRConnection { implicit c =>
       SQL(
         s"""
@@ -315,7 +325,11 @@ object ChallengeRepository {
       get[Boolean]("challenges.is_archived") map {
       case id ~ created ~ name ~ deleted ~ isArchived =>
         new ArchivableChallenge(
-          id, created, name, deleted, isArchived
+          id,
+          created,
+          name,
+          deleted,
+          isArchived
         )
     }
   }
@@ -327,7 +341,7 @@ object ChallengeRepository {
     get[Long]("tasks.id") ~
       get[DateTime]("tasks.modified") ~
       get[Long]("tasks.status") map {
-      case id ~ modified ~ status  =>
+      case id ~ modified ~ status =>
         new ArchivableTask(
           id,
           modified,

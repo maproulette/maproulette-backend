@@ -179,7 +179,6 @@ class NotificationService @Inject() (
     }
   }
 
-
   /**
     * Create one or more new notifications for users mentioned by name in a
     * comment. The recipient user(s) will be extracted from the comment
@@ -188,7 +187,11 @@ class NotificationService @Inject() (
     * @param comment  The comment mentioning the user
     * @param challenge     The task on which the comment was added
     */
-  def createChallengeMentionNotifications(fromUser: User, comment: ChallengeComment, challenge: Challenge): Unit = {
+  def createChallengeMentionNotifications(
+      fromUser: User,
+      comment: ChallengeComment,
+      challenge: Challenge
+  ): Unit = {
     // match [@username] (username may contain spaces) or @username (no spaces allowed)
     val mentionRegex = """\[@([^\]]+)\]|@([\w\d_-]+)""".r.unanchored
 
