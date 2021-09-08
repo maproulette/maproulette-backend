@@ -275,6 +275,7 @@ object Challenge extends CommonField {
   val TABLE           = "challenges"
   val FIELD_PARENT_ID = "parent_id"
   val FIELD_ENABLED   = "enabled"
+  val FIELD_ARCHIVED  = "is_archived"
   val FIELD_STATUS    = "status"
   val FIELD_DELETED   = "deleted"
 

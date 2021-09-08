@@ -357,7 +357,7 @@ object SearchParameters {
       case None => params.challengeParams.challengeIds
     }
 
-    val archived = request.getQueryString("archived") match {
+    val archived = request.getQueryString("ca") match {
       case Some(q) => {
         if (q == "true") {
           true
