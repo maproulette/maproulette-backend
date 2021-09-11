@@ -135,6 +135,7 @@ case class ChallengeExtra(
     taskStyles: Option[String] = None,
     taskBundleIdProperty: Option[String] = None,
     isArchived: Boolean = false,
+    systemArchivedAt: Option[DateTime] = None,
     presets: Option[List[String]] = None
 ) extends DefaultWrites
 
@@ -169,7 +170,9 @@ case class Challenge(
     lastTaskRefresh: Option[DateTime] = None,
     dataOriginDate: Option[DateTime] = None,
     location: Option[String] = None,
-    bounding: Option[String] = None
+    bounding: Option[String] = None,
+    completionPercentage: Option[Int] = Some(0),
+    tasksRemaining: Option[Int] = Some(0)
 ) extends BaseObject[Long]
     with DefaultWrites
     with Identifiable {
@@ -272,6 +275,7 @@ object Challenge extends CommonField {
   val TABLE           = "challenges"
   val FIELD_PARENT_ID = "parent_id"
   val FIELD_ENABLED   = "enabled"
+  val FIELD_ARCHIVED  = "is_archived"
   val FIELD_STATUS    = "status"
   val FIELD_DELETED   = "deleted"
 
@@ -326,14 +330,15 @@ object Challenge extends CommonField {
 }
 
 case class ArchivableChallenge(
-   val id: Long,
-   val created: DateTime,
-   val name: String = "",
-   val deleted: Boolean,
-   val isArchived: Boolean
+    val id: Long,
+    val created: DateTime,
+    val name: String = "",
+    val deleted: Boolean,
+    val isArchived: Boolean
 )
 
 case class ArchivableTask(
     val id: Long,
-    val modified: DateTime
-  )
+    val modified: DateTime,
+    val status: Long
+)

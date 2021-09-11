@@ -29,7 +29,9 @@ class ChallengeCommentRepository @Inject() (override val db: Database) extends R
     * @param challengeId
     * @return A list of challenge comments
     */
-  def queryByChallengeId(challengeId: Long)(implicit c: Option[Connection] = None): List[ChallengeComment] = {
+  def queryByChallengeId(
+      challengeId: Long
+  )(implicit c: Option[Connection] = None): List[ChallengeComment] = {
     withMRConnection { implicit c =>
       val query =
         s"""

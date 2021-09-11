@@ -66,7 +66,9 @@ trait ChallengeWrites extends DefaultWrites {
       (JsPath \ "lastTaskRefresh").writeNullable[DateTime] and
       (JsPath \ "dataOriginDate").writeNullable[DateTime] and
       (JsPath \ "location").writeNullable[String](new jsonWrites("location")) and
-      (JsPath \ "bounding").writeNullable[String](new jsonWrites("bounding"))
+      (JsPath \ "bounding").writeNullable[String](new jsonWrites("bounding")) and
+      (JsPath \ "completionPercentage").writeNullable[Int] and
+      (JsPath \ "tasksRemaining").writeNullable[Int]
   )(unlift(Challenge.unapply))
 }
 
@@ -119,6 +121,8 @@ trait ChallengeReads extends DefaultReads {
       (JsPath \ "lastTaskRefresh").readNullable[DateTime] and
       (JsPath \ "dataOriginDate").readNullable[DateTime] and
       (JsPath \ "location").readNullable[String](new jsonReads("location")) and
-      (JsPath \ "bounding").readNullable[String](new jsonReads("bounding"))
+      (JsPath \ "bounding").readNullable[String](new jsonReads("bounding")) and
+      (JsPath \ "completionPercentage").readNullable[Int] and
+      (JsPath \ "tasksRemaining").readNullable[Int]
   )(Challenge.apply _)
 }

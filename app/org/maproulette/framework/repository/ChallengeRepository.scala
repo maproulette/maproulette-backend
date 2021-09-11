@@ -89,15 +89,24 @@ class ChallengeRepository @Inject() (override val db: Database) extends Reposito
 
   /**
     * Retrieve all challenges that are not yet deleted or archived
+    * @param archived: include or exclude archived challenges
     * @return list of challenges
     */
-  def staleChallenges()(implicit c: Option[Connection] = None): List[ArchivableChallenge] = {
+  def activeChallenges(
+      archived: Boolean = false
+  )(implicit c: Option[Connection] = None): List[ArchivableChallenge] = {
     withMRConnection { implicit c =>
+      var archiveQuery = "";
+
+      if (!archived) {
+        archiveQuery = " c.is_archived = false AND";
+      }
+
       SQL(
         s"""
            |SELECT c.id, c.created, c.name, c.deleted, c.is_archived
            |FROM challenges as c
-           |WHERE c.is_archived = false AND c.deleted = false
+           |WHERE${archiveQuery} c.deleted = false
         """.stripMargin
       ).as(ChallengeRepository.archivedChallengesParser.*)
     }
@@ -111,7 +120,7 @@ class ChallengeRepository @Inject() (override val db: Database) extends Reposito
     withMRConnection { implicit c =>
       SQL(
         s"""
-           |SELECT id, modified
+           |SELECT id, modified, status
            |FROM tasks
            |WHERE parent_id = ${id}
         """.stripMargin
@@ -120,15 +129,50 @@ class ChallengeRepository @Inject() (override val db: Database) extends Reposito
   }
 
   /**
-    * Archive challenge by ID
-    * @param challengeId
+    * Update challenge archive status
+    * @param challengeId id of challenge
+    * @param archiving boolean indicating whether to archive or unarchive the challenge
+    * @param systemArchive boolean indicating if the system scheduler is performing the event
     */
-  def archiveChallenge(challengeId: Long)(implicit c: Option[Connection] = None): Unit = {
+  def archiveChallenge(
+      challengeId: Long,
+      archiving: Boolean = true,
+      systemArchive: Boolean = false
+  )(implicit c: Option[Connection] = None): Boolean = {
+    this.withMRConnection { implicit c =>
+      var systemArchiveStatement = s", system_archived_at = NULL";
+      if (systemArchive && archiving) {
+        systemArchiveStatement = s", system_archived_at = '${DateTime.now()}'"
+      }
+
+      val query = s"""
+         |UPDATE CHALLENGES
+         |	SET is_archived = ${archiving}${systemArchiveStatement}
+         |	WHERE id = ${challengeId}
+        """.stripMargin
+
+      SQL(query).execute()
+
+      archiving
+    }
+  }
+
+  /**
+    * Update challenge completion metrics
+    * @param challengeId
+    * @param tasksRemaining
+    * @param completionPercentage
+    */
+  def updateChallengeCompletionMetrics(
+      challengeId: Long,
+      tasksRemaining: Integer,
+      completionPercentage: Integer
+  )(implicit c: Option[Connection] = None): Unit = {
     withMRConnection { implicit c =>
       SQL(
         s"""
            |UPDATE CHALLENGES
-           |	SET is_archived = true
+           |	SET tasks_remaining = ${tasksRemaining}, completion_percentage = ${completionPercentage}
            |	WHERE id = ${challengeId}
         """.stripMargin
       ).execute()
@@ -194,14 +238,15 @@ object ChallengeRepository {
       get[Boolean]("deleted") ~
       get[Option[List[Long]]]("virtual_parent_ids") ~
       get[Boolean]("challenges.is_archived") ~
+      get[Option[DateTime]]("challenges.system_archived_at") ~
       get[Option[Boolean]]("challenges.changeset_url") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
             checkin_source ~ overpassql ~ overpassTargetType ~ remoteGeoJson ~ status ~ statusMessage ~ defaultPriority ~ highPriorityRule ~
             mediumPriorityRule ~ lowPriorityRule ~ defaultZoom ~ minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~
             customBasemap ~ updateTasks ~ exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
-            limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~
-            dataOriginDate ~ requiresLocal ~ location ~ bounding ~ deleted ~ virtualParents ~ isArchived ~ changesetUrl =>
+            limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ requiresLocal ~ location ~ bounding ~
+            deleted ~ virtualParents ~ isArchived ~ systemArchivedAt ~ changesetUrl =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -256,7 +301,8 @@ object ChallengeRepository {
             limitReviewTags,
             taskStyles,
             taskBundleIdProperty,
-            isArchived
+            isArchived,
+            systemArchivedAt
           ),
           status,
           statusMessage,
@@ -279,7 +325,11 @@ object ChallengeRepository {
       get[Boolean]("challenges.is_archived") map {
       case id ~ created ~ name ~ deleted ~ isArchived =>
         new ArchivableChallenge(
-          id, created, name, deleted, isArchived
+          id,
+          created,
+          name,
+          deleted,
+          isArchived
         )
     }
   }
@@ -289,11 +339,13 @@ object ChallengeRepository {
     */
   val archivedTaskParser: RowParser[ArchivableTask] = {
     get[Long]("tasks.id") ~
-      get[DateTime]("tasks.modified") map {
-      case id ~ modified  =>
+      get[DateTime]("tasks.modified") ~
+      get[Long]("tasks.status") map {
+      case id ~ modified ~ status =>
         new ArchivableTask(
           id,
-          modified
+          modified,
+          status
         )
     }
   }

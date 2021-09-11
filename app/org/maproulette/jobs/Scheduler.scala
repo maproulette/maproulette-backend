@@ -111,6 +111,13 @@ class Scheduler @Inject() (
   )
 
   scheduleAtTime(
+    "updateChallengeCompletionMetrics",
+    "Updating Challenge Completion Metrics",
+    config.getValue(Config.KEY_SCHEDULER_UPDATE_CHALLENGE_COMPLETION_START),
+    Config.KEY_SCHEDULER_UPDATE_CHALLENGE_COMPLETION_INTERVAL
+  )
+
+  scheduleAtTime(
     "sendCountNotificationWeeklyEmails",
     "Sending Count Notification Weekly Emails",
     config.getValue(Config.KEY_SCHEDULER_COUNT_NOTIFICATION_WEEKLY_START),

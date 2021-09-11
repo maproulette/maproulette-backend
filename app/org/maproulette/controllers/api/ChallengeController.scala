@@ -7,8 +7,8 @@ package org.maproulette.controllers.api
 import java.io._
 import java.sql.Connection
 import java.util.zip.{ZipEntry, ZipOutputStream}
-
 import akka.util.ByteString
+
 import javax.inject.Inject
 import org.apache.commons.lang3.StringUtils
 import org.joda.time.{DateTime, DateTimeZone}
@@ -394,6 +394,31 @@ class ChallengeController @Inject() (
       val results = this.dalManager.task
         .getNearbyTasks(User.userOrMocked(user), challengeId, proximityId, excludeSelfLocked, limit)
       Ok(Json.toJson(results))
+    }
+  }
+
+  /**
+    * Archive or unarchive a list of challenges
+    *
+    * @body ids  The list of challengeIds
+    * @body isArchived  boolean determining if challenges should be archived(true) or unarchived(false)
+    * @return
+    */
+  def bulkArchive(): Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      try {
+        val body         = request.body;
+        val challengeIds = (body \ "ids").as[List[Long]]
+        val archiving    = (body \ "isArchived").asOpt[Boolean].getOrElse(true);
+
+        this.dalManager.challenge.bulkArchive(challengeIds, archiving);
+
+        Ok(Json.toJson(archiving))
+      } catch {
+        case e: Exception =>
+          logger.error(e.getMessage, e)
+          BadRequest(Json.toJson(StatusMessage("KO", JsString(e.getMessage))))
+      }
     }
   }
 
@@ -1324,6 +1349,29 @@ class ChallengeController @Inject() (
     implicit request =>
       sessionManager.authenticatedRequest { implicit user =>
         Ok(Json.toJson(dalManager.challenge.moveChallenge(newProjectId, challengeId, user)))
+      }
+  }
+
+  /**
+    * Archives a challenge
+    *
+    * @param challengeId  The challenge id
+    * @body isArchived  boolean indicating whether you are archiving or unarchiving
+    */
+  def archiveChallenge(challengeId: Long): Action[JsValue] = Action.async(bodyParsers.json) {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        try {
+          val body      = request.body;
+          val archiving = (body \ "isArchived").asOpt[Boolean].getOrElse(true);
+          val result    = serviceManager.challenge.archiveChallenge(challengeId, archiving)
+
+          Ok(Json.toJson(result))
+        } catch {
+          case e: Exception =>
+            logger.error(e.getMessage, e)
+            BadRequest(Json.toJson(StatusMessage("KO", JsString(e.getMessage))))
+        }
       }
   }
 }

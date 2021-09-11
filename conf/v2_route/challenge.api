@@ -454,6 +454,29 @@ GET     /challenges/preferred                             @org.maproulette.contr
 GET     /challenges                                 @org.maproulette.controllers.api.ChallengeController.list(limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= false)
 ###
 # tags: [ Challenge ]
+# summary: Bulk Archive Challenges.
+# produces: [ application/json ]
+# description: Archive or unarchive a list of challenges
+# responses:
+#   '200':
+#     description: A success message
+# parameters:
+#   - name: ids
+#     in: body
+#     description: A JSON array of challenge IDs
+#     required: true
+#     schema:
+#       type: array
+#       items:
+#         type: integer
+#   - name: isArchived
+#     in: body
+#     description: a boolean indicating if challenges should be archived (true) or unarchived (false)
+#     required: true
+###
+POST     /challenges/bulkArchive                    @org.maproulette.controllers.api.ChallengeController.bulkArchive()
+###
+# tags: [ Challenge ]
 # summary: List all the Challenges with review tasks.
 # produces: [ application/json ]
 # description: Lists all the Challenges in the system with review tasks.
@@ -1198,3 +1221,26 @@ POST    /challenge/:id/tasks                        @org.maproulette.controllers
 # deprecated: true
 ###
 PUT     /challenge/:id/tasks                        @org.maproulette.controllers.api.ChallengeController.updateChildren(id:Long)
+###
+# tags: [ Challenge ]
+# summary: Update archive status
+# description: This will update the archive status of the challenge
+# response:
+#   '200':
+#     description: a success message
+#   '401':
+#     description: The user is not authorized to make this request
+#   '404':
+#     description: Error
+# parameters:
+#   - name: challengeId
+#     in: path
+#     description: The ID of the challenge
+#     required: true
+#   - name: isArchived
+#     in: body
+#     description: boolean indicating if the challenge should be archived or unarchived
+#     required: false
+###
+POST     /challenge/:challengeId/archive   @org.maproulette.controllers.api.ChallengeController.archiveChallenge(challengeId: Long)
+

@@ -163,8 +163,10 @@ class CommentService @Inject() (
     if (StringUtils.isEmpty(comment)) {
       throw new InvalidException("Invalid empty string supplied. Comment could not be created.")
     }
-    val newComment = this.challengeCommentRepository.create(user, challenge.id, comment, challenge.general.parent);
-    this.serviceManager.notification.createChallengeMentionNotifications(user, newComment, challenge)
+    val newComment =
+      this.challengeCommentRepository.create(user, challenge.id, comment, challenge.general.parent);
+    this.serviceManager.notification
+      .createChallengeMentionNotifications(user, newComment, challenge)
     newComment
   }
 
@@ -177,7 +179,6 @@ class CommentService @Inject() (
   def findChallengeComments(challengeId: Long): List[ChallengeComment] = {
     this.challengeCommentRepository.queryByChallengeId(challengeId);
   }
-
 
   /**
     * Retrieves the comments based on the input criteria

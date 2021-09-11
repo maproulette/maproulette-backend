@@ -121,15 +121,17 @@ class ChallengeDAL @Inject() (
       get[Boolean]("challenges.requires_local") ~
       get[Boolean]("deleted") ~
       get[Boolean]("challenges.is_archived") ~
-      get[Option[Boolean]]("challenges.changeset_url") map {
+      get[Option[Boolean]]("challenges.changeset_url") ~
+      get[Option[Int]]("challenges.completion_percentage") ~
+      get[Option[Int]]("challenges.tasks_remaining") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
             checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~ status ~ statusMessage ~
             defaultPriority ~ highPriorityRule ~ mediumPriorityRule ~ lowPriorityRule ~ defaultZoom ~
             minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~ customBasemap ~ updateTasks ~
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
-            limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~
-            dataOriginDate ~ location ~ bounding ~ requiresLocal ~ deleted ~ isArchived ~ changesetUrl =>
+            limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
+            requiresLocal ~ deleted ~ isArchived ~ changesetUrl ~ completionPercentage ~ tasksRemaining =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -191,7 +193,9 @@ class ChallengeDAL @Inject() (
           lastTaskRefresh,
           dataOriginDate,
           location,
-          bounding
+          bounding,
+          completionPercentage,
+          tasksRemaining
         )
     }
   }
@@ -251,7 +255,10 @@ class ChallengeDAL @Inject() (
       get[Option[List[Long]]]("virtual_parent_ids") ~
       get[Option[List[String]]]("presets") ~
       get[Boolean]("challenges.is_archived") ~
-      get[Boolean]("challenges.changeset_url") map {
+      get[Option[DateTime]]("challenges.system_archived_at") ~
+      get[Boolean]("challenges.changeset_url") ~
+      get[Option[Int]]("challenges.completion_percentage") ~
+      get[Option[Int]]("challenges.tasks_remaining") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~
             checkin_comment ~ checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~
@@ -260,7 +267,7 @@ class ChallengeDAL @Inject() (
             customBasemap ~ updateTasks ~ exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~
             preferredReviewTags ~ limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~
             dataOriginDate ~ location ~ bounding ~ requiresLocal ~ deleted ~ virtualParents ~
-            presets ~ isArchived ~ changesetUrl =>
+            presets ~ isArchived ~ systemArchivedAt ~ changesetUrl ~ completionPercentage ~ tasksRemaining =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -316,6 +323,7 @@ class ChallengeDAL @Inject() (
             taskStyles,
             taskBundleIdProperty,
             isArchived,
+            systemArchivedAt,
             presets
           ),
           status,
@@ -323,7 +331,9 @@ class ChallengeDAL @Inject() (
           lastTaskRefresh,
           dataOriginDate,
           location,
-          bounding
+          bounding,
+          completionPercentage,
+          tasksRemaining
         )
     }
   }
@@ -809,7 +819,7 @@ class ChallengeDAL @Inject() (
     // add a child caching option that will keep a list of children for the parent
     this.withMRConnection { implicit c =>
       val geometryParser = this.taskRepository.getTaskParser(this.taskRepository.updateAndRetrieve)
-      val offset = page * limit;
+      val offset         = page * limit;
       val query =
         s"""SELECT ${taskDAL.retrieveColumns}
                       FROM tasks
@@ -1278,6 +1288,35 @@ class ChallengeDAL @Inject() (
         this.updateGeometry(challengeId)
       }
       clusteredList
+    }
+  }
+
+  /**
+    * Archive or unarchive a list of challenges
+    *
+    * @param challengeIds  The list of challengeIds
+    * @param archive  boolean determining if challenges should be archived(true) or unarchived(false)
+    * @return
+    */
+  def bulkArchive(challengeIds: List[Long], archive: Boolean)(
+      implicit c: Option[Connection] = None
+  ): List[Long] = {
+    this.withMRConnection { implicit c =>
+      try {
+        val ids = challengeIds.mkString(",")
+        val query =
+          s"""UPDATE challenges
+             |	SET is_archived = ${archive}
+             |	WHERE id IN (${ids});""".stripMargin
+        SQL(query).executeUpdate()
+
+        challengeIds
+      } catch {
+        case e: Exception =>
+          logger.error(e.getMessage, e)
+          throw e
+      }
+
     }
   }
 
