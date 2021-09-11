@@ -5,13 +5,12 @@
 package org.maproulette.provider
 
 import java.util.UUID
-
 import javax.inject.{Inject, Singleton}
 import org.apache.commons.lang3.StringUtils
 import org.joda.time.DateTime
 import org.maproulette.Config
 import org.maproulette.exception.InvalidException
-import org.maproulette.framework.model.{Challenge, User, Task}
+import org.maproulette.framework.model.{Challenge, Task, User}
 import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}
 import org.maproulette.utils.Utils
 import org.slf4j.LoggerFactory
@@ -20,6 +19,7 @@ import play.api.http.Status
 import play.api.libs.json._
 import play.api.libs.ws.WSClient
 
+import scala.collection.View.Empty
 import scala.concurrent.Future
 import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success}
@@ -352,30 +352,40 @@ class ChallengeProvider @Inject() (
     this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_BUILDING), user)(parent.id)
     val featureList = (jsonData \ "features").as[List[JsValue]]
     try {
-      val createdTasks = featureList.flatMap { value =>
-        if (!single) {
-          this.createNewTask(
-            user,
-            taskNameFromJsValue(value, parent),
-            parent,
-            (value \ "geometry").as[JsObject],
-            Utils.getProperties(value, "properties")
-          )
-        } else {
-          None
-        }
-      }
-
-      this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(parent.id)
-      this.challengeDAL.markTasksRefreshed()(parent.id)
-      if (single) {
-        this.createNewTask(user, taskNameFromJsValue(jsonData, parent), parent, jsonData) match {
-          case Some(t) => List(t)
-          case None    => List.empty
-        }
+      if (featureList.size > 50000) {
+        val statusMessage = "Tasks were not accepted. Your feature list size must be under 50000."
+        this.challengeDAL.update(
+          Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
+          user
+        )(parent.id)
+        logger.error(s"${featureList.size} tasks failed to be created from json file.", statusMessage)
+        List.empty
       } else {
-        logger.debug(s"${featureList.size} tasks created from json file.")
-        createdTasks
+        val createdTasks = featureList.flatMap { value =>
+          if (!single) {
+            this.createNewTask(
+              user,
+              taskNameFromJsValue(value, parent),
+              parent,
+              (value \ "geometry").as[JsObject],
+              Utils.getProperties(value, "properties")
+            )
+          } else {
+            None
+          }
+        }
+
+        this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(parent.id)
+        this.challengeDAL.markTasksRefreshed()(parent.id)
+        if (single) {
+          this.createNewTask(user, taskNameFromJsValue(jsonData, parent), parent, jsonData) match {
+            case Some(t) => List(t)
+            case None    => List.empty
+          }
+        } else {
+          logger.debug(s"${featureList.size} tasks created from json file.")
+          createdTasks
+        }
       }
     } catch {
       case e: Exception =>

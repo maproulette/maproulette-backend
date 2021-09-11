@@ -112,8 +112,6 @@ class ChallengeController @Inject() (
       case None        => None
     }
 
-    // TODO: Block large challenges
-
     if (!this.challengeProvider.buildTasks(user, createdObject, localJson)) {
       super.extractAndCreate(body, createdObject, user)
     }
