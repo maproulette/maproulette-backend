@@ -1018,8 +1018,6 @@ class ChallengeController @Inject() (
             val updatedBody =
               this.updateCreateBody(Utils.insertIntoJson(challengeJson, "parent", projectId), user)
             if (challengeID > 0) {
-              // TODO: get new task count
-
               // if rebuild set to true, remove all the tasks first from the challenge before recreating them
               this.dal.deleteTasks(user, challengeID)
               // if you provide the ID in the post method we will send you to the update path
@@ -1317,10 +1315,10 @@ class ChallengeController @Inject() (
                   val sourceData = Source.fromFile(f.ref.getAbsoluteFile).getLines()
                   if (lineByLine) {
                     val total = currentTaskCount + sourceData.size;
-                    if (total > 50000) {
+                    if (total > Config.DEFAULT_MAX_TASKS_PER_CHALLENGE) {
                       if (currentTaskCount == 0) {
                         val statusMessage =
-                          "Tasks were not accepted. Your total challenge tasks would exceed the 50000 cap."
+                          s"Tasks were not accepted. Your total challenge tasks would exceed the ${Config.DEFAULT_MAX_TASKS_PER_CHALLENGE} cap."
                         dalManager.challenge.update(
                           Json.obj(
                             "status"        -> Challenge.STATUS_FAILED,
@@ -1334,7 +1332,7 @@ class ChallengeController @Inject() (
                         )
                       } else {
                         throw new InvalidException(
-                          s"Total challenge tasks would exceed cap of 50000"
+                          s"Total challenge tasks would exceed cap of ${Config.DEFAULT_MAX_TASKS_PER_CHALLENGE}"
                         )
                       }
                     } else {

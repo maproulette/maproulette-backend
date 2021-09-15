@@ -15,6 +15,7 @@ import org.maproulette.exception.{
   NotFoundException,
   StatusMessage
 }
+import org.maproulette.Config
 import org.maproulette.framework.controller.SessionController
 import org.maproulette.framework.model.User
 import org.maproulette.metrics.Metrics
@@ -114,7 +115,7 @@ trait CRUDController[T <: BaseObject[Long]] extends SessionController {
     (requestBody \ "parent").asOpt[Long] match {
       case Some(parentId) =>
         val currentTaskCount = this.dal.getTaskCountBase(parentId);
-        if (currentTaskCount < 50000) {
+        if (currentTaskCount < Config.DEFAULT_MAX_TASKS_PER_CHALLENGE) {
           this.dal.mergeUpdate(element, user)(element.id) match {
             case Some(created) =>
               this.extractAndCreate(requestBody, created, user)
@@ -129,7 +130,7 @@ trait CRUDController[T <: BaseObject[Long]] extends SessionController {
           }
         } else {
           throw new InvalidException(
-            "Challenges cannot exceed 50000 tasks"
+            s"Challenges cannot exceed ${Config.DEFAULT_MAX_TASKS_PER_CHALLENGE} tasks"
           )
         }
       case None => {
@@ -397,7 +398,7 @@ trait CRUDController[T <: BaseObject[Long]] extends SessionController {
               (element \ "parent").asOpt[Long] match {
                 case Some(parentId) =>
                   val currentTaskCount = this.dal.getTaskCountBase(parentId);
-                  if (currentTaskCount < 50000) {
+                  if (currentTaskCount < Config.DEFAULT_MAX_TASKS_PER_CHALLENGE) {
                     this
                       .updateCreateBody(element, user)
                       .validate[T]

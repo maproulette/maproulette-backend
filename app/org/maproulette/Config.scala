@@ -261,7 +261,6 @@ object Config {
   val KEY_TASK_SCORE_TOO_HARD       = s"$GROUP_MAPROULETTE.task.score.tooHard"
   val KEY_TASK_SCORE_SKIPPED        = s"$GROUP_MAPROULETTE.task.score.skipped"
   val KEY_REVIEW_NEEDED_DEFAULT     = s"$GROUP_MAPROULETTE.review.default"
-  val KEY_MAX_TASKS_PER_CHALLENGE   = s"$GROUP_MAPROULETTE.maxTasksPerChallenge"
 
   val SUB_GROUP_SCHEDULER                      = s"$GROUP_MAPROULETTE.scheduler"
   val KEY_SCHEDULER_CLEAN_LOCKS_INTERVAL       = s"$SUB_GROUP_SCHEDULER.cleanLocks.interval"
@@ -368,7 +367,7 @@ object Config {
   val DEFAULT_MATCHER_BATCH_SIZE                      = 5000
   val DEFAULT_MAPILLARY_BORDER                        = 10
   val DEFAULT_REVIEW_NEEDED                           = 0
-  val DEFAULT_MAX_TASKS_PER_CHALLENGE                 = 10
+  val DEFAULT_MAX_TASKS_PER_CHALLENGE                 = 50000
 
   // Redis Cache id's for different caches
   val CACHE_ID_TAGS               = "1";

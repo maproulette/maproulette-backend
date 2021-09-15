@@ -217,9 +217,9 @@ class ChallengeProvider @Inject() (
         try {
           val splitJson = resp.body.split("\n")
 
-          if (splitJson.size > 50000) {
+          if (splitJson.size > Config.DEFAULT_MAX_TASKS_PER_CHALLENGE.toInt) {
             val statusMessage =
-              "Tasks were not accepted. Your feature list size must be under 50000."
+              s"Tasks were not accepted. Your feature list size must be under ${Config.DEFAULT_MAX_TASKS_PER_CHALLENGE}."
             this.challengeDAL.update(
               Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
               user
@@ -375,9 +375,9 @@ class ChallengeProvider @Inject() (
     this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_BUILDING), user)(parent.id)
     val featureList = (jsonData \ "features").as[List[JsValue]]
     try {
-      if (featureList.size + currentTaskCount > 50000) {
+      if (featureList.size + currentTaskCount > Config.DEFAULT_MAX_TASKS_PER_CHALLENGE) {
         if (currentTaskCount == 0) {
-          val statusMessage = "Tasks were not accepted. Your feature list size must be under 50000."
+          val statusMessage = s"Tasks were not accepted. Your feature list size must be under ${Config.DEFAULT_MAX_TASKS_PER_CHALLENGE}."
           this.challengeDAL.update(
             Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
             user
@@ -388,7 +388,7 @@ class ChallengeProvider @Inject() (
           )
           List.empty
         } else {
-          throw new InvalidException(s"Total challenge tasks would exceed cap of 50000")
+          throw new InvalidException(s"Total challenge tasks would exceed cap of ${Config.DEFAULT_MAX_TASKS_PER_CHALLENGE}")
         }
       } else {
         val createdTasks = featureList.flatMap { value =>
