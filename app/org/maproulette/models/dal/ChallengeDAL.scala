@@ -1357,6 +1357,22 @@ class ChallengeDAL @Inject() (
   }
 
   /**
+    * Get count of tasks in a challenge
+    *
+    * @param challengeId
+    */
+  def getTaskCount(challengeId: Long)(implicit c: Option[Connection] = None): Int = {
+    this.withMRConnection { implicit c =>
+      val countParser = int("count") map {
+        case count => count
+      }
+      SQL"""SELECT COUNT(parent_id) as count FROM tasks WHERE parent_id = ${challengeId}"""
+        .as(countParser.*)
+        .head
+    }
+  }
+
+  /**
     * Moves a challenge from one project to another. You are required to have admin access on both
     * the current project and the project you are moving the challenge too
     *

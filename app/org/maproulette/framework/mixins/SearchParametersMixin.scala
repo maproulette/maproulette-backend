@@ -47,7 +47,7 @@ trait SearchParametersMixin {
       this.filterChallenges(params),
       this.filterChallengeTags(params),
       this.filterChallengeEnabled(params),
-      this.filterChallengeArchived(params),
+      this.filterChallengeArchived(params)
     )
 
     if (projectSearch) {
@@ -662,22 +662,22 @@ trait SearchParametersMixin {
   }
 
   /**
-   * Filters by c.is_archived. Will only include if
-   * challengeParams.archived value is true
-   */
+    * Filters by c.is_archived. Will only include if
+    * challengeParams.archived value is true
+    */
   def filterChallengeArchived(params: SearchParameters): FilterGroup = {
-      FilterGroup(
-        List(
-          FilterParameter.conditional(
-            Challenge.FIELD_ARCHIVED,
-            value = params.challengeParams.archived,
-            Operator.EQ,
-            useValueDirectly = true,
-            includeOnlyIfTrue = true,
-            table = Some("c")
-          )
+    FilterGroup(
+      List(
+        FilterParameter.conditional(
+          Challenge.FIELD_ARCHIVED,
+          value = params.challengeParams.archived,
+          Operator.EQ,
+          useValueDirectly = true,
+          includeOnlyIfTrue = true,
+          table = Some("c")
         )
       )
+    )
   }
 
   /**

@@ -376,4 +376,20 @@ trait BaseDAL[Key, T <: BaseObject[Key]]
       }
     }
   }
+
+  /**
+    * Get count of tasks in a challenge, needed in baseDal for batchUpload services
+    *
+    * @param challengeId
+    */
+  def getTaskCountBase(challengeId: Long)(implicit c: Option[Connection] = None): Int = {
+    this.withMRConnection { implicit c =>
+      val countParser = int("count") map {
+        case count => count
+      }
+      SQL"""SELECT COUNT(parent_id) as count FROM tasks WHERE parent_id = ${challengeId}"""
+        .as(countParser.*)
+        .head
+    }
+  }
 }

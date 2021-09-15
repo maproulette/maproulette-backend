@@ -168,9 +168,14 @@ class ChallengeProvider @Inject() (
     * @param json      The geojson for the task
     * @return
     */
-  def createTasksFromJson(user: User, challenge: Challenge, json: String): List[Task] = {
+  def createTasksFromJson(
+      user: User,
+      challenge: Challenge,
+      json: String,
+      currentTaskCount: Int = 0
+  ): List[Task] = {
     try {
-      this.createTasksFromFeatures(user, challenge, Json.parse(json))
+      this.createTasksFromFeatures(user, challenge, Json.parse(json), false, currentTaskCount)
     } catch {
       case e: Exception =>
         this.challengeDAL.update(
@@ -211,22 +216,39 @@ class ChallengeProvider @Inject() (
         logger.debug("Creating tasks from remote GeoJSON file")
         try {
           val splitJson = resp.body.split("\n")
-          if (this.isLineByLineGeoJson(splitJson)) {
-            splitJson.foreach { line =>
-              val jsonData = Json.parse(normalizeRFC7464Sequence(line))
-              this.createNewTask(
-                user,
-                taskNameFromJsValue(jsonData, challenge),
-                challenge,
-                jsonData
-              )
-            }
-            this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(
-              challenge.id
+
+          if (splitJson.size > 50000) {
+            val statusMessage =
+              "Tasks were not accepted. Your feature list size must be under 50000."
+            this.challengeDAL.update(
+              Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
+              user
+            )(challenge.id)
+            logger.error(
+              s"${splitJson.size} tasks failed to be created from json file.",
+              statusMessage
             )
-            this.challengeDAL.markTasksRefreshed()(challenge.id)
           } else {
-            this.createTasksFromFeatures(user, challenge, Json.parse(resp.body))
+            if (this.isLineByLineGeoJson(splitJson)) {
+
+              splitJson.foreach { line =>
+                val jsonData = Json.parse(normalizeRFC7464Sequence(line))
+                this.createNewTask(
+                  user,
+                  taskNameFromJsValue(jsonData, challenge),
+                  challenge,
+                  jsonData
+                )
+              }
+              this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(
+                challenge.id
+              )
+
+              this.challengeDAL.markTasksRefreshed()(challenge.id)
+
+            } else {
+              this.createTasksFromFeatures(user, challenge, Json.parse(resp.body))
+            }
           }
         } catch {
           case e: Exception =>
@@ -347,19 +369,27 @@ class ChallengeProvider @Inject() (
       user: User,
       parent: Challenge,
       jsonData: JsValue,
-      single: Boolean = false
+      single: Boolean = false,
+      currentTaskCount: Int = 0
   ): List[Task] = {
     this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_BUILDING), user)(parent.id)
     val featureList = (jsonData \ "features").as[List[JsValue]]
     try {
-      if (featureList.size > 50000) {
-        val statusMessage = "Tasks were not accepted. Your feature list size must be under 50000."
-        this.challengeDAL.update(
-          Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
-          user
-        )(parent.id)
-        logger.error(s"${featureList.size} tasks failed to be created from json file.", statusMessage)
-        List.empty
+      if (featureList.size + currentTaskCount > 50000) {
+        if (currentTaskCount == 0) {
+          val statusMessage = "Tasks were not accepted. Your feature list size must be under 50000."
+          this.challengeDAL.update(
+            Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
+            user
+          )(parent.id)
+          logger.error(
+            s"${featureList.size} tasks failed to be created from json file.",
+            statusMessage
+          )
+          List.empty
+        } else {
+          throw new InvalidException(s"Total challenge tasks would exceed cap of 50000")
+        }
       } else {
         val createdTasks = featureList.flatMap { value =>
           if (!single) {

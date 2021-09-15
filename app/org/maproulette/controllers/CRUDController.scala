@@ -6,11 +6,15 @@
 package org.maproulette.controllers
 
 import java.sql.Connection
-
 import com.fasterxml.jackson.databind.JsonMappingException
 import org.joda.time.DateTime
 import org.maproulette.data.{Created => ActionCreated, _}
-import org.maproulette.exception.{MPExceptionUtil, NotFoundException, StatusMessage}
+import org.maproulette.exception.{
+  InvalidException,
+  MPExceptionUtil,
+  NotFoundException,
+  StatusMessage
+}
 import org.maproulette.framework.controller.SessionController
 import org.maproulette.framework.model.User
 import org.maproulette.metrics.Metrics
@@ -107,18 +111,43 @@ trait CRUDController[T <: BaseObject[Long]] extends SessionController {
   def internalCreate(requestBody: JsValue, element: T, user: User)(
       implicit c: Option[Connection] = None
   ): Option[T] = {
-    this.dal.mergeUpdate(element, user)(element.id) match {
-      case Some(created) =>
-        this.extractAndCreate(requestBody, created, user)
-        this.actionManager.setAction(
-          Some(user),
-          this.itemType.convertToItem(created.id),
-          ActionCreated(),
-          ""
-        )
-        Some(created)
-      case None => None
+    (requestBody \ "parent").asOpt[Long] match {
+      case Some(parentId) =>
+        val currentTaskCount = this.dal.getTaskCountBase(parentId);
+        if (currentTaskCount < 50000) {
+          this.dal.mergeUpdate(element, user)(element.id) match {
+            case Some(created) =>
+              this.extractAndCreate(requestBody, created, user)
+              this.actionManager.setAction(
+                Some(user),
+                this.itemType.convertToItem(created.id),
+                ActionCreated(),
+                ""
+              )
+              Some(created)
+            case None => None
+          }
+        } else {
+          throw new InvalidException(
+            "Challenges cannot exceed 50000 tasks"
+          )
+        }
+      case None => {
+        this.dal.mergeUpdate(element, user)(element.id) match {
+          case Some(created) =>
+            this.extractAndCreate(requestBody, created, user)
+            this.actionManager.setAction(
+              Some(user),
+              this.itemType.convertToItem(created.id),
+              ActionCreated(),
+              ""
+            )
+            Some(created)
+          case None => None
+        }
+      }
     }
+
   }
 
   /**
@@ -365,14 +394,29 @@ trait CRUDController[T <: BaseObject[Long]] extends SessionController {
           (element \ "id").asOpt[String] match {
             case Some(itemID) => if (update) this.internalUpdate(element, user)(itemID, -1)
             case None =>
-              this
-                .updateCreateBody(element, user)
-                .validate[T]
-                .fold(
-                  errors =>
-                    logger.warn(s"Invalid json for type: ${JsError.toJson(errors).toString}"),
-                  validT => this.internalCreate(element, validT, user)
-                )
+              (element \ "parent").asOpt[Long] match {
+                case Some(parentId) =>
+                  val currentTaskCount = this.dal.getTaskCountBase(parentId);
+                  if (currentTaskCount < 50000) {
+                    this
+                      .updateCreateBody(element, user)
+                      .validate[T]
+                      .fold(
+                        errors =>
+                          logger.warn(s"Invalid json for type: ${JsError.toJson(errors).toString}"),
+                        validT => this.internalCreate(element, validT, user)
+                      )
+                  }
+                case None =>
+                  this
+                    .updateCreateBody(element, user)
+                    .validate[T]
+                    .fold(
+                      errors =>
+                        logger.warn(s"Invalid json for type: ${JsError.toJson(errors).toString}"),
+                      validT => this.internalCreate(element, validT, user)
+                    )
+              }
           }
         )
       }
