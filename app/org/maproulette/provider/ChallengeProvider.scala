@@ -215,7 +215,7 @@ class ChallengeProvider @Inject() (
       case Success(resp) =>
         logger.debug("Creating tasks from remote GeoJSON file")
         try {
-          val splitJson       = resp.body.split("\n")
+          val splitJson = resp.body.split("\n")
 
           if (this.isLineByLineGeoJson(splitJson)) {
             val splitJsonLength = resp.body.split("\n").length;
