@@ -216,22 +216,21 @@ class ChallengeProvider @Inject() (
         logger.debug("Creating tasks from remote GeoJSON file")
         try {
           val splitJson       = resp.body.split("\n")
-          val splitJsonLength = resp.body.split("\n").length;
 
-          if (splitJsonLength > Config.DEFAULT_MAX_TASKS_PER_CHALLENGE) {
-            val statusMessage =
-              s"Tasks were not accepted. Your feature list size must be under ${Config.DEFAULT_MAX_TASKS_PER_CHALLENGE}."
-            this.challengeDAL.update(
-              Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
-              user
-            )(challenge.id)
-            logger.error(
-              s"${splitJsonLength} tasks failed to be created from json file.",
-              statusMessage
-            )
-          } else {
-            if (this.isLineByLineGeoJson(splitJson)) {
-
+          if (this.isLineByLineGeoJson(splitJson)) {
+            val splitJsonLength = resp.body.split("\n").length;
+            if (splitJsonLength > Config.DEFAULT_MAX_TASKS_PER_CHALLENGE) {
+              val statusMessage =
+                s"Tasks were not accepted. Your feature list size must be under ${Config.DEFAULT_MAX_TASKS_PER_CHALLENGE}."
+              this.challengeDAL.update(
+                Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
+                user
+              )(challenge.id)
+              logger.error(
+                s"${splitJsonLength} tasks failed to be created from json file.",
+                statusMessage
+              )
+            } else {
               splitJson.foreach { line =>
                 val jsonData = Json.parse(normalizeRFC7464Sequence(line))
                 this.createNewTask(
@@ -246,10 +245,9 @@ class ChallengeProvider @Inject() (
               )
 
               this.challengeDAL.markTasksRefreshed()(challenge.id)
-
-            } else {
-              this.createTasksFromFeatures(user, challenge, Json.parse(resp.body))
             }
+          } else {
+            this.createTasksFromFeatures(user, challenge, Json.parse(resp.body))
           }
         } catch {
           case e: Exception =>
