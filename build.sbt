@@ -60,9 +60,9 @@ libraryDependencies ++= Seq(
   "commons-codec"           % "commons-codec"       % "1.14",
   "com.typesafe.play"       %% "play-mailer"        % "8.0.0",
   "com.typesafe.play"       %% "play-mailer-guice"  % "8.0.0",
-  "com.typesafe.akka"       %% "akka-cluster-tools" % "2.6.1",
-  "com.typesafe.akka"       %% "akka-cluster-typed" % "2.6.1",
-  "com.typesafe.akka"       %% "akka-slf4j"         % "2.6.1",
+  "com.typesafe.akka"       %% "akka-cluster-tools" % "2.6.17",
+  "com.typesafe.akka"       %% "akka-cluster-typed" % "2.6.17",
+  "com.typesafe.akka"       %% "akka-slf4j"         % "2.6.17",
   "net.debasishg"           %% "redisclient"        % "3.20"
 )
 
