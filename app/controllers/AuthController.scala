@@ -62,7 +62,7 @@ class AuthController @Inject() (
           }
         case None =>
           sessionManager.retrieveRequestToken(
-            proxyRedirect(routes.AuthController.authenticate()) + s"?redirect=${getRedirectURL(request, redirect)}"
+            proxyRedirect(routes.AuthController.authenticate) + s"?redirect=${getRedirectURL(request, redirect)}"
           ) match {
             case Right(t) =>
               // We received the unauthorized tokens in the OAuth object - store it before we proceed
