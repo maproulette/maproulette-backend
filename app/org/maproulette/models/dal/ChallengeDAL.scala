@@ -721,7 +721,7 @@ class ChallengeDAL @Inject() (
     // update the task priorities in the background
     if (updatedPriorityRules) {
       Future {
-        updateTaskPriorities(user)
+        updateTaskPriorities(user, overrideValidation = true)
       }
     }
 
@@ -747,7 +747,10 @@ class ChallengeDAL @Inject() (
     * @param id   The id of the challenge
     * @param c    The connection for the request
     */
-  def updateTaskPriorities(user: User)(implicit id: Long, c: Option[Connection] = None): Unit = {
+  def updateTaskPriorities(
+      user: User,
+      overrideValidation: Boolean = false
+  )(implicit id: Long, c: Option[Connection] = None): Unit = {
     this.permission.hasWriteAccess(ChallengeType(), user)
     this.withMRConnection { implicit c =>
       val challenge = this.retrieveById(id) match {
@@ -758,7 +761,7 @@ class ChallengeDAL @Inject() (
           )
       }
       // make sure that at least one of the challenges is valid
-      if (Challenge.isValidRule(challenge.priority.highPriorityRule) ||
+      if (overrideValidation || Challenge.isValidRule(challenge.priority.highPriorityRule) ||
           Challenge.isValidRule(challenge.priority.mediumPriorityRule) ||
           Challenge.isValidRule(challenge.priority.lowPriorityRule)) {
         var pointer                  = 0
