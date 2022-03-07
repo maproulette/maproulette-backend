@@ -1284,7 +1284,7 @@ class TaskDAL @Inject() (
   def retrieveTaskSummaries(
       challengeIds: List[Long],
       limit: Int = Config.DEFAULT_LIST_SIZE,
-      offset: Int = 0,
+      page: Int = 0,
       params: SearchParameters
   ): (List[TaskSummary], Map[Long, String]) =
     db.withConnection { implicit c =>
@@ -1375,8 +1375,8 @@ class TaskDAL @Inject() (
             LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
             #${joinClause.toString}
             WHERE tasks.parent_id IN (#${challengeIds.mkString(",")}) AND #${filters.toString}
-            ORDER BY tasks.parent_Id
-            LIMIT #${this.sqlLimit(limit)} OFFSET #${offset}
+            ORDER BY tasks.id
+            LIMIT #${this.sqlLimit(limit)} OFFSET #${page * limit}
       """
       (query.as(parser.*), allComments)
     }

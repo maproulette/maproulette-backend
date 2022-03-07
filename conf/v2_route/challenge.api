@@ -1111,9 +1111,14 @@ GET     /challenge/:id/extractReviewHistory             @org.maproulette.control
 #     in: path
 #     description: The ID of the challenge
 #     required: true
+#   - name: apiKey
+#     in: header
+#     description: The user's apiKey to authorize the request
+#     required: true
+#     type: string
 #   - name: limit
 #     in: query
-#     description: Limit the number of results returned in the response. Default value is 10.
+#     description: Limit the number of results returned in the response. Default value is -1 (no limit).
 #   - name: page
 #     in: query
 #     description: Used in conjunction with the limit parameter to page through X number of responses. Default value is 0, ie. first page.
