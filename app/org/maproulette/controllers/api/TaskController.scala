@@ -115,7 +115,8 @@ class TaskController @Inject() (
   override def updateCreateBody(body: JsValue, user: User): JsValue = {
     // add a default priority, this will be updated later when the task is created if there are
     // priority rules defined in the challenge parent
-    val updatedBody = Utils.insertIntoJson(body, "priority", Challenge.PRIORITY_HIGH)(IntWrites)
+    var updatedBody = Utils.insertIntoJson(body, "priority", Challenge.PRIORITY_HIGH)(IntWrites)
+    updatedBody = Utils.insertIntoJson(updatedBody, "errorTags", "")
     // We need to update the geometries to make sure that we handle all the different types of
     // geometries that you can deal with like WKB or GeoJSON
     this.updateGeometryData(super.updateCreateBody(updatedBody, user))
