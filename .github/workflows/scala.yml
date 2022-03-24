@@ -8,17 +8,63 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgis11:
+        image: postgis/postgis:11-2.5
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_DB: mr_test
+          POSTGRES_USER: osm
+          POSTGRES_PASSWORD: osm
+
     strategy:
       matrix:
-        java: [8, 11, 17]
+        java: [11]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
+    - uses: actions/checkout@v3
+      with:
+        repository: 'osmlab/maproulette-java-client'
+        path: 'java-client'
+        ref: ljdelight/integrationTests
     - name: Set up JDK ${{ matrix.java }}
       uses: actions/setup-java@v2
       with:
         java-version: ${{ matrix.java }}
         distribution: 'temurin'
     - name: Run sbt compile
-      # The project contains tests but those require a database. So for now, just compile.
       run: sbt compile
+    - run: 'ls'
+    - name: Create the dev.conf
+      run: |
+        touch ./conf/dev.conf
+        echo 'include "application.conf"' >> ./conf/dev.conf
+        echo 'db.default {' >> ./conf/dev.conf
+        echo '  url="jdbc:postgresql://localhost:5432/mr_test"' >> ./conf/dev.conf
+        echo '  username="osm"' >> ./conf/dev.conf
+        echo '  password="osm"' >> ./conf/dev.conf
+        echo '}' >> ./conf/dev.conf
+        echo 'maproulette {' >> ./conf/dev.conf
+        echo '  debug=true' >> ./conf/dev.conf
+        echo '  bootstrap=true' >> ./conf/dev.conf
+        echo '  super.key="1234"' >> ./conf/dev.conf
+        echo '  super.accounts=""' >> ./conf/dev.conf
+        echo '}' >> ./conf/dev.conf
+    - name: Run the integration tests
+      env:
+        SBT_OPTS: "-Xms512M -Xmx1024M -Xss2M -XX:MaxMetaspaceSize=1024M"
+        API_HOST: 127.0.0.1:9000
+        host: 127.0.0.1
+        scheme: http
+        apiKey: 1234
+      run: |
+        sbt -Dconfig.file=./conf/dev.conf run &
+        sleep 10
+        pushd java-client
+        ./gradlew --info --project-prop runIntegrationTests \
+          clean integrationTest \
+          --tests '*BatchUploaderIntegrationTest*' \
+          --tests '*ChallengeAPIIntegrationTest*'
+
