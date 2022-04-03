@@ -5,6 +5,22 @@ db.default {
   username="osm"
   password="osm"
 }
+
+akka {
+  # Refer to the manual for akka logging options
+  # https://doc.akka.io/docs/akka/current/logging.html
+  loggers = ["akka.event.slf4j.Slf4jLogger"]
+  loglevel = "WARN"
+  logging-filter = "akka.event.slf4j.Slf4jLoggingFilter"
+  actor {
+    debug {
+      # receive = on
+      # autoreceive = on
+      # lifecycle = on
+    }
+  }
+}
+
 maproulette {
   debug=true
   bootstrap=true

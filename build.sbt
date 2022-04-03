@@ -62,6 +62,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.play"       %% "play-mailer-guice"  % "8.0.0",
   "com.typesafe.akka"       %% "akka-cluster-tools" % "2.6.1",
   "com.typesafe.akka"       %% "akka-cluster-typed" % "2.6.1",
+  "com.typesafe.akka"       %% "akka-slf4j"         % "2.6.1",
   "net.debasishg"           %% "redisclient"        % "3.20"
 )
 

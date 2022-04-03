@@ -59,7 +59,7 @@ Now you're ready to run the MapRoulette backend.
 
 You run the MapRoulette backend in development mode like this:
 
-`sbt run -Dconfig.resource=dev.conf`
+`sbt run -Dconfig.resource=./conf/dev.conf -Dlogger.resource=logback-dev.xml`
 
 > This will take some time the first run as dependencies are downloaded.
 
@@ -68,6 +68,15 @@ Confirm that it's all working by getting `http://localhost:9000/api/v2/challenge
 > This will take some time on first run as artifacts are compiled.
 
 ## Notes
+
+### Logging Levels
+
+During development, please set `-Dlogger.resource=logback-dev.xml` to have the best experience. The logback dev file sets
+many items to the devel level and logs all HTTP request paths and response times.
+
+Any changes to the `conf/logback-dev.xml` will be loaded within about 5 seconds and a service restart is not needed.
+
+To have all request _headers_ sent by the client logged, update the `conf/logback-dev.xml` "org.maproulette.filters" entry to TRACE.
 
 ### Deploying on Windows
 

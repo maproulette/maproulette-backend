@@ -1,0 +1,32 @@
+<configuration debug="true" scan="true" scanPeriod="5 seconds">
+    <conversionRule conversionWord="coloredLevel" converterClass="play.api.libs.logback.ColoredLevel" />
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <Pattern>%date{"HH:mm:ss,SSS"} %coloredLevel [%thread] %class{15}.%M\(%file:%line\) - %message%n%xException</Pattern>
+        </encoder>
+        <includeCallerData>true</includeCallerData>
+    </appender>
+
+    <logger name="org.maproulette" level="DEBUG" />
+
+    <!-- Set this to TRACE to see the client's provided HTTP request headers -->
+    <!-- Do not use TRACE in a production environment since requests with apiKey header will have the key written to the log -->
+    <logger name="org.maproulette.filters" level="DEBUG" />
+
+    <!-- Set psql to DEBUG to see the sql statements sent to the db -->
+    <logger name="org.maproulette.framework.psql" level="INFO" />
+
+    <logger name="play" level="INFO" />
+
+    <!-- More akka logging tweaks can be made in the dev.conf, akka.actor.debug -->
+    <logger name="akka" level="INFO" />
+
+    <!-- Unknown if these actually do anything -->
+    <logger name="application" level="TRACE" />
+    <logger name="controllers" level="TRACE" />
+
+    <root level="INFO">
+        <appender-ref ref="STDOUT" />
+    </root>
+</configuration>
