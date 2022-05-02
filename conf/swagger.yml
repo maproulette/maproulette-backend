@@ -3,7 +3,6 @@ swagger: "2.0"
 info:
   title: "MapRoulette API"
   description: "API for MapRoulette enabling the creation and maintenance of MapRoulette challenges"
-  version: "4.0"
   contact:
     name: "maproulette@maproulette.org"
   license:
