@@ -191,6 +191,10 @@ class TaskController @Inject() (
     //priority based on location and parent priority rules.
     updatePriority(createdObject);
 
+    //https://github.com/osmlab/maproulette3/issues/1733
+    //User request to have taskUploads update taskRefresh for challenge
+    this.dalManager.challenge.markTasksRefreshed()(createdObject.parent);
+
     // If we have added a new task to a 'finished' challenge, we need to make
     // sure to set challenge back to 'ready'
     this.dalManager.challenge.updateReadyStatus()(createdObject.parent)
