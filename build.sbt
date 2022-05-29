@@ -6,7 +6,7 @@ name := "MapRouletteAPI"
 
 version := "4.0.0"
 
-scalaVersion := "2.13.1"
+scalaVersion := "2.13.8"
 
 packageName in Universal := "MapRouletteAPI"
 
@@ -60,9 +60,9 @@ libraryDependencies ++= Seq(
   "commons-codec"           % "commons-codec"       % "1.14",
   "com.typesafe.play"       %% "play-mailer"        % "8.0.0",
   "com.typesafe.play"       %% "play-mailer-guice"  % "8.0.0",
-  "com.typesafe.akka"       %% "akka-cluster-tools" % "2.6.17",
-  "com.typesafe.akka"       %% "akka-cluster-typed" % "2.6.17",
-  "com.typesafe.akka"       %% "akka-slf4j"         % "2.6.17",
+  "com.typesafe.akka"       %% "akka-cluster-tools" % "2.6.19",
+  "com.typesafe.akka"       %% "akka-cluster-typed" % "2.6.19",
+  "com.typesafe.akka"       %% "akka-slf4j"         % "2.6.19",
   "net.debasishg"           %% "redisclient"        % "3.20"
 )
 
