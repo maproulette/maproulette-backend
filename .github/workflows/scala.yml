@@ -53,7 +53,6 @@ jobs:
     - name: Run the integration tests
       env:
         SBT_OPTS: "-Xms512M -Xmx1024M -Xss2M -XX:MaxMetaspaceSize=1024M"
-        API_HOST: 127.0.0.1:9000
         host: 127.0.0.1
         scheme: http
         apiKey: 1234

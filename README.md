@@ -51,7 +51,6 @@ For more details on the app registration process, see the [OSM OAuth wiki page](
     * `mapillary.clientId`: a [Mapillary Client ID](https://www.mapillary.com/dashboard/developers), needed if you want to use any of the Mapillary integrations.
     * `osm.consumerKey` and `osm.consumerSecret`: the OAuth keys from your OSM OAuth app you created earlier.
 * Save `dev.conf`
-* Create an environment variable for the Swagger API documentation: `export API_HOST=localhost:9000`
 
 Now you're ready to run the MapRoulette backend.
 

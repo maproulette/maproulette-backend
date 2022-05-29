@@ -9,7 +9,6 @@ info:
     name: "Apache License version 2.0"
     url: "http://www.apache.org/licenses/"
 basePath: "/api/v2"
-host: ${API_HOST}
 consumes:
   - application/json
 produces:
