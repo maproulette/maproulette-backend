@@ -666,12 +666,12 @@ trait SearchParametersMixin {
     * challengeParams.archived value is true
     */
   def filterChallengeArchived(params: SearchParameters): FilterGroup = {
-    if (params.challengeParams.archived == false) {
+    if (params.challengeParams.archived.getOrElse("false") == "false") {
       FilterGroup(
         List(
           FilterParameter.conditional(
             Challenge.FIELD_ARCHIVED,
-            value = params.challengeParams.archived,
+            value = "false",
             Operator.EQ,
             useValueDirectly = true,
             includeOnlyIfTrue = true,
