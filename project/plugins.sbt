@@ -6,6 +6,8 @@ resolvers ++= Seq(
   Resolver.bintrayIvyRepo("iheartradio", "sbt-plugins")
 )
 
+addDependencyTreePlugin
+
 addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.8.15")
 
 addSbtPlugin("com.typesafe.sbt" % "sbt-gzip" % "1.0.2")
