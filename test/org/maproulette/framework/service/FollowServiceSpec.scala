@@ -8,7 +8,7 @@ package org.maproulette.framework.service
 import org.maproulette.framework.model._
 import org.maproulette.framework.util.{FrameworkHelper, UserTag}
 import org.maproulette.exception.{InvalidException}
-import org.scalatest.Matchers._
+import org.scalatest.matchers.should.Matchers._
 import play.api.libs.json.Json
 import play.api.Application
 

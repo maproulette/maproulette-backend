@@ -14,7 +14,7 @@ import org.maproulette.exception.{InvalidException}
 import org.maproulette.session.{SearchParameters, SearchTaskParameters}
 import org.maproulette.data.{ProjectType}
 import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}
-import org.scalatest.Matchers._
+import org.scalatest.matchers.should.Matchers._
 import play.api.Application
 
 /**

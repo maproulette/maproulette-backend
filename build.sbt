@@ -43,27 +43,36 @@ libraryDependencies ++= Seq(
   specs2 % Test,
   filters,
   guice,
+
+  // NOTE: Be careful upgrading sangria and play-json as binary incompatiblities can break graphql and the entire UI.
+  //       See the compatibility matrix here https://github.com/sangria-graphql/sangria-play-json
   "org.sangria-graphql"     %% "sangria-play-json"  % "2.0.1",
-  "org.sangria-graphql"     %% "sangria"            % "2.0.0-M1",
-  "com.typesafe.play"       %% "play-json-joda"     % "2.8.1",
-  "com.typesafe.play"       %% "play-json"          % "2.8.1",
-  "org.scalatestplus.play"  %% "scalatestplus-play" % "5.0.0" % Test,
-  "org.webjars"             % "swagger-ui"          % "3.25.0",
-  "org.playframework.anorm" %% "anorm"              % "2.6.5",
-  "org.playframework.anorm" %% "anorm-postgres"     % "2.6.5",
-  "org.postgresql"          % "postgresql"          % "42.2.10",
-  "net.postgis"             % "postgis-jdbc"        % "2.3.0",
-  "joda-time"               % "joda-time"           % "2.10.5",
+  "org.sangria-graphql"     %% "sangria"            % "2.0.1",
+  "com.typesafe.play"       %% "play-json-joda"     % "2.8.2",
+  "com.typesafe.play"       %% "play-json"          % "2.8.2",
+  "org.scalatestplus.play"  %% "scalatestplus-play" % "5.1.0" % Test,
+  "org.scalatestplus"       %% "mockito-4-5"        % "3.2.12.0" % Test,
+
+  // NOTE: There is a breaking change with swagger-ui starting at v4.1.3 where the 'url'
+  //       parameter is disabled for security reasons.
+  //       See https://github.com/swagger-api/swagger-ui/issues/4872
+  "org.webjars"             % "swagger-ui"          % "4.1.2",
+
+  "org.playframework.anorm" %% "anorm"              % "2.6.10",
+  "org.playframework.anorm" %% "anorm-postgres"     % "2.6.10",
+  "org.postgresql"          % "postgresql"          % "42.3.4",
+  "net.postgis"             % "postgis-jdbc"        % "2021.1.0",
+  "joda-time"               % "joda-time"           % "2.10.14",
   "com.vividsolutions"      % "jts"                 % "1.13",
   "org.wololo"              % "jts2geojson"         % "0.14.3",
-  "org.apache.commons"      % "commons-lang3"       % "3.9",
+  "org.apache.commons"      % "commons-lang3"       % "3.12.0",
   "commons-codec"           % "commons-codec"       % "1.14",
-  "com.typesafe.play"       %% "play-mailer"        % "8.0.0",
-  "com.typesafe.play"       %% "play-mailer-guice"  % "8.0.0",
+  "com.typesafe.play"       %% "play-mailer"        % "8.0.1",
+  "com.typesafe.play"       %% "play-mailer-guice"  % "8.0.1",
   "com.typesafe.akka"       %% "akka-cluster-tools" % "2.6.19",
   "com.typesafe.akka"       %% "akka-cluster-typed" % "2.6.19",
   "com.typesafe.akka"       %% "akka-slf4j"         % "2.6.19",
-  "net.debasishg"           %% "redisclient"        % "3.20"
+  "net.debasishg"           %% "redisclient"        % "3.42"
 )
 
 resolvers ++= Seq(
