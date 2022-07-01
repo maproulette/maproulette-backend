@@ -18,9 +18,9 @@ jobs:
         env:
           CI: true
         run: |
-          sbt 'set asciiGraphWidth := 10000' 'dependencyTree'
+          sbt -Dsbt.log.format=false 'set asciiGraphWidth := 10000' 'dependencyTree'
 
-  sbt_tests:
+  sbt_tests_jacoco:
     runs-on: ubuntu-latest
     services:
       postgis11:
@@ -41,14 +41,14 @@ jobs:
         with:
           java-version: ${{ matrix.java }}
           distribution: 'temurin'
-      - name: Run sbt tests
+      - name: Run sbt tests with jacoco analysis
         env:
           CI: true
           MR_TEST_DB_NAME: "mr_test"
           MR_TEST_DB_USER: "osm"
           MR_TEST_DB_PASSWORD: "osm"
         run: |
-          sbt -Dsbt.log.format=false test
+          sbt -Dsbt.log.format=false jacoco
 
   build:
     runs-on: ubuntu-latest
