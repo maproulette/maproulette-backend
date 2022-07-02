@@ -15,6 +15,14 @@ lazy val compileScalastyle = taskKey[Unit]("compileScalastyle")
 compileScalastyle := scalastyle.in(Compile).toTask("").value
 (scalastyleConfig in Compile) := baseDirectory.value / "conf/scalastyle-config.xml"
 
+// Setup the scalafix plugin
+inThisBuild(List(
+  semanticdbEnabled := true,
+  semanticdbOptions += "-P:semanticdb:synthetics:on",
+  semanticdbVersion := scalafixSemanticdb.revision,
+  scalafixScalaBinaryVersion := CrossVersion.binaryScalaVersion(scalaVersion.value),
+))
+
 lazy val `MapRouletteV2` = (project in file(".")).enablePlugins(PlayScala, SbtWeb, SwaggerPlugin)
 
 swaggerDomainNameSpaces := Seq(
@@ -85,7 +93,8 @@ scalacOptions ++= Seq(
   // Show warning feature details in the console
   "-feature",
   // Enable routes file splitting
-  "-language:reflectiveCalls"
+  "-language:reflectiveCalls",
+  "-Wunused:imports"
 )
 
 javaOptions in Test ++= Option(System.getProperty("config.file")).map("-Dconfig.file=" + _).toSeq

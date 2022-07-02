@@ -19,3 +19,5 @@ addSbtPlugin("com.iheart" % "sbt-play-swagger" % "0.10.6-PLAY2.8")
 addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.3.1")
 
 addSbtPlugin("com.github.sbt" % "sbt-jacoco" % "3.4.0")
+
+addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.10.1")

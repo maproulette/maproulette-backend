@@ -19,6 +19,11 @@ jobs:
           CI: true
         run: |
           sbt -Dsbt.log.format=false 'set asciiGraphWidth := 10000' 'dependencyTree'
+      - name: Verify scalafix passes
+        env:
+          CI: true
+        run: |
+          sbt -Dsbt.log.format=false 'generateRoutesFile' 'scalafixAll --check'
 
   sbt_tests_jacoco:
     runs-on: ubuntu-latest
