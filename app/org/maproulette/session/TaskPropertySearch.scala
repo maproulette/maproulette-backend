@@ -4,14 +4,7 @@
  */
 package org.maproulette.session
 
-import java.net.URLDecoder
 
-import org.maproulette.utils.Utils
-import play.api.mvc.{AnyContent, Request}
-import play.api.data.format.Formats
-import play.api.libs.json._
-import play.api.libs.json.JodaWrites._
-import play.api.libs.json.JodaReads._
 import org.maproulette.exception.InvalidException
 
 /**

@@ -7,13 +7,11 @@ package org.maproulette.framework.repository
 
 import java.sql.Connection
 
-import anorm.SqlParser.{get, long}
 import anorm._
 import javax.inject.Inject
-import org.joda.time.DateTime
-import org.maproulette.framework.model.{Group, GroupMember}
+import org.maproulette.framework.model.Group
 import org.maproulette.framework.repository.{GroupMemberRepository}
-import org.maproulette.framework.psql.{Query, Paging}
+import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.{BaseParameter, Operator, FilterGroup}
 import play.api.db.Database
 

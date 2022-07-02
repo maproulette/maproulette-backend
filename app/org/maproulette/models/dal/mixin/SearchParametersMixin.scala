@@ -7,8 +7,6 @@ package org.maproulette.models.dal.mixin
 import anorm.NamedParameter
 import org.maproulette.models.utils.DALHelper
 import org.maproulette.session.SearchParameters
-import org.maproulette.framework.psql.SQLUtils
-import play.api.libs.json.JsDefined
 
 import scala.collection.mutable.ListBuffer
 

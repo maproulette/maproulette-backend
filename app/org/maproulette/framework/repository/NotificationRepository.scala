@@ -8,7 +8,7 @@ import java.sql.Connection
 import anorm.SqlParser._
 import anorm._
 
-import javax.inject.{Inject, Singleton}
+import javax.inject.Inject
 import scala.collection.mutable.ListBuffer
 import org.joda.time.DateTime
 import org.maproulette.framework.model.{UserNotification, UserNotificationEmail, UserRevCount}

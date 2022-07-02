@@ -5,15 +5,13 @@
 
 package org.maproulette.framework.service
 
-import java.sql.Connection
 
 import javax.inject.{Inject, Singleton}
 import org.maproulette.Config
-import org.maproulette.cache.{BasicCache, CacheManager, ListCacheObject}
 import org.maproulette.exception.InvalidException
 import org.maproulette.framework.model.{Grant, Grantee, GrantTarget, User}
 import org.maproulette.framework.psql.Query
-import org.maproulette.framework.psql.filter.{Parameter, BaseParameter, FilterParameter, Operator}
+import org.maproulette.framework.psql.filter.{Parameter, BaseParameter, Operator}
 import org.maproulette.framework.repository.{GrantRepository}
 import org.maproulette.data._
 import org.maproulette.permissions.Permission

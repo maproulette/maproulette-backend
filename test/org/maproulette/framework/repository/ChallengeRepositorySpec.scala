@@ -9,7 +9,6 @@ import org.maproulette.framework.model.{Project, User, Challenge}
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.BaseParameter
 import org.maproulette.framework.util.{ChallengeRepoTag, FrameworkHelper}
-import org.maproulette.framework.service.VirtualProjectService
 
 import play.api.Application
 

@@ -6,13 +6,11 @@
 package org.maproulette.framework.service
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.duration.FiniteDuration
-import play.api.libs.json._
 
 import org.maproulette.Config
 import org.maproulette.exception.InvalidException
 import org.maproulette.framework.model._
-import org.maproulette.framework.psql.{Query, _}
+import org.maproulette.framework.psql._
 import org.maproulette.framework.psql.filter._
 import org.maproulette.framework.repository.TaskClusterRepository
 import org.maproulette.framework.mixins.{SearchParametersMixin, TaskFilterMixin}

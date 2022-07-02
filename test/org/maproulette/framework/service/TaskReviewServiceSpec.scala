@@ -12,12 +12,9 @@ import play.api.libs.json.Json
 
 import org.maproulette.session.{
   SearchParameters,
-  SearchChallengeParameters,
-  SearchReviewParameters,
   SearchTaskParameters
 }
 import org.maproulette.framework.model._
-import org.maproulette.framework.psql.{GroupField, Grouping, Query}
 import org.maproulette.framework.util.{TaskReviewTag, FrameworkHelper}
 import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}
 import play.api.Application

@@ -5,7 +5,6 @@
 
 package org.maproulette.framework.service
 
-import java.util.UUID
 import org.maproulette.framework.model._
 import org.maproulette.framework.psql.filter._
 import org.maproulette.framework.psql.{OR, Paging, Query}

@@ -6,7 +6,7 @@
 package org.maproulette.framework.psql.filter
 
 import anorm.NamedParameter
-import org.maproulette.framework.psql.{OR, AND, Query, SQLKey}
+import org.maproulette.framework.psql.{OR, AND, SQLKey}
 
 /**
   * This class handles any filters that you want to add onto a query. Repositories only handle one

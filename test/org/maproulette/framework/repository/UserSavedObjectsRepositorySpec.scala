@@ -8,8 +8,7 @@ package org.maproulette.framework.repository
 import org.maproulette.framework.model.User
 import org.maproulette.framework.util.{
   FrameworkHelper,
-  UserSavedObjectsRepoTag,
-  UserSavedObjectsTag
+  UserSavedObjectsRepoTag
 }
 import play.api.Application
 

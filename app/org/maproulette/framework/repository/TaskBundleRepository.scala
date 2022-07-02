@@ -5,12 +5,9 @@
 
 package org.maproulette.framework.repository
 
-import java.sql.Connection
 import org.slf4j.LoggerFactory
 
-import anorm.SqlParser.{get, scalar, str}
 import anorm.ToParameterValue
-import anorm.{RowParser, ~}
 import anorm._, postgresql._
 import javax.inject.{Inject, Singleton}
 import org.maproulette.Config
@@ -20,7 +17,6 @@ import org.maproulette.framework.model.{Task, TaskBundle, User}
 import org.maproulette.framework.mixins.{TaskParserMixin, Locking}
 import org.maproulette.data.TaskType
 import play.api.db.Database
-import play.api.libs.json._
 
 // deprecated and to be removed after conversion
 import org.maproulette.models.dal.TaskDAL

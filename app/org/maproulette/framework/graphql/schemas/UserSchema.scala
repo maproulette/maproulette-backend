@@ -11,7 +11,7 @@ import org.maproulette.framework.graphql.UserContext
 import org.maproulette.framework.model._
 import org.maproulette.framework.psql.Paging
 import org.maproulette.framework.service.UserService
-import play.api.libs.json.{DefaultWrites, Json, Reads, Writes}
+import play.api.libs.json.{DefaultWrites, Json, Reads}
 import sangria.macros.derive._
 import sangria.schema._
 

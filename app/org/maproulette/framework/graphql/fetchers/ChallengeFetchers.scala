@@ -7,7 +7,6 @@ package org.maproulette.framework.graphql.fetchers
 
 import org.maproulette.framework.graphql.UserContext
 import sangria.execution.deferred.{Fetcher}
-import org.maproulette.framework.psql.Paging
 import scala.concurrent.{Future}
 
 /**

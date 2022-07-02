@@ -9,15 +9,12 @@ import javax.inject.Inject
 import org.maproulette.data.ActionManager
 import org.maproulette.data._
 import org.maproulette.framework.service.ChallengeSnapshotService
-import org.maproulette.framework.psql.Paging
-import org.maproulette.framework.model.{User, Challenge, Task}
+import org.maproulette.framework.model.{Challenge, Task}
 import org.maproulette.session.SessionManager
-import org.maproulette.utils.Utils
 import play.api.mvc._
 import play.api.libs.json._
 import play.api.libs.json.Json.JsValueWrapper
 import play.api.http.HttpEntity
-import org.maproulette.exception.NotFoundException
 
 /**
   * SnapshotController is responsible for handling functionality related to

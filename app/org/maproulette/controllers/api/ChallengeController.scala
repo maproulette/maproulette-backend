@@ -25,7 +25,6 @@ import org.maproulette.framework.model._
 import org.maproulette.framework.psql.Paging
 import org.maproulette.framework.service.{ServiceManager, TagService}
 import org.maproulette.framework.mixins.{ParentMixin, TagsControllerMixin}
-import org.maproulette.models._
 import org.maproulette.models.dal._
 import org.maproulette.models.dal.mixin.TagDALMixin
 import org.maproulette.permissions.Permission

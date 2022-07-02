@@ -5,7 +5,6 @@
 package org.maproulette.framework.controller
 
 import javax.inject.Inject
-import akka.util.ByteString
 import org.maproulette.data.ActionManager
 import org.maproulette.exception.NotFoundException
 import org.maproulette.framework.service.{TaskReviewService, TagService, ServiceManager}
@@ -16,13 +15,11 @@ import org.maproulette.framework.repository.TaskRepository
 import org.maproulette.session.{
   SessionManager,
   SearchParameters,
-  SearchTaskParameters,
   SearchLocation
 }
 import org.maproulette.utils.Utils
 import play.api.mvc._
 import play.api.libs.json._
-import play.api.http.HttpEntity
 
 import org.maproulette.data.{
   TaskItem,

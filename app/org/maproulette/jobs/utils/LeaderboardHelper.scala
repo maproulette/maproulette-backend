@@ -8,7 +8,6 @@ import java.time.{LocalDate, Period}
 import java.time.format.DateTimeFormatter
 
 import org.maproulette.Config
-import org.maproulette.framework.model.Task
 import org.maproulette.framework.mixins.LeaderboardMixin
 
 /**

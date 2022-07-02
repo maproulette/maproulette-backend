@@ -19,7 +19,7 @@ import org.maproulette.framework.psql.Paging
 import org.maproulette.models._
 import org.maproulette.models.utils.DALHelper
 import org.maproulette.permissions.Permission
-import org.maproulette.session.{SearchChallengeParameters, SearchLocation, SearchParameters}
+import org.maproulette.session.{SearchLocation, SearchParameters}
 import play.api.db.Database
 import play.api.libs.json.JodaReads._
 import play.api.libs.json.{JsString, JsValue, Json}

@@ -5,7 +5,7 @@
 
 package org.maproulette.framework.service
 
-import org.maproulette.framework.model.{Group, GroupMember, MemberObject, User}
+import org.maproulette.framework.model.{Group, MemberObject, User}
 import org.maproulette.data.{UserType}
 import org.maproulette.framework.util.{FrameworkHelper, GroupTag}
 import play.api.Application

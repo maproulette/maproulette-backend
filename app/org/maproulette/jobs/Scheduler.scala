@@ -11,7 +11,7 @@ import javax.inject.{Inject, Named}
 import org.maproulette.Config
 import org.maproulette.jobs.SchedulerActor.RunJob
 import org.slf4j.LoggerFactory
-import play.api.{Application, Logger}
+import play.api.Application
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._

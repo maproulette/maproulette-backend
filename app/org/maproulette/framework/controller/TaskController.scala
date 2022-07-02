@@ -12,7 +12,6 @@ import org.maproulette.framework.psql.Paging
 import org.maproulette.framework.model.User
 import org.maproulette.framework.mixins.TaskJSONMixin
 import org.maproulette.session.{SessionManager, SearchParameters, SearchLocation}
-import org.maproulette.utils.Utils
 import play.api.mvc._
 import play.api.libs.json._
 import play.api.http.HttpEntity

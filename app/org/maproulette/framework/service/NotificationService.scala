@@ -5,16 +5,13 @@
 
 package org.maproulette.framework.service
 
-import java.net.URLDecoder
 
 import javax.inject.{Inject, Singleton}
-import org.apache.commons.lang3.StringUtils
 import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.data.{UserType}
 import org.maproulette.framework.model._
 import org.maproulette.framework.model.{UserRevCount}
 import org.maproulette.framework.psql._
-import org.maproulette.framework.psql.filter._
 import org.maproulette.framework.repository.{
   NotificationRepository,
   NotificationSubscriptionRepository

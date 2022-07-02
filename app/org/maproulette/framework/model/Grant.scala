@@ -4,7 +4,6 @@
  */
 package org.maproulette.framework.model
 
-import org.maproulette.cache.CacheObject
 import org.maproulette.data.{ItemType, UserType, ProjectType, GroupType, Actions}
 import org.maproulette.framework.psql.CommonField
 import play.api.libs.json._

@@ -9,18 +9,15 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
 import org.maproulette.framework.model._
-import org.maproulette.framework.psql.{GroupField, Grouping, Query}
 import org.maproulette.framework.util.{LeaderboardTag, FrameworkHelper}
 import org.maproulette.framework.repository.UserRepository
 import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}
-import org.maproulette.session.{SearchParameters, SearchLeaderboardParameters}
+import org.maproulette.session.SearchLeaderboardParameters
 import play.api.Application
-import javax.inject.Inject
 import org.joda.time.DateTime
 
 import play.api.db.Database
 import org.maproulette.jobs.utils.LeaderboardHelper
-import anorm.SqlParser._
 import anorm._
 import org.maproulette.Config
 

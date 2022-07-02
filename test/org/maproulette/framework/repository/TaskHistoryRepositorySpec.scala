@@ -5,9 +5,7 @@
 
 package org.maproulette.framework.repository
 
-import java.util.UUID
 
-import org.maproulette.data._
 import org.maproulette.data.{Actions, TaskItem, ActionManager, TaskStatusSet}
 import org.maproulette.framework.model.{User, TaskLogEntry, Task}
 import org.maproulette.framework.util.{TaskTag, FrameworkHelper}

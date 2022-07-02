@@ -4,15 +4,12 @@
  */
 package org.maproulette.framework.mixins
 
-import play.api.libs.json._
 
-import org.maproulette.framework.service.ServiceManager
-import org.maproulette.framework.model.{Task, User, Challenge, Project}
+import org.maproulette.framework.model.{User, Challenge, Project}
 import org.maproulette.framework.psql.{Query, _}
 import org.maproulette.framework.psql.filter._
 import org.maproulette.data.Actions
 
-import org.maproulette.utils.Utils
 
 /**
   * TaskFilterMixin provides task related methods

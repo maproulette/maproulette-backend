@@ -12,7 +12,6 @@ import org.maproulette.framework.model.{
   ChallengeGeneral,
   ChallengePriority
 }
-import org.maproulette.models._
 import org.maproulette.utils.Utils
 import org.maproulette.utils.Utils.{jsonReads, jsonWrites}
 import play.api.libs.functional.syntax._

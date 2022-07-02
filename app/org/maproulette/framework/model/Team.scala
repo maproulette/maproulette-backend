@@ -5,8 +5,6 @@
 package org.maproulette.framework.model
 
 import play.api.libs.json._
-import play.api.libs.json.JodaWrites._
-import play.api.libs.json.JodaReads._
 
 /**
   * @author nrotstan

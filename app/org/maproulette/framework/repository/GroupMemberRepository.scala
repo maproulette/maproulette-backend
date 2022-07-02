@@ -11,7 +11,6 @@ import anorm.Macro.ColumnNaming
 import anorm._
 import javax.inject.{Inject, Singleton}
 import org.maproulette.framework.model.{Group, GroupMember, MemberObject}
-import org.maproulette.framework.repository.{UserRepository}
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter._
 import play.api.db.Database

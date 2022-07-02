@@ -8,14 +8,13 @@ package org.maproulette.framework.service
 import org.maproulette.framework.model.{
   TeamMember,
   Group,
-  GroupMember,
   MemberObject,
   User,
   Grant,
   Grantee,
   GrantTarget
 }
-import org.maproulette.data.{UserType, ProjectType}
+import org.maproulette.data.UserType
 import org.maproulette.framework.util.{FrameworkHelper, TeamTag}
 import org.maproulette.framework.psql.{Paging}
 import play.api.Application

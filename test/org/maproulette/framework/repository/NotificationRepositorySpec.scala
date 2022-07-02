@@ -6,8 +6,6 @@
 package org.maproulette.framework
 
 import org.maproulette.framework.model.{User, UserNotification}
-import org.maproulette.framework.psql.Query
-import org.maproulette.framework.psql.filter.BaseParameter
 import org.maproulette.framework.repository.NotificationRepository
 import org.maproulette.framework.service.NotificationService
 import org.maproulette.framework.util.{FrameworkHelper, NotificationTag}

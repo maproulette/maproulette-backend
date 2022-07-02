@@ -5,13 +5,12 @@
 
 package org.maproulette.framework.controller
 
-import java.net.URLDecoder
 
 import javax.inject.Inject
 import org.maproulette.data.ActionManager
-import org.maproulette.exception.{MPExceptionUtil, NotFoundException, StatusMessage}
+import org.maproulette.exception.{MPExceptionUtil, StatusMessage}
 import org.maproulette.framework.service.TeamService
-import org.maproulette.framework.model.{User, TeamMember, TeamUser, MemberObject, Group}
+import org.maproulette.framework.model.{User, MemberObject, Group}
 import org.maproulette.framework.psql.{Paging}
 import org.maproulette.session.SessionManager
 import play.api.libs.json._

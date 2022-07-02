@@ -8,11 +8,10 @@ package org.maproulette.framework.repository
 import java.sql.Connection
 
 import anorm.SqlParser.get
-import anorm.ToParameterValue
 import anorm.{RowParser, ~}
 import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
-import org.maproulette.framework.psql.{Query, Grouping, GroupField}
+import org.maproulette.framework.psql.Query
 import org.maproulette.framework.model.{LeaderboardUser, LeaderboardChallenge}
 import play.api.db.Database
 

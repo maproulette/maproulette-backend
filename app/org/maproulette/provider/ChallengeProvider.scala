@@ -19,7 +19,6 @@ import play.api.http.Status
 import play.api.libs.json._
 import play.api.libs.ws.WSClient
 
-import scala.collection.View.Empty
 import scala.concurrent.Future
 import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success}

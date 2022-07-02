@@ -11,12 +11,9 @@ import org.maproulette.framework.model.{
   ArchivableChallenge,
   ArchivableTask,
   Challenge,
-  Grant,
   Project,
-  User,
-  UserRevCount
+  User
 }
-import org.maproulette.data.{ProjectType, UserType}
 import org.maproulette.framework.psql.{OR, Paging, Query}
 import org.maproulette.framework.psql.filter._
 import org.maproulette.framework.repository.ChallengeRepository

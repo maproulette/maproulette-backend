@@ -5,8 +5,6 @@
 
 package org.maproulette.framework.graphql.schemas
 
-import org.maproulette.framework.model.{Task, TaskReviewFields, MapillaryImage}
-import sangria.macros.derive.{ObjectTypeName, deriveObjectType}
 import sangria.schema._
 
 /**

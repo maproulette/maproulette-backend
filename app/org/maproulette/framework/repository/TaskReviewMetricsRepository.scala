@@ -6,10 +6,8 @@
 package org.maproulette.framework.repository
 
 import java.sql.Connection
-import scala.concurrent.duration.FiniteDuration
 
 import anorm.SqlParser.{get, long}
-import anorm.ToParameterValue
 import anorm.{RowParser, ~, SQL}
 import javax.inject.{Inject, Singleton}
 import org.maproulette.framework.model.{Task, TaskReview, ReviewMetrics}

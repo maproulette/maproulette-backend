@@ -5,12 +5,10 @@
 
 package org.maproulette.framework.service
 
-import org.maproulette.framework.model.{Achievement, User, Task, Challenge}
-import org.maproulette.data.{UserType, ProjectType}
+import org.maproulette.framework.model.{Achievement, User, Task}
 import org.maproulette.framework.util.{FrameworkHelper, UserTag}
 import play.api.Application
 import org.scalatestplus.mockito.MockitoSugar
-import org.mockito.Mockito._
 
 /**
   * @author nrotstan

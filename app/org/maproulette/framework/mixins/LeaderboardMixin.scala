@@ -4,8 +4,6 @@
  */
 package org.maproulette.framework.mixins
 
-import org.maproulette.framework.psql.filter._
-import org.maproulette.framework.psql.Query
 import org.maproulette.framework.model.Task
 import org.maproulette.Config
 

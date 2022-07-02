@@ -5,16 +5,13 @@
 
 package org.maproulette.framework.service
 
-import java.net.URLDecoder
 
 import javax.inject.{Inject, Singleton}
-import org.apache.commons.lang3.StringUtils
-import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.framework.model.{Group, GroupMember, MemberObject}
 import org.maproulette.data.{ItemType}
 import org.maproulette.framework.psql._
 import org.maproulette.framework.psql.filter._
-import org.maproulette.framework.psql.{OR, Order, Paging, Query}
+import org.maproulette.framework.psql.Query
 import org.maproulette.framework.repository.{GroupRepository, GroupMemberRepository}
 import org.maproulette.permissions.Permission
 

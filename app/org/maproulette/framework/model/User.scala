@@ -13,11 +13,8 @@ import org.maproulette.Config
 import org.maproulette.cache.CacheObject
 import org.maproulette.framework.psql.CommonField
 import org.maproulette.utils.{Crypto, Utils}
-import org.maproulette.permissions.Permission
 import org.maproulette.data._
 import org.slf4j.LoggerFactory
-import play.api.data.Form
-import play.api.data.Forms._
 import play.api.libs.json._
 import play.api.libs.oauth.RequestToken
 import play.api.libs.json.JodaWrites._

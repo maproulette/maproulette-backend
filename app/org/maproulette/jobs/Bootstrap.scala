@@ -4,7 +4,6 @@
  */
 package org.maproulette.jobs
 
-import anorm._
 import javax.inject.{Inject, Singleton}
 import org.maproulette.Config
 import org.slf4j.LoggerFactory

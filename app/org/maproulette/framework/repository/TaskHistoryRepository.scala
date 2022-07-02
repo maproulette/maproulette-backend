@@ -5,14 +5,11 @@
 
 package org.maproulette.framework.repository
 
-import java.sql.Connection
 import org.joda.time.DateTime
 
 import anorm.SqlParser.get
-import anorm.ToParameterValue
 import anorm.{RowParser, ~, SQL}
 import javax.inject.{Inject, Singleton}
-import org.maproulette.framework.psql.{Query, Grouping, GroupField}
 import org.maproulette.framework.model.{TaskLogEntry, TaskReview}
 import play.api.db.Database
 

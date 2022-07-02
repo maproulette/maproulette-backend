@@ -5,7 +5,6 @@
 package org.maproulette.framework.mixins
 
 import org.maproulette.session.SearchParameters
-import org.maproulette.framework.psql.SQLUtils
 import org.maproulette.framework.psql.filter._
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.{AND, OR}

@@ -10,7 +10,7 @@ import java.sql.Connection
 import anorm.SQL
 import javax.inject.{Inject, Singleton}
 import org.maproulette.exception.InvalidException
-import org.maproulette.framework.model.{Project, VirtualProject}
+import org.maproulette.framework.model.VirtualProject
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.BaseParameter
 import org.postgresql.util.PSQLException

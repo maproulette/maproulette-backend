@@ -9,7 +9,7 @@ import org.maproulette.framework.model.{Comment, User}
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.{BaseParameter, Operator}
 import org.maproulette.framework.service.CommentService
-import org.maproulette.framework.util.{CommentRepoTag, CommentTag, FrameworkHelper}
+import org.maproulette.framework.util.{CommentRepoTag, FrameworkHelper}
 import play.api.Application
 
 /**

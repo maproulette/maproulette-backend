@@ -13,7 +13,7 @@ import org.maproulette.framework.mixins.LeaderboardMixin
 import org.maproulette.framework.repository.{LeaderboardRepository, ChallengeRepository}
 import org.maproulette.framework.psql._
 import org.maproulette.framework.psql.filter._
-import org.maproulette.session.{SessionManager, SearchLeaderboardParameters}
+import org.maproulette.session.SearchLeaderboardParameters
 import org.maproulette.utils.BoundingBoxFinder
 
 /**

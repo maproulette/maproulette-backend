@@ -6,7 +6,6 @@
 package org.maproulette.utils
 
 import org.maproulette.framework.model._
-import org.maproulette.models._
 import org.maproulette.models.utils.ChallengeReads
 import play.api.libs.json.Reads
 import play.api.libs.oauth.RequestToken

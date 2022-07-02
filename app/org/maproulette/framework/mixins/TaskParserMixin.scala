@@ -4,15 +4,12 @@
  */
 package org.maproulette.framework.mixins
 
-import play.api.libs.json._
 import anorm.SqlParser.get
 import anorm.{RowParser, ~}
 import org.joda.time.DateTime
 
-import org.maproulette.framework.service.ServiceManager
-import org.maproulette.framework.model.{TaskReview, TaskReviewFields, TaskWithReview, User, Task}
+import org.maproulette.framework.model.{TaskReview, TaskReviewFields, TaskWithReview, Task}
 
-import org.maproulette.utils.Utils
 
 /**
   * TaskParserMixin provides task parsers

@@ -11,15 +11,14 @@ import anorm._
 import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
 import org.maproulette.Config
-import org.maproulette.framework.model.{ReviewMetrics, Task}
+import org.maproulette.framework.model.Task
 import org.maproulette.framework.service.ServiceManager
 import org.maproulette.models.utils.{AND, DALHelper, WHERE}
 import org.maproulette.models.dal.mixin.SearchParametersMixin
-import org.maproulette.session.{SearchParameters, SearchTaskParameters}
+import org.maproulette.session.SearchParameters
 import org.maproulette.utils.BoundingBoxFinder
 import play.api.Application
 import play.api.db.Database
-import scala.collection.mutable.ListBuffer
 
 case class ActionSummary(
     total: Int,

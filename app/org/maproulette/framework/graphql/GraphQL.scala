@@ -9,7 +9,7 @@ import javax.inject.Inject
 import org.maproulette.framework.graphql.schemas._
 import org.maproulette.framework.graphql.fetchers._
 import sangria.schema.{ObjectType, fields}
-import sangria.execution.deferred.{Fetcher, DeferredResolver}
+import sangria.execution.deferred.DeferredResolver
 
 /**
   * @author mcuthbert

@@ -9,7 +9,6 @@ import org.maproulette.data._
 import org.maproulette.framework.model.User
 import org.maproulette.utils.TestSpec
 import org.scalatest.BeforeAndAfterAll
-import org.scalatestplus.play.PlaySpec
 
 /**
   * @author mcuthbert

@@ -6,7 +6,7 @@ package org.maproulette.framework.controller
 
 import javax.inject.Inject
 import org.apache.commons.lang3.StringUtils
-import org.maproulette.exception.{InvalidException, NotFoundException, StatusMessage}
+import org.maproulette.exception.StatusMessage
 import org.maproulette.framework.service.{NotificationService}
 import org.maproulette.framework.model.{NotificationSubscriptions}
 import org.maproulette.framework.psql.{Order, OrderField, Paging}
@@ -15,8 +15,6 @@ import org.maproulette.utils.{Crypto, Utils}
 import play.api.libs.json._
 import play.api.mvc._
 
-import scala.concurrent.Promise
-import scala.util.{Failure, Success}
 
 /**
   * @author nrotstan
@@ -30,7 +28,6 @@ class NotificationController @Inject() (
 ) extends AbstractController(components)
     with DefaultWrites {
 
-  import scala.concurrent.ExecutionContext.Implicits.global
 
   implicit val notificationSubscriptionReads =
     NotificationSubscriptions.notificationSubscriptionReads

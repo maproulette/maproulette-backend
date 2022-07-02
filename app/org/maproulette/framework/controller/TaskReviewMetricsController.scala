@@ -16,8 +16,6 @@ import org.maproulette.framework.service.{
 import org.maproulette.framework.psql.Paging
 import org.maproulette.framework.model.{
   Challenge,
-  ChallengeListing,
-  Project,
   User,
   ReviewMetrics,
   Task

@@ -8,9 +8,7 @@ package org.maproulette.framework.repository
 import anorm.SqlParser.{get, long}
 import anorm._
 import org.joda.time.DateTime
-import org.maproulette.framework.model.{ChallengeComment, Comment, User}
-import org.maproulette.framework.psql.Query
-import org.maproulette.framework.psql.filter.BaseParameter
+import org.maproulette.framework.model.{ChallengeComment, User}
 import play.api.db.Database
 
 import java.sql.Connection

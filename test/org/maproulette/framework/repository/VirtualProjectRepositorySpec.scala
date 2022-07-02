@@ -7,7 +7,7 @@ package org.maproulette.framework.repository
 
 import org.maproulette.framework.model.{Project, User}
 import org.maproulette.framework.service.VirtualProjectService
-import org.maproulette.framework.util.{FrameworkHelper, VirtualProjectRepoTag, VirtualProjectTag}
+import org.maproulette.framework.util.{FrameworkHelper, VirtualProjectRepoTag}
 import play.api.Application
 
 /**

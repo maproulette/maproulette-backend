@@ -14,11 +14,10 @@ import com.vividsolutions.jts.io.WKTReader
 import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
 import org.maproulette.Config
-import org.maproulette.data._
 import org.maproulette.framework.model._
 import org.maproulette.framework.service.{ServiceManager, GrantService}
 import org.maproulette.framework.psql.filter._
-import org.maproulette.framework.psql.{Grouping, Query, SQLUtils}
+import org.maproulette.framework.psql.{Query, SQLUtils}
 import org.maproulette.models.dal.ChallengeDAL
 import play.api.db.Database
 import play.api.libs.oauth.RequestToken

@@ -6,19 +6,14 @@
 package org.maproulette.framework.repository
 
 import java.sql.Connection
-import scala.concurrent.duration.FiniteDuration
-import org.joda.time.DateTime
 
-import anorm.ToParameterValue
-import anorm.{RowParser, ~}
-import anorm._, postgresql._
-import anorm.SqlParser.{get, int, long, str}
+import anorm.~
+import anorm._
+import anorm.SqlParser.{get, int, str}
 import javax.inject.{Inject, Singleton}
-import org.maproulette.data.Actions
 import org.maproulette.session.SearchParameters
 import org.maproulette.framework.psql.{Query, Order, Paging}
-import org.maproulette.framework.psql.filter.{BaseParameter, CustomParameter, Parameter}
-import org.maproulette.framework.model.{User, ClusteredPoint, Point, PointReview, Task, TaskCluster}
+import org.maproulette.framework.model.{ClusteredPoint, Point, TaskCluster}
 import play.api.db.Database
 import play.api.libs.json._
 

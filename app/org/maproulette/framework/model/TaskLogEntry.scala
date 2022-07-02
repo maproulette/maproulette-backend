@@ -5,7 +5,7 @@
 package org.maproulette.framework.model
 
 import org.joda.time.DateTime
-import play.api.libs.json.{DefaultWrites, Json, Reads, Writes}
+import play.api.libs.json.{Json, Reads, Writes}
 import play.api.libs.json.JodaWrites._
 import play.api.libs.json.JodaReads._
 

@@ -6,11 +6,9 @@
 package org.maproulette.framework.service
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.duration.FiniteDuration
 
 import org.maproulette.framework.model._
-import org.maproulette.framework.psql.{Query, _}
-import org.maproulette.framework.psql.filter.{BaseParameter, _}
+import org.maproulette.framework.psql.Query
 import org.maproulette.framework.repository.TaskReviewMetricsRepository
 import org.maproulette.framework.mixins.ReviewSearchMixin
 import org.maproulette.session.SearchParameters

@@ -33,7 +33,6 @@ import org.slf4j.LoggerFactory
 import play.api.Application
 import play.api.db.Database
 
-import java.time.Instant
 import scala.util.{Failure, Success}
 
 /**

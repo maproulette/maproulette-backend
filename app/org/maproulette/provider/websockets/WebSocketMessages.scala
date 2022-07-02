@@ -8,7 +8,6 @@ import org.joda.time.DateTime
 import org.maproulette.framework.model.{TaskWithReview, User, Challenge, Project, Task}
 import play.api.libs.json._
 import play.api.libs.json.JodaWrites._
-import play.api.libs.json.JodaReads._
 
 /**
   * Defines case classes representing the various kinds of messages to be

@@ -11,7 +11,7 @@ import org.maproulette.data.{ItemType, ProjectType}
 import org.maproulette.models.BaseObject
 import org.scalatestplus.play.PlaySpec
 import play.api.Configuration
-import play.api.libs.json.{DefaultWrites, JodaReads, JodaWrites, Json, Reads, Writes}
+import play.api.libs.json.{JodaReads, JodaWrites, Json, Reads, Writes}
 
 /**
   * @author cuthbertm

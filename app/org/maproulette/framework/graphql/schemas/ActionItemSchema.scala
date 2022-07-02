@@ -7,10 +7,8 @@ package org.maproulette.framework.graphql.schemas
 
 import javax.inject.Inject
 import org.maproulette.Config
-import org.maproulette.exception.NotFoundException
 import org.maproulette.framework.graphql.UserContext
-import org.maproulette.framework.service.UserService
-import org.maproulette.data.{ActionManager, ActionItem}
+import org.maproulette.data.ActionManager
 import sangria.schema._
 
 /**

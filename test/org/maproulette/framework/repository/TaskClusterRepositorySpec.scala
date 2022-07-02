@@ -5,7 +5,6 @@
 
 package org.maproulette.framework.repository
 
-import java.util.UUID
 
 import org.maproulette.framework.model.{User, Task}
 import org.maproulette.framework.util.{TaskTag, FrameworkHelper}

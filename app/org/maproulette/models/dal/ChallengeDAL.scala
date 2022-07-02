@@ -8,12 +8,12 @@ import java.sql.Connection
 
 import anorm.SqlParser._
 import anorm._
-import javax.inject.{Inject, Provider, Singleton}
+import javax.inject.{Inject, Singleton}
 import org.apache.commons.lang3.StringUtils
 import org.joda.time.DateTime
 import org.maproulette.Config
 import org.maproulette.cache.CacheManager
-import org.maproulette.data.{Actions, ChallengeType, ProjectType, TaskType}
+import org.maproulette.data.{Actions, ChallengeType, ProjectType}
 import org.maproulette.exception.{InvalidException, NotFoundException, UniqueViolationException}
 import org.maproulette.framework.model._
 import org.maproulette.framework.repository.{
@@ -22,7 +22,6 @@ import org.maproulette.framework.repository.{
   ChallengeListingRepository
 }
 import org.maproulette.framework.service.{ServiceManager, TagService}
-import org.maproulette.models._
 import org.maproulette.models.dal.mixin.{OwnerMixin, TagDALMixin}
 import org.maproulette.permissions.Permission
 import org.maproulette.session.SearchParameters

@@ -6,16 +6,13 @@
 package org.maproulette.framework.service
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.duration.FiniteDuration
 import play.api.libs.json._
 
 import org.maproulette.exception.NotFoundException
 import org.maproulette.framework.model._
-import org.maproulette.framework.psql.{Query, _}
-import org.maproulette.framework.psql.filter.{BaseParameter, _}
+import org.maproulette.framework.psql._
 import org.maproulette.framework.repository.TaskRepository
 import org.maproulette.models.dal.TaskDAL
-import org.maproulette.cache.CacheManager
 
 /**
   * Service layer for Task

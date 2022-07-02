@@ -7,7 +7,6 @@ package org.maproulette.framework.repository
 
 import java.sql.Connection
 
-import anorm.Macro.ColumnNaming
 import anorm._
 import anorm.SqlParser._
 import javax.inject.{Inject, Singleton}

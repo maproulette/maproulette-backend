@@ -11,8 +11,7 @@ import org.maproulette.framework.graphql.fetchers.TeamFetchers
 import org.maproulette.framework.graphql.UserContext
 import org.maproulette.framework.model._
 import org.maproulette.framework.service.TeamService
-import play.api.libs.json.{DefaultWrites, Json, Reads, Writes}
-import sangria.macros.derive._
+import play.api.libs.json.DefaultWrites
 import sangria.schema._
 
 /**

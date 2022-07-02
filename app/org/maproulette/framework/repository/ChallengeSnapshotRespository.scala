@@ -5,18 +5,12 @@
 
 package org.maproulette.framework.repository
 
-import java.sql.Connection
-import scala.concurrent.duration.FiniteDuration
 
-import anorm.SqlParser.get
-import anorm.ToParameterValue
-import anorm.{RowParser, ~}
 import javax.inject.{Inject, Singleton}
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.BaseParameter
-import org.maproulette.framework.model.{User, ChallengeSnapshot}
+import org.maproulette.framework.model.ChallengeSnapshot
 import play.api.db.Database
-import play.api.libs.json.JsValue
 @Singleton
 class ChallengeSnapshotRepository @Inject() (override val db: Database) extends RepositoryMixin {
   implicit val baseTable: String = ChallengeSnapshot.TABLE

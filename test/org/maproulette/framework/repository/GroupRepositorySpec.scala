@@ -5,7 +5,7 @@
 
 package org.maproulette.framework
 
-import org.maproulette.framework.model.{Group, Project, User}
+import org.maproulette.framework.model.{Group, User}
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.BaseParameter
 import org.maproulette.framework.repository.{GroupRepository}

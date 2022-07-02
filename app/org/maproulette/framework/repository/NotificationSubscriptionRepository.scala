@@ -8,7 +8,7 @@ import java.sql.Connection
 
 import anorm.SqlParser._
 import anorm._
-import javax.inject.{Inject, Singleton}
+import javax.inject.Inject
 import org.maproulette.framework.model.{NotificationSubscriptions}
 import org.maproulette.framework.psql._
 import org.maproulette.framework.psql.filter._

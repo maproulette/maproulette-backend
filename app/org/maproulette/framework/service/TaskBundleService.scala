@@ -6,17 +6,13 @@
 package org.maproulette.framework.service
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.duration.FiniteDuration
-import play.api.libs.json._
 
 import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.framework.model._
-import org.maproulette.framework.psql.{Query, _}
-import org.maproulette.framework.psql.filter.{BaseParameter, _}
+import org.maproulette.framework.psql.Query
+import org.maproulette.framework.psql.filter.BaseParameter
 import org.maproulette.framework.repository.TaskBundleRepository
 import org.maproulette.framework.service.TaskService
-import org.maproulette.framework.mixins.Locking
-import org.maproulette.cache.CacheManager
 import org.maproulette.permissions.Permission
 
 // deprecated and to be removed after conversion

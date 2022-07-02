@@ -7,7 +7,6 @@ package org.maproulette.framework.model
 
 import org.maproulette.framework.model.Task
 import org.scalatestplus.play.PlaySpec
-import org.joda.time.DateTime
 
 class TaskSpec() extends PlaySpec {
   "isValidStatusProgression" should {

@@ -6,17 +6,11 @@
 package org.maproulette.framework.service
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.duration.FiniteDuration
-import play.api.libs.json.JsValue
 
-import org.maproulette.exception.NotFoundException
 import org.maproulette.framework.model._
-import org.maproulette.framework.psql.{Query, _}
-import org.maproulette.framework.psql.filter.{BaseParameter, _}
 import org.maproulette.framework.repository.ChallengeSnapshotRepository
-import org.maproulette.cache.CacheManager
 import org.maproulette.permissions.Permission
-import org.maproulette.data.{SnapshotManager, Snapshot}
+import org.maproulette.data.SnapshotManager
 import org.maproulette.models.dal.ChallengeDAL
 
 /**

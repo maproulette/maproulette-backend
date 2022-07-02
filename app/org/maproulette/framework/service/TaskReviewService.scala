@@ -19,7 +19,7 @@ import org.maproulette.framework.repository.{
 }
 import org.maproulette.framework.mixins.ReviewSearchMixin
 import org.maproulette.exception.InvalidException
-import org.maproulette.session.{SearchParameters, SearchReviewParameters}
+import org.maproulette.session.SearchParameters
 import org.maproulette.permissions.Permission
 import org.maproulette.provider.websockets.{WebSocketMessages, WebSocketProvider}
 import org.maproulette.data.{ChallengeType, Actions}

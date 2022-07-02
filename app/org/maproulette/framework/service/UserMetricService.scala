@@ -6,7 +6,7 @@
 package org.maproulette.framework.service
 
 import javax.inject.{Inject, Singleton}
-import org.joda.time.{DateTime, Months}
+import org.joda.time.DateTime
 import org.maproulette.Config
 import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.framework.model.{StatusActions, TaskReview, User, UserMetrics, Task}

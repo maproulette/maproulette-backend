@@ -6,12 +6,9 @@
 package org.maproulette.framework.service
 
 import java.util.UUID
-import java.util.concurrent.TimeUnit
-import scala.concurrent.duration.FiniteDuration
 
 import org.maproulette.session.{SearchParameters, SearchChallengeParameters, SearchReviewParameters}
 import org.maproulette.framework.model._
-import org.maproulette.framework.psql.{GroupField, Grouping, Query}
 import org.maproulette.framework.util.{TaskReviewTag, FrameworkHelper}
 import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}
 import play.api.Application

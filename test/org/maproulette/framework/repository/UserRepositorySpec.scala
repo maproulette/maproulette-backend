@@ -11,7 +11,7 @@ import org.maproulette.framework.model.{User, UserMetrics, UserSettings, CustomB
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.{BaseParameter, Operator}
 import org.maproulette.framework.service.UserService
-import org.maproulette.framework.util.{FrameworkHelper, UserRepoTag, UserTag}
+import org.maproulette.framework.util.{FrameworkHelper, UserRepoTag}
 import play.api.Application
 import play.api.libs.oauth.RequestToken
 

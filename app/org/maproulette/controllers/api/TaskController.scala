@@ -6,8 +6,6 @@ package org.maproulette.controllers.api
 
 import java.sql.Connection
 import akka.util.ByteString
-import anorm.SQL
-import org.joda.time.DateTime
 
 import javax.inject.Inject
 import org.locationtech.jts.geom.Envelope
@@ -26,7 +24,6 @@ import org.maproulette.framework.psql.Paging
 import org.maproulette.framework.service.{ServiceManager, TagService, TaskClusterService}
 import org.maproulette.framework.mixins.TagsControllerMixin
 import org.maproulette.framework.repository.TaskRepository
-import org.maproulette.models._
 import org.maproulette.models.dal.mixin.TagDALMixin
 import org.maproulette.models.dal.{DALManager, TaskDAL}
 import org.maproulette.provider.osm._

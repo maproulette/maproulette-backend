@@ -5,19 +5,16 @@
 
 package org.maproulette.framework.repository
 
-import java.sql.Connection
-import scala.concurrent.duration.FiniteDuration
 
 import anorm.SqlParser.{get, scalar, str}
 import anorm.ToParameterValue
-import anorm.{RowParser, ~}
 import anorm._, postgresql._
 import javax.inject.{Inject, Singleton}
 import org.maproulette.Config
 import org.maproulette.framework.mixins.TaskParserMixin
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.{BaseParameter, CustomParameter}
-import org.maproulette.framework.model.{User, Project, Task}
+import org.maproulette.framework.model.{User, Task}
 import org.maproulette.cache.CacheManager
 import play.api.db.Database
 import play.api.libs.json._

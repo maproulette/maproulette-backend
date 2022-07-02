@@ -7,7 +7,6 @@ package org.maproulette.models
 import org.apache.commons.lang3.StringUtils
 import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
-import play.api.Logger
 
 import scala.xml._
 

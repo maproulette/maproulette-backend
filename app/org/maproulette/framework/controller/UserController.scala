@@ -5,13 +5,11 @@
 package org.maproulette.framework.controller
 
 import javax.inject.Inject
-import org.apache.commons.lang3.StringUtils
 import org.maproulette.exception.{InvalidException, NotFoundException, StatusMessage}
 import org.maproulette.framework.model.{
   Challenge,
   User,
   UserSettings,
-  ProjectManager,
   GrantTarget,
   Task
 }
@@ -20,7 +18,6 @@ import org.maproulette.framework.service.ServiceManager
 import org.maproulette.framework.mixins.ParentMixin
 import org.maproulette.permissions.Permission
 import org.maproulette.session.{SessionManager, SearchParameters}
-import org.maproulette.data.{UserType}
 import org.maproulette.utils.{Crypto, Utils}
 import play.api.libs.json._
 import play.api.mvc._

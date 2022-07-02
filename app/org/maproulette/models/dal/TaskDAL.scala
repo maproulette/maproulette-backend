@@ -15,7 +15,6 @@ import org.apache.commons.lang3.StringUtils
 import org.joda.time.{DateTime, DateTimeZone}
 import org.locationtech.jts.geom.Envelope
 import org.maproulette.Config
-import org.maproulette.cache.CacheManager
 import org.maproulette.data._
 import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.framework.model.{
@@ -24,8 +23,7 @@ import org.maproulette.framework.model.{
   StatusActions,
   User,
   GrantTarget,
-  Task,
-  Achievement
+  Task
 }
 import org.maproulette.framework.psql.filter.{BaseParameter, SubQueryFilter}
 import org.maproulette.framework.psql.{Order, Paging, Query}

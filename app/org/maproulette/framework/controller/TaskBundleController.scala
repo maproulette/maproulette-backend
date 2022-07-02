@@ -5,10 +5,9 @@
 
 package org.maproulette.framework.controller
 
-import java.net.URLDecoder
 
 import javax.inject.Inject
-import org.maproulette.exception.{NotFoundException, InvalidException}
+import org.maproulette.exception.InvalidException
 import org.maproulette.data._
 import org.maproulette.framework.model.{Task, Tag}
 import org.maproulette.framework.service.{TaskBundleService, ServiceManager, TagService}

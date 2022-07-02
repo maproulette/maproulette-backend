@@ -5,12 +5,9 @@
 package org.maproulette.provider
 
 import play.api.libs.mailer._
-import java.io.File
-import org.apache.commons.mail.EmailAttachment
 import javax.inject.{Inject, Singleton}
 import org.maproulette.Config
 import org.maproulette.framework.model.{UserNotification, UserNotificationEmail}
-import scala.concurrent.{Future}
 
 /**
   * @author nrotstan
@@ -20,7 +17,6 @@ import scala.concurrent.{Future}
 @Singleton
 class EmailProvider @Inject() (mailerClient: MailerClient, config: Config) {
 
-  import scala.concurrent.ExecutionContext.Implicits.global
 
   def emailNotification(toAddress: String, notification: UserNotificationEmail) = {
     val notificationName =

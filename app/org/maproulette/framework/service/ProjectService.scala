@@ -16,8 +16,6 @@ import org.maproulette.framework.psql.filter._
 import org.maproulette.framework.repository.{ChallengeRepository, ProjectRepository}
 import org.maproulette.permissions.Permission
 import org.maproulette.session.SearchParameters
-import org.maproulette.exception.{InvalidException}
-import org.maproulette.data._
 import org.slf4j.LoggerFactory
 import play.api.libs.json.JsValue
 

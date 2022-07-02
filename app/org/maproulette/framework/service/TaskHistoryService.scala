@@ -6,16 +6,11 @@
 package org.maproulette.framework.service
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.duration.FiniteDuration
-import org.joda.time.DateTime
 import org.maproulette.framework.model.{ArchivableTask, TaskLogEntry, TaskReview}
-import org.maproulette.framework.psql.{Query, _}
-import org.maproulette.framework.psql.filter.{BaseParameter, _}
 import org.maproulette.framework.repository.TaskHistoryRepository
-import org.maproulette.session.SearchParameters
 import org.maproulette.permissions.Permission
 import org.maproulette.data.Actions
-import org.maproulette.provider.websockets.{WebSocketMessages, WebSocketProvider}
+import org.maproulette.provider.websockets.WebSocketProvider
 
 /**
   * Service layer for TaskHistory

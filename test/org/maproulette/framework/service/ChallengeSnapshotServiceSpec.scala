@@ -5,12 +5,8 @@
 
 package org.maproulette.framework.service
 
-import java.util.UUID
 
-import org.maproulette.framework.model._
-import org.maproulette.framework.psql.Query
 import org.maproulette.framework.util.{ChallengeSnapshotTag, FrameworkHelper}
-import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}
 import org.maproulette.data.SnapshotManager
 import play.api.Application
 

@@ -13,7 +13,6 @@ import org.maproulette.Config
 import org.maproulette.framework.model._
 import org.maproulette.framework.psql.TransactionManager
 import org.maproulette.framework.service.ProjectService
-import org.maproulette.models._
 import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}
 import org.maproulette.utils.Utils
 import org.slf4j.LoggerFactory

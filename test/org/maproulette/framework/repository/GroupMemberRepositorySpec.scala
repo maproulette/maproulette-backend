@@ -9,7 +9,7 @@ import org.maproulette.framework.model.{Group, GroupMember, MemberObject, User}
 import org.maproulette.data.{UserType, GroupType}
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.BaseParameter
-import org.maproulette.framework.repository.{GroupRepository, GroupMemberRepository}
+import org.maproulette.framework.repository.GroupMemberRepository
 import org.maproulette.framework.service.GroupService
 import org.maproulette.framework.util.{FrameworkHelper, GroupTag}
 import play.api.Application

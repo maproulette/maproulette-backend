@@ -6,13 +6,9 @@
 package org.maproulette.framework.controller
 
 import javax.inject.Inject
-import org.apache.commons.lang3.StringUtils
-import org.maproulette.data.{Created => ActionCreated, _}
-import org.maproulette.exception.{MPExceptionUtil, NotFoundException, StatusMessage}
-import org.maproulette.framework.model.{User}
+import org.maproulette.data.{Created => _, _}
 import org.maproulette.framework.service.{DataService}
 import org.maproulette.session.{SearchParameters, SessionManager}
-import org.maproulette.utils.Utils
 import play.api.libs.json._
 import play.api.mvc._
 

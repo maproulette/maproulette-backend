@@ -9,7 +9,7 @@ import java.util.Calendar
 import akka.actor.ActorRef
 import javax.inject.{Inject, Named}
 import org.maproulette.exception.{StatusMessage, StatusMessages}
-import org.maproulette.framework.service.{ServiceManager, UserService}
+import org.maproulette.framework.service.ServiceManager
 import org.maproulette.jobs.SchedulerActor.RunJob
 import org.maproulette.models.dal._
 import org.maproulette.session.SessionManager
