@@ -80,11 +80,19 @@ class TaskReviewRepository @Inject() (
         .executeUpdate()
 
       for (task <- taskList) {
+        var querystring = """UPDATE task_review SET review_claimed_by = {userId}, review_claimed_at = NOW(), review_started_at = NOW()
+                    WHERE task_id = {taskId} AND review_claimed_at IS NULL"""
+
+        //don't reset review_started_at if task has already been reviewed
+        if (!task.review.reviewedAt.isEmpty) {
+          querystring = """UPDATE task_review SET review_claimed_by = {userId}, review_claimed_at = NOW()
+                    WHERE task_id = {taskId} AND review_claimed_at IS NULL"""
+        }
+
         Query
           .simple(List())
           .build(
-            """UPDATE task_review SET review_claimed_by = {userId}, review_claimed_at = NOW(), review_started_at = NOW()
-                    WHERE task_id = {taskId} AND review_claimed_at IS NULL"""
+            querystring
           )
           .on(Symbol("taskId") -> task.id, Symbol("userId") -> user.id)
           .executeUpdate()
