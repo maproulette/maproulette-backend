@@ -4,6 +4,9 @@ db.default {
   url="jdbc:postgresql://localhost:5432/mp_dev"
   username="osm"
   password="osm"
+
+  # Set this to 'true' to see the sql statements sent to the database. Very useful when debugging.
+  logSql=false
 }
 
 akka {
