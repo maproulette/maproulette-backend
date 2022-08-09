@@ -298,6 +298,29 @@ GET     /challenges/listing                         @org.maproulette.controllers
 POST     /challenge/:id/project/:projectId           @org.maproulette.controllers.api.ChallengeController.moveChallenge(projectId:Long, id:Long)
 ###
 # tags: [ Challenge ]
+# summary: Move Challenges to another Project
+# produces: [ application/json ]
+# description: Will move a list of challenges into another project
+# responses:
+#   '200':
+#     description: list of challenge IDs successfully moved
+#     schema:
+#       type: array
+#       items:
+#         type: object
+#         $ref: '#/definitions/org.maproulette.framework.model.Tag'
+# parameters:
+#   - name: projectId
+#     in: path
+#     description: The ID of the project you are moving the challenge too.
+#   - name: challenges
+#     in: body
+#     description: a list of challenge ids to be moved
+#     required: true
+###
+POST     /challenges/project/:projectId           @org.maproulette.controllers.api.ChallengeController.moveChallenges(projectId:Long)
+###
+# tags: [ Challenge ]
 # summary: Retrieve tags for Challenge
 # produces: [ application/json ]
 # description: Retrieves all the Tags that have been added to the specified Challenge

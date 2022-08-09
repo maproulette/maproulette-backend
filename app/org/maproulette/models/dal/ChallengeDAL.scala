@@ -1378,7 +1378,7 @@ class ChallengeDAL @Inject() (
 
   /**
     * Moves a challenge from one project to another. You are required to have admin access on both
-    * the current project and the project you are moving the challenge too
+    * the current project and the project you are moving the challenge to
     *
     * @param newParent   The id of the new parent project
     * @param challengeId The id of the challenge that you are moving
@@ -1418,6 +1418,57 @@ class ChallengeDAL @Inject() (
       }
     }
   }
+
+  /**
+    * Moves a list of challenges from one project to another. You are required to have admin access on both
+    * the current project and the project you are moving the challenges to
+    *
+    * @param newParent   The id of the new parent project
+    * @param challengeIds The id of the challenge that you are moving
+    * @param c           an implicit connection
+    */
+  def moveChallenges(newParent: Long, challengeIds: List[Long], user: User)(
+    implicit c: Option[Connection] = None
+  ): List[Long] = {
+    this.permission.hasAdminAccess(ProjectType(), user)(newParent)
+    this.serviceManager.project.retrieve(newParent) match {
+      case Some(p) =>
+        if (p.isVirtual.getOrElse(false)) {
+          throw new InvalidException(s"Cannot move challenge into a virtual project ($newParent).")
+        }
+      case None =>
+        // This shouldn't happen since we already did a permission check.
+        throw new NotFoundException(s"No project with id $newParent found.")
+    }
+
+    val movedChallengeIds = ListBuffer[Long]()
+    for (challengeId <- challengeIds) {
+      implicit val id = challengeId
+      this.retrieveById match {
+        case Some(c) => this.permission.hasObjectAdminAccess(c, user)
+        case None    => throw new NotFoundException(s"No challenge with id $id found.")
+      }
+      this.cacheManager.withUpdatingCache(Long => retrieveById) { implicit item =>
+        this.withMRTransaction { implicit c =>
+          val movedChallenge =
+            SQL"UPDATE challenges SET parent_id = $newParent WHERE id = $id RETURNING #${this.retrieveColumns}"
+              .as(this.parser.*)
+              .headOption
+
+          // Also update status_actions so we don't lose our history
+          SQL"UPDATE status_actions SET project_id = $newParent WHERE challenge_id = $id"
+            .execute()
+
+          movedChallengeIds += id
+
+          movedChallenge
+        }
+      }
+    }
+
+    movedChallengeIds.toList
+  }
+
 
   /**
     * Update the popularity score of the given challenge following completion of a task.

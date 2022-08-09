@@ -1442,7 +1442,7 @@ class ChallengeController @Inject() (
   /**
     * Moves a challenge from one project to another. This requires admin access on both projects
     *
-    * @param newProjectId The new project to move the challenge too
+    * @param newProjectId The new project to move the challenge to
     * @param challengeId  The challenge that you are moving
     * @return Ok with no message
     */
@@ -1450,6 +1450,22 @@ class ChallengeController @Inject() (
     implicit request =>
       sessionManager.authenticatedRequest { implicit user =>
         Ok(Json.toJson(dalManager.challenge.moveChallenge(newProjectId, challengeId, user)))
+      }
+  }
+
+  /**
+    * Moves a list of challenges from one project to another. This requires admin access on both projects
+    *
+    * @param newProjectId The new project to move the challenge to
+    * @return Ok with no message
+    */
+  def moveChallenges(newProjectId: Long): Action[JsValue] = Action.async(bodyParsers.json) {
+    implicit request =>
+      sessionManager.authenticatedRequest { implicit user =>
+        val body         = request.body;
+        val challengeIds = (body \ "challenges").as[List[Long]]
+
+        Ok(Json.toJson(dalManager.challenge.moveChallenges(newProjectId, challengeIds, user)))
       }
   }
 
