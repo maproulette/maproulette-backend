@@ -12,7 +12,6 @@ import org.maproulette.framework.psql.{AND, OR}
 import org.maproulette.framework.model.{TaskReview, Project, Challenge, Task}
 import play.api.libs.json.JsDefined
 
-
 trait SearchParametersMixin {
 
   /**

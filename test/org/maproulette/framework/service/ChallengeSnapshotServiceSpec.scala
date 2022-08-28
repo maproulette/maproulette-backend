@@ -5,7 +5,6 @@
 
 package org.maproulette.framework.service
 
-
 import org.maproulette.framework.util.{ChallengeSnapshotTag, FrameworkHelper}
 import org.maproulette.data.SnapshotManager
 import play.api.Application

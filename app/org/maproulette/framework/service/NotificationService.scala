@@ -5,7 +5,6 @@
 
 package org.maproulette.framework.service
 
-
 import javax.inject.{Inject, Singleton}
 import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.data.{UserType}

@@ -10,7 +10,6 @@ import org.joda.time.DateTime
 
 import org.maproulette.framework.model.{TaskReview, TaskReviewFields, TaskWithReview, Task}
 
-
 /**
   * TaskParserMixin provides task parsers
   */

@@ -14,9 +14,9 @@ import scala.concurrent.Future
 import scala.concurrent.ExecutionContext
 
 /**
- * Filter to provide an http request log at the service side. The HttpLoggingFilter is enabled by default within
- * application.conf but will create no output until logback is set to the debug or trace levels.
- */
+  * Filter to provide an http request log at the service side. The HttpLoggingFilter is enabled by default within
+  * application.conf but will create no output until logback is set to the debug or trace levels.
+  */
 class HttpLoggingFilter @Inject() (implicit val mat: Materializer, ec: ExecutionContext)
     extends Filter {
   def apply(

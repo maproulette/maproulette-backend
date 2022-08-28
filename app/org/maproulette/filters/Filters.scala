@@ -13,4 +13,4 @@ import play.filters.gzip.GzipFilter
   * @author cuthbertm
   */
 class Filters @Inject() (corsFilter: CORSFilter, gzipFilter: GzipFilter)
-  extends DefaultHttpFilters(corsFilter, gzipFilter)
+    extends DefaultHttpFilters(corsFilter, gzipFilter)

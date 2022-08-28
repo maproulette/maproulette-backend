@@ -5,7 +5,6 @@
 
 package org.maproulette.framework.controller
 
-
 import javax.inject.Inject
 import org.maproulette.data.ActionManager
 import org.maproulette.exception.{MPExceptionUtil, StatusMessage}

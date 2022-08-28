@@ -12,11 +12,7 @@ import org.maproulette.framework.psql.Paging
 import org.maproulette.framework.model.{Challenge, ChallengeListing, Project, User, Tag, Task}
 import org.maproulette.framework.mixins.{ParentMixin, TagsControllerMixin}
 import org.maproulette.framework.repository.TaskRepository
-import org.maproulette.session.{
-  SessionManager,
-  SearchParameters,
-  SearchLocation
-}
+import org.maproulette.session.{SessionManager, SearchParameters, SearchLocation}
 import org.maproulette.utils.Utils
 import play.api.mvc._
 import play.api.libs.json._

@@ -1428,7 +1428,7 @@ class ChallengeDAL @Inject() (
     * @param c           an implicit connection
     */
   def moveChallenges(newParent: Long, challengeIds: List[Long], user: User)(
-    implicit c: Option[Connection] = None
+      implicit c: Option[Connection] = None
   ): List[Long] = {
     this.permission.hasAdminAccess(ProjectType(), user)(newParent)
     this.serviceManager.project.retrieve(newParent) match {
@@ -1468,7 +1468,6 @@ class ChallengeDAL @Inject() (
 
     movedChallengeIds.toList
   }
-
 
   /**
     * Update the popularity score of the given challenge following completion of a task.

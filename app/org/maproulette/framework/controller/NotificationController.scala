@@ -15,7 +15,6 @@ import org.maproulette.utils.{Crypto, Utils}
 import play.api.libs.json._
 import play.api.mvc._
 
-
 /**
   * @author nrotstan
   */
@@ -27,7 +26,6 @@ class NotificationController @Inject() (
     crypto: Crypto
 ) extends AbstractController(components)
     with DefaultWrites {
-
 
   implicit val notificationSubscriptionReads =
     NotificationSubscriptions.notificationSubscriptionReads

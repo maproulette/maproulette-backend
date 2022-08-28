@@ -4,12 +4,10 @@
  */
 package org.maproulette.framework.mixins
 
-
 import org.maproulette.framework.model.{User, Challenge, Project}
 import org.maproulette.framework.psql.{Query, _}
 import org.maproulette.framework.psql.filter._
 import org.maproulette.data.Actions
-
 
 /**
   * TaskFilterMixin provides task related methods

@@ -14,12 +14,7 @@ import org.maproulette.framework.service.{
   UserService
 }
 import org.maproulette.framework.psql.Paging
-import org.maproulette.framework.model.{
-  Challenge,
-  User,
-  ReviewMetrics,
-  Task
-}
+import org.maproulette.framework.model.{Challenge, User, ReviewMetrics, Task}
 import org.maproulette.session.{SessionManager, SearchParameters, SearchTaskParameters}
 import org.maproulette.utils.Utils
 import play.api.mvc._

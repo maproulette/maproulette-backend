@@ -5,7 +5,6 @@
 
 package org.maproulette.framework.repository
 
-
 import anorm.SqlParser.{get, scalar, str}
 import anorm.ToParameterValue
 import anorm._, postgresql._

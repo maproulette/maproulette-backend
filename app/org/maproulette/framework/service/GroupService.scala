@@ -5,7 +5,6 @@
 
 package org.maproulette.framework.service
 
-
 import javax.inject.{Inject, Singleton}
 import org.maproulette.framework.model.{Group, GroupMember, MemberObject}
 import org.maproulette.data.{ItemType}

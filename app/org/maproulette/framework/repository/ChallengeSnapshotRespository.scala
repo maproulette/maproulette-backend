@@ -5,7 +5,6 @@
 
 package org.maproulette.framework.repository
 
-
 import javax.inject.{Inject, Singleton}
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.BaseParameter

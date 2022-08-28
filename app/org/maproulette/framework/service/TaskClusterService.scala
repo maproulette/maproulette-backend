@@ -38,7 +38,7 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       numberOfPoints: Int = this.repository.DEFAULT_NUMBER_OF_POINTS
   ): List[TaskCluster] = {
     val filtered = this.filterOnSearchParameters(params)(false)
-    val query = this.filterOutDeletedParents(filtered)
+    val query    = this.filterOutDeletedParents(filtered)
 
     this.repository.queryTaskClusters(query, numberOfPoints, params)
   }

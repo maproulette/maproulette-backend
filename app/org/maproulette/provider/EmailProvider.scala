@@ -17,7 +17,6 @@ import org.maproulette.framework.model.{UserNotification, UserNotificationEmail}
 @Singleton
 class EmailProvider @Inject() (mailerClient: MailerClient, config: Config) {
 
-
   def emailNotification(toAddress: String, notification: UserNotificationEmail) = {
     val notificationName =
       UserNotification.notificationTypeMap.get(notification.notificationType).get

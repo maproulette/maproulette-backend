@@ -10,10 +10,7 @@ import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.FiniteDuration
 import play.api.libs.json.Json
 
-import org.maproulette.session.{
-  SearchParameters,
-  SearchTaskParameters
-}
+import org.maproulette.session.{SearchParameters, SearchTaskParameters}
 import org.maproulette.framework.model._
 import org.maproulette.framework.util.{TaskReviewTag, FrameworkHelper}
 import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}

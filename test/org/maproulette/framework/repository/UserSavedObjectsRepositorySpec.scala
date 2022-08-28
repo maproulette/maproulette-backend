@@ -6,10 +6,7 @@
 package org.maproulette.framework.repository
 
 import org.maproulette.framework.model.User
-import org.maproulette.framework.util.{
-  FrameworkHelper,
-  UserSavedObjectsRepoTag
-}
+import org.maproulette.framework.util.{FrameworkHelper, UserSavedObjectsRepoTag}
 import play.api.Application
 
 /**

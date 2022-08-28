@@ -4,7 +4,6 @@
  */
 package org.maproulette.session
 
-
 import org.maproulette.exception.InvalidException
 
 /**

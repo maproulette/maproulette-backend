@@ -6,13 +6,7 @@ package org.maproulette.framework.controller
 
 import javax.inject.Inject
 import org.maproulette.exception.{InvalidException, NotFoundException, StatusMessage}
-import org.maproulette.framework.model.{
-  Challenge,
-  User,
-  UserSettings,
-  GrantTarget,
-  Task
-}
+import org.maproulette.framework.model.{Challenge, User, UserSettings, GrantTarget, Task}
 import org.maproulette.framework.psql.Paging
 import org.maproulette.framework.service.ServiceManager
 import org.maproulette.framework.mixins.ParentMixin

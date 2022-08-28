@@ -5,7 +5,6 @@
 
 package org.maproulette.framework.controller
 
-
 import javax.inject.Inject
 import org.maproulette.exception.InvalidException
 import org.maproulette.data._

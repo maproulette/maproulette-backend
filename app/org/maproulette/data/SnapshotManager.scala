@@ -4,7 +4,6 @@
  */
 package org.maproulette.data
 
-
 import anorm.SqlParser._
 import anorm._
 import javax.inject.{Inject, Singleton}
