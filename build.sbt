@@ -68,10 +68,14 @@ libraryDependencies ++= Seq(
 
   "org.playframework.anorm" %% "anorm"              % "2.6.10",
   "org.playframework.anorm" %% "anorm-postgres"     % "2.6.10",
-  "org.postgresql"          % "postgresql"          % "42.3.4",
+  "org.postgresql"          % "postgresql"          % "42.4.2",
   "net.postgis"             % "postgis-jdbc"        % "2021.1.0",
-  "joda-time"               % "joda-time"           % "2.10.14",
+  "joda-time"               % "joda-time"           % "2.11.1",
+  // TODO(ljdelight): The vividsolutions package was moved to the Eclipse Foundation as LocationTech.
+  //                  See the upgrade guide https://github.com/locationtech/jts/blob/master/MIGRATION.md
   "com.vividsolutions"      % "jts"                 % "1.13",
+
+  // NOTE: jts2geojson:0.16.0 uses jackson-databind:2.12.2 which is incompatible with play 2.8.x (requires 2.11.x)
   "org.wololo"              % "jts2geojson"         % "0.14.3",
   "org.apache.commons"      % "commons-lang3"       % "3.12.0",
   "commons-codec"           % "commons-codec"       % "1.14",
