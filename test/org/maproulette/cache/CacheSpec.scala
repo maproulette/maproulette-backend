@@ -183,10 +183,13 @@ class CacheSpec extends PlaySpec with JodaWrites with JodaReads {
       theCache.clear()
       cacheObject(1L, "test1")
       theCache.addObject(TestBaseObject(2L, "test2"), Some(1))
-      Thread.sleep(2000)
-      theCache.trueSize mustEqual 1
-      Thread.sleep(5000)
-      theCache.trueSize mustEqual 0
+
+      // The overridden cache expiry is 5 seconds, sleep at least that long.
+      Thread.sleep(6000)
+
+      // The Cache.scala actually does a prune of the cache on EVERY GET...  so try to get the item
+      // in the cache expect None since it's past the expiry.
+      theCache.get(1L) mustBe None
     }
   }
 
