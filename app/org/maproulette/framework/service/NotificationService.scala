@@ -209,8 +209,6 @@ class NotificationService @Inject() (
       )
     }
 
-    val a = "huh"
-
     for (m <- mentionRegex.findAllMatchIn(comment.comment)) {
       // use first non-null group
       val username = m.subgroups.filter(_ != null).head
