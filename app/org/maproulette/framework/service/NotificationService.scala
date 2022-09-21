@@ -447,7 +447,7 @@ class NotificationService @Inject() (
         subscriptions.challengeCompleted
       case UserNotification.NOTIFICATION_TYPE_TEAM              => subscriptions.team
       case UserNotification.NOTIFICATION_TYPE_FOLLOW            => subscriptions.follow
-      case UserNotification.NOTIFICATION_TYPE_CHALLENGE_COMMENT => 1
+      case UserNotification.NOTIFICATION_TYPE_CHALLENGE_COMMENT => UserNotification.NOTIFICATION_EMAIL_IMMEDIATE
       case _                                                    => throw new InvalidException("Invalid notification type")
     }
 
