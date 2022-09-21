@@ -192,6 +192,25 @@ class NotificationService @Inject() (
     // match [@username] (username may contain spaces) or @username (no spaces allowed)
     val mentionRegex = """\[@([^\]]+)\]|@([\w\d_-]+)""".r.unanchored
 
+    // Challenge owners should be notified everytime a challenge comment is posted unless its their comment
+    if (fromUser.id != challenge.general.owner) {
+      this.addNotification(
+        UserNotification(
+          -1,
+          userId = challenge.general.owner,
+          notificationType = UserNotification.NOTIFICATION_TYPE_CHALLENGE_COMMENT,
+          fromUsername = Some(fromUser.osmProfile.displayName),
+          taskId = None,
+          challengeId = Some(challenge.id),
+          targetId = Some(comment.id),
+          extra = Some(comment.comment)
+        ),
+        User.superUser
+      )
+    }
+
+    val a = "huh"
+
     for (m <- mentionRegex.findAllMatchIn(comment.comment)) {
       // use first non-null group
       val username = m.subgroups.filter(_ != null).head
@@ -199,6 +218,10 @@ class NotificationService @Inject() (
       // Retrieve and notify mentioned user
       this.serviceManager.user.retrieveByOSMUsername(username, User.superUser) match {
         case Some(mentionedUser) =>
+          // Since challenge owners always get notified, don't duplicate the notification if they're mentioned
+          if (mentionedUser.id == challenge.general.owner) {
+            return None
+          }
           this.addNotification(
             UserNotification(
               -1,
@@ -426,6 +449,7 @@ class NotificationService @Inject() (
         subscriptions.challengeCompleted
       case UserNotification.NOTIFICATION_TYPE_TEAM   => subscriptions.team
       case UserNotification.NOTIFICATION_TYPE_FOLLOW => subscriptions.follow
+      case UserNotification.NOTIFICATION_TYPE_CHALLENGE_COMMENT => 1
       case _                                         => throw new InvalidException("Invalid notification type")
     }
 
