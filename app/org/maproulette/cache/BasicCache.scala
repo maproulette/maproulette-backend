@@ -42,16 +42,7 @@ class BasicCache[Key, Value <: CacheObject[Key]](config: Config) extends Cache[K
     *
     * @return
     */
-  def size: Int = this.cache.size
-
-  /**
-    * True size is a little bit more accurate than size, however the performance will be a bit slower
-    * as this size will loop through all the objects in the cache and expire out any items that have
-    * expired. Thereby giving the true size at the end.
-    *
-    * @return
-    */
-  def trueSize: Int = this.cache.keysIterator.count(!isExpiredByKey(_))
+  def size(): Long = this.cache.size
 
   override protected def innerGet(key: Key): Option[BasicInnerValue[Key, Value]] =
     this.cache.get(key)

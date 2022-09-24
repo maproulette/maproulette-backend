@@ -52,6 +52,7 @@ libraryDependencies ++= Seq(
   filters,
   guice,
 
+
   // NOTE: Be careful upgrading sangria and play-json as binary incompatiblities can break graphql and the entire UI.
   //       See the compatibility matrix here https://github.com/sangria-graphql/sangria-play-json
   "org.sangria-graphql"     %% "sangria-play-json"  % "2.0.1",
@@ -84,7 +85,8 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka"       %% "akka-cluster-tools" % "2.6.19",
   "com.typesafe.akka"       %% "akka-cluster-typed" % "2.6.19",
   "com.typesafe.akka"       %% "akka-slf4j"         % "2.6.19",
-  "net.debasishg"           %% "redisclient"        % "3.42"
+  "net.debasishg"           %% "redisclient"        % "3.42",
+  "com.github.blemale"      %% "scaffeine"          % "5.2.1"
 )
 
 resolvers ++= Seq(

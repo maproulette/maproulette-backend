@@ -188,6 +188,7 @@ class Config @Inject() (implicit val configuration: Configuration) {
     this.config.getOptional[Boolean](Config.KEY_SIGNIN).getOrElse(Config.DEFAULT_SIGNIN)
 
   //caching properties
+  // TODO(ljdelight): After the caffeine cache is better tested, use it as the default cache.
   lazy val cacheType: String =
     this.config.getOptional[String](Config.KEY_CACHING_TYPE).getOrElse(CacheManager.BASIC_CACHE)
   lazy val cacheLimit: Int = this.config

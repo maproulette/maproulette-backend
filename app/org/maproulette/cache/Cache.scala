@@ -48,20 +48,9 @@ trait Cache[Key, Value <: CacheObject[Key]] {
   def clear(): Unit
 
   /**
-    * The current size of the cache
-    *
-    * @return
+    * @return the current size of the cache
     */
-  def size: Int
-
-  /**
-    * True size is a little bit more accurate than size, however the performance will be a bit slower
-    * as this size will loop through all the objects in the cache and expire out any items that have
-    * expired. Thereby giving the true size at the end.
-    *
-    * @return
-    */
-  def trueSize: Int
+  def size(): Long
 
   /**
     * Adds an object to the cache, if cache limit has been reached, then will remove the oldest
@@ -113,13 +102,6 @@ trait Cache[Key, Value <: CacheObject[Key]] {
   def remove(id: Key): Option[Value]
 
   protected def innerGet(key: Key): Option[BasicInnerValue[Key, Value]]
-
-  protected def isExpiredByKey(key: Key): Boolean = synchronized {
-    this.innerGet(key) match {
-      case Some(value) => isExpired(value)
-      case None        => true
-    }
-  }
 
   /**
     * Checks to see if the item has expired and should be removed from the cache. If it finds the

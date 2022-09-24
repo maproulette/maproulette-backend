@@ -95,6 +95,7 @@ jobs:
         echo '}' >> ./conf/dev.conf
         echo 'maproulette {' >> ./conf/dev.conf
         echo '  debug=true' >> ./conf/dev.conf
+        echo '  caching.type="caffeine"' >> ./conf/dev.conf
         echo '  bootstrap=true' >> ./conf/dev.conf
         echo '  super.key="1234"' >> ./conf/dev.conf
         echo '  super.accounts=""' >> ./conf/dev.conf

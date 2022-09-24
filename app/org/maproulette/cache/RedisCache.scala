@@ -49,18 +49,11 @@ class RedisCache[Key, Value <: CacheObject[Key]](config: Config, prefix: String)
   }
 
   /**
-    * In Redis true size and size would be the same
-    *
-    * @return
-    */
-  override def trueSize: Int = this.size
-
-  /**
     * Retrieve all the keys and then just count it
     *
     * @return
     */
-  override def size: Int = this.withClient { client =>
+  override def size(): Long = this.withClient { client =>
     client.keys[String]().get.size
   }
 

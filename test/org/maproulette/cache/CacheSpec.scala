@@ -154,39 +154,44 @@ class CacheSpec extends PlaySpec with JodaWrites with JodaReads {
 
     "cache must handle size limits correctly" in {
       theCache.clear()
-      cacheObject(25L, "test1")
-      Thread.sleep(100)
-      cacheObject(26L, "test2")
-      Thread.sleep(100)
-      cacheObject(27L, "test3")
-      Thread.sleep(100)
-      cacheObject(28L, "test4")
-      Thread.sleep(100)
-      cacheObject(29L, "test5")
-      Thread.sleep(100)
-      cacheObject(30L, "test6")
-      // at this point we should be at the cache limit, the next one should add new and remove test1
-      Thread.sleep(100)
-      cacheObject(31L, "test7")
-      theCache.size mustEqual 6
-      theCache.get(25L).isEmpty mustEqual true
-      // by getting cache object 26L we should renew access time and so next entry would remove test3 instead of test2
-      theCache.get(26L)
-      Thread.sleep(100)
-      cacheObject(32L, "test8")
-      theCache.size mustEqual 6
-      theCache.get(26L).isDefined mustEqual true
-      theCache.get(27L).isEmpty mustEqual true
+      val insertN = 30L
+
+      // Add a handful of objects to the cache
+      for (id <- 0L until insertN) {
+        cacheObject(id, s"test$id")
+      }
+
+      // Sleep to give the cache time to evict some items
+      Thread.sleep(2000)
+      cacheObject(27L, s"test27")
+      Thread.sleep(2000)
+
+      // The cache may have a thread managing the evictions, so we can't expect an exact size.
+      // Since we inserted far more items than the capacity, check that some items were evicted.
+      theCache.size must be < 15L
+
+      // Add a handful of new objects to the cache, and keep fetching one to keep it from being evicted
+      for (id <- 0L until insertN) {
+        cacheObject(100 + id, s"test${100 + id}")
+        theCache.get(27L)
+        theCache.get(27L)
+        theCache.get(27L)
+        Thread.sleep(5)
+      }
+
+      // id=27 (with a high probability) will still be in the cache
+      theCache.get(27L).isDefined mustEqual true
     }
 
     "cache must expire values correctly" in {
       theCache.clear()
       cacheObject(1L, "test1")
       theCache.addObject(TestBaseObject(2L, "test2"), Some(1))
-      Thread.sleep(2000)
-      theCache.trueSize mustEqual 1
-      Thread.sleep(5000)
-      theCache.trueSize mustEqual 0
+
+      // The overridden cache expiry is 5 seconds, sleep at least that long.
+      Thread.sleep(6000)
+
+      theCache.get(1L) mustBe None
     }
   }
 

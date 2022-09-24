@@ -5,6 +5,7 @@
 package org.maproulette.cache
 
 import org.maproulette.Config
+import org.slf4j.{Logger, LoggerFactory}
 import play.api.libs.json.{Reads, Writes}
 
 import scala.collection.mutable
@@ -23,8 +24,8 @@ class CacheManager[Key, A <: CacheObject[Key]](config: Config, prefix: String = 
     implicit r: Reads[A],
     w: Writes[A]
 ) {
-  val cache: Cache[Key, A] = CacheManager(config, prefix)
-  val nameCache            = mutable.Map[String, Key]()
+  val cache: Cache[Key, A]                = CacheManager(config, prefix)
+  val nameCache: mutable.Map[String, Key] = mutable.Map[String, Key]()
 
   def clearCaches: Unit = {
     this.cache.clear()
@@ -322,19 +323,29 @@ object CacheManager {
   val DEFAULT_CACHE_EXPIRY = 900
   val BASIC_CACHE          = "basic"
   val REDIS_CACHE          = "redis"
+  val CAFFEINE_CACHE       = "caffeine"
+  val logger: Logger       = LoggerFactory.getLogger(this.getClass)
 
   def apply[Key, Value <: CacheObject[Key]](
       config: Config,
       prefix: String = ""
   )(implicit r: Reads[Value], w: Writes[Value]): Cache[Key, Value] = {
+    logger.info(s"Using cache type ${config.cacheType.toLowerCase()}")
     config.cacheType.toLowerCase match {
+      case BASIC_CACHE    => new BasicCache(config)
+      case CAFFEINE_CACHE => new CaffeineCache(config)
       case REDIS_CACHE =>
         val cache: Cache[Key, Value] = new RedisCache(config, prefix)
         if (config.redisResetOnStart) {
           cache.clear()
         }
         cache
-      case _ | BASIC_CACHE => new BasicCache(config)
+      case _ =>
+        // The config has a default cache which is valid. If we get here, the user provided an invalid
+        // cache type (because of a typo?) and since there's no safe default we throw an exception
+        throw new IllegalStateException(
+          s"Config cache type '${config.cacheType.toLowerCase()}' is invalid"
+        )
     }
   }
 }
