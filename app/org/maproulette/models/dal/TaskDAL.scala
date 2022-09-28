@@ -264,14 +264,14 @@ class TaskDAL @Inject() (
         this.manager.challenge.updateFinishedStatus()(parentId)
       }
 
-      if (status == Task.STATUS_CREATED || status == Task.STATUS_SKIPPED) {
+      if (status == Task.STATUS_CREATED) {
         this.withMRConnection { implicit c =>
           SQL"""UPDATE tasks t SET mapped_on = NULL
              WHERE t.id = ${id}""".executeUpdate()
         }
       }
 
-      if (status == Task.STATUS_FIXED || status == Task.STATUS_ALREADY_FIXED || status == Task.STATUS_TOO_HARD || status == Task.STATUS_FALSE_POSITIVE) {
+      if (status == Task.STATUS_FIXED || status == Task.STATUS_ALREADY_FIXED || status == Task.STATUS_TOO_HARD || status == Task.STATUS_FALSE_POSITIVE || status == Task.STATUS_SKIPPED) {
         this.withMRConnection { implicit c =>
           SQL"""UPDATE tasks t SET mapped_on = ${DateTime.now()}
              WHERE t.id = ${id}""".executeUpdate()
