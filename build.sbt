@@ -6,7 +6,7 @@ name := "MapRouletteAPI"
 
 version := "4.0.0"
 
-scalaVersion := "2.13.8"
+scalaVersion := "2.13.9"
 
 packageName in Universal := "MapRouletteAPI"
 
