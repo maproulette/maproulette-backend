@@ -89,11 +89,7 @@ libraryDependencies ++= Seq(
   "com.github.blemale"      %% "scaffeine"          % "5.2.1"
 )
 
-resolvers ++= Seq(
-  Resolver.bintrayRepo("scalaz", "releases"),
-  "Atlassian Releases" at "https://maven.atlassian.com/public/",
-  Resolver.sonatypeRepo("snapshots")
-)
+resolvers ++= Resolver.sonatypeOssRepos("releases")
 
 scalacOptions ++= Seq(
   // Show warning feature details in the console

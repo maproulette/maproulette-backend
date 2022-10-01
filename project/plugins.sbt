@@ -1,11 +1,5 @@
 logLevel := Level.Warn
 
-// The Typesafe repository
-resolvers ++= Seq(
-  Resolver.bintrayRepo("scalaz", "releases"),
-  Resolver.bintrayIvyRepo("iheartradio", "sbt-plugins")
-)
-
 addDependencyTreePlugin
 
 addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.8.16")
