@@ -10,10 +10,9 @@ scalaVersion := "2.13.9"
 
 packageName in Universal := "MapRouletteAPI"
 
-lazy val compileScalastyle = taskKey[Unit]("compileScalastyle")
-
-compileScalastyle := scalastyle.in(Compile).toTask("").value
-(scalastyleConfig in Compile) := baseDirectory.value / "conf/scalastyle-config.xml"
+// Configure scalastyle. This does not run during compile, run it with 'sbt scalastyle' or 'sbt test:scalastyle'.
+Compile / scalastyleConfig := baseDirectory.value / "conf/scalastyle-config.xml"
+Test / scalastyleConfig := baseDirectory.value / "conf/scalastyle-config.xml"
 
 // Setup the scalafix plugin
 inThisBuild(List(
