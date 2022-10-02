@@ -83,7 +83,7 @@ jobs:
     - name: Run sbt compile
       env:
         CI: true
-      run: sbt -Dsbt.log.format=false scalafmtCheckAll compile
+      run: sbt -Dsbt.log.format=false scalafmtCheckAll scalafmtSbtCheck compile
     - name: Create the dev.conf
       run: |
         touch ./conf/dev.conf
