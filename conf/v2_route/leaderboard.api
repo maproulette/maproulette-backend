@@ -71,6 +71,7 @@ GET     /data/user/leaderboard                      @org.maproulette.framework.c
 #     description: How many results before and after the found user to return
 ###
 GET     /data/user/:userId/leaderboard              @org.maproulette.framework.controller.LeaderboardController.getLeaderboardForUser(userId:Long, bracket:Int ?= 0)
+###
 # tags: [ Leaderboard ]
 # summary: Gets the top challenges worked on by the user
 # produces: [ application/json ]

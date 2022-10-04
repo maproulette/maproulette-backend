@@ -214,6 +214,8 @@ PUT     /user/:userId/apikey                        @org.maproulette.framework.c
 #     description: Used in conjunction with the limit parameter to page through X number of responses.
 ###
 GET     /users/find/:username                          @org.maproulette.framework.controller.UserController.searchUserByOSMUsername(username:String, limit:Int ?= 10)
+# This one is documented by the above route
+### NoDocs ###
 GET     /users/find                                    @org.maproulette.framework.controller.UserController.searchUserByOSMUsername(username:String ?= "", limit:Int ?= 10)
 ###
 # tags: [ User ]
