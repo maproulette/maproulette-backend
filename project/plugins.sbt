@@ -8,7 +8,7 @@ addSbtPlugin("com.typesafe.sbt" % "sbt-gzip" % "1.0.2")
 
 addSbtPlugin("com.beautiful-scala" %% "sbt-scalastyle" % "1.5.1")
 
-addSbtPlugin("com.iheart" % "sbt-play-swagger" % "0.10.6-PLAY2.8")
+addSbtPlugin("com.iheart" % "sbt-play-swagger" % "0.11.0")
 
 addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.4.6")
 

@@ -147,7 +147,7 @@ If you want to connect to the dev servers you can simply replace all instances o
 
 [Challenge API](docs/challenge_api.md) has further information about creating challenges through the API.
 
-See also the Swagger API documentation. You can view the documentation by going to the URL ```docs/swagger-ui/index.html?url=/assets/swagger.json``` on any MapRoulette instance.
+See also the Swagger API documentation. You can view the documentation by going to the URL ```/docs/swagger-ui/index.html``` on any MapRoulette instance.
 
 ## Dev Docs
 

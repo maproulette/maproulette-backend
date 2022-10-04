@@ -35,8 +35,6 @@ swaggerDomainNameSpaces := Seq(
   "org.maproulette.data"
 )
 
-swaggerOutputTransformers := Seq(envOutputTransformer)
-
 swaggerRoutesFile := "generated.routes"
 
 pipelineStages := Seq(gzip)
@@ -60,10 +58,10 @@ libraryDependencies ++= Seq(
   "com.typesafe.play"      %% "play-json"          % "2.8.2",
   "org.scalatestplus.play" %% "scalatestplus-play" % "5.1.0" % Test,
   "org.scalatestplus"      %% "mockito-4-5"        % "3.2.12.0" % Test,
-  // NOTE: There is a breaking change with swagger-ui starting at v4.1.3 where the 'url'
-  //       parameter is disabled for security reasons.
-  //       See https://github.com/swagger-api/swagger-ui/issues/4872
-  "org.webjars"             % "swagger-ui"      % "4.1.2",
+  // NOTE: The swagger-ui package is used to obtain the static distribution of swagger-ui, the files included at runtime
+  // and are served by the webserver at route '/assets/lib/swagger-ui/'. We have a few customized swagger files in dir
+  // 'public/swagger'.
+  "org.webjars"             % "swagger-ui"      % "4.14.2",
   "org.playframework.anorm" %% "anorm"          % "2.6.10",
   "org.playframework.anorm" %% "anorm-postgres" % "2.6.10",
   "org.postgresql"          % "postgresql"      % "42.4.2",

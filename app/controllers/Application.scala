@@ -56,4 +56,11 @@ class Application @Inject() (
       Ok(s"Pong - ${Calendar.getInstance().getTime()}")
     }
   }
+
+  /**
+    * Convenience method for users who visit '/docs' to be redirected to the swagger docs
+    */
+  def redirectDocs(): Action[AnyContent] = Action {
+    Redirect(url = "/docs/swagger-ui/index.html")
+  }
 }

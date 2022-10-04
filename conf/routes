@@ -16,8 +16,9 @@ PUT     /runJob/:name                                                   @control
 GET     /ws                                                             @org.maproulette.framework.controller.WebSocketController.socket
 GET     /graphql/ide                                                    @org.maproulette.framework.controller.GraphQLController.graphiql
 POST    /graphql                                                        @org.maproulette.framework.controller.GraphQLController.graphqlBody
-# Swagger route
-GET     /docs/swagger-ui/*file                                          @controllers.Assets.at(path:String="/public/lib/swagger-ui", file:String)
+# Routes for /docs redirect and serving the swagger-ui
+GET     /docs                                                           @controllers.Application.redirectDocs()
+GET     /docs/swagger-ui/*file                                          @controllers.Assets.at(path:String="/public/swagger", file:String)
 ### NoDocs ###
 GET     /assets/*file                                                   @controllers.Assets.versioned(path="/public", file: Asset)
 

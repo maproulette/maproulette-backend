@@ -2,7 +2,7 @@
 
 This document will go over everything that is needed to generate Challenges with tasks in various ways through the API. Although the API is quite powerful it can be difficult to navigate at times due to the various options that are available to the user of the API. The MapRoulette UI will usually hide all these options from the user and provide a clean interface to build challenges from. This document will describe all the various options and how to use them through the API. 
 
-For more information and more advanced options on building projects using the API see the swagger documentation. The swagger documentation can be found on any instance of MapRoulette with the following url: ```/docs/swagger-ui/index.html?url=/assets/swagger.json```. To see the swagger documentation for maproulette.org follow this [link](http://maproulette.org/docs/swagger-ui/index.html?url=/assets/swagger.json).
+For more information and more advanced options on building projects using the API see the swagger documentation. The swagger documentation can be found on any instance of MapRoulette with the following url: ```/docs/swagger-ui/index.html```. To see the swagger documentation for maproulette.org follow this [link](https://maproulette.org/docs/swagger-ui/index.html).
 
 ## Creating a Project
 
