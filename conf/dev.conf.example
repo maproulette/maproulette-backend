@@ -13,7 +13,7 @@ akka {
   # Refer to the manual for akka logging options
   # https://doc.akka.io/docs/akka/current/logging.html
   loggers = ["akka.event.slf4j.Slf4jLogger"]
-  loglevel = "WARN"
+  loglevel = "WARNING"
   logging-filter = "akka.event.slf4j.Slf4jLoggingFilter"
   actor {
     debug {
