@@ -7,6 +7,8 @@ package org.maproulette.cache
 
 import org.joda.time.{LocalDateTime, Seconds}
 
+import scala.concurrent.Future
+
 /**
   * @author mcuthbert
   */
@@ -19,6 +21,7 @@ case class BasicInnerValue[Key, Value](
 
 trait Cache[Key, Value <: CacheObject[Key]] {
 
+  import scala.concurrent.ExecutionContext.Implicits.global
   implicit val cacheLimit: Int
   implicit val cacheExpiry: Int
 
@@ -32,6 +35,17 @@ trait Cache[Key, Value <: CacheObject[Key]] {
     */
   def addObject(obj: Value, localExpiry: Option[Int] = None): Option[Value] = synchronized {
     this.add(obj.id, obj, localExpiry)
+  }
+
+  /** Adds a list of objects to the cache within a future.
+    *
+    * @param objs the objects to add to the cache
+    * @return the list of items added to the cache, although these may or may not still be in the cache
+    */
+  def addObjectsAsync(objs: List[Value]): Future[List[Value]] = {
+    Future {
+      objs.map(obj => this.addObject(obj).get)
+    }
   }
 
   /**

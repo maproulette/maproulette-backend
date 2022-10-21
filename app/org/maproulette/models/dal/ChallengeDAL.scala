@@ -433,7 +433,7 @@ class ChallengeDAL @Inject() (
              WHERE c.id = $id
            """.as(projectParser.*).headOption
           }
-        }
+        }(Some(id))
       case Right(challenge) =>
         this.permission.hasObjectReadAccess(challenge, user)
         this.serviceManager.project.cacheManager.withOptionCaching { () =>
@@ -442,7 +442,7 @@ class ChallengeDAL @Inject() (
               .as(projectParser.*)
               .headOption
           }
-        }
+        }(Some(challenge.general.parent))
     }
   }
 
@@ -958,7 +958,10 @@ class ChallengeDAL @Inject() (
                       AND (c.status = ${Challenge.STATUS_READY})
                       AND c.requires_local = false
                       LIMIT ${this.sqlLimit(limit)} OFFSET $offset"""
-      SQL(query).as(this.parser.*)
+      val challenges = SQL(query).as(this.parser.*)
+      // Insert the challenges into the cache
+      this.cacheManager.cache.addObjectsAsync(challenges)
+      challenges
     }
   }
 
@@ -983,7 +986,10 @@ class ChallengeDAL @Inject() (
                       AND (c.status = ${Challenge.STATUS_READY})
                       AND c.requires_local = false
                       ORDER BY popularity DESC LIMIT ${this.sqlLimit(limit)} OFFSET $offset"""
-      SQL(query).as(this.parser.*)
+      val challenges = SQL(query).as(this.parser.*)
+      // Insert the challenges into the cache
+      this.cacheManager.cache.addObjectsAsync(challenges)
+      challenges
     }
   }
 
@@ -1009,7 +1015,10 @@ class ChallengeDAL @Inject() (
                       AND c.requires_local = false
                       ${this.order(Some("created"), "DESC", "c", true)}
                       LIMIT ${this.sqlLimit(limit)} OFFSET $offset"""
-      SQL(query).as(this.parser.*)
+      val challenges = SQL(query).as(this.parser.*)
+      // Insert the challenges into the cache
+      this.cacheManager.cache.addObjectsAsync(challenges)
+      challenges
     }
   }
 

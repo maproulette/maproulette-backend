@@ -139,6 +139,11 @@ class TaskDAL @Inject() (
         }
       case Right(task) =>
         this.permission.hasObjectReadAccess(task, user)
+
+        // TODO(ljdelight): This block was identified by a profile, it's too slow.
+        //  When a ton of tasks are scanned and the projects are fetched, it's not using the cache.
+        //  The goal here is to be able to use a task id and quickly get the project... however the
+        //  serviceManager.challenge does not have a cache manager. It looks like this needs added.
         this.serviceManager.project.cacheManager.withOptionCaching { () =>
           this.withMRConnection { implicit c =>
             SQL"""SELECT p.* FROM projects p
@@ -301,7 +306,7 @@ class TaskDAL @Inject() (
       }
 
       task
-    }
+    } // NOTE: do not look for a cached item since this is expected to update the database
   }
 
   /**
