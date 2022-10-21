@@ -2,7 +2,7 @@ logLevel := Level.Warn
 
 addDependencyTreePlugin
 
-addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.8.16")
+addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.8.18")
 
 addSbtPlugin("com.typesafe.sbt" % "sbt-gzip" % "1.0.2")
 

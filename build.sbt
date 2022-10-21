@@ -6,9 +6,9 @@ name := "MapRouletteAPI"
 
 version := "4.0.0"
 
-scalaVersion := "2.13.9"
+scalaVersion := "2.13.10"
 
-packageName in Universal := "MapRouletteAPI"
+Universal / packageName := "MapRouletteAPI"
 
 // Configure scalastyle. This does not run during compile, run it with 'sbt scalastyle' or 'sbt test:scalastyle'.
 Compile / scalastyleConfig := baseDirectory.value / "conf/scalastyle-config.xml"
@@ -50,7 +50,7 @@ libraryDependencies ++= Seq(
   specs2 % Test,
   filters,
   guice,
-  // NOTE: Be careful upgrading sangria and play-json as binary incompatiblities can break graphql and the entire UI.
+  // NOTE: Be careful upgrading sangria and play-json as binary incompatibilities can break graphql and the entire UI.
   //       See the compatibility matrix here https://github.com/sangria-graphql/sangria-play-json
   "org.sangria-graphql"    %% "sangria-play-json"  % "2.0.1",
   "org.sangria-graphql"    %% "sangria"            % "2.0.1",
@@ -61,12 +61,12 @@ libraryDependencies ++= Seq(
   // NOTE: The swagger-ui package is used to obtain the static distribution of swagger-ui, the files included at runtime
   // and are served by the webserver at route '/assets/lib/swagger-ui/'. We have a few customized swagger files in dir
   // 'public/swagger'.
-  "org.webjars"             % "swagger-ui"      % "4.14.2",
+  "org.webjars"             % "swagger-ui"      % "4.14.3",
   "org.playframework.anorm" %% "anorm"          % "2.6.10",
   "org.playframework.anorm" %% "anorm-postgres" % "2.6.10",
-  "org.postgresql"          % "postgresql"      % "42.4.2",
+  "org.postgresql"          % "postgresql"      % "42.5.0",
   "net.postgis"             % "postgis-jdbc"    % "2021.1.0",
-  "joda-time"               % "joda-time"       % "2.11.1",
+  "joda-time"               % "joda-time"       % "2.12.0",
   // TODO(ljdelight): The vividsolutions package was moved to the Eclipse Foundation as LocationTech.
   //                  See the upgrade guide https://github.com/locationtech/jts/blob/master/MIGRATION.md
   "com.vividsolutions" % "jts" % "1.13",
@@ -76,9 +76,9 @@ libraryDependencies ++= Seq(
   "commons-codec"      % "commons-codec"       % "1.14",
   "com.typesafe.play"  %% "play-mailer"        % "8.0.1",
   "com.typesafe.play"  %% "play-mailer-guice"  % "8.0.1",
-  "com.typesafe.akka"  %% "akka-cluster-tools" % "2.6.19",
-  "com.typesafe.akka"  %% "akka-cluster-typed" % "2.6.19",
-  "com.typesafe.akka"  %% "akka-slf4j"         % "2.6.19",
+  "com.typesafe.akka"  %% "akka-cluster-tools" % "2.6.20",
+  "com.typesafe.akka"  %% "akka-cluster-typed" % "2.6.20",
+  "com.typesafe.akka"  %% "akka-slf4j"         % "2.6.20",
   "net.debasishg"      %% "redisclient"        % "3.42",
   "com.github.blemale" %% "scaffeine"          % "5.2.1"
 )
