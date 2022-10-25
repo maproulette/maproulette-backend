@@ -69,7 +69,7 @@ class SessionManager @Inject() (
     * @return A Future which will contain the user
     */
   def retrieveUser(verifier: String)(implicit request: Request[AnyContent]): Future[User] = {
-    val p = Promise[User]
+    val p = Promise[User]()
     this.sessionTokenPair match {
       case Some(pair) =>
         this.oauth.retrieveAccessToken(pair, verifier) match {
@@ -137,7 +137,7 @@ class SessionManager @Inject() (
   protected def userAware(
       block: Option[User] => Result
   )(implicit request: Request[Any]): Future[Result] = {
-    val p = Promise[Result]
+    val p = Promise[Result]()
     this.sessionUser(sessionTokenPair) onComplete {
       case Success(result) =>
         Try(block(result)) match {
@@ -169,7 +169,7 @@ class SessionManager @Inject() (
   protected def authenticated(
       execute: Either[User => Result, User => Future[Result]]
   )(implicit request: Request[Any], requireSuperUser: Boolean = false): Future[Result] = {
-    val p = Promise[Result]
+    val p = Promise[Result]()
     try {
       this.sessionUser(sessionTokenPair) onComplete {
         case Success(result) =>
@@ -246,7 +246,7 @@ class SessionManager @Inject() (
   def sessionUser(tokenPair: Option[RequestToken], create: Boolean = false)(
       implicit request: RequestHeader
   ): Future[Option[User]] = {
-    val p      = Promise[Option[User]]
+    val p      = Promise[Option[User]]()
     val userId = request.session.get(SessionManager.KEY_USER_ID)
     val osmId  = request.session.get(SessionManager.KEY_OSM_ID)
     // if in dev mode we just default every request to super user request
@@ -375,7 +375,7 @@ class SessionManager @Inject() (
     *         None.
     */
   def refreshProfile(accessToken: RequestToken, user: User): Future[Option[User]] = {
-    val p = Promise[Option[User]]
+    val p = Promise[Option[User]]()
     // if no user is matched, then lets create a new user
     val details = this.ws
       .url(this.osmOAuth.userDetailsURL)

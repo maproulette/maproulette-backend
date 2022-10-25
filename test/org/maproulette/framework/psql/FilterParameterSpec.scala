@@ -23,20 +23,20 @@ class FilterParameterSpec extends PlaySpec {
   "BaseParameter" should {
     "set correctly" in {
       val parameter = BaseParameter(KEY, VALUE)
-      parameter.sql() mustEqual s"$KEY = {${parameter.getKey}}"
+      parameter.sql() mustEqual s"$KEY = {${parameter.getKey()}}"
       val params = parameter.parameters()
       params.size mustEqual 1
-      params.head mustEqual NamedParameter(s"${parameter.getKey}", VALUE)
+      params.head mustEqual NamedParameter(s"${parameter.getKey()}", VALUE)
     }
 
     "set operator correctly" in {
       val parameter = BaseParameter(KEY, VALUE, Operator.GT)
-      parameter.sql() mustEqual s"$KEY > {${parameter.getKey}}"
+      parameter.sql() mustEqual s"$KEY > {${parameter.getKey()}}"
     }
 
     "set negation correctly" in {
       val parameter = BaseParameter(KEY, VALUE, negate = true)
-      parameter.sql() mustEqual s"NOT $KEY = {${parameter.getKey}}"
+      parameter.sql() mustEqual s"NOT $KEY = {${parameter.getKey()}}"
     }
 
     "set negation correctly on Custom operator" in {
@@ -56,7 +56,7 @@ class FilterParameterSpec extends PlaySpec {
 
     "set list correctly using IN operator" in {
       val parameter = BaseParameter(KEY, List(1, 2, 3), Operator.IN)
-      parameter.sql() mustEqual s"$KEY IN ({${parameter.getKey}})"
+      parameter.sql() mustEqual s"$KEY IN ({${parameter.getKey()}})"
     }
 
     "do not set empty list" in {
@@ -67,17 +67,17 @@ class FilterParameterSpec extends PlaySpec {
 
     "set implicit table" in {
       val parameter = BaseParameter(KEY, VALUE, table = Some("TEST"))
-      parameter.sql() mustEqual s"TEST.$KEY = {${parameter.getKey}}"
+      parameter.sql() mustEqual s"TEST.$KEY = {${parameter.getKey()}}"
     }
   }
 
   "ConditionalFilter" should {
     "set correctly if condition true" in {
       val filter = FilterParameter.conditional(KEY, VALUE, includeOnlyIfTrue = true)
-      filter.sql() mustEqual s"$KEY = {${filter.filter.getKey}}"
+      filter.sql() mustEqual s"$KEY = {${filter.filter.getKey()}}"
       val params = filter.parameters()
       params.size mustEqual 1
-      params.head mustEqual NamedParameter(filter.filter.getKey, VALUE)
+      params.head mustEqual NamedParameter(filter.filter.getKey(), VALUE)
     }
 
     "not set if condition is false" in {
@@ -86,13 +86,13 @@ class FilterParameterSpec extends PlaySpec {
 
     "set operator correctly" in {
       val parameter = FilterParameter.conditional(KEY, VALUE, Operator.LT, includeOnlyIfTrue = true)
-      parameter.sql() mustEqual s"$KEY < {${parameter.filter.getKey}}"
+      parameter.sql() mustEqual s"$KEY < {${parameter.filter.getKey()}}"
     }
 
     "set negation correctly" in {
       val parameter =
         FilterParameter.conditional(KEY, VALUE, negate = true, includeOnlyIfTrue = true)
-      parameter.sql() mustEqual s"NOT $KEY = {${parameter.filter.getKey}}"
+      parameter.sql() mustEqual s"NOT $KEY = {${parameter.filter.getKey()}}"
     }
 
     "set value directly correctly" in {
@@ -112,10 +112,10 @@ class FilterParameterSpec extends PlaySpec {
     "set single start date correctly" in {
       val startDate = DateTime.now()
       val filter    = DateParameter(KEY, startDate, null)
-      filter.sql() mustEqual s"$KEY = {${filter.getKey}}"
+      filter.sql() mustEqual s"$KEY = {${filter.getKey()}}"
       val params = filter.parameters()
       params.size mustEqual 1
-      params.head mustEqual SQLUtils.buildNamedParameter(filter.getKey, startDate)
+      params.head mustEqual SQLUtils.buildNamedParameter(filter.getKey(), startDate)
     }
 
     "set two dates correctly" in {
@@ -123,11 +123,11 @@ class FilterParameterSpec extends PlaySpec {
       val startDate = endDate.minus(Months.ONE)
       val filter    = DateParameter(KEY, startDate, endDate, Operator.BETWEEN)
       filter
-        .sql() mustEqual s"$KEY::DATE BETWEEN {${filter.getKey}_date1} AND {${filter.getKey}_date2}"
+        .sql() mustEqual s"$KEY::DATE BETWEEN {${filter.getKey()}_date1} AND {${filter.getKey()}_date2}"
       val params = filter.parameters()
       params.size mustEqual 2
-      params.head mustEqual SQLUtils.buildNamedParameter(s"${filter.getKey}_date1", startDate)
-      params.tail.head mustEqual SQLUtils.buildNamedParameter(s"${filter.getKey}_date2", endDate)
+      params.head mustEqual SQLUtils.buildNamedParameter(s"${filter.getKey()}_date1", startDate)
+      params.tail.head mustEqual SQLUtils.buildNamedParameter(s"${filter.getKey()}_date2", endDate)
     }
 
     "set negate correctly on two dates" in {
@@ -139,7 +139,7 @@ class FilterParameterSpec extends PlaySpec {
         negate = true
       )
       parameter
-        .sql() mustEqual s"$KEY::DATE NOT BETWEEN {${parameter.getKey}_date1} AND {${parameter.getKey}_date2}"
+        .sql() mustEqual s"$KEY::DATE NOT BETWEEN {${parameter.getKey()}_date1} AND {${parameter.getKey()}_date2}"
     }
 
     "fail on invalid provided column" in {
@@ -166,11 +166,11 @@ class FilterParameterSpec extends PlaySpec {
         Query.simple(List(parameter), "SELECT * FROM table")
       )
       filter
-        .sql() mustEqual s"$KEY IN (SELECT * FROM table WHERE Key2 = {${parameter.getKey}})"
+        .sql() mustEqual s"$KEY IN (SELECT * FROM table WHERE Key2 = {${parameter.getKey()}})"
       val params = filter.parameters()
       params.size mustEqual 1
       params.head mustEqual SQLUtils.buildNamedParameter(
-        s"${parameter.getKey}",
+        s"${parameter.getKey()}",
         "value2"
       )
     }
@@ -181,15 +181,16 @@ class FilterParameterSpec extends PlaySpec {
       val filter =
         SubQueryFilter(KEY, Query.simple(List(parameter1, parameter2), "SELECT * FROM table", OR()))
       filter
-        .sql() mustEqual s"$KEY IN (SELECT * FROM table WHERE (key2 = {${parameter1.getKey}} OR key3 <= {${parameter2.getKey}}))"
+        .sql() mustEqual s"$KEY IN (SELECT * FROM table WHERE (key2 = {${parameter1
+        .getKey()}} OR key3 <= {${parameter2.getKey()}}))"
       val params = filter.parameters()
       params.size mustEqual 2
       params.head mustEqual SQLUtils.buildNamedParameter(
-        s"${parameter1.getKey}",
+        s"${parameter1.getKey()}",
         "value2"
       )
       params.tail.head mustEqual SQLUtils.buildNamedParameter(
-        s"${parameter2.getKey}",
+        s"${parameter2.getKey()}",
         "value3"
       )
     }
@@ -202,7 +203,7 @@ class FilterParameterSpec extends PlaySpec {
         operator = Operator.EXISTS
       )
       filter
-        .sql() mustEqual s"EXISTS (SELECT * FROM table WHERE key2 = {${parameter.getKey}})"
+        .sql() mustEqual s"EXISTS (SELECT * FROM table WHERE key2 = {${parameter.getKey()}})"
     }
 
     "Set equals subquery filter" in {
@@ -213,7 +214,7 @@ class FilterParameterSpec extends PlaySpec {
         operator = Operator.EQ
       )
       filter
-        .sql() mustEqual s"$KEY = (SELECT * FROM table WHERE key2 = {${parameter.getKey}})"
+        .sql() mustEqual s"$KEY = (SELECT * FROM table WHERE key2 = {${parameter.getKey()}})"
     }
 
     "fail on invalid provided column" in {
@@ -253,7 +254,7 @@ class FilterParameterSpec extends PlaySpec {
         .sql() mustEqual FilterParameterSpec.DEFAULT_FUZZY_SQL(KEY, keyPrefix = filter.randomPrefix)
       val params = filter.parameters()
       params.size mustEqual 1
-      params.head mustEqual SQLUtils.buildNamedParameter(filter.getKey, VALUE)
+      params.head mustEqual SQLUtils.buildNamedParameter(filter.getKey(), VALUE)
     }
 
     "sets fuzzy search with default levenshstein score if less than 1" in {

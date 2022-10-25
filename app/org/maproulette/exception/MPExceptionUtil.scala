@@ -57,7 +57,7 @@ object MPExceptionUtil {
     * @return Future[Result]
     */
   def internalAsyncExceptionCatcher(block: () => Future[Result]): Future[Result] = {
-    val p = Promise[Result]
+    val p = Promise[Result]()
     Try(block()) match {
       case Success(f) =>
         f onComplete {

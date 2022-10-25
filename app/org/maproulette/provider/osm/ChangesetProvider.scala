@@ -40,7 +40,7 @@ class ChangesetProvider @Inject() (
   import scala.concurrent.ExecutionContext.Implicits.global
 
   def getVersionedChange(tagChanges: List[TagChange]): Future[List[VersionedObject]] = {
-    val p = Promise[List[VersionedObject]]
+    val p = Promise[List[VersionedObject]]()
     this.conflateTagChanges(tagChanges) onComplete {
       case Success(res) => p success res.map(_._1)
       case Failure(f)   => p failure f
@@ -56,7 +56,7 @@ class ChangesetProvider @Inject() (
     * @return
     */
   def testTagChange(tagChanges: List[TagChange]): Future[List[TagChangeResult]] = {
-    val p = Promise[List[TagChangeResult]]
+    val p = Promise[List[TagChangeResult]]()
     this.conflateTagChanges(tagChanges) onComplete {
       case Success(res) => p success res.map(_._2)
       case Failure(f)   => p failure f
@@ -77,7 +77,7 @@ class ChangesetProvider @Inject() (
       accessToken: RequestToken,
       taskId: Option[Long] = None
   )(implicit c: Option[Connection] = None): Future[Elem] = {
-    val p = Promise[Elem]
+    val p = Promise[Elem]()
     // create the new changeset
     this.createChangeset(changeSetComment, accessToken) onComplete {
       case Success(changesetId) =>
@@ -137,7 +137,7 @@ class ChangesetProvider @Inject() (
     * @return The osmChange XML
     */
   def getOsmChange(change: OSMChange, changeSetId: Option[Int]): Future[Elem] = {
-    val changePromise = Promise[Elem]
+    val changePromise = Promise[Elem]()
     val osmCreates = change.creates match {
       case Some(creates) =>
         <create>
@@ -146,7 +146,7 @@ class ChangesetProvider @Inject() (
       case None => NodeSeq.Empty
     }
 
-    val updatesPromise = Promise[NodeSeq]
+    val updatesPromise = Promise[NodeSeq]()
     val osmUpdates = change.updates match {
       case Some(updates) =>
         // Only support tag changes for now
@@ -198,7 +198,7 @@ class ChangesetProvider @Inject() (
       relations <- relationService.get(relations.map(_.osmId))
     } yield (nodes, ways, relations)
 
-    val p = Promise[List[(VersionedObject, TagChangeResult)]]
+    val p = Promise[List[(VersionedObject, TagChangeResult)]]()
     results onComplete {
       case Success(r) =>
         val changes = (r._1 ++ r._2 ++ r._3).flatMap(feature => {
@@ -271,7 +271,7 @@ class ChangesetProvider @Inject() (
   private def checkResult[T](
       block: WSResponse => T
   )(implicit req: Future[WSResponse], url: String): Future[T] = {
-    val p = Promise[T]
+    val p = Promise[T]()
     req onComplete {
       case Success(res) =>
         res.status match {

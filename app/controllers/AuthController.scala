@@ -47,7 +47,7 @@ class AuthController @Inject() (
     */
   def authenticate(): Action[AnyContent] = Action.async { implicit request =>
     MPExceptionUtil.internalAsyncExceptionCatcher { () =>
-      val p        = Promise[Result]
+      val p        = Promise[Result]()
       val redirect = request.getQueryString("redirect").getOrElse("")
       request.getQueryString("oauth_verifier") match {
         case Some(verifier) =>
@@ -119,7 +119,7 @@ class AuthController @Inject() (
 
   def signIn(redirect: String): Action[AnyContent] = Action.async { implicit request =>
     MPExceptionUtil.internalAsyncExceptionCatcher { () =>
-      val p = Promise[Result]
+      val p = Promise[Result]()
       request.body.asFormUrlEncoded match {
         case Some(data) =>
           val username = data.getOrElse("signInUsername", ArrayBuffer("")).mkString

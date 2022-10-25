@@ -79,7 +79,7 @@ class ChallengeService @Inject() (
         ),
         BaseParameter(
           Challenge.FIELD_PARENT_ID,
-          user.managedProjectIds,
+          user.managedProjectIds(),
           Operator.IN,
           table = Some(Challenge.TABLE)
         )

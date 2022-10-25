@@ -858,7 +858,7 @@ class TaskDAL @Inject() (
   def matchToOSMChangeSet(task: Task, user: User, immediate: Boolean = true)(
       implicit c: Option[Connection] = None
   ): Future[Boolean] = {
-    val result = Promise[Boolean]
+    val result = Promise[Boolean]()
     if (config.allowMatchOSM) {
       task.status match {
         case Some(Task.STATUS_FIXED) =>
@@ -930,7 +930,7 @@ class TaskDAL @Inject() (
     * @return A list of sorted changesets
     */
   private def getSortedChangeList(statusAction: StatusActionItem): Future[Seq[Changeset]] = {
-    val result        = Promise[Seq[Changeset]]
+    val result        = Promise[Seq[Changeset]]()
     val format        = "YYYY-MM-dd'T'HH:mm:ss'Z'"
     val fixedTimeDiff = statusAction.created.getMillis
     val prevHours =

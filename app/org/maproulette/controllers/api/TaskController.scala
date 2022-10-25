@@ -624,7 +624,7 @@ class TaskController @Inject() (
     this.sessionManager.authenticatedFutureRequest { implicit user =>
       this.dal.retrieveById(taskId) match {
         case Some(t) =>
-          val promise = Promise[Result]
+          val promise = Promise[Result]()
           this.dal.matchToOSMChangeSet(t, user, false) onComplete {
             case Success(response) => promise success Ok(Json.toJson(t))
             case Failure(error)    => promise failure error
@@ -646,7 +646,7 @@ class TaskController @Inject() (
             }
           },
           element => {
-            val p = Promise[Result]
+            val p = Promise[Result]()
 
             val requestReview = request.getQueryString("requestReview") match {
               case Some(v) => Some(v.toBoolean)

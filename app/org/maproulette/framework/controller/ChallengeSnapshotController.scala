@@ -140,10 +140,10 @@ class ChallengeSnapshotController @Inject() (
       val priorityActions = snapshot.priorityActions.get
 
       s"${snapshot.created},${snapshot.id},${snapshot.itemId},${snapshot.name},${snapshot.status.getOrElse("")}," +
-        snapshot.actions.get.values.mkString(",") + "," +
-        priorityActions(Challenge.PRIORITY_HIGH.toString).values.mkString(",") + "," +
-        priorityActions(Challenge.PRIORITY_MEDIUM.toString).values.mkString(",") + "," +
-        priorityActions(Challenge.PRIORITY_LOW.toString).values.mkString(",")
+        snapshot.actions.get.values().mkString(",") + "," +
+        priorityActions(Challenge.PRIORITY_HIGH.toString).values().mkString(",") + "," +
+        priorityActions(Challenge.PRIORITY_MEDIUM.toString).values().mkString(",") + "," +
+        priorityActions(Challenge.PRIORITY_LOW.toString).values().mkString(",")
     })
   }
 }

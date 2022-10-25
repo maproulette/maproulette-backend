@@ -27,7 +27,7 @@ import akka.actor._
   */
 @Singleton
 class WebSocketProvider @Inject() (implicit system: ActorSystem) {
-  val publisher = system.actorOf(Props[WebSocketPublisher], "publisher")
+  val publisher = system.actorOf(Props[WebSocketPublisher](), "publisher")
 
   def sendMessage(message: WebSocketMessages.ServerMessage): Unit = {
     publisher ! message

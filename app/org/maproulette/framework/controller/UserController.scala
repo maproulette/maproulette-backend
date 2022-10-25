@@ -185,7 +185,7 @@ class UserController @Inject() (
     */
   def refreshProfile(osmUserId: Long): Action[AnyContent] = Action.async { implicit request =>
     sessionManager.authenticatedFutureRequest { implicit user =>
-      val p = Promise[Result]
+      val p = Promise[Result]()
       this.serviceManager.user.retrieveByOSMId(osmUserId) match {
         case Some(u) =>
           sessionManager.refreshProfile(u.osmProfile.requestToken, user) onComplete {

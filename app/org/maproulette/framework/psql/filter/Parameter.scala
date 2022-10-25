@@ -230,7 +230,7 @@ case class FuzzySearchParameter(
       )"""
   }
 
-  override def parameters(): List[NamedParameter] = List(Symbol(getKey) -> value)
+  override def parameters(): List[NamedParameter] = List(Symbol(getKey()) -> value)
 }
 
 object FilterParameter {

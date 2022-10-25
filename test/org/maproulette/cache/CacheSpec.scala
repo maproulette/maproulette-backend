@@ -110,7 +110,7 @@ class CacheSpec extends PlaySpec with JodaWrites with JodaReads {
       manager.withOptionCaching { () =>
         Some(TestBaseObject(1, "name1"))
       }
-      theCache.size mustEqual 0
+      theCache.size() mustEqual 0
     }
 
     "cache only the elements that are not already cached withIDListCaching" in {
@@ -123,7 +123,7 @@ class CacheSpec extends PlaySpec with JodaWrites with JodaReads {
         uncachedList.size mustEqual 2
         uncachedList.map(id => TestBaseObject(id, s"name$id"))
       }
-      theCache.size mustEqual 5
+      theCache.size() mustEqual 5
       theCache.get(5).isDefined mustEqual true
       theCache.get(6).isDefined mustEqual true
     }
@@ -168,7 +168,7 @@ class CacheSpec extends PlaySpec with JodaWrites with JodaReads {
 
       // The cache may have a thread managing the evictions, so we can't expect an exact size.
       // Since we inserted far more items than the capacity, check that some items were evicted.
-      theCache.size must be < 15L
+      theCache.size() must be < 15L
 
       // Add a handful of new objects to the cache, and keep fetching one to keep it from being evicted
       for (id <- 0L until insertN) {

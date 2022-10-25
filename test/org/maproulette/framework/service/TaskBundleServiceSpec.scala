@@ -219,7 +219,7 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
         primaryTaskId = Some(task1.id)
       )
 
-      this.service.unbundleTasks(User.superUser, bundle.bundleId, List(task2.id))
+      this.service.unbundleTasks(User.superUser, bundle.bundleId, List(task2.id))()
       val response = this.service.getTaskBundle(User.superUser, bundle.bundleId)
       response.taskIds.length mustEqual 1
       response.taskIds.head mustEqual task1.id
@@ -256,7 +256,7 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
 
       // Random user is not allowed to delete this bundle
       an[IllegalAccessException] should be thrownBy
-        this.service.unbundleTasks(randomUser, bundle.bundleId, List(task2.id))
+        this.service.unbundleTasks(randomUser, bundle.bundleId, List(task2.id))()
     }
 
   }

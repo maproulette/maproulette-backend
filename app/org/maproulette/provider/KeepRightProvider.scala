@@ -130,7 +130,7 @@ class KeepRightProvider @Inject() (
 
   // This will create a challenge for each KeepRight Check and each country
   def integrate(checkIDs: List[Int] = List.empty, bounding: KeepRightBox): Future[Boolean] = {
-    val p = Promise[Boolean]
+    val p = Promise[Boolean]()
     val cidList = URLEncoder.encode(
       this.errorList
         .filter(cid => checkIDs.isEmpty || checkIDs.contains(cid.id))

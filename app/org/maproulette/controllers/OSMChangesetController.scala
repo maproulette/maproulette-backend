@@ -51,7 +51,7 @@ class OSMChangesetController @Inject() (
             }
           },
           element => {
-            val p = Promise[Result]
+            val p = Promise[Result]()
             val future = changeType match {
               case OSMChangesetController.CHANGETYPE_OSMCHANGE =>
                 val updates = element.map(tagChange => {
@@ -97,7 +97,7 @@ class OSMChangesetController @Inject() (
           }
         },
         element => {
-          val p = Promise[Result]
+          val p = Promise[Result]()
           // For now just support creation of new geometries
           changeService.getOsmChange(element, None) onComplete {
             case Success(res) =>

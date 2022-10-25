@@ -37,7 +37,7 @@ trait ObjectProvider[T <: VersionedObject] {
     * @return A list of VersionedObjects that is basically every version of the object
     */
   def getObjectHistory(id: Long, osmType: OSMType): Future[List[T]] = {
-    val p = Promise[List[T]]
+    val p = Promise[List[T]]()
     if (id < 0) {
       p success List.empty
     } else {
@@ -61,7 +61,7 @@ trait ObjectProvider[T <: VersionedObject] {
     * @return
     */
   protected def getFromType(ids: List[Long], osmType: OSMType): Future[List[T]] = {
-    val p = Promise[List[T]]
+    val p = Promise[List[T]]()
     if (ids.isEmpty) {
       p success List.empty
     } else {

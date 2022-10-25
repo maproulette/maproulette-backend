@@ -139,23 +139,26 @@ class QuerySpec extends PlaySpec {
     )
 
     query
-      .sql() mustEqual s"""SELECT * FROM table WHERE ((KEY = {$setKey} OR key2 = {${parameter2.getKey}})) AND ((a.g = g.a OR dateField::DATE BETWEEN {${parameter4.getKey}_date1} AND {${parameter4.getKey}_date2})) AND (${FilterParameterSpec
+      .sql() mustEqual s"""SELECT * FROM table WHERE ((KEY = {$setKey} OR key2 = {${parameter2
+      .getKey()}})) AND ((a.g = g.a OR dateField::DATE BETWEEN {${parameter4
+      .getKey()}_date1} AND {${parameter4.getKey()}_date2})) AND (${FilterParameterSpec
       .DEFAULT_FUZZY_SQL(
         "fuzzy",
         keyPrefix = parameter5.randomPrefix
-      )} AND subQueryKey IN (SELECT * FROM subTable WHERE subsubKey = {${parameter6.getKey}} LIMIT {${paging1.randomPrefix}limit} OFFSET {${paging1.randomPrefix}offset})) ORDER BY oField DESC LIMIT {${paging2.randomPrefix}limit} OFFSET {${paging2.randomPrefix}offset}"""
+      )} AND subQueryKey IN (SELECT * FROM subTable WHERE subsubKey = {${parameter6
+      .getKey()}} LIMIT {${paging1.randomPrefix}limit} OFFSET {${paging1.randomPrefix}offset})) ORDER BY oField DESC LIMIT {${paging2.randomPrefix}limit} OFFSET {${paging2.randomPrefix}offset}"""
     val params = query.parameters()
     params.size mustEqual 10
     params.head mustEqual SQLUtils.buildNamedParameter(setKey, VALUE)
-    params(1) mustEqual SQLUtils.buildNamedParameter(parameter2.getKey, "value2")
-    params(2) mustEqual SQLUtils.buildNamedParameter(s"${parameter4.getKey}_date1", firstDate)
-    params(3) mustEqual SQLUtils.buildNamedParameter(s"${parameter4.getKey}_date2", secondDate)
+    params(1) mustEqual SQLUtils.buildNamedParameter(parameter2.getKey(), "value2")
+    params(2) mustEqual SQLUtils.buildNamedParameter(s"${parameter4.getKey()}_date1", firstDate)
+    params(3) mustEqual SQLUtils.buildNamedParameter(s"${parameter4.getKey()}_date2", secondDate)
     params(4) mustEqual SQLUtils.buildNamedParameter(
       s"${parameter5.randomPrefix}fuzzy",
       "fuzzyValue"
     )
     params(5) mustEqual SQLUtils.buildNamedParameter(
-      s"${parameter6.getKey}",
+      s"${parameter6.getKey()}",
       "subsubValue"
     )
     params(6) mustEqual SQLUtils.buildNamedParameter(s"${paging1.randomPrefix}limit", 10)
@@ -193,7 +196,7 @@ class QuerySpec extends PlaySpec {
     // Augmented query gets additional parameters
     val params = augmentedQuery.parameters()
     params.size mustEqual 2
-    params.head mustEqual SQLUtils.buildNamedParameter(parameter2.getKey, "value2")
+    params.head mustEqual SQLUtils.buildNamedParameter(parameter2.getKey(), "value2")
     params(1) mustEqual SQLUtils.buildNamedParameter(setKey, VALUE)
   }
 

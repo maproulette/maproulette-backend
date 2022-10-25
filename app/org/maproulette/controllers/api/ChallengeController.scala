@@ -1071,9 +1071,9 @@ class ChallengeController @Inject() (
       rebuild: Boolean
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedFutureRequest { implicit user =>
-      val result  = Promise[Result]
+      val result  = Promise[Result]()
       val baseURL = s"https://raw.githubusercontent.com/$username/$repo/master/${name}_";
-      this.wsClient.url(s"${baseURL}create.json").get onComplete {
+      this.wsClient.url(s"${baseURL}create.json").get() onComplete {
         case Success(response) =>
           try {
             // inject the info link into the challenge

@@ -841,7 +841,7 @@ object SchedulerActor {
   private val TWELVE_MONTHS = 12
   private val ALL_TIME      = -1
 
-  def props = Props[SchedulerActor]
+  def props = Props[SchedulerActor]()
 
   case class RunJob(name: String, action: String = "")
 
