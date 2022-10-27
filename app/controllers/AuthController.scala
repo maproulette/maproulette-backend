@@ -15,13 +15,18 @@ import org.maproulette.framework.service.UserService
 import org.maproulette.models.dal.DALManager
 import org.maproulette.session.SessionManager
 import org.maproulette.permissions.Permission
+import org.maproulette.utils.Crypto
 import play.api.libs.json.{JsString, Json}
+import play.api.libs.oauth.{OAuthCalculator}
 import play.api.mvc._
 import play.shaded.oauth.oauth.signpost.exception.OAuthNotAuthorizedException
+import play.api.libs.ws.WSClient
+import org.slf4j.LoggerFactory
 
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.Promise
 import scala.util.{Failure, Success}
+import scala.concurrent.Future
 
 /**
   * All the authentication actions go in this class
@@ -34,6 +39,8 @@ class AuthController @Inject() (
     userService: UserService,
     dalManager: DALManager,
     permission: Permission,
+    wsClient: WSClient,
+    crypto: Crypto,
     val config: Config
 ) extends AbstractController(components)
     with StatusMessages {
@@ -58,6 +65,9 @@ class AuthController @Inject() (
                 user,
                 Redirect(redirect, SEE_OTHER).withHeaders(("Cache-Control", "no-cache"))
               )
+
+              Future(storeAPIKeyInOSM(user))
+
             case Failure(e) => p failure e
           }
         case None =>
@@ -166,6 +176,28 @@ class AuthController @Inject() (
     }
   }
 
+  def storeAPIKeyInOSM = (user: User) => {
+    if (!config.getOSMServer.isEmpty && !config.getOSMPreferences.isEmpty) {
+      val logger = LoggerFactory.getLogger(this.getClass)
+      val decryptedAPIKey = User.withDecryptedAPIKey(user)(crypto).apiKey.getOrElse("")
+
+      wsClient.url(s"${config.getOSMServer}${config.getOSMPreferences}")
+        .withHttpHeaders(ACCEPT -> JSON)
+        .sign(OAuthCalculator(config.getOSMOauth.consumerKey, user.osmProfile.requestToken))
+        .put(decryptedAPIKey) onComplete {
+        case Success(response) =>
+          val status = response.status
+          if (status != 200) {
+            logger.info(
+              "API key unsuccessfully stored in OSM preferences for user id {}. Status code {}",
+              user.id,
+              status
+            )
+          }
+      }
+    }
+  }
+
   /**
     * Generates a new API key for the user. A user can then use the API key to make API calls directly against
     * the server. Only the current API key for the user will work on any authenticated API calls, any previous
@@ -190,7 +222,10 @@ class AuthController @Inject() (
       this.userService.generateAPIKey(newAPIUser, user) match {
         case Some(updated) =>
           updated.apiKey match {
-            case Some(api) => Ok(api)
+            case Some(api) => {
+              Future(storeAPIKeyInOSM(user))
+              Ok(api)
+            }
             case None      => NoContent
           }
         case None => NoContent

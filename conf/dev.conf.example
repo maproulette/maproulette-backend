@@ -51,6 +51,11 @@ osm {
 
   server="https://master.apis.dev.openstreetmap.org"
 
+  # needed if system intends to store MR API keys in osm user preferences.
+  # replace maproulette_apikey_v2 with a unique parameter
+  # see https://wiki.openstreetmap.org/wiki/API_v0.6#Preferences_of_the_logged-in_user
+  preferences="/api/0.6/user/preferences/maproulette_apikey_v2"
+
   # The Consumer and Secret keys as provided by your OAuth app
 
   consumerKey="CHANGE_ME"

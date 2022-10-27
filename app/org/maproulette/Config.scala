@@ -138,6 +138,7 @@ class Config @Inject() (implicit val configuration: Configuration) {
     this.config.getOptional[Boolean](Config.KEY_PROXY_SSL).getOrElse(false);
   lazy val allowMatchOSM        = changeSetEnabled || osmMatcherEnabled || osmMatcherManualOnly
   lazy val getOSMServer: String = this.config.getOptional[String](Config.KEY_OSM_SERVER).get
+  lazy val getOSMPreferences: String = this.config.getOptional[String](Config.KEY_OSM_PREFERENCES).get
   lazy val getOSMOauth: OSMOAuth = {
     val osmServer = this.getOSMServer
     OSMOAuth(
@@ -337,6 +338,7 @@ object Config {
 
   val GROUP_OSM                         = "osm"
   val KEY_OSM_SERVER                    = s"$GROUP_OSM.server"
+  val KEY_OSM_PREFERENCES               = s"$GROUP_OSM.preferences"
   val KEY_OSM_USER_DETAILS_URL          = s"$GROUP_OSM.userDetails"
   val KEY_OSM_REQUEST_TOKEN_URL         = s"$GROUP_OSM.requestTokenURL"
   val KEY_OSM_ACCESS_TOKEN_URL          = s"$GROUP_OSM.accessTokenURL"
