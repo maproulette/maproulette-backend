@@ -178,10 +178,11 @@ class AuthController @Inject() (
 
   def storeAPIKeyInOSM = (user: User) => {
     if (!config.getOSMServer.isEmpty && !config.getOSMPreferences.isEmpty) {
-      val logger = LoggerFactory.getLogger(this.getClass)
+      val logger          = LoggerFactory.getLogger(this.getClass)
       val decryptedAPIKey = User.withDecryptedAPIKey(user)(crypto).apiKey.getOrElse("")
 
-      wsClient.url(s"${config.getOSMServer}${config.getOSMPreferences}")
+      wsClient
+        .url(s"${config.getOSMServer}${config.getOSMPreferences}")
         .withHttpHeaders(ACCEPT -> JSON)
         .sign(OAuthCalculator(config.getOSMOauth.consumerKey, user.osmProfile.requestToken))
         .put(decryptedAPIKey) onComplete {
@@ -226,7 +227,7 @@ class AuthController @Inject() (
               Future(storeAPIKeyInOSM(user))
               Ok(api)
             }
-            case None      => NoContent
+            case None => NoContent
           }
         case None => NoContent
       }
