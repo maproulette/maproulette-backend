@@ -69,8 +69,7 @@ libraryDependencies ++= Seq(
   "joda-time"               % "joda-time"       % "2.12.0",
   // TODO(ljdelight): The vividsolutions package was moved to the Eclipse Foundation as LocationTech.
   //                  See the upgrade guide https://github.com/locationtech/jts/blob/master/MIGRATION.md
-  "com.vividsolutions" % "jts" % "1.13",
-  // NOTE: jts2geojson:0.16.0 uses jackson-databind:2.12.2 which is incompatible with play 2.8.x (requires 2.11.x)
+  "com.vividsolutions" % "jts"                 % "1.13",
   "org.wololo"         % "jts2geojson"         % "0.14.3",
   "org.apache.commons" % "commons-lang3"       % "3.12.0",
   "commons-codec"      % "commons-codec"       % "1.14",
@@ -82,6 +81,28 @@ libraryDependencies ++= Seq(
   "net.debasishg"      %% "redisclient"        % "3.42",
   "com.github.blemale" %% "scaffeine"          % "5.2.1"
 )
+
+val jacksonVersion         = "2.13.4"
+val jacksonDatabindVersion = "2.13.4.2"
+
+val jacksonOverrides = Seq(
+  "com.fasterxml.jackson.core"     % "jackson-core",
+  "com.fasterxml.jackson.core"     % "jackson-annotations",
+  "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8",
+  "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310"
+).map(_ % jacksonVersion)
+
+val jacksonDatabindOverrides = Seq(
+  "com.fasterxml.jackson.core" % "jackson-databind" % jacksonDatabindVersion
+)
+
+val akkaSerializationJacksonOverrides = Seq(
+  "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor",
+  "com.fasterxml.jackson.module"     % "jackson-module-parameter-names",
+  "com.fasterxml.jackson.module"     %% "jackson-module-scala"
+).map(_ % jacksonVersion)
+
+libraryDependencies ++= jacksonDatabindOverrides ++ jacksonOverrides ++ akkaSerializationJacksonOverrides
 
 resolvers ++= Resolver.sonatypeOssRepos("releases")
 
