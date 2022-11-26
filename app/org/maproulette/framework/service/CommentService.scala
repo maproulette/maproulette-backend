@@ -115,8 +115,10 @@ class CommentService @Inject() (
       case None    => throw new InvalidException("No tasks found in this bundle.")
     }
 
+    var notify = true
     for (task <- tasks) {
-      this.create(user, task.id, URLDecoder.decode(comment, "UTF-8"), actionId)
+      this.create(user, task.id, URLDecoder.decode(comment, "UTF-8"), actionId, notify)
+      notify = false
     }
     bundle
   }
@@ -128,9 +130,10 @@ class CommentService @Inject() (
     * @param taskId The id of the task that the user is adding the comment too
     * @param comment The actual comment being added
     * @param actionId If there is any actions associated with this add
+    * @param notify enable/disable notification, used to prevent multiple notifications in task bundles
     * @return The newly created comment object
     */
-  def create(user: User, taskId: Long, comment: String, actionId: Option[Long]): Comment = {
+  def create(user: User, taskId: Long, comment: String, actionId: Option[Long], notify: Boolean = true): Comment = {
     val task = this.taskDAL.retrieveById(taskId) match {
       case Some(t) => t
       case None =>
@@ -140,7 +143,9 @@ class CommentService @Inject() (
       throw new InvalidException("Invalid empty string supplied. Comment could not be created.")
     }
     val newComment = this.repository.create(user, task.id, comment, actionId)
-    this.serviceManager.notification.createMentionNotifications(user, newComment, task)
+    if (notify) {
+      this.serviceManager.notification.createMentionNotifications(user, newComment, task)
+    }
     newComment
   }
 

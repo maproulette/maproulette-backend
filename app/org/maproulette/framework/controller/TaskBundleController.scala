@@ -155,6 +155,7 @@ class TaskBundleController @Inject() (
         case None => throw new InvalidException("No tasks found in this bundle.")
       }
 
+      var notify = true
       for (task <- tasks) {
         val action = this.actionManager.setAction(
           Some(user),
@@ -168,7 +169,10 @@ class TaskBundleController @Inject() (
         }
 
         this.serviceManager.taskReview
-          .setTaskReviewStatus(task, reviewStatus, user, actionId, comment, errorTags)
+          .setTaskReviewStatus(task, reviewStatus, user, actionId, comment, errorTags, notify)
+
+        //disable notifications after the first task to prevent duplicates
+        notify = false
 
         if (tags.nonEmpty) {
           val tagList = tags.split(",").toList

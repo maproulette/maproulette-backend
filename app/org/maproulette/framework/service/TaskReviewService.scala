@@ -434,7 +434,8 @@ class TaskReviewService @Inject() (
       user: User,
       actionId: Option[Long],
       commentContent: String = "",
-      errorTags: String = ""
+      errorTags: String = "",
+      notify: Boolean = true
   ): Int = {
     if (!permission.isSuperUser(user) && !user.settings.isReviewer.get && reviewStatus != Task.REVIEW_STATUS_REQUESTED &&
         reviewStatus != Task.REVIEW_STATUS_DISPUTED && reviewStatus != Task.REVIEW_STATUS_UNNECESSARY) {
@@ -517,7 +518,7 @@ class TaskReviewService @Inject() (
 
     val comment = commentContent.nonEmpty match {
       case true =>
-        Some(this.serviceManager.comment.create(user, task.id, commentContent, actionId))
+        Some(this.serviceManager.comment.create(user, task.id, commentContent, actionId, notify))
       case false => None
     }
 
