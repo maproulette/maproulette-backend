@@ -133,7 +133,13 @@ class CommentService @Inject() (
     * @param notify enable/disable notification, used to prevent multiple notifications in task bundles
     * @return The newly created comment object
     */
-  def create(user: User, taskId: Long, comment: String, actionId: Option[Long], notify: Boolean = true): Comment = {
+  def create(
+      user: User,
+      taskId: Long,
+      comment: String,
+      actionId: Option[Long],
+      notify: Boolean = true
+  ): Comment = {
     val task = this.taskDAL.retrieveById(taskId) match {
       case Some(t) => t
       case None =>
