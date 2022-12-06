@@ -60,17 +60,20 @@ GET     /user/:userId/notifications                 @org.maproulette.framework.c
 #     in: path
 #     description: The id of the user that owns the notifications
 #   - name: notificationIds
-#     in: query
-#     description: One or more comma-separated ids of notifications to mark as read
-#     type: string,
+#     in: body
+#     description: A JSON array of notification ids
 #     required: true
+#     schema:
+#       type: array
+#       items:
+#         type: integer
 #   - name: apiKey
 #     in: header
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
 ###
-PUT     /user/:userId/notifications                 @org.maproulette.framework.controller.NotificationController.markNotificationsRead(userId:Long, notificationIds:String)
+PUT     /user/:userId/notifications                 @org.maproulette.framework.controller.NotificationController.markNotificationsRead(userId:Long)
 ###
 # tags: [ Notification ]
 # summary: Delete user notifications
@@ -86,17 +89,20 @@ PUT     /user/:userId/notifications                 @org.maproulette.framework.c
 #     in: path
 #     description: The id of the user that owns the notifications
 #   - name: notificationIds
-#     in: query
-#     description: One or more comma-separated ids of notifications to delete
-#     type: string,
+#     in: body
+#     description: A JSON array of notification ids
 #     required: true
+#     schema:
+#       type: array
+#       items:
+#         type: integer
 #   - name: apiKey
 #     in: header
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
 ###
-DELETE  /user/:userId/notifications                 @org.maproulette.framework.controller.NotificationController.deleteNotifications(userId:Long, notificationIds:String)
+PUT  /user/:userId/notifications/delete                 @org.maproulette.framework.controller.NotificationController.deleteNotifications(userId:Long)
 ###
 # tags: [ Notification ]
 # summary: Retrieves Users notification subscriptions

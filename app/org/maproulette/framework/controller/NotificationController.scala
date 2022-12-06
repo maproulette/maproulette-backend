@@ -67,23 +67,24 @@ class NotificationController @Inject() (
     }
   }
 
-  def markNotificationsRead(userId: Long, notificationIds: String): Action[AnyContent] =
-    Action.async { implicit request =>
+  def markNotificationsRead(userId: Long): Action[JsValue] =
+    Action.async(bodyParsers.json) { implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
-        if (!StringUtils.isEmpty(notificationIds)) {
-          val parsedNotificationIds = Utils.split(notificationIds).map(_.toLong)
-          this.service.markNotificationsRead(userId, user, parsedNotificationIds)
+        val notificationIds = (request.body \ "notificationIds").as[List[Long]]
+        if (!notificationIds.isEmpty) {
+          this.service.markNotificationsRead(userId, user, notificationIds)
         }
         Ok(Json.toJson(StatusMessage("OK", JsString(s"Notifications marked as read"))))
       }
     }
 
-  def deleteNotifications(userId: Long, notificationIds: String): Action[AnyContent] =
-    Action.async { implicit request =>
+  def deleteNotifications(userId: Long): Action[JsValue] =
+    Action.async(bodyParsers.json) { implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
-        if (!StringUtils.isEmpty(notificationIds)) {
-          val parsedNotificationIds = Utils.split(notificationIds).map(_.toLong)
-          this.service.deleteNotifications(userId, user, parsedNotificationIds)
+        val notificationIds = (request.body \ "notificationIds").as[List[Long]]
+
+        if (!notificationIds.isEmpty) {
+          this.service.deleteNotifications(userId, user, notificationIds)
         }
         Ok(Json.toJson(StatusMessage("OK", JsString(s"Notifications deleted"))))
       }
