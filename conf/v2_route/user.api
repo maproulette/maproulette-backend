@@ -219,6 +219,32 @@ GET     /users/find/:username                          @org.maproulette.framewor
 GET     /users/find                                    @org.maproulette.framework.controller.UserController.searchUserByOSMUsername(username:String ?= "", limit:Int ?= 10)
 ###
 # tags: [ User ]
+# summary: Get a list of users
+# produces: [ application/json ]
+# description: Retrieves list of matching users
+# responses:
+#   '200':
+#     description: The retrieved users
+#     schema:
+#       $ref: '#/definitions/org.maproulette.framework.model.User'
+#   '401':
+#     description: The user is not authorized to make this request
+# parameters:
+#   - name: apiKey
+#     in: header
+#     description: The user's apiKey to authorize the request
+#     required: true
+#     type: string
+#   - name: limit
+#     in: query
+#     description: Limit the number of results returned in the response. Default value is 10.
+#   - name: page
+#     in: query
+#     description: Used in conjunction with the limit parameter to page through X number of responses.
+###
+GET     /users                                         @org.maproulette.framework.controller.UserController.extendedFind(limit:Int ?= 10, page:Int ?= 0, sort:String ?= "")
+###
+# tags: [ User ]
 # summary: Retrieves Users Saved Challenged
 # produces: [ application/json ]
 # description: Retrieves that list of challenges that has been saved by the User

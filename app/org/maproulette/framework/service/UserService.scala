@@ -113,6 +113,28 @@ class UserService @Inject() (
     }
 
   /**
+    * Fetches a list of users, for security we only
+    * allow super users access to this function
+    *
+    * @param user     The user making the request
+    * @return An optional user object, if none then not found
+    */
+  def extendedFind(user: User): List[User] =
+    // only execute this kind of request if the user is a super user
+    if (permission.isSuperUser(user)) {
+      this.query(
+        Query.simple(
+          List(BaseParameter(User.FIELD_ID, -999, Operator.NE))
+        ),
+        user
+      )
+    } else {
+      throw new IllegalAccessException(
+        "Only Superusers are allowed to use this service"
+      )
+    }
+
+  /**
     * Allow users to search for other users by OSM username.
     *
     * @param username The username or username fragment to search for.

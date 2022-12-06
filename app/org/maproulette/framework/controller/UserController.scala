@@ -534,4 +534,26 @@ class UserController @Inject() (
       )
     }
   }
+
+  /**
+    * Uses the search parameters from the query string to find users
+    *
+    * @param limit limits the amount of results returned
+    * @param page paging mechanism for limited results
+    * @param sort sorts users asc or desc
+    * @return A list of challenges matching the query string parameters
+    */
+  def extendedFind(limit: Int, page: Int, sort: String): Action[AnyContent] =
+    Action.async { implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        if (user.get != None) {
+          val users = this.serviceManager.user.extendedFind(user.get)
+          Ok(Json.toJson(users))
+        } else {
+          throw new IllegalAccessException(
+            "User not found or does not have access rights"
+          )
+        }
+      }
+    }
 }
