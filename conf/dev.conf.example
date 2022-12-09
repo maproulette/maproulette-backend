@@ -28,16 +28,13 @@ maproulette {
   debug=true
   bootstrap=true
 
-  # The superuser can access, modify, and delete all projects and challenges
-  # regardless of who the owner is
-  # The API key for superuser access
-
-  super.key="CHANGE_ME"
+  # In general the super key should not be enabled, an API user with this key can access the system
+  # as a super user and has full access to everything. Use with caution.
+  #super.key="CHANGE_ME"
 
   # A comma-separated list of OSM user IDs that will be superusers
   # This can be empty as well
-
-  super.accounts="CHANGE_ME"
+  #super.accounts="CHANGE_ME"
 
   # Your Mapillary client ID, needed for the Mapillary layer
   # See https://www.mapillary.com/dashboard/developers

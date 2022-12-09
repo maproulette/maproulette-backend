@@ -7,64 +7,245 @@ Welcome to the repository for the MapRoulette back-end server code. The MapRoule
 
 **If you just want to deploy the MapRoulette back-end, [we have a 🚢 Docker image 🚢 for that](https://github.com/maproulette/maproulette2-docker)**. This is especially useful if you want to contribute to the MapRoulette front-end and don't intend to touch the back-end.
 
-The MapRoulette back-end is built on these core technologies:
-
-* Postgres 10.1 with PostGIS 2.2.1
-* Play Framework 2.8.0 with Scala 2.13.2
-
 ## Requirements
 
-* A Java 11 SDK 
-* PostgreSQL 10.1
-* PostGIS 2.2.1
-* [Scala Build Tool](https://www.scala-sbt.org/download.html) 1.3.8 
+MapRoulette depends on several technologies for building and running the project. Newer versions may work but are untested.
 
-Newer versions may work but are untested.
+* Java 11 SDK
+* PostgreSQL 11.x with PostGIS 2.5.x
+* [Scala Build Tool](https://www.scala-sbt.org/download.html) 1.7.2
 
 ## Setup
 
-### Register an OAuth app with OSM
+MapRoulette is a complex tool and depends on several other tools
+([Mapillary](https://www.mapillary.com/),
+[Overpass API](https://overpass-api.de/),
+[OpenStreetMap](https://www.openstreetmap.org/),
+PostgreSQL, and others) that need to be correctly configured within the application's
+[HOCON configuration](https://github.com/lightbend/config/blob/main/HOCON.md) files.
 
-Before beginning, you'll need to register an app with OpenStreetMap to get a consumer key and secret key. For development and testing, you may wish to do this on the [OSM dev server](http://master.apis.dev.openstreetmap.org) (you will need to setup a new user account if you haven't used the dev server before).
+The initial setup is not trivial, so the documentation is split to specific steps where each step can be easily validated.
+The validation at each step is a helpful sanity check so please, regardless of your experience, **take the time to verify along the way**.
 
-To register your app, login to your account, go to "My Settings", click on "oauth settings", and then click "Register your Application" near the bottom. Give your app a name and application URL (you can simply use http://localhost:9000 if desired) and leave the other URL fields blank. In the permissions section, check "read their user preferences" and "modify the map" and then click the "Register" button at the bottom to get your consumer and secret keys. Be sure to take note of them.
+---
 
-Remember that you need to create the OAuth application on the OSM server that you will be testing against.
+### Step 1: Installing Tools
 
-For more details on the app registration process, see the [OSM OAuth wiki page](http://wiki.openstreetmap.org/wiki/OAuth).
+To get started you'll need to install Docker, JDK 11, and sbt.
 
-### PostgreSQL Database Setup
+#### Docker
 
-* Create a PostgreSQL superuser `osm`: `createuser -sW osm`. Use `osm` as the password.
-* Create a new PostgreSQL database `mp_dev` owned by `osm`: `createdb -O osm mp_dev`.
+Docker is a virtualization tool and feel free to use
+[Docker Desktop](https://docs.docker.com/get-docker/),
+or [Podman](https://podman.io/),
+or even [Rancher Desktop](https://rancherdesktop.io/).
 
-> On Linux you will need to execute these commands as the `postgres` user, `sudo -u postgres createuser -sP osm && sudo -u postgres createdb -O osm mp_dev`
+#### JDK 11 and sbt
 
-### Server Configuration
+[sdkman](https://sdkman.io/install) is a great tool to install a specific build of the JDK to keep your environment
+as similar to production as possible. It also handles fetching x8664 and aarch64 builds automatically.
+Follow the installation steps and install the JDK and sbt using a command similar to:
 
-* Clone MapRoulette 2 `git clone https://github.com/maproulette/maproulette2.git`
-* `cd` into the newly created directory `cd maproulette2`
-* Create a configuration file by copying the template file `cp conf/dev.conf.example conf/dev.conf`
+* `sdk install java 11.0.17-tem`
+* `sdk install sbt 1.8.0`
+
+#### Validation
+
+Within a terminal check that docker, javac, and sbt are working.
+
+* `docker run hello-world`
+  * Verify docker works
+* `javac -version`
+  * Verify javac is JDK 11
+  * Apple Silicon: Verify that the JDK is an aarch64 build and not x8664.
+* `sbt -version`
+
+---
+
+### Step 2: Setup PostGIS and MapRoulette DB Configuration
+
+#### PostGIS Container
+
+MapRoulette development assumes a database is running on the local system within a docker container.
+
+Below is a sample command to run a PostGIS database within a container and sets necessary ports/credentials.
+
+* **NOTE: Apple Silicon:** Use `ghcr.io/baosystems/postgis:11-3.3` docker image since postGIS does not yet publish aarch64 images.
+* NOTE: No volume mount is used so the database's data will be deleted when the container is deleted.
+  If you'd like to keep the data external of the container, be sure to add `--volume "/some/path/here/postgres-data":/var/lib/postgresql/data` to the docker call.
+
+```sh
+docker run \
+    -d \
+    -p 5432:5432 \
+    --name maproulette-postgis \
+    --restart unless-stopped \
+    --shm-size=512MB \
+    -e POSTGRES_DB=maproulette-db \
+    -e POSTGRES_USER=maproulette-db-user \
+    -e POSTGRES_PASSWORD=maproulette-db-pass \
+    postgis/postgis:11-3.3
+```
+
+* NOTE: If there's a port conflict, you probably have another pg instance running. Check with `docker ps`.
+* NOTE: It is helpful to see logs with `docker logs -f maproulette-postgis`
+* NOTE: To stop the container, that'd be `docker stop maproulette-postgis`. Then you can start it again using `docker start maproulette-postgis`.
+
+#### MapRoulette Database Configuration
+
+Clone the maproulette2 repository and `cd` to that directory, and create `conf/dev.conf` using the example file:
+
+```sh
+    cp conf/dev.conf.example conf/dev.conf
+```
+
+Edit `conf/dev.conf` and set db.default based on the previous step's POSTGRES_DB, POSTGRES_USER,
+and POSTGRES_PASSWORD values:
+
+```text
+db.default {
+  url="jdbc:postgresql://localhost:5432/maproulette-db"
+  username="maproulette-db-user"
+  password="maproulette-db-pass"
+}
+```
+
+Now start the MapRoulette server! Run this command in a terminal, **not within Intellij/vscode**:
+
+`sbt -J-Xms4G -J-Xmx4G -J-Dconfig.file=./conf/dev.conf -J-Dlogger.resource=logback-dev.xml run`
+
+There should be some output that looks like this:
+
+    --- (Running the application, auto-reloading is enabled) ---
+    [info] p.c.s.AkkaHttpServer - Listening for HTTP on /0:0:0:0:0:0:0:0:9000
+    (Server started, use Enter to stop and go back to the console...)
+
+That's the expected output. And when you need, like it says, use Enter to stop the server.
+
+#### Step 2 - Validation
+
+Open a new terminal so that the MapRoulette server is not stopped. Verify:
+
+* Check that the database is running, `docker inspect -f '{{.State.Running}}' maproulette-postgis`
+* Start the MapRoulette server if it's not already running (see the previous section for the `sbt` command)
+* Verify that the local [Swagger docs load in a web browser](http://127.0.0.1:9000/docs/)
+* Do this GET call to get the list of challenges: `curl http://127.0.0.1:9000/api/v2/challenges`
+  * The result may be an empty array or some data, as long as it's not a failed call
+  * Tip: the response can be formatted by piping to `jq`
+* Open the terminal that has `sbt` running the server. Verify that there are log messages printed.
+
+If there's a failure at this point _READ THE LOG MESSAGES_, checking for simple setup issues.
+
+A few known setup misconfigurations could be:
+
+* Does the server log that it can't communicate with the database? "HikariPool Connection is not available, request timed out after 30000ms"
+  * Check the `conf/dev.conf` MapRoulette server configuration file for typos, accidental setting overrides, etc
+  * Check that the MapRoulette server conf and postgis are using the same database, user, password.
+* Recursive loading of Guice injected object: 'java.lang.IllegalStateException: Recursive load of: org.maproulette.framework.service.ServiceManager.<init>()'
+  * We've seen this with Apple Silicon aarch64 systems. Possibly related to mixing aarch64 and x8664 JDKs. Intellij 2022.3 pre-release seems to work fine
+* Having some other issue?
+  * Please file a GitHub issue with a detailed description on what was tried and include the error message.
+
+---
+
+### Step 3: Setup OAuth Login and Run the front-end GUI
+
+With the database and MapRoulette server working together, it's now time to get the front-end login workflow working!
+
+High level the user visits to MapRoulette, clicks 'login' and is sent to OpenStreepMap to login then, after authentication, MapRoulette is able to make OSM changes of behalf
+of the user. This is done by registering the local dev instance of MapRoulette as an OSM OAuth Application to create keys, and then
+the those keys are pasted into the MapRoulette server configuration. More details on how OSM uses OAuth is on
+the [OpenStreetMap OAuth documentation](https://wiki.openstreetmap.org/wiki/OAuth).
+
+#### Register localhost as an OpenStreetMap OAuth Application
+
+Within OpenStreetMap, MapRoulette needs to be setup as an "OAuth Application" so that changes in MapRoulette are associated
+with a user's OSM account.
+
+1. Login to the [development OpenStreetMap server](https://master.apis.dev.openstreetmap.org) (make an account if needed)
+1. In the top right, click the user and go to `My Settings`
+1. Then click `OAuth 1 settings` tab
+1. At the bottom of the OAuth 1 settings page, click `Register your application`
+1. Register using these settings:
+   * `Name`: maprouletteDevLocalhost (any name is fine)
+   * `Main Application URL`: <http://127.0.0.1:9000>
+   * `Callback URL`: <http://127.0.0.1:9000>
+   * `Support URL`: empty string is fine
+   * `Request the following permissions from the user`: Select
+     * `read their user preferences`
+     * `modify their user preferences` (MapRoulette saves the user's MR API key in OSM)
+     * `modify the map` (MapRoulette tasks edit the map)
+
+Click `Register` and note the displayed Consumer Key and the Consumer Secret. Copy and paste those keys into the MapRoulette
+`conf/dev.conf` file's osm section where it has "CHANGE_ME":
+
+```text
+osm {
+  consumerKey="CHANGE_ME"
+  consumerSecret="CHANGE_ME"
+}
+```
+
+Stop and start the MapRoulette server to load the updated configuration.
+
+#### Run the MapRoulette front-end
+
+Clone the maproulette3 repository and follow the steps in the [DEVELOPMENT.md "Run the UI from Docker" section](https://github.com/maproulette/maproulette3/blob/develop/DEVELOPMENT.md#run-the-ui-from-docker).
+Be sure to execute the `docker run` step that starts the UI.
+
+#### Step 3 - Validation
+
+* Open <http://localhost:3000/> and attempt to log in
+  * This should redirect to the development OpenStreetMap server and redirect back to MapRoulette
+  * The username should show in the top-right corner
+* Create a new Project (this is the easiest way to verify), or a new challenge, or update a project/challenge/task,
+  or do some other work that causes various request types to the MapRoulette server
+
+Known setup issues:
+
+* Exceptions with 'java.lang.NumberFormatException: For input string: "CHANGE_ME"'. Edit the `conf/dev.conf` and verify that these are not "CHANGE_ME":
+  * `osm.consumerKey`
+  * `osm.consumerSecret`
+  * `maproulette.super.key`
+  * `maproulette.super.accounts`
+
+---
+
+### Step 4: Intelllij Configuration
+
+The server is working end-to-end on command line! Time to import into IntelliJ. Stop the running MapRoulette server from the previous step, if it's still running.
+
+* Open IntelliJ
+* Click `Plugins` and verify that the Scala plugin is installed
+* Click `Open` and navigate to the MapRoulette source directory and `Open as Project`
+  * The project will load
+* Create a new `sbt Task` runtime configuration
+  * Name it `MapRoulette Server` or similar
+  * Set Tasks to  `run`
+  * Uncheck 'Use sbt shell`
+  * Use these `VM parameters`
+
+    ```text
+    -Xms4G
+    -Xmx4G
+    -Dconfig.file=./conf/dev.conf
+    -Dlogger.resource=logback-dev.xml
+    ```
+
+#### Step 4 - Validation
+
+Open the front-end UI <http://localhost:3000/> and attempt to log in. It should function.
+
+---
+
+---
+
+### Additional (Optional) Server Configuration
+
 * Open `dev.conf` in a text editor and change at least the following entries:
     * `super.key`: a randomly chosen API key for superuser access
     * `super.accounts`: a comma-separated list of OSM accound IDs whose corresponding MapRoulette users will have superuser access. Can be an empty string.
     * `mapillary.clientId`: a [Mapillary Client ID](https://www.mapillary.com/dashboard/developers), needed if you want to use any of the Mapillary integrations.
-    * `osm.consumerKey` and `osm.consumerSecret`: the OAuth keys from your OSM OAuth app you created earlier.
-* Save `dev.conf`
-
-Now you're ready to run the MapRoulette backend.
-
-## Running
-
-You run the MapRoulette backend in development mode like this:
-
-`sbt run -Dconfig.resource=./conf/dev.conf -Dlogger.resource=logback-dev.xml`
-
-> This will take some time the first run as dependencies are downloaded.
-
-Confirm that it's all working by getting `http://localhost:9000/api/v2/challenges` which should return `[]` (since we don't have any challenges yet).
-
-> This will take some time on first run as artifacts are compiled.
 
 ## Notes
 
@@ -130,16 +311,6 @@ currently a maximum limit to the number of emails for digest emails.
 notifications.digestEmail.startTime = "20:00:00"    # 8pm local server time
 notifications.digestEmail.interval = "24 hours"     # once daily
 ```
-
-### SSL
-
-Openstreetmap.org recently moved to SSL only. This means that to authenticate against any SSL server you are now required to make sure that Java trusts the OSM SSL certificates. This is not very difficult to do, however they need to be completed for it to work. The steps below are for linux/Mac systems.
-
-1. execute the following command ```openssl s_client -showcerts -connect "www.openstreetmap.org:443" -servername www.openstreetmap.org </dev/null | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > osm.pem```
-2. execute the following command ```keytool -importcert -noprompt -trustcacerts -alias www.openstreetmap.org -file osm.pem -keystore osmcacerts -storepass openstreetmap```
-3. Run server using sbt ```sbt run -Dconfig.resource=dev.conf -Djavax.net.ssl.trustStore=/path/to/file/osmcacerts -Djavax.net.ssl.trustStorePassword=openstreetmap```
-
-If you want to connect to the dev servers you can simply replace all instances of www.openstreetmap.org with master.apis.dev.openstreetmap.org
 
 ## Creating new Challenges
 
