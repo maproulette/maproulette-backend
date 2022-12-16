@@ -5,13 +5,12 @@
 package org.maproulette.framework.controller
 
 import javax.inject.Inject
-import org.apache.commons.lang3.StringUtils
 import org.maproulette.exception.StatusMessage
 import org.maproulette.framework.service.{NotificationService}
 import org.maproulette.framework.model.{NotificationSubscriptions}
 import org.maproulette.framework.psql.{Order, OrderField, Paging}
 import org.maproulette.session.SessionManager
-import org.maproulette.utils.{Crypto, Utils}
+import org.maproulette.utils.Crypto
 import play.api.libs.json._
 import play.api.mvc._
 
