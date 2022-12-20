@@ -238,15 +238,14 @@ object ChallengeRepository {
       get[Boolean]("deleted") ~
       get[Option[List[Long]]]("virtual_parent_ids") ~
       get[Boolean]("challenges.is_archived") ~
-      get[Option[DateTime]]("challenges.system_archived_at") ~
-      get[Option[Boolean]]("challenges.changeset_url") map {
+      get[Option[DateTime]]("challenges.system_archived_at") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
             checkin_source ~ overpassql ~ overpassTargetType ~ remoteGeoJson ~ status ~ statusMessage ~ defaultPriority ~ highPriorityRule ~
             mediumPriorityRule ~ lowPriorityRule ~ defaultZoom ~ minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~
             customBasemap ~ updateTasks ~ exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ requiresLocal ~ location ~ bounding ~
-            deleted ~ virtualParents ~ isArchived ~ systemArchivedAt ~ changesetUrl =>
+            deleted ~ virtualParents ~ isArchived ~ systemArchivedAt =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -279,7 +278,6 @@ object ChallengeRepository {
             popularity,
             checkin_comment.getOrElse(""),
             checkin_source.getOrElse(""),
-            changesetUrl.getOrElse(false),
             virtualParents,
             requiresLocal
           ),
