@@ -2,8 +2,8 @@
 
 This document is to help understanding how MapRoulette is deployed to production servers. There are various ways to do this but this focuses on how MapRoulette is deployed to maproulette.org. This uses maproulette2-docker to deploy both the backend and frontend. Below you can find the github repo's that are used for the deployment.
 
-Backend - https://github.com/maproulette/maproulette2.git<br/>
-Frontend - https://github.com/osmlab/maproulette3.git<br/>
+Backend - https://github.com/maproulette/maproulette-backend.git<br/>
+Frontend - https://github.com/maproulette/maproulette3.git<br/>
 docker - https://github.com/maproulette/maproulette2-docker.git
 
 ### Step by Step
