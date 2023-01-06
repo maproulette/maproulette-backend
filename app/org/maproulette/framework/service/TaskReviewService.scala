@@ -467,7 +467,7 @@ class TaskReviewService @Inject() (
     var additionalReviewers = task.review.additionalReviewers
 
     // Make sure we have an updated claimed at time.
-    val currentTask = this.getTaskWithReview(task.id).task
+    val currentTask     = this.getTaskWithReview(task.id).task
     val reviewClaimedAt = currentTask.review.reviewClaimedAt
     val reviewStartedAt = currentTask.review.reviewStartedAt
 
@@ -557,7 +557,10 @@ class TaskReviewService @Inject() (
             if (originalReviewer.getOrElse(0) != user.id) Some(originalReviewer.get)
             else None,
             reviewStatus,
-            reviewClaimedAt.getOrElse(if (reviewStatus != Task.REVIEW_STATUS_REQUESTED) reviewStartedAt.getOrElse(null) else null),
+            reviewClaimedAt.getOrElse(
+              if (reviewStatus != Task.REVIEW_STATUS_REQUESTED) reviewStartedAt.getOrElse(null)
+              else null
+            ),
             errorTags
           )
 
