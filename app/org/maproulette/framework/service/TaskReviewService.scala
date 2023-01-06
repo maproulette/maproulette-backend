@@ -467,7 +467,9 @@ class TaskReviewService @Inject() (
     var additionalReviewers = task.review.additionalReviewers
 
     // Make sure we have an updated claimed at time.
-    val reviewClaimedAt = this.getTaskWithReview(task.id).task.review.reviewClaimedAt
+    val currentTask = this.getTaskWithReview(task.id).task
+    val reviewClaimedAt = currentTask.review.reviewClaimedAt
+    val reviewStartedAt = currentTask.review.reviewStartedAt
 
     // If the original reviewer is not the same as the user asking for this
     // review status change than we have a "meta-review" situation. Let's leave
@@ -555,7 +557,7 @@ class TaskReviewService @Inject() (
             if (originalReviewer.getOrElse(0) != user.id) Some(originalReviewer.get)
             else None,
             reviewStatus,
-            reviewClaimedAt.getOrElse(null),
+            reviewClaimedAt.getOrElse(if (reviewStatus != Task.REVIEW_STATUS_REQUESTED) reviewStartedAt.getOrElse(null) else null),
             errorTags
           )
 
