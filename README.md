@@ -9,11 +9,11 @@ Welcome to the repository for the MapRoulette back-end server code. The MapRoule
 
 ## Requirements
 
-MapRoulette depends on several technologies for building and running the project. Newer versions may work but are untested.
+MapRoulette depends on several technologies for building and running the project:
 
-* Java 11 SDK
-* PostgreSQL 11.x with PostGIS 2.5.x
-* [Scala Build Tool](https://www.scala-sbt.org/download.html) 1.7.2
+* Java 11 JDK
+* PostgreSQL with PostGIS
+* [Scala Build Tool](https://www.scala-sbt.org/download.html)
 
 ## Setup
 
@@ -47,7 +47,7 @@ as similar to production as possible. It also handles fetching x8664 and aarch64
 Follow the installation steps and install the JDK and sbt using a command similar to:
 
 * `sdk install java 11.0.17-tem`
-* `sdk install sbt 1.8.0`
+* `sdk install sbt 1.8.2`
 
 #### Validation
 
@@ -70,7 +70,7 @@ MapRoulette development assumes a database is running on the local system within
 
 Below is a sample command to run a PostGIS database within a container and sets necessary ports/credentials.
 
-* **NOTE: Apple Silicon:** Use `ghcr.io/baosystems/postgis:11-3.3` docker image since postGIS does not yet publish aarch64 images.
+* **NOTE: Apple Silicon:** Use `ghcr.io/baosystems/postgis:13-3.3` docker image since postGIS does not yet publish aarch64 images.
 * NOTE: No volume mount is used so the database's data will be deleted when the container is deleted.
   If you'd like to keep the data external of the container, be sure to add `--volume "/some/path/here/postgres-data":/var/lib/postgresql/data` to the docker call.
 
@@ -84,7 +84,7 @@ docker run \
     -e POSTGRES_DB=maproulette-db \
     -e POSTGRES_USER=maproulette-db-user \
     -e POSTGRES_PASSWORD=maproulette-db-pass \
-    postgis/postgis:11-3.3
+    postgis/postgis:13-3.3
 ```
 
 * NOTE: If there's a port conflict, you probably have another pg instance running. Check with `docker ps`.

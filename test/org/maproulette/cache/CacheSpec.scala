@@ -162,7 +162,7 @@ class CacheSpec extends PlaySpec with JodaWrites with JodaReads {
       }
 
       // Sleep to give the cache time to evict some items
-      Thread.sleep(2000)
+      Thread.sleep(3000)
       cacheObject(27L, s"test27")
       Thread.sleep(2000)
 
