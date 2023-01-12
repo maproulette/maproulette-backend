@@ -218,9 +218,9 @@ class ChallengeProvider @Inject() (
 
           if (this.isLineByLineGeoJson(splitJson)) {
             val splitJsonLength = resp.body.split("\n").length;
-            if (splitJsonLength > Config.DEFAULT_MAX_TASKS_PER_CHALLENGE) {
+            if (splitJsonLength > config.maxTasksPerChallenge) {
               val statusMessage =
-                s"Tasks were not accepted. Your feature list size must be under ${Config.DEFAULT_MAX_TASKS_PER_CHALLENGE}."
+                s"Tasks were not accepted. Your feature list size must be under ${config.maxTasksPerChallenge}."
               this.challengeDAL.update(
                 Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
                 user
@@ -379,10 +379,10 @@ class ChallengeProvider @Inject() (
     val featureList       = (jsonData \ "features").as[List[JsValue]]
     val featureListLength = (jsonData \ "features").as[List[JsValue]].length
     try {
-      if (featureListLength + currentTaskCount > Config.DEFAULT_MAX_TASKS_PER_CHALLENGE) {
+      if (featureListLength + currentTaskCount > config.maxTasksPerChallenge) {
         if (currentTaskCount == 0) {
           val statusMessage =
-            s"Tasks were not accepted. Your feature list size must be under ${Config.DEFAULT_MAX_TASKS_PER_CHALLENGE}."
+            s"Tasks were not accepted. Your feature list size must be under ${config.maxTasksPerChallenge}."
           this.challengeDAL.update(
             Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
             user
@@ -394,7 +394,7 @@ class ChallengeProvider @Inject() (
           List.empty
         } else {
           throw new InvalidException(
-            s"Total challenge tasks would exceed cap of ${Config.DEFAULT_MAX_TASKS_PER_CHALLENGE}"
+            s"Total challenge tasks would exceed cap of ${config.maxTasksPerChallenge}"
           )
         }
       } else {

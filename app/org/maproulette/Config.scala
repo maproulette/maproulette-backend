@@ -125,6 +125,10 @@ class Config @Inject() (implicit val configuration: Configuration) {
     this.config
       .getOptional[Int](Config.KEY_TASK_BASE_COMPLETED_TIME_SPENT)
       .getOrElse(Config.DEFAULT_TASK_BASE_COMPLETED_TIME_SPENT)
+  lazy val maxTasksPerChallenge: Int =
+    this.config
+      .getOptional[Int](Config.KEY_TASK_MAX_TASKS_PER_CHALLENGE)
+      .getOrElse(Config.DEFAULT_MAX_TASKS_PER_CHALLENGE)
   lazy val osmMatcherEnabled: Boolean =
     this.config
       .getOptional[Boolean](Config.KEY_SCHEDULER_OSM_MATCHER_ENABLED)
@@ -271,6 +275,7 @@ object Config {
   val KEY_TASK_SCORE_TOO_HARD            = s"$GROUP_MAPROULETTE.task.score.tooHard"
   val KEY_TASK_SCORE_SKIPPED             = s"$GROUP_MAPROULETTE.task.score.skipped"
   val KEY_TASK_BASE_COMPLETED_TIME_SPENT = s"$GROUP_MAPROULETTE.task.base_completed_time_spent"
+  val KEY_TASK_MAX_TASKS_PER_CHALLENGE   = s"$GROUP_MAPROULETTE.task.max_tasks_per_challenge"
   val KEY_REVIEW_NEEDED_DEFAULT          = s"$GROUP_MAPROULETTE.review.default"
 
   val SUB_GROUP_SCHEDULER                      = s"$GROUP_MAPROULETTE.scheduler"

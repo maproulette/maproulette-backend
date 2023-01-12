@@ -61,7 +61,7 @@ class ChallengeController @Inject() (
     val serviceManager: ServiceManager,
     wsClient: WSClient,
     permission: Permission,
-    config: Config,
+    override val config: Config,
     components: ControllerComponents,
     override val bodyParsers: PlayBodyParsers,
     implicit val snapshotManager: SnapshotManager
@@ -1390,10 +1390,10 @@ class ChallengeController @Inject() (
                   val sourceDataLength = Source.fromFile(f.ref.getAbsoluteFile).getLines().length
                   if (lineByLine) {
                     val total = currentTaskCount + sourceDataLength;
-                    if (total > Config.DEFAULT_MAX_TASKS_PER_CHALLENGE) {
+                    if (total > config.maxTasksPerChallenge) {
                       if (currentTaskCount == 0) {
                         val statusMessage =
-                          s"Tasks were not accepted. Your total challenge tasks would exceed the ${Config.DEFAULT_MAX_TASKS_PER_CHALLENGE} cap."
+                          s"Tasks were not accepted. Your total challenge tasks would exceed the ${config.maxTasksPerChallenge} cap."
                         dalManager.challenge.update(
                           Json.obj(
                             "status"        -> Challenge.STATUS_FAILED,
@@ -1407,7 +1407,7 @@ class ChallengeController @Inject() (
                         )
                       } else {
                         throw new InvalidException(
-                          s"Total challenge tasks would exceed cap of ${Config.DEFAULT_MAX_TASKS_PER_CHALLENGE}"
+                          s"Total challenge tasks would exceed cap of ${config.maxTasksPerChallenge}"
                         )
                       }
                     } else {

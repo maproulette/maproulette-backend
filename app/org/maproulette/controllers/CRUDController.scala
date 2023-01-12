@@ -35,12 +35,15 @@ import play.api.mvc.{AbstractController, Action, AnyContent, Request}
 trait CRUDController[T <: BaseObject[Long]] extends SessionController {
   this: AbstractController =>
 
+  val config: Config
+
   // The default reads that allows the class to read the json from a posted json body
   implicit val tReads: Reads[T]
   // The default writes that allows the class to write the object as json to a response body
   implicit val tWrites: Writes[T]
   // the type of object that the controller is executing against
   implicit val itemType: ItemType
+
   // Data access layer that has to be instantiated by the class that mixes in the trait
   @deprecated
   protected val dal: BaseDAL[Long, T]
@@ -115,7 +118,7 @@ trait CRUDController[T <: BaseObject[Long]] extends SessionController {
     (requestBody \ "parent").asOpt[Long] match {
       case Some(parentId) =>
         val currentTaskCount = this.dal.getTaskCountBase(parentId);
-        if (currentTaskCount < Config.DEFAULT_MAX_TASKS_PER_CHALLENGE) {
+        if (currentTaskCount < config.maxTasksPerChallenge) {
           this.dal.mergeUpdate(element, user)(element.id) match {
             case Some(created) =>
               this.extractAndCreate(requestBody, created, user)
@@ -130,7 +133,7 @@ trait CRUDController[T <: BaseObject[Long]] extends SessionController {
           }
         } else {
           throw new InvalidException(
-            s"Challenges cannot exceed ${Config.DEFAULT_MAX_TASKS_PER_CHALLENGE} tasks"
+            s"Challenges cannot exceed ${config.maxTasksPerChallenge} tasks"
           )
         }
       case None => {
@@ -398,7 +401,7 @@ trait CRUDController[T <: BaseObject[Long]] extends SessionController {
               (element \ "parent").asOpt[Long] match {
                 case Some(parentId) =>
                   val currentTaskCount = this.dal.getTaskCountBase(parentId);
-                  if (currentTaskCount < Config.DEFAULT_MAX_TASKS_PER_CHALLENGE) {
+                  if (currentTaskCount < config.maxTasksPerChallenge) {
                     this
                       .updateCreateBody(element, user)
                       .validate[T]

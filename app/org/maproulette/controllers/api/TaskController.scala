@@ -64,7 +64,7 @@ class TaskController @Inject() (
     dalManager: DALManager,
     wsClient: WSClient,
     webSocketProvider: WebSocketProvider,
-    config: Config,
+    override val config: Config,
     components: ControllerComponents,
     changeService: ChangesetProvider,
     taskClusterService: TaskClusterService,

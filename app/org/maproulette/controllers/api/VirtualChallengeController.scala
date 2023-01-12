@@ -38,7 +38,7 @@ class VirtualChallengeController @Inject() (
     override val actionManager: ActionManager,
     override val dal: VirtualChallengeDAL,
     taskDAL: TaskDAL,
-    config: Config,
+    override val config: Config,
     components: ControllerComponents,
     override val bodyParsers: PlayBodyParsers
 ) extends AbstractController(components)
