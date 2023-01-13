@@ -1391,6 +1391,14 @@ class ChallengeController @Inject() (
                   if (lineByLine) {
                     val total = currentTaskCount + sourceDataLength;
                     if (total > config.maxTasksPerChallenge) {
+                      logger.warn(
+                        "Cannot add {} tasks to challengeId='{}' because it would exceed the maximum tasks per challenge (count={} max={})",
+                        sourceDataLength,
+                        challengeId,
+                        currentTaskCount,
+                        config.maxTasksPerChallenge
+                      )
+
                       if (currentTaskCount == 0) {
                         val statusMessage =
                           s"Tasks were not accepted. Your total challenge tasks would exceed the ${config.maxTasksPerChallenge} cap."

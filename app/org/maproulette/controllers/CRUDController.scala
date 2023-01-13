@@ -132,6 +132,12 @@ trait CRUDController[T <: BaseObject[Long]] extends SessionController {
             case None => None
           }
         } else {
+          logger.warn(
+            "challengeId='{}' has exceeded the maximum tasks per challenge (count={} max={})",
+            parentId,
+            currentTaskCount,
+            config.maxTasksPerChallenge
+          )
           throw new InvalidException(
             s"Challenges cannot exceed ${config.maxTasksPerChallenge} tasks"
           )
@@ -410,6 +416,16 @@ trait CRUDController[T <: BaseObject[Long]] extends SessionController {
                           logger.warn(s"Invalid json for type: ${JsError.toJson(errors).toString}"),
                         validT => this.internalCreate(element, validT, user)
                       )
+                  } else {
+                    logger.warn(
+                      "challengeId='{}' has exceeded the maximum tasks per challenge (count={} max={})",
+                      parentId,
+                      currentTaskCount,
+                      config.maxTasksPerChallenge
+                    )
+                    throw new InvalidException(
+                      s"Challenges cannot exceed ${config.maxTasksPerChallenge} tasks"
+                    )
                   }
                 case None =>
                   this

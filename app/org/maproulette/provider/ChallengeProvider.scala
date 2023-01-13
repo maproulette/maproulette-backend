@@ -219,16 +219,19 @@ class ChallengeProvider @Inject() (
           if (this.isLineByLineGeoJson(splitJson)) {
             val splitJsonLength = resp.body.split("\n").length;
             if (splitJsonLength > config.maxTasksPerChallenge) {
+              logger.warn(
+                "Cannot add {} tasks to challengeId='{}' because it would exceed the maximum tasks per challenge (max={})",
+                splitJsonLength,
+                challenge.id,
+                config.maxTasksPerChallenge
+              )
+
               val statusMessage =
                 s"Tasks were not accepted. Your feature list size must be under ${config.maxTasksPerChallenge}."
               this.challengeDAL.update(
                 Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
                 user
               )(challenge.id)
-              logger.error(
-                s"${splitJsonLength} tasks failed to be created from json file.",
-                statusMessage
-              )
             } else {
               splitJson.foreach { line =>
                 val jsonData = Json.parse(normalizeRFC7464Sequence(line))
@@ -380,6 +383,14 @@ class ChallengeProvider @Inject() (
     val featureListLength = (jsonData \ "features").as[List[JsValue]].length
     try {
       if (featureListLength + currentTaskCount > config.maxTasksPerChallenge) {
+        logger.warn(
+          "Cannot add {} tasks to challengeId='{}' because it would exceed the maximum tasks per challenge (count={} max={})",
+          featureListLength,
+          parent.id,
+          currentTaskCount,
+          config.maxTasksPerChallenge
+        )
+
         if (currentTaskCount == 0) {
           val statusMessage =
             s"Tasks were not accepted. Your feature list size must be under ${config.maxTasksPerChallenge}."
@@ -387,10 +398,6 @@ class ChallengeProvider @Inject() (
             Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
             user
           )(parent.id)
-          logger.error(
-            s"${featureListLength} tasks failed to be created from json file.",
-            statusMessage
-          )
           List.empty
         } else {
           throw new InvalidException(
