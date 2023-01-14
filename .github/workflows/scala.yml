@@ -88,21 +88,21 @@ jobs:
       run: |
         touch ./conf/dev.conf
         echo 'include "application.conf"' >> ./conf/dev.conf
-        echo 'db.default {' >> ./conf/dev.conf
-        echo '  url="jdbc:postgresql://localhost:5432/mr_test"' >> ./conf/dev.conf
-        echo '  username="osm"' >> ./conf/dev.conf
-        echo '  password="osm"' >> ./conf/dev.conf
-        echo '}' >> ./conf/dev.conf
         echo 'maproulette {' >> ./conf/dev.conf
         echo '  debug=true' >> ./conf/dev.conf
         echo '  bootstrap=true' >> ./conf/dev.conf
-        echo '  super.key="1234"' >> ./conf/dev.conf
-        echo '  super.accounts=""' >> ./conf/dev.conf
         echo '}' >> ./conf/dev.conf
-    - name: Run the maproulette-java-client integration tests
+    - name: Run maproulette and the maproulette-java-client integration tests
       env:
+        # maproulette overrides
         CI: true
         SBT_OPTS: "-Xms512M -Xmx1024M -Xss2M -XX:MaxMetaspaceSize=1024M"
+        MR_SUPER_KEY: 1234
+        MR_DATABASE_URL: "jdbc:postgresql://localhost:5432/mr_test"
+        MR_DATABASE_USERNAME: "osm"
+        MR_DATABASE_PASSWORD: "osm"
+
+        # maproulette-java-client overrides
         host: 127.0.0.1
         scheme: http
         apiKey: 1234

@@ -2,26 +2,14 @@ include "application.conf"
 
 db.default {
   url="jdbc:postgresql://localhost:5432/mp_dev"
+  url=${?MR_DATABASE_URL}
   username="osm"
+  username=${?MR_DATABASE_USERNAME}
   password="osm"
+  password=${?MR_DATABASE_PASSWORD}
 
   # Set this to 'true' to see the sql statements sent to the database. Very useful when debugging.
   logSql=false
-}
-
-akka {
-  # Refer to the manual for akka logging options
-  # https://doc.akka.io/docs/akka/current/logging.html
-  loggers = ["akka.event.slf4j.Slf4jLogger"]
-  loglevel = "WARNING"
-  logging-filter = "akka.event.slf4j.Slf4jLoggingFilter"
-  actor {
-    debug {
-      # receive = on
-      # autoreceive = on
-      # lifecycle = on
-    }
-  }
 }
 
 maproulette {
@@ -45,16 +33,17 @@ maproulette {
 osm {
   # The OSM server we will interact with.
   # Note that you need to register your OAuth app with this server as well.
-
   server="https://master.apis.dev.openstreetmap.org"
+  server=${?MR_OSM_SERVER}
 
   # needed if system intends to store MR API keys in osm user preferences.
   # replace maproulette_apikey_v2 with a unique parameter
   # see https://wiki.openstreetmap.org/wiki/API_v0.6#Preferences_of_the_logged-in_user
   preferences="/api/0.6/user/preferences/maproulette_apikey_v2"
 
-  # The Consumer and Secret keys as provided by your OAuth app
-
+  # The Consumer and Secret keys as provided by your OAuth app. Set via conf or environment variables.
   consumerKey="CHANGE_ME"
+  consumerKey=${?MR_OAUTH_CONSUMER_KEY}
   consumerSecret="CHANGE_ME"
+  consumerSecret=${?MR_OAUTH_CONSUMER_SECRET}
 }
