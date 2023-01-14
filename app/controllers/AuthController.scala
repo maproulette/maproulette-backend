@@ -17,11 +17,11 @@ import org.maproulette.session.SessionManager
 import org.maproulette.permissions.Permission
 import org.maproulette.utils.Crypto
 import play.api.libs.json.{JsString, Json}
-import play.api.libs.oauth.{OAuthCalculator}
+import play.api.libs.oauth.OAuthCalculator
 import play.api.mvc._
 import play.shaded.oauth.oauth.signpost.exception.OAuthNotAuthorizedException
 import play.api.libs.ws.WSClient
-import org.slf4j.LoggerFactory
+import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.Promise
@@ -45,6 +45,7 @@ class AuthController @Inject() (
 ) extends AbstractController(components)
     with StatusMessages {
 
+  val logger: Logger = LoggerFactory.getLogger(classOf[AuthController])
   import scala.concurrent.ExecutionContext.Implicits.global
 
   /**
@@ -176,9 +177,9 @@ class AuthController @Inject() (
     }
   }
 
-  def storeAPIKeyInOSM = (user: User) => {
-    if (!config.getOSMServer.isEmpty && !config.getOSMPreferences.isEmpty) {
-      val logger          = LoggerFactory.getLogger(this.getClass)
+  private def storeAPIKeyInOSM: User => Unit = (user: User) => {
+    if (config.getOSMServer.nonEmpty && config.getOSMPreferences.nonEmpty) {
+      logger.debug("Attempting to save api key for userId={} to their OSM preferences", user.id)
       val decryptedAPIKey = User.withDecryptedAPIKey(user)(crypto).apiKey.getOrElse("")
 
       wsClient
@@ -187,15 +188,24 @@ class AuthController @Inject() (
         .sign(OAuthCalculator(config.getOSMOauth.consumerKey, user.osmProfile.requestToken))
         .put(decryptedAPIKey) onComplete {
         case Success(response) =>
-          val status = response.status
-          if (status != 200) {
+          if (response.status != 200) {
             logger.info(
               "API key unsuccessfully stored in OSM preferences for user id {}. Status code {}",
               user.id,
-              status
+              response.status
+            )
+          } else {
+            logger.debug(
+              "API key stored in OSM preferences for user id {}. Status code {}",
+              user.id,
+              response.status
             )
           }
+        case Failure(e) =>
+          logger.info("Future failed to store OSM preference for userId={}", user.id, e)
       }
+    } else {
+      logger.debug("Conf lacks required settings to store maproulette users' API key in OSM")
     }
   }
 
