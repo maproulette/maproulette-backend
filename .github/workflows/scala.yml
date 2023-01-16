@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  sbt_dependencyTree:
+  sbt_formatChecks_dependencyTree:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -23,7 +23,7 @@ jobs:
         env:
           CI: true
         run: |
-          sbt -Dsbt.log.format=false 'generateRoutesFile' 'scalafixAll --check'
+          sbt -Dsbt.log.format=false generateRoutesFile scalafmtCheckAll scalafmtSbtCheck 'scalafixAll --check'
 
   sbt_tests_jacoco:
     runs-on: ubuntu-latest
@@ -83,7 +83,7 @@ jobs:
     - name: Run sbt compile
       env:
         CI: true
-      run: sbt -Dsbt.log.format=false scalafmtCheckAll scalafmtSbtCheck compile
+      run: sbt -Dsbt.log.format=false compile
     - name: Create the dev.conf
       run: |
         touch ./conf/dev.conf
