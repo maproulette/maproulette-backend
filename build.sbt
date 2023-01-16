@@ -1,5 +1,7 @@
 import java.io.{BufferedWriter, FileWriter}
 import java.nio.charset.StandardCharsets
+import java.time.LocalDate
+import java.time.ZoneOffset
 import scala.io.Source
 import scala.util.Using
 
@@ -13,6 +15,15 @@ Universal / packageName := "MapRouletteAPI"
 
 // Developers can run 'sbt format' to easily format their source; this is required to pass a PR build.
 addCommandAlias("format", "scalafmtAll; scalafmtSbt; scalafixAll")
+
+// Setup BuildInfo plugin to write important build-time values to a generated file (org.maproulette.info.BuildInfo)
+enablePlugins(BuildInfoPlugin)
+buildInfoPackage := "org.maproulette.info"
+buildInfoOptions += BuildInfoOption.ToJson
+buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion)
+buildInfoKeys += BuildInfoKey.action("buildDate")(LocalDate.now(ZoneOffset.UTC).toString)
+buildInfoKeys += BuildInfoKey.action("javaVersion")(sys.props("java.version"))
+buildInfoKeys += BuildInfoKey.action("javaVendor")(sys.props("java.vendor"))
 
 // Configure scalastyle. This does not run during compile, run it with 'sbt scalastyle' or 'sbt test:scalastyle'.
 Compile / scalastyleConfig := baseDirectory.value / "conf/scalastyle-config.xml"
