@@ -1,6 +1,7 @@
 import java.io.{BufferedWriter, FileWriter}
-
+import java.nio.charset.StandardCharsets
 import scala.io.Source
+import scala.util.Using
 
 name := "MapRouletteAPI"
 
@@ -9,6 +10,9 @@ version := "4.0.0"
 scalaVersion := "2.13.10"
 
 Universal / packageName := "MapRouletteAPI"
+
+// Developers can run 'sbt format' to easily format their source; this is required to pass a PR build.
+addCommandAlias("format", "scalafmtAll; scalafmtSbt; scalafixAll")
 
 // Configure scalastyle. This does not run during compile, run it with 'sbt scalastyle' or 'sbt test:scalastyle'.
 Compile / scalastyleConfig := baseDirectory.value / "conf/scalastyle-config.xml"
@@ -114,19 +118,20 @@ scalacOptions ++= Seq(
   "-Wunused:imports"
 )
 
-javaOptions in Test ++= Option(System.getProperty("config.file")).map("-Dconfig.file=" + _).toSeq
+Test / javaOptions ++= Option(System.getProperty("config.file")).map("-Dconfig.file=" + _).toSeq
 
-javaOptions in Compile ++= Seq(
+Compile / javaOptions ++= Seq(
   "-Xmx2G",
   // Increase stack size for compilation
   "-Xss32M"
 )
 
-lazy val generateRoutesFile = taskKey[Unit]("Builds the API V2 Routes File")
+lazy val generateRoutesFile = taskKey[Unit]("Build the API V2 Routes File")
 generateRoutesFile := {
-  val generatedFile = baseDirectory.value / "conf/generated.routes"
-  if (!generatedFile.exists()) {
-    generatedFile.createNewFile()
+  val s: TaskStreams          = streams.value
+  val genRoutesFilePath: File = file(s"${baseDirectory.value}/conf/${swaggerRoutesFile.value}")
+  if (!genRoutesFilePath.exists()) {
+    genRoutesFilePath.createNewFile()
 
     // The apiv2.routes file should always be last as it contains the catch all routes
     val routeFiles = Seq(
@@ -149,30 +154,34 @@ generateRoutesFile := {
       "leaderboard.api",
       "v2.api"
     )
-    println(s"Generating Routes File from ${routeFiles.mkString(",")}")
-    val writer = new BufferedWriter(new FileWriter(generatedFile))
-    routeFiles.foreach(file => {
-      val currentFile = Source.fromFile(baseDirectory.value / "conf/v2_route" / file).getLines()
-      for (line <- currentFile) {
-        writer.write(s"$line\n")
-      }
-    })
-    writer.close()
+    s.log.info(
+      s"Generating swagger routes file ${genRoutesFilePath} from ${routeFiles.mkString(",")}"
+    )
+    Using(new BufferedWriter(new FileWriter(genRoutesFilePath, StandardCharsets.UTF_8))) { writer =>
+      routeFiles.foreach(file => {
+        s.log.info(s"Including contents of ${file} in swagger routes file ${genRoutesFilePath}")
+        Using(Source.fromFile(baseDirectory.value / "conf/v2_route" / file)(StandardCharsets.UTF_8)) {
+          f =>
+            for (line <- f.getLines()) {
+              writer.write(s"$line\n")
+            }
+        }
+      })
+    }
+    s.log.success(s"Successfully created swagger routes file ${genRoutesFilePath}")
   }
 }
 
-(compile in Compile) := ((compile in Compile) dependsOn generateRoutesFile).value
+Compile / compile := (Compile / compile).dependsOn(generateRoutesFile).value
+cleanFiles := (file(s"${baseDirectory.value}/conf/${swaggerRoutesFile.value}")) +: cleanFiles.value
 
-lazy val deleteRoutesFile = taskKey[Unit]("Deletes the generated Routes File")
+lazy val deleteRoutesFile = taskKey[Unit]("Delete the generated swagger routes file")
 deleteRoutesFile := {
-  val generatedFile = baseDirectory.value / "conf/generated.routes"
-  if (generatedFile.exists()) {
-    println(s"Deleting the Routes file ${generatedFile.getAbsolutePath}")
-    generatedFile.delete()
-  }
+  val s: TaskStreams          = streams.value
+  val genRoutesFilePath: File = file(s"${baseDirectory.value}/conf/${swaggerRoutesFile.value}")
+  s.log.info(s"Deleting the swagger routes file ${genRoutesFilePath.getAbsolutePath}")
+  genRoutesFilePath.delete()
 }
 
-cleanFiles := (baseDirectory.value / "conf" / "generated.routes") +: cleanFiles.value
-
-lazy val regenerateRoutesFile = taskKey[Unit]("Regenerates the routes file")
+lazy val regenerateRoutesFile = taskKey[Unit]("Regenerate the swagger routes file")
 regenerateRoutesFile := Def.sequential(deleteRoutesFile, generateRoutesFile).value
