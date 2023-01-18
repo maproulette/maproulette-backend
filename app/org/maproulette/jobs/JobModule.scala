@@ -5,6 +5,7 @@
 package org.maproulette.jobs
 
 import com.google.inject.AbstractModule
+import org.maproulette.framework.controller.ServiceInfoController
 import play.api.libs.concurrent.AkkaGuiceSupport
 
 /**
@@ -15,5 +16,8 @@ class JobModule extends AbstractModule with AkkaGuiceSupport {
     bindActor[SchedulerActor]("scheduler-actor")
     bind(classOf[Scheduler]).asEagerSingleton()
     bind(classOf[Bootstrap]).asEagerSingleton()
+
+    // Eagerly bind the ServiceInfoController so that the runtime uptime is set when the service starts.
+    bind(classOf[ServiceInfoController]).asEagerSingleton()
   }
 }

@@ -2,6 +2,7 @@ import java.io.{BufferedWriter, FileWriter}
 import java.nio.charset.StandardCharsets
 import java.time.LocalDate
 import java.time.ZoneOffset
+import sbtbuildinfo.ScalaCaseClassRenderer
 import scala.io.Source
 import scala.util.Using
 
@@ -16,10 +17,15 @@ Universal / packageName := "MapRouletteAPI"
 // Developers can run 'sbt format' to easily format their source; this is required to pass a PR build.
 addCommandAlias("format", "scalafmtAll; scalafmtSbt; scalafixAll")
 
-// Setup BuildInfo plugin to write important build-time values to a generated file (org.maproulette.info.BuildInfo)
+// Setup BuildInfo plugin to write important build-time values to a generated file (org.maproulette.models.service.info.BuildInfo)
 enablePlugins(BuildInfoPlugin)
-buildInfoPackage := "org.maproulette.info"
-buildInfoOptions += BuildInfoOption.ToJson
+buildInfoPackage := "org.maproulette.models.service.info"
+buildInfoRenderFactory := ScalaCaseClassRenderer.apply
+buildInfoOptions ++= Seq(
+  BuildInfoOption.ImportScalaPredef,
+  BuildInfoOption.ToJson,
+  BuildInfoOption.ToMap
+)
 buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion)
 buildInfoKeys += BuildInfoKey.action("buildDate")(LocalDate.now(ZoneOffset.UTC).toString)
 buildInfoKeys += BuildInfoKey.action("javaVersion")(sys.props("java.version"))
@@ -214,6 +220,7 @@ generateRoutesFile := {
       "team.api",
       "follow.api",
       "leaderboard.api",
+      "service.api",
       "v2.api"
     )
     s.log.info(

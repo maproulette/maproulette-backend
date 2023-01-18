@@ -1,0 +1,13 @@
+###
+# tags: [ Service ]
+# summary: Retrieves service information such as the version and compiler version
+# produces: [ application/json ]
+# description: Retrieves service information such as the version and compiler version
+# responses:
+#   '200':
+#     description: Service information
+#     schema:
+#       type: object
+#       $ref: '#/definitions/org.maproulette.models.service.info.ServiceInfo'
+###
+GET     /service/info                      @org.maproulette.framework.controller.ServiceInfoController.getServiceInfo()
