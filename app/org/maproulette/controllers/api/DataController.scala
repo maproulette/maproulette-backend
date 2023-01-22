@@ -128,7 +128,7 @@ class DataController @Inject() (
       priority: String,
       includeByPriority: Boolean = false
   ): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.userAwareRequest { implicit user =>
+    this.sessionManager.authenticatedRequest { _ =>
       SearchParameters.withSearch { implicit params =>
         val response = this.dataManager.getChallengeSummary(
           challengeId = Some(id),
@@ -185,7 +185,7 @@ class DataController @Inject() (
       onlyEnabled: Boolean = true,
       includeByPriority: Boolean = false
   ): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.userAwareRequest { implicit user =>
+    this.sessionManager.authenticatedRequest { _ =>
       val response =
         this.dataManager.getChallengeSummary(Utils.toLongList(projects), onlyEnabled = onlyEnabled)
 
@@ -260,7 +260,7 @@ class DataController @Inject() (
       priority: String,
       onlyEnabled: Boolean = true
   ): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.userAwareRequest { implicit user =>
+    this.sessionManager.authenticatedRequest { _ =>
       val postData        = request.body.asInstanceOf[AnyContentAsFormUrlEncoded].data
       val draw            = postData.get("draw").head.head.toInt
       val start           = postData.get("start").head.head.toInt
@@ -434,7 +434,7 @@ class DataController @Inject() (
   }
 
   def getPropertyKeys(challengeId: Long): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.userAwareRequest { implicit user =>
+    this.sessionManager.authenticatedRequest { _ =>
       Ok(Json.toJson(Map("keys" -> dataManager.getPropertyKeys(challengeId))))
     }
   }
