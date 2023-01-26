@@ -524,21 +524,20 @@ class TaskReviewService @Inject() (
       case false => None
     }
 
-    // Don't send a notification for every task in a task bundle, only the
-    // primary task
-    if (task.bundleId.isEmpty || task.isBundlePrimary.getOrElse(false)) {
-      if (!isDisputed) {
-        if (needsReReview) {
-          // Let's note in the task_review_history table that this task needs review again
-          this.repository.insertTaskReviewHistory(
-            task,
-            user.id,
-            task.review.reviewedBy.get,
-            None,
-            reviewStatus,
-            null
-          )
+    if (!isDisputed) {
+      if (needsReReview) {
+        // Let's note in the task_review_history table that this task needs review again
+        this.repository.insertTaskReviewHistory(
+          task,
+          user.id,
+          task.review.reviewedBy.get,
+          None,
+          reviewStatus,
+          null
+        )
 
+        // Don't send a notifications for every task in a bundle
+        if (task.bundleId.isEmpty || task.isBundlePrimary.getOrElse(false)) {
           this.serviceManager.notification.createReviewNotification(
             user,
             task.review.reviewedBy.getOrElse(-1),
@@ -547,23 +546,26 @@ class TaskReviewService @Inject() (
             comment,
             errorTags = errorTags
           )
-        } else {
-          // Let's note in the task_review_history table that this task was reviewed
-          // and also who the original reviewer was (assuming we have one)
-          this.repository.insertTaskReviewHistory(
-            task,
-            task.review.reviewRequestedBy.get,
-            user.id,
-            if (originalReviewer.getOrElse(0) != user.id) Some(originalReviewer.get)
-            else None,
-            reviewStatus,
-            reviewClaimedAt.getOrElse(
-              if (reviewStatus != Task.REVIEW_STATUS_REQUESTED) reviewStartedAt.getOrElse(null)
-              else null
-            ),
-            errorTags
-          )
+        }
+      } else {
+        // Let's note in the task_review_history table that this task was reviewed
+        // and also who the original reviewer was (assuming we have one)
+        this.repository.insertTaskReviewHistory(
+          task,
+          task.review.reviewRequestedBy.get,
+          user.id,
+          if (originalReviewer.getOrElse(0) != user.id) Some(originalReviewer.get)
+          else None,
+          reviewStatus,
+          reviewClaimedAt.getOrElse(
+            if (reviewStatus != Task.REVIEW_STATUS_REQUESTED) reviewStartedAt.getOrElse(null)
+            else null
+          ),
+          errorTags
+        )
 
+        // Don't send a notifications for every task in a bundle
+        if (task.bundleId.isEmpty || task.isBundlePrimary.getOrElse(false)) {
           if (reviewStatus != Task.REVIEW_STATUS_UNNECESSARY) {
             // Only if the review status changes should we send a message
             if (task.review.reviewStatus.get != reviewStatus) {
@@ -602,17 +604,17 @@ class TaskReviewService @Inject() (
             }
           }
         }
-      } else {
-        // For disputed tasks.
-        this.repository.insertTaskReviewHistory(
-          task,
-          user.id,
-          task.review.reviewedBy.get,
-          None,
-          reviewStatus,
-          null
-        )
       }
+    } else {
+      // For disputed tasks.
+      this.repository.insertTaskReviewHistory(
+        task,
+        user.id,
+        task.review.reviewedBy.get,
+        None,
+        reviewStatus,
+        null
+      )
     }
 
     this.taskRepository.cacheManager.withOptionCaching { () =>
