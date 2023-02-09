@@ -105,6 +105,6 @@ class EmailProvider @Inject() (mailerClient: MailerClient, config: Config) {
       |P.S. You received this because you asked to be emailed when you
       |received this type of notification in MapRoulette. You can manage
       |your notification subscriptions and email preferences at:
-      |${urlPrefix}/profile""".stripMargin
+      |${urlPrefix}/user/profile""".stripMargin
   }
 }
