@@ -35,7 +35,7 @@ class TaskHistoryController @Inject() (
     * @return
     */
   def getTaskHistoryLog(taskId: Long): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.authenticatedRequest { implicit user =>
+    this.sessionManager.userAwareRequest { implicit user =>
       Ok(_insertExtraJSON(service.getTaskHistoryLog(taskId)))
     }
   }
