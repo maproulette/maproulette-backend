@@ -566,7 +566,7 @@ class ChallengeProvider @Inject() (
                       this.challengeDAL.markTasksRefreshed(true)(challenge.id)
                       // If no tasks were created by this overpass query or all tasks are
                       // fixed, then we need to update the status to finished.
-                      this.challengeDAL.updateFinishedStatus(true)(challenge.id)
+                      this.challengeDAL.updateFinishedStatus(true, user = user)(challenge.id)
                   }
                 } catch {
                   case e: Exception =>

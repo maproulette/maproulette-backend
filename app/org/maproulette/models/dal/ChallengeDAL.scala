@@ -1501,7 +1501,8 @@ class ChallengeDAL @Inject() (
     *                      still be marked finished. Defaults to false.
     */
   def updateFinishedStatus(
-      finishOnEmpty: Boolean = false
+      finishOnEmpty: Boolean = false,
+      user: User
   )(implicit id: Long, c: Option[Connection] = None): Unit = {
     this.withMRConnection { implicit c =>
       this.retrieveById(id) match {
@@ -1527,11 +1528,24 @@ class ChallengeDAL @Inject() (
               SQL(updateStatusQuery).as(this.parser.*).headOption match {
                 case Some(updatedChallenge) =>
                   if (updatedChallenge.status.getOrElse(Challenge.STATUS_NA) == Challenge.STATUS_FINISHED) {
-                    Future {
-                      this.serviceManager.achievement
-                        .awardChallengeCompletionAchievements(updatedChallenge)
-                      this.serviceManager.notification
-                        .createChallengeCompletionNotification(updatedChallenge)
+                    val challengeComments = this.serviceManager.comment.findChallengeComments(updatedChallenge.id)
+                    var challengeAlreadyCompleted = false
+
+                    challengeComments.foreach(c => {
+                      if (c.comment == "Challenge Completed") {
+                        challengeAlreadyCompleted = true
+                      }
+                    })
+
+                    if (!challengeAlreadyCompleted) {
+                      Future {
+                        this.serviceManager.achievement
+                          .awardChallengeCompletionAchievements(updatedChallenge)
+                        this.serviceManager.notification
+                          .createChallengeCompletionNotification(updatedChallenge)
+                      }
+
+                      this.serviceManager.comment.createChallengeComment(user, updatedChallenge.id, "Challenge Completed", false)
                     }
                   }
                   Some(updatedChallenge)

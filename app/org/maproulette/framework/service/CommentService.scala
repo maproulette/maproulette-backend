@@ -163,7 +163,7 @@ class CommentService @Inject() (
     * @param comment The actual comment being added
     * @return The newly created comment object
     */
-  def createChallengeComment(user: User, challengeId: Long, comment: String): ChallengeComment = {
+  def createChallengeComment(user: User, challengeId: Long, comment: String, notify: Boolean = true): ChallengeComment = {
     val challenge = challengeDAL.retrieveById(challengeId) match {
       case Some(t) => t
       case None =>
@@ -176,15 +176,19 @@ class CommentService @Inject() (
     }
     val newComment =
       this.challengeCommentRepository.create(user, challenge.id, comment, challenge.general.parent);
-    this.serviceManager.notification
-      .createChallengeMentionNotifications(user, newComment, challenge)
+
+    if (notify == true) {
+      this.serviceManager.notification
+        .createChallengeMentionNotifications(user, newComment, challenge)
+    }
+
     newComment
   }
 
   /**
-    * Finds a challenge comments for a challenge
+    * Finds comments for a challenge
     *
-    * @param challengeId The id of the task that the user is adding the comment too
+    * @param challengeId The id of the challenge being searched
     * @return a list of comments
     */
   def findChallengeComments(challengeId: Long): List[ChallengeComment] = {

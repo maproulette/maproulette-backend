@@ -266,7 +266,7 @@ class TaskDAL @Inject() (
       if (status == Task.STATUS_CREATED || status == Task.STATUS_SKIPPED) {
         this.manager.challenge.updateReadyStatus()(parentId)
       } else {
-        this.manager.challenge.updateFinishedStatus()(parentId)
+        this.manager.challenge.updateFinishedStatus(user = user)(parentId)
       }
 
       if (status == Task.STATUS_CREATED) {
@@ -829,7 +829,7 @@ class TaskDAL @Inject() (
       }
     }
 
-    this.manager.challenge.updateFinishedStatus()(primaryTask.parent)
+    this.manager.challenge.updateFinishedStatus(user = user)(primaryTask.parent)
 
     Future {
       this.serviceManager.achievement.awardTaskCompletionAchievements(user, primaryTask, status)
