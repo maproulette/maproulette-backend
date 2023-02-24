@@ -15,7 +15,7 @@ WHERE
     AND a.challenge_id = b.challenge_id;;
 
 -- Add unique constraint.
-CREATE UNIQUE INDEX CONCURRENTLY virtual_project_challenges_projects
+CREATE UNIQUE INDEX virtual_project_challenges_projects
   ON virtual_project_challenges (project_id, challenge_id);;
 
 ALTER TABLE virtual_project_challenges DROP CONSTRAINT
