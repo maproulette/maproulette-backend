@@ -1528,7 +1528,8 @@ class ChallengeDAL @Inject() (
               SQL(updateStatusQuery).as(this.parser.*).headOption match {
                 case Some(updatedChallenge) =>
                   if (updatedChallenge.status.getOrElse(Challenge.STATUS_NA) == Challenge.STATUS_FINISHED) {
-                    val challengeComments = this.serviceManager.comment.findChallengeComments(updatedChallenge.id)
+                    val challengeComments =
+                      this.serviceManager.comment.findChallengeComments(updatedChallenge.id)
                     var challengeAlreadyCompleted = false
 
                     challengeComments.foreach(c => {
@@ -1545,7 +1546,12 @@ class ChallengeDAL @Inject() (
                           .createChallengeCompletionNotification(updatedChallenge)
                       }
 
-                      this.serviceManager.comment.createChallengeComment(user, updatedChallenge.id, "Challenge Completed", false)
+                      this.serviceManager.comment.createChallengeComment(
+                        user,
+                        updatedChallenge.id,
+                        "Challenge Completed",
+                        false
+                      )
                     }
                   }
                   Some(updatedChallenge)

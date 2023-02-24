@@ -163,7 +163,12 @@ class CommentService @Inject() (
     * @param comment The actual comment being added
     * @return The newly created comment object
     */
-  def createChallengeComment(user: User, challengeId: Long, comment: String, notify: Boolean = true): ChallengeComment = {
+  def createChallengeComment(
+      user: User,
+      challengeId: Long,
+      comment: String,
+      notify: Boolean = true
+  ): ChallengeComment = {
     val challenge = challengeDAL.retrieveById(challengeId) match {
       case Some(t) => t
       case None =>
