@@ -22,6 +22,9 @@
     <!-- More akka logging tweaks can be made in the dev.conf, akka.actor.debug -->
     <logger name="akka" level="INFO" />
 
+    <!-- Playframework database evolutions, DEBUG will log the SQL statements executed by evolutions -->
+    <logger name="play.api.db.evolutions" level="DEBUG" />
+
     <!-- Unknown if these actually do anything -->
     <logger name="application" level="TRACE" />
     <logger name="controllers" level="TRACE" />
