@@ -264,9 +264,9 @@ class ActionManager @Inject() (config: Config, db: Database)(implicit applicatio
          |SELECT *, a[1]::Int AS parent_id, a[2] AS parent_name FROM (
          |  SELECT *,
          |    CASE type_id
-         |      WHEN 1 | 4 THEN (SELECT REGEXP_SPLIT_TO_ARRAY(c.parent_id || ',' || p.name, ',') FROM challenges c
+         |      WHEN 1 | 4 THEN (SELECT REGEXP_SPLIT_TO_ARRAY(c.parent_id || ',' || REPLACE(p.name, ',', ''), ',') FROM challenges c
          |                        INNER JOIN projects p ON p.id = c.parent_id WHERE c.id = item_id)
-         |      WHEN 2 THEN (SELECT REGEXP_SPLIT_TO_ARRAY(t.parent_id || ',' || c.name, ',') FROM tasks t
+         |      WHEN 2 THEN (SELECT REGEXP_SPLIT_TO_ARRAY(t.parent_id || ',' || REPLACE(c.name, ',', ''), ',') FROM tasks t
          |                        INNER JOIN challenges c ON c.id = t.parent_id WHERE t.id = item_id)
          |      ELSE NULL
          |    END AS a
