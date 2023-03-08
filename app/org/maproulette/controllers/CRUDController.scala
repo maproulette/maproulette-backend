@@ -117,30 +117,33 @@ trait CRUDController[T <: BaseObject[Long]] extends SessionController {
   ): Option[T] = {
     (requestBody \ "parent").asOpt[Long] match {
       case Some(parentId) =>
-        val currentTaskCount = this.dal.getTaskCountBase(parentId);
-        if (currentTaskCount < config.maxTasksPerChallenge) {
-          this.dal.mergeUpdate(element, user)(element.id) match {
-            case Some(created) =>
-              this.extractAndCreate(requestBody, created, user)
-              this.actionManager.setAction(
-                Some(user),
-                this.itemType.convertToItem(created.id),
-                ActionCreated(),
-                ""
-              )
-              Some(created)
-            case None => None
+        if (element.getClass.getSimpleName == Actions.ITEM_TYPE_TASK_NAME) {
+          val currentTaskCount = this.dal.getTaskCountBase(parentId);
+
+          if (currentTaskCount > config.maxTasksPerChallenge) {
+            logger.warn(
+              "challengeId='{}' has exceeded the maximum tasks per challenge (count={} max={})",
+              parentId,
+              currentTaskCount,
+              config.maxTasksPerChallenge
+            )
+            throw new InvalidException(
+              s"Challenges cannot exceed ${config.maxTasksPerChallenge} tasks"
+            )
           }
-        } else {
-          logger.warn(
-            "challengeId='{}' has exceeded the maximum tasks per challenge (count={} max={})",
-            parentId,
-            currentTaskCount,
-            config.maxTasksPerChallenge
-          )
-          throw new InvalidException(
-            s"Challenges cannot exceed ${config.maxTasksPerChallenge} tasks"
-          )
+        }
+
+        this.dal.mergeUpdate(element, user)(element.id) match {
+          case Some(created) =>
+            this.extractAndCreate(requestBody, created, user)
+            this.actionManager.setAction(
+              Some(user),
+              this.itemType.convertToItem(created.id),
+              ActionCreated(),
+              ""
+            )
+            Some(created)
+          case None => None
         }
       case None => {
         this.dal.mergeUpdate(element, user)(element.id) match {
