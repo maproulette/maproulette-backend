@@ -134,6 +134,7 @@ case class ChallengeExtra(
     taskStyles: Option[String] = None,
     taskBundleIdProperty: Option[String] = None,
     isArchived: Boolean = false,
+    reviewSettings: Boolean = false,
     systemArchivedAt: Option[DateTime] = None,
     presets: Option[List[String]] = None
 ) extends DefaultWrites

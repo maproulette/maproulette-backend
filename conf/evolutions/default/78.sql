@@ -10,7 +10,16 @@ CREATE TABLE IF NOT EXISTS challenge_presets(
 
 SELECT create_index_if_not_exists('challenge_presets', 'challenge_presets_challenge', '(challenge_id)');;
 
+-- Add review_settings column
+ALTER TABLE IF EXISTS challenges
+ADD COLUMN review_settings BOOLEAN DEFAULT false;;
+
 # --- !Downs
 
 -- Drop table challenge_presets
 DROP TABLE challenge_presets;;
+
+-- Remove review_settings columns
+ALTER TABLE IF EXISTS challenges
+DROP COLUMN review_settings;;
+
