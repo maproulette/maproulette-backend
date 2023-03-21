@@ -14,5 +14,3 @@ SELECT create_index_if_not_exists('challenge_presets', 'challenge_presets_challe
 
 -- Drop table challenge_presets
 DROP TABLE challenge_presets;;
-
-
