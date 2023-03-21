@@ -72,6 +72,36 @@ class CommentController @Inject() (
   }
 
   /**
+    * Retrieves all the task comments sent by a user
+    *
+    * @param id The id of the user who sent the comments
+    * @return A list of comments
+    */
+  def findUserComments(id: Long): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        Ok(
+          Json.toJson(this.commentService.findUserComments(id))
+        )
+      }
+  }
+
+  /**
+    * Retrieves all the challenge comments sent by a user
+    *
+    * @param id The id of the user who sent the comments
+    * @return A list of comments
+    */
+  def findUserChallengeComments(id: Long): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        Ok(
+          Json.toJson(this.commentService.findUserChallengeComments(id))
+        )
+      }
+  }
+
+  /**
     * Adds a comment for a specific task
     *
     * @param taskId   The id for a task

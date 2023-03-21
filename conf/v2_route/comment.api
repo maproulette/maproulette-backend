@@ -39,6 +39,48 @@ GET     /comment/:id                                @org.maproulette.framework.c
 GET     /task/:id/comments                          @org.maproulette.framework.controller.CommentController.find(id:Long)
 ###
 # tags: [ Comment ]
+# summary: Retrieves comments sent by a User
+# produces: [ application/json ]
+# description: Retrieves all the comments sent by a User
+# responses:
+#   '200':
+#     description: The comments
+#     schema:
+#       type: array
+#       items:
+#         type: object
+#         $ref: '#/definitions/org.maproulette.framework.model.Comment'
+#   '404':
+#     description: If the User is not found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The ID of the User
+###
+GET     /comments/user/:id                          @org.maproulette.framework.controller.CommentController.findUserComments(id:Long)
+###
+# tags: [ Comment ]
+# summary: Retrieves comments sent by a User
+# produces: [ application/json ]
+# description: Retrieves all the challenge comments sent by a User
+# responses:
+#   '200':
+#     description: The comments
+#     schema:
+#       type: array
+#       items:
+#         type: object
+#         $ref: '#/definitions/org.maproulette.framework.model.ChallengeComment'
+#   '404':
+#     description: If the User is not found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The ID of the User
+###
+GET     /challengeComments/user/:id                          @org.maproulette.framework.controller.CommentController.findUserChallengeComments(id:Long)
+###
+# tags: [ Comment ]
 # summary: Adds comment to Task
 # description: Adds a comment to a Task
 # responses:

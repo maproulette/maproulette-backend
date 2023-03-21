@@ -41,6 +41,25 @@ class CommentRepository @Inject() (override val db: Database) extends Repository
   }
 
   /**
+    * query function that fetches comments by user id
+    *
+    * @param userId The id of the user
+    * @return A list of returned Comments
+    */
+  def queryByUserId(userId: Long)(implicit c: Option[Connection] = None): List[Comment] = {
+    withMRConnection { implicit c =>
+      val query =
+        s"""
+           |SELECT c.id, c.project_id, c.challenge_id, c.task_id, c.created, c.action_id, c.comment, u.name, u.avatar_url, c.osm_id FROM TASK_COMMENTS c
+           |inner join users as u on c.osm_id = u.osm_id
+           |WHERE u.id = ${userId}
+       """.stripMargin
+      SQL(query)
+        .as(CommentRepository.parser.*)
+    }
+  }
+
+  /**
     * Add comment to a task
     *
     * @param user     The user adding the comment

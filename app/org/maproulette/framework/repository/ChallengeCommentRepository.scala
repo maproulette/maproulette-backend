@@ -43,6 +43,27 @@ class ChallengeCommentRepository @Inject() (override val db: Database) extends R
   }
 
   /**
+    *
+    * @param userId id of user
+    * @return A list of challenge comments
+    */
+  def queryByUserId(
+    userId: Long
+  )(implicit c: Option[Connection] = None): List[ChallengeComment] = {
+    withMRConnection { implicit c =>
+      val query =
+        s"""
+           |SELECT c.id, c.project_id, c.challenge_id, c.created, c.comment, c.osm_id, u.name, u.avatar_url, ch.name as challenge_name FROM CHALLENGE_COMMENTS c
+           |inner join users as u on c.osm_id = u.osm_id
+           |inner join challenges as ch on c.challenge_id = ch.id
+           |WHERE u.id = ${userId}
+         """.stripMargin
+      SQL(query)
+        .as(ChallengeCommentRepository.expandedParser.*)
+    }
+  }
+
+  /**
     * Add comment to a challenge
     *
     * @param user     The user adding the comment
@@ -88,7 +109,7 @@ object ChallengeCommentRepository {
   val parser: RowParser[ChallengeComment] = {
     long("id") ~ long("project_id") ~ long("challenge_id") ~ get[DateTime]("created") ~
       get[String]("comment") ~ long("osm_id") ~ get[String]("name") ~ get[String]("avatar_url") map {
-      case id ~ projectId ~ challengeId ~ created ~ comment ~ osmId ~ name ~ avatarUrl =>
+      case id ~ projectId ~ challengeId ~ created ~ comment ~ osmId ~ name ~ avatarUrl  =>
         ChallengeComment(
           id,
           osmId,
@@ -98,6 +119,24 @@ object ChallengeCommentRepository {
           projectId,
           created,
           comment
+        )
+    }
+  }
+
+  val expandedParser: RowParser[ChallengeComment] = {
+    long("id") ~ long("project_id") ~ long("challenge_id") ~ get[DateTime]("created") ~
+      get[String]("comment") ~ long("osm_id") ~ get[String]("name") ~ get[String]("avatar_url") ~ get[Option[String]]("challenge_name") map {
+      case id ~ projectId ~ challengeId ~ created ~ comment ~ osmId ~ name ~ avatarUrl ~ challengeName =>
+        ChallengeComment(
+          id,
+          osmId,
+          name,
+          avatarUrl,
+          challengeId,
+          projectId,
+          created,
+          comment,
+          challengeName = challengeName
         )
     }
   }
