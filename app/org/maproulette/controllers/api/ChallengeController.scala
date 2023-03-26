@@ -1163,6 +1163,7 @@ class ChallengeController @Inject() (
     jsonBody = Utils.insertIntoJson(jsonBody, "defaultZoom", Challenge.DEFAULT_ZOOM)(IntWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "minZoom", Challenge.MIN_ZOOM)(IntWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "maxZoom", Challenge.MAX_ZOOM)(IntWrites)
+    jsonBody = Utils.insertIntoJson(jsonBody, "reviewSetting", Challenge.REVIEW_SETTING_NOT_REQUIRED)(IntWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "updateTasks", false)(BooleanWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "changesetUrl", false)(BooleanWrites)
     // if we can't find the parent ID, just use the user's default project instead

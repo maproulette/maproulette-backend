@@ -134,7 +134,7 @@ case class ChallengeExtra(
     taskStyles: Option[String] = None,
     taskBundleIdProperty: Option[String] = None,
     isArchived: Boolean = false,
-    reviewSettings: Boolean = false,
+    reviewSetting: Int = Challenge.REVIEW_SETTING_NOT_REQUIRED,
     systemArchivedAt: Option[DateTime] = None,
     presets: Option[List[String]] = None
 ) extends DefaultWrites
@@ -238,6 +238,9 @@ object Challenge extends CommonField {
   val DIFFICULTY_EASY   = 1
   val DIFFICULTY_NORMAL = 2
   val DIFFICULTY_EXPERT = 3
+
+  val REVIEW_SETTING_NOT_REQUIRED = 0
+  val REVIEW_SETTING_REQUESTED = 1
 
   val PRIORITY_HIGH        = 0
   val PRIORITY_HIGH_NAME   = "High"
