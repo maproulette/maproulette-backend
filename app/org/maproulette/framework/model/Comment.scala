@@ -27,7 +27,8 @@ case class Comment(
     projectId: Long,
     created: DateTime,
     comment: String,
-    actionId: Option[Long] = None
+    actionId: Option[Long] = None,
+    fullCount: Int = 0
 )
 
 object Comment extends CommonField {

@@ -46,16 +46,23 @@ class CommentRepository @Inject() (override val db: Database) extends Repository
     * @param userId The id of the user
     * @return A list of returned Comments
     */
-  def queryByUserId(userId: Long)(implicit c: Option[Connection] = None): List[Comment] = {
+  def queryByUserId(
+      userId: Long,
+      sort: String = "created",
+      order: String = "DESC",
+      limit: Int = 25,
+      page: Int = 0
+  )(implicit c: Option[Connection] = None): List[Comment] = {
     withMRConnection { implicit c =>
       val query =
         s"""
-           |SELECT c.id, c.project_id, c.challenge_id, c.task_id, c.created, c.action_id, c.comment, u.name, u.avatar_url, c.osm_id FROM TASK_COMMENTS c
+           |SELECT count(*) OVER() AS full_count, c.id, c.project_id, c.challenge_id, c.task_id, c.created, c.action_id, c.comment, u.name, u.avatar_url, c.osm_id FROM TASK_COMMENTS c
            |inner join users as u on c.osm_id = u.osm_id
            |WHERE u.id = ${userId}
+           |ORDER BY c.${sort} ${order} LIMIT ${limit} OFFSET ${limit * page}
        """.stripMargin
       SQL(query)
-        .as(CommentRepository.parser.*)
+        .as(CommentRepository.expandedParser.*)
     }
   }
 
@@ -158,16 +165,66 @@ class CommentRepository @Inject() (override val db: Database) extends Repository
 }
 
 object CommentRepository {
-  val parser: RowParser[Comment] = Macro.parser[Comment](
-    "task_comments.id",
-    "task_comments.osm_id",
-    "users.name",
-    "users.avatar_url",
-    "task_comments.task_id",
-    "task_comments.challenge_id",
-    "task_comments.project_id",
-    "task_comments.created",
-    "task_comments.comment",
-    "task_comments.action_id"
-  )
+  val parser: RowParser[Comment] = {
+    long("task_comments.id") ~ long("task_comments.osm_id") ~ get[String]("users.name") ~ get[
+      String
+    ]("users.avatar_url") ~
+      long("task_comments.task_id") ~ long("task_comments.challenge_id") ~ long(
+      "task_comments.project_id"
+    ) ~ get[DateTime]("task_comments.created") ~ get[String]("task_comments.comment") ~
+      get[Option[Long]]("task_comments.action_id") map {
+      case id ~ osmId ~ name ~ avatarUrl ~ taskId ~ challengeId ~ projectId ~ created ~ comment ~ actionId =>
+        Comment(
+          id,
+          osm_id = osmId,
+          osm_username = name,
+          avatarUrl,
+          taskId = taskId,
+          challengeId = challengeId,
+          projectId = projectId,
+          created = created,
+          comment = comment,
+          actionId = actionId
+        )
+    }
+  }
+//
+//  val expandedParser: RowParser[Comment] = Macro.parser[Comment](
+//    "task_comments.id",
+//    "task_comments.osm_id",
+//    "users.name",
+//    "users.avatar_url",
+//    "task_comments.task_id",
+//    "task_comments.challenge_id",
+//    "task_comments.project_id",
+//    "task_comments.created",
+//    "task_comments.comment",
+//    "task_comments.action_id",
+//    "full_count"
+//  )
+
+  val expandedParser: RowParser[Comment] = {
+    long("task_comments.id") ~ long("task_comments.osm_id") ~ get[String]("users.name") ~ get[
+      String
+    ]("users.avatar_url") ~
+      long("task_comments.task_id") ~ long("task_comments.challenge_id") ~ long(
+      "task_comments.project_id"
+    ) ~ get[DateTime]("task_comments.created") ~ get[String]("task_comments.comment") ~
+      get[Option[Long]]("task_comments.action_id") ~ get[Option[Int]]("full_count") map {
+      case id ~ osmId ~ name ~ avatarUrl ~ taskId ~ challengeId ~ projectId ~ created ~ comment ~ actionId ~ fullCount =>
+        Comment(
+          id,
+          osm_id = osmId,
+          osm_username = name,
+          avatarUrl,
+          taskId = taskId,
+          challengeId = challengeId,
+          projectId = projectId,
+          created = created,
+          comment = comment,
+          actionId = actionId,
+          fullCount = fullCount.getOrElse(0)
+        )
+    }
+  }
 }

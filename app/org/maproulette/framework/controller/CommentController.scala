@@ -77,13 +77,18 @@ class CommentController @Inject() (
     * @param id The id of the user who sent the comments
     * @return A list of comments
     */
-  def findUserComments(id: Long): Action[AnyContent] = Action.async {
-    implicit request =>
-      this.sessionManager.userAwareRequest { implicit user =>
-        Ok(
-          Json.toJson(this.commentService.findUserComments(id))
-        )
-      }
+  def findUserComments(
+      id: Long,
+      sort: String = "created",
+      order: String = "DESC",
+      limit: Int = 25,
+      page: Int = 0
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      Ok(
+        Json.toJson(this.commentService.findUserComments(id, sort, order, limit, page))
+      )
+    }
   }
 
   /**
@@ -92,13 +97,18 @@ class CommentController @Inject() (
     * @param id The id of the user who sent the comments
     * @return A list of comments
     */
-  def findUserChallengeComments(id: Long): Action[AnyContent] = Action.async {
-    implicit request =>
-      this.sessionManager.userAwareRequest { implicit user =>
-        Ok(
-          Json.toJson(this.commentService.findUserChallengeComments(id))
-        )
-      }
+  def findUserChallengeComments(
+      id: Long,
+      sort: String = "created",
+      order: String = "DESC",
+      limit: Int = 25,
+      page: Int = 0
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      Ok(
+        Json.toJson(this.commentService.findUserChallengeComments(id, sort, order, limit, page))
+      )
+    }
   }
 
   /**

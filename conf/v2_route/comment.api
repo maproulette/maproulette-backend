@@ -57,7 +57,7 @@ GET     /task/:id/comments                          @org.maproulette.framework.c
 #     in: path
 #     description: The ID of the User
 ###
-GET     /comments/user/:id                          @org.maproulette.framework.controller.CommentController.findUserComments(id:Long)
+GET     /comments/user/:id                          @org.maproulette.framework.controller.CommentController.findUserComments(id:Long, sort:String ?= "created", order:String ?= "DESC", limit:Int ?= 25, page:Int ?= 0)
 ###
 # tags: [ Comment ]
 # summary: Retrieves comments sent by a User
@@ -78,7 +78,7 @@ GET     /comments/user/:id                          @org.maproulette.framework.c
 #     in: path
 #     description: The ID of the User
 ###
-GET     /challengeComments/user/:id                          @org.maproulette.framework.controller.CommentController.findUserChallengeComments(id:Long)
+GET     /challengeComments/user/:id                          @org.maproulette.framework.controller.CommentController.findUserChallengeComments(id:Long, sort:String ?= "created", order:String ?= "DESC", limit:Int ?= 25, page:Int ?= 0)
 ###
 # tags: [ Comment ]
 # summary: Adds comment to Task
