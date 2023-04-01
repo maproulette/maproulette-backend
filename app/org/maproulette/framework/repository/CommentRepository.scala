@@ -188,20 +188,6 @@ object CommentRepository {
         )
     }
   }
-//
-//  val expandedParser: RowParser[Comment] = Macro.parser[Comment](
-//    "task_comments.id",
-//    "task_comments.osm_id",
-//    "users.name",
-//    "users.avatar_url",
-//    "task_comments.task_id",
-//    "task_comments.challenge_id",
-//    "task_comments.project_id",
-//    "task_comments.created",
-//    "task_comments.comment",
-//    "task_comments.action_id",
-//    "full_count"
-//  )
 
   val expandedParser: RowParser[Comment] = {
     long("task_comments.id") ~ long("task_comments.osm_id") ~ get[String]("users.name") ~ get[
