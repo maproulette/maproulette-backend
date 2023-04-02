@@ -240,7 +240,7 @@ object Challenge extends CommonField {
   val DIFFICULTY_EXPERT = 3
 
   val REVIEW_SETTING_NOT_REQUIRED = 0
-  val REVIEW_SETTING_REQUESTED = 1
+  val REVIEW_SETTING_REQUESTED    = 1
 
   val PRIORITY_HIGH        = 0
   val PRIORITY_HIGH_NAME   = "High"

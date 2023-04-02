@@ -673,7 +673,7 @@ class ChallengeDAL @Inject() (
 
           val reviewSetting = (updates \ "reviewSetting")
             .asOpt[Int]
-           .getOrElse(cachedItem.extra.reviewSetting)
+            .getOrElse(cachedItem.extra.reviewSetting)
 
           val presets: List[String] = (updates \ "presets")
             .asOpt[List[String]]
