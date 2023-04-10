@@ -8,7 +8,7 @@
 #     description: The task
 #     schema:
 #       type: object
-#       $ref: '#/definitions/org.maproulette.framework.model.Task'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: id
 #     in: path
@@ -25,7 +25,7 @@ GET     /task/:id/review/start                       @org.maproulette.framework.
 #     description: The task
 #     schema:
 #       type: object
-#       $ref: '#/definitions/org.maproulette.framework.model.Task'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: id
 #     in: path
@@ -44,7 +44,7 @@ GET     /task/:id/review/cancel                       @org.maproulette.framework
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Task'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: onlySaved
 #     in: query
@@ -92,7 +92,7 @@ GET     /tasks/review                          @org.maproulette.framework.contro
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Task'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: startDate
 #     in: query
@@ -144,7 +144,7 @@ GET     /tasks/reviewed                          @org.maproulette.framework.cont
 #     description: The task
 #     schema:
 #       type: object
-#       $ref: '#/definitions/org.maproulette.framework.model.Task'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: onlySaved
 #     in: query
@@ -187,7 +187,7 @@ GET     /tasks/review/next                       @org.maproulette.framework.cont
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Task'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: limit
 #     in: query
@@ -215,7 +215,7 @@ GET     /tasks/review/nearby/:proximityId           @org.maproulette.framework.c
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Task'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: reviewTasksType
 #     in: query
@@ -261,7 +261,7 @@ GET     /tasks/review/metrics                          @org.maproulette.framewor
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.TaskCluster'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.TaskCluster'
 # parameters:
 #   - name: reviewTasksType
 #     in: query
@@ -348,7 +348,7 @@ GET     /tasks/metareview/reviewers/export                          @org.maproul
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.ReviewMetrics'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.ReviewMetrics'
 # parameters:
 #   - name: reviewTasksType
 #     in: query

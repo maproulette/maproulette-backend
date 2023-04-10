@@ -10,7 +10,7 @@
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.UserNotification'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.UserNotification'
 #   '401':
 #     description: The user is not authorized to make this request
 # parameters:
@@ -115,7 +115,7 @@ PUT  /user/:userId/notifications/delete                 @org.maproulette.framewo
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.UserNotification'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.UserNotification'
 #   '401':
 #     description: The user is not authorized to make this request
 # parameters:
@@ -149,7 +149,7 @@ GET     /user/:userId/notificationSubscriptions     @org.maproulette.framework.c
 #     required: true
 #     schema:
 #       type: object
-#       $ref: '#/definitions/org.maproulette.framework.model.NotificationSubscriptions'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.NotificationSubscriptions'
 #   - name: apiKey
 #     in: header
 #     description: The user's apiKey to authorize the request

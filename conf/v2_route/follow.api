@@ -6,7 +6,7 @@
 #   '200':
 #     description: The users followed by the specified user
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.User'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.User'
 # parameters:
 #   - name: userId
 #     in: path
@@ -23,7 +23,7 @@ GET    /user/:userId/following                      @org.maproulette.framework.c
 #   '200':
 #     description: The users following the specified user
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.User'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.User'
 # parameters:
 #   - name: userId
 #     in: path
@@ -40,7 +40,7 @@ GET    /user/:userId/followers                      @org.maproulette.framework.c
 #   '200':
 #     description: Updated list of followed users
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.User'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.User'
 # parameters:
 #   - name: userId
 #     in: path
@@ -57,7 +57,7 @@ POST    /user/:userId/follow                        @org.maproulette.framework.c
 #   '200':
 #     description: Updated list of followed users
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.User'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.User'
 # parameters:
 #   - name: userId
 #     in: path
@@ -74,7 +74,7 @@ DELETE /user/:userId/follow                         @org.maproulette.framework.c
 #   '200':
 #     description: Updated list of followers
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.User'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.User'
 # parameters:
 #   - name: userId
 #     in: path
@@ -91,7 +91,7 @@ POST    /user/:userId/block                         @org.maproulette.framework.c
 #   '200':
 #     description: Updated list of followers
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.User'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.User'
 # parameters:
 #   - name: userId
 #     in: path

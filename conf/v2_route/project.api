@@ -10,7 +10,7 @@
 #   '200':
 #     description: The newly created Project with a unique id
 #     schema:
-#       $ref: '#/definitions/Project'
+#       $ref: '#/components/schemas/Project'
 #   '304':
 #     description: Not updated responding with empty payload if Project already exists and nothing to update
 #   '400':
@@ -28,7 +28,7 @@
 #     description: The JSON structure for the project body.
 #     required: true
 #     schema:
-#       $ref: '#/definitions/Project'
+#       $ref: '#/components/schemas/Project'
 ###
 POST    /project                                    @org.maproulette.framework.controller.ProjectController.insert
 ###
@@ -41,7 +41,7 @@ POST    /project                                    @org.maproulette.framework.c
 #   '200':
 #     description: The updated JSON Project
 #     schema:
-#       $ref: '#/definitions/Project'
+#       $ref: '#/components/schemas/Project'
 #   '304':
 #     description: Not updated responding with empty payload if Project already exists and nothing to update
 #   '400':
@@ -63,7 +63,7 @@ POST    /project                                    @org.maproulette.framework.c
 #     description: The JSON structure for the project body.
 #     required: true
 #     schema:
-#       $ref: '#/definitions/Project'
+#       $ref: '#/components/schemas/Project'
 ###
 PUT     /project/:id                                @org.maproulette.framework.controller.ProjectController.update(id:Long)
 ###
@@ -76,7 +76,7 @@ PUT     /project/:id                                @org.maproulette.framework.c
 #   '200':
 #     description: The retrieved Project
 #     schema:
-#       $ref: '#/definitions/Project'
+#       $ref: '#/components/schemas/Project'
 #   '404':
 #     description: ID field supplied but no object found matching the id
 # parameters:
@@ -98,7 +98,7 @@ GET     /project/:id                                @org.maproulette.framework.c
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/Project'
+#         $ref: '#/components/schemas/Project'
 # parameters:
 #   - name: projectIds
 #     in: query
@@ -115,7 +115,7 @@ GET     /projectsById                               @org.maproulette.framework.c
 #   '200':
 #     description: The retrieved Project with a unique id
 #     schema:
-#       $ref: '#/definitions/Project'
+#       $ref: '#/components/schemas/Project'
 #   '404':
 #     description: No project found matching the provided name
 # parameters:
@@ -134,7 +134,7 @@ GET     /projectByName/:name                        @org.maproulette.framework.c
 #   '200':
 #     description: A status message containing the ID of the project that was just deleted
 #     schema:
-#       $ref: '#/definitions/org.maproulette.exception.StatusMessage'
+#       $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
 #   '401':
 #     description: The user is not authorized to make this request
 #   '404':
@@ -167,7 +167,7 @@ DELETE  /project/:id                                @org.maproulette.framework.c
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/Project'
+#         $ref: '#/components/schemas/Project'
 # parameters:
 #   - name: onlyEnabled
 #     in: query
@@ -193,7 +193,7 @@ GET     /projects/featured                          @org.maproulette.framework.c
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/Project'
+#         $ref: '#/components/schemas/Project'
 # parameters:
 #   - name: limit
 #     in: query
@@ -219,7 +219,7 @@ GET     /projects                                   @org.maproulette.framework.c
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/Project'
+#         $ref: '#/components/schemas/Project'
 # parameters:
 #   - name: apiKey
 #     in: header
@@ -258,7 +258,7 @@ GET     /projects/managed                           @org.maproulette.framework.c
 #   '200':
 #     description: The clustered point representation for a Challenge. If none found will return an empty list
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.ClusteredPoint'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.ClusteredPoint'
 # parameters:
 #   - name: id
 #     in: path
@@ -284,7 +284,7 @@ GET     /project/clustered/:id                      @org.maproulette.framework.c
 #   '200':
 #     description: The clustered point representation for a Challenge. If none found will return an empty list
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.ClusteredPoint'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.ClusteredPoint'
 # parameters:
 #   - name: search
 #     in: cookie
@@ -309,7 +309,7 @@ GET     /project/search/clustered                   @org.maproulette.framework.c
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Challenge'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: id
 #     in: path
@@ -330,7 +330,7 @@ GET     /project/:id/challenges                     @org.maproulette.framework.c
 #   '200':
 #     description: A list of comments of the descendent tasks of a given Project
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.Comment'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
 #   '404':
 #     description: No Project with provided ID found
 # parameters:
@@ -382,7 +382,7 @@ GET     /project/:projectId/tasks/extract             @org.maproulette.controlle
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Task'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: id
 #     in: path

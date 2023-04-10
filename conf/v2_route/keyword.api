@@ -44,7 +44,7 @@ GET     /tags                                       @org.maproulette.framework.c
 #   '200':
 #     description: The newly created Keyword with a unique id.
 #     schema:
-#       $ref: '#/definitions/Keyword'
+#       $ref: '#/components/schemas/Keyword'
 #   '304':
 #     description: Not updated responding with empty payload if Survey already exists and nothing to update
 #   '400':
@@ -62,7 +62,7 @@ GET     /tags                                       @org.maproulette.framework.c
 #     description: The JSON structure for the Keyword body.
 #     required: true
 #     schema:
-#       $ref: '#/definitions/Keyword'
+#       $ref: '#/components/schemas/Keyword'
 ###
 POST    /keyword                                    @org.maproulette.framework.controller.TagController.insert
 ###
@@ -96,7 +96,7 @@ POST    /keyword                                    @org.maproulette.framework.c
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/Keyword'
+#         $ref: '#/components/schemas/Keyword'
 ###
 POST    /keywords                                   @org.maproulette.framework.controller.TagController.batchUploadPost
 ###
@@ -109,7 +109,7 @@ POST    /keywords                                   @org.maproulette.framework.c
 #   '200':
 #     description: The updated JSON Keyword
 #     schema:
-#       $ref: '#/definitions/Keyword'
+#       $ref: '#/components/schemas/Keyword'
 #   '304':
 #     description: Not updated responding with empty payload if Keyword already exists and nothing to update
 #   '400':
@@ -130,7 +130,7 @@ POST    /keywords                                   @org.maproulette.framework.c
 #     description: The JSON structure for the Keyword body.
 #     required: true
 #     schema:
-#       $ref: '#/definitions/Keyword'
+#       $ref: '#/components/schemas/Keyword'
 ###
 PUT     /keyword/:id                                @org.maproulette.framework.controller.TagController.update(id:Long)
 ###
@@ -164,7 +164,7 @@ PUT     /keyword/:id                                @org.maproulette.framework.c
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/Keyword'
+#         $ref: '#/components/schemas/Keyword'
 ###
 PUT     /keywords                                   @org.maproulette.framework.controller.TagController.batchUploadPut
 ###
@@ -176,7 +176,7 @@ PUT     /keywords                                   @org.maproulette.framework.c
 #   '200':
 #     description: The retrieved Keyword
 #     schema:
-#       $ref: '#/definitions/Keyword'
+#       $ref: '#/components/schemas/Keyword'
 #   '404':
 #     description: ID field supplied but no Keyword found matching the id
 # parameters:
@@ -193,7 +193,7 @@ GET     /keyword/:id                                @org.maproulette.framework.c
 #   '200':
 #     description: A status message containing the ID of the Keyword that was just deleted
 #     schema:
-#       $ref: '#/definitions/org.maproulette.exception.StatusMessage'
+#       $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
 #   '401':
 #     description: The user is not authorized to make this request
 #   '404':
@@ -221,7 +221,7 @@ DELETE  /keyword/:id                                @org.maproulette.framework.c
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/Keyword'
+#         $ref: '#/components/schemas/Keyword'
 # parameters:
 #   - name: prefix
 #     in: query

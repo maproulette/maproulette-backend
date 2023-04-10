@@ -11,7 +11,7 @@
 #                   The Challenge object is flattened so the "general", "creation", "priority", and "extra"
 #                   fields are remove and the keys from that object are moved into the challenge object
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.Challenge'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 #   '304':
 #     description: Not updated responding with empty payload if Challenge already exists and nothing to update
 #   '400':
@@ -31,7 +31,7 @@
 #                   JSON structure can be flatten and you can exclude those top level keys and have the children in the root level.
 #     required: true
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.Challenge'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 ###
 POST    /challenge                                  @org.maproulette.controllers.api.ChallengeController.create
 ###
@@ -46,7 +46,7 @@ POST    /challenge                                  @org.maproulette.controllers
 #   '200':
 #     description: The updated JSON Challenge
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.Challenge'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 #   '304':
 #     description: Not updated responding with empty payload if Challenge already exists and nothing to update
 #   '400':
@@ -67,7 +67,7 @@ POST    /challenge                                  @org.maproulette.controllers
 #     description: The JSON structure for the Challenge body, include the key "children" to create or update Task children objects.
 #     required: true
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.Challenge'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 ###
 PUT     /challenge/:id                              @org.maproulette.controllers.api.ChallengeController.update(id:Long)
 ###
@@ -79,7 +79,7 @@ PUT     /challenge/:id                              @org.maproulette.controllers
 #   '200':
 #     description: The retrieved Challenge
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.Challenge'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 #   '404':
 #     description: ID field supplied but no object found matching the id
 # parameters:
@@ -96,7 +96,7 @@ GET     /challenge/:id                              @org.maproulette.controllers
 #   '200':
 #     description: The retrieved Challenge
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.Challenge'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 #   '404':
 #     description: No Challenge found matching the provided name
 # parameters:
@@ -116,7 +116,7 @@ GET     /project/:id/challenge/:name                @org.maproulette.controllers
 #   '200':
 #     description: A status message containing the ID of the Challenge that was just deleted
 #     schema:
-#       $ref: '#/definitions/org.maproulette.exception.StatusMessage'
+#       $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
 #   '401':
 #     description: The user is not authorized to make this request
 #   '404':
@@ -175,7 +175,7 @@ DELETE  /challenge/:id/tasks                        @org.maproulette.controllers
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Challenge'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: q
 #     in: query
@@ -206,7 +206,7 @@ GET     /challenges/find                            @org.maproulette.controllers
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Challenge'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: pid
 #     in: query
@@ -255,7 +255,7 @@ GET     /challenges/extendedFind                    @org.maproulette.controllers
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.ChallengeListing'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeListing'
 # parameters:
 #   - name: projectIds
 #     in: query
@@ -286,7 +286,7 @@ GET     /challenges/listing                         @org.maproulette.controllers
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Tag'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Tag'
 # parameters:
 #   - name: id
 #     in: path
@@ -308,7 +308,7 @@ POST     /challenge/:id/project/:projectId           @org.maproulette.controller
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Tag'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Tag'
 # parameters:
 #   - name: projectId
 #     in: path
@@ -331,7 +331,7 @@ POST     /challenges/project/:projectId           @org.maproulette.controllers.a
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Tag'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Tag'
 # parameters:
 #   - name: id
 #     in: path
@@ -350,7 +350,7 @@ GET     /challenge/:id/tags                         @org.maproulette.controllers
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Challenge'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 #   '400':
 #     description: If not tags are supplied a BadRequest response will be returned
 # parameters:
@@ -402,7 +402,7 @@ DELETE  /challenge/:id/tags                         @org.maproulette.controllers
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Challenge'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: limit
 #     in: query
@@ -424,7 +424,7 @@ GET     /challenges/featured                        @org.maproulette.controllers
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Challenge'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: limit
 #     in: query
@@ -462,7 +462,7 @@ GET     /challenges/preferred                             @org.maproulette.contr
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Challenge'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: limit
 #     in: query
@@ -510,7 +510,7 @@ POST     /challenges/bulkArchive                    @org.maproulette.controllers
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Challenge'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: reviewTasksType
 #     in: query
@@ -542,7 +542,7 @@ GET     /review/challenges                                 @org.maproulette.fram
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Task'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: id
 #     in: path
@@ -641,7 +641,7 @@ PUT     /challenge/:id/addFileTasks                 @org.maproulette.controllers
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Challenge'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: id
 #     in: path
@@ -663,7 +663,7 @@ GET     /challenge/:id/children                     @org.maproulette.controllers
 #   '200':
 #     description: The newly created cloned challenge
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.Challenge'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 #   '401':
 #     description: The user is not authorized to make this request\
 #   '404':
@@ -732,7 +732,7 @@ PUT     /challenge/:id/rebuild                      @org.maproulette.controllers
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Task'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: cid
 #     in: path
@@ -763,7 +763,7 @@ GET     /challenge/:cid/tasks/random                @org.maproulette.controllers
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Task'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: cid
 #     in: path
@@ -794,7 +794,7 @@ GET     /challenge/:cid/tasks/randomTasks           @org.maproulette.controllers
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Task'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: limit
 #     in: query
@@ -820,7 +820,7 @@ GET     /challenge/:cid/tasksNearby/:proximityId           @org.maproulette.cont
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Task'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: cid
 #     in: path
@@ -848,7 +848,7 @@ GET     /challenge/:cid/tasks/prioritizedTasks      @org.maproulette.controllers
 #   '200':
 #     description: The next task in the list
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.Task'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: cid
 #     in: path
@@ -870,7 +870,7 @@ GET     /challenge/:cid/nextTask/:id                @org.maproulette.controllers
 #   '200':
 #     description: The previous task in the list
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.Task'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: cid
 #     in: path
@@ -963,7 +963,7 @@ POST    /challenge/view/:id                         @org.maproulette.controllers
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.ClusteredPoint'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.ClusteredPoint'
 # parameters:
 #   - name: id
 #     in: path
@@ -982,7 +982,7 @@ GET     /challenge/clustered/:id                    @org.maproulette.controllers
 #   '200':
 #     description: A simple OK status.
 #     schema:
-#       $ref: '#/definitions/org.maproulette.exception.StatusMessage'
+#       $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
 #   '401':
 #     description: The user is not authorized to make this request
 # parameters:
@@ -1028,7 +1028,7 @@ PUT     /challenge/:id/resetTaskInstructions        @org.maproulette.controllers
 #   '200':
 #     description: A list of comments for that challenge
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.Comment'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
 #   '404':
 #     description: No Challenge with provided ID found
 # parameters:
@@ -1193,7 +1193,7 @@ GET     /challenge/:id/matchChangesets          @org.maproulette.controllers.api
 #   '200':
 #     description: The retrieved Challenge
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.Challenge'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 #   '401':
 #     description: The user is not authorized to make this request
 #   '404':

@@ -6,14 +6,14 @@
 #   '201':
 #     description: The new team with unique id
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.Group'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Group'
 # parameters:
 #   - name: body
 #     in: body
 #     description: The JSON structure for the team (a group) body
 #     required: true
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.Group'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Group'
 ###
 POST    /team                                       @org.maproulette.framework.controller.TeamController.createTeam()
 ###
@@ -24,7 +24,7 @@ POST    /team                                       @org.maproulette.framework.c
 #   '200':
 #     description: The updated team
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.Group'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Group'
 # parameters:
 #   - name: id
 #     in: path
@@ -34,7 +34,7 @@ POST    /team                                       @org.maproulette.framework.c
 #     description: The JSON structure for the team (a group) body
 #     required: true
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.Group'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Group'
 ###
 PUT    /team/:id                                    @org.maproulette.framework.controller.TeamController.updateTeam(id: Long)
 ###
@@ -46,7 +46,7 @@ PUT    /team/:id                                    @org.maproulette.framework.c
 #   '200':
 #     description: The team
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.Group'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.Group'
 #   '404':
 #     description: If the team is not found
 # parameters:
@@ -67,7 +67,7 @@ GET     /team/:id                                   @org.maproulette.framework.c
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Group'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Group'
 #   '404':
 #     description: If the team is not found
 # parameters:
@@ -94,7 +94,7 @@ GET     /teams/find                                 @org.maproulette.framework.c
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.TeamUser'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.TeamUser'
 #   '404':
 #     description: If the team is not found
 # parameters:
@@ -115,7 +115,7 @@ GET     /team/:id/userMembers                       @org.maproulette.framework.c
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.TeamUser'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.TeamUser'
 #   '404':
 #     description: If the team is not found
 # parameters:
@@ -132,7 +132,7 @@ GET     /team/all/user/:userId/memberships          @org.maproulette.framework.c
 #   '200':
 #     description: team user
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.TeamUser'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.TeamUser'
 #   '404':
 #     description: If the team or user is not found
 # parameters:
@@ -155,7 +155,7 @@ POST    /team/:id/user/:userId/invite/:role         @org.maproulette.framework.c
 #   '200':
 #     description: Updated team user
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.TeamUser'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.TeamUser'
 #   '404':
 #     description: If the team is not found
 # parameters:
@@ -187,7 +187,7 @@ DELETE /team/:id/invite                             @org.maproulette.framework.c
 #   '200':
 #     description: Updated team user
 #     schema:
-#       $ref: '#/definitions/org.maproulette.framework.model.TeamUser'
+#       $ref: '#/components/schemas/org.maproulette.framework.model.TeamUser'
 #   '404':
 #     description: If the team or user is not found
 # parameters:
@@ -291,7 +291,7 @@ DELETE   /team/:teamId/project/:projectId        @org.maproulette.framework.cont
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/org.maproulette.framework.model.Group'
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Group'
 #   '401':
 #     description: The user is not authorized to make this request
 # parameters:

@@ -26,7 +26,7 @@
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/TagChange'
+#         $ref: '#/components/schemas/TagChange'
 ###
 POST    /change/tag/test                            @org.maproulette.controllers.OSMChangesetController.testTagChange(changeType:String ?= "delta")
 ###
@@ -54,7 +54,7 @@ POST    /change/tag/test                            @org.maproulette.controllers
 #       type: array
 #       items:
 #         type: object
-#         $ref: '#/definitions/OSMChange'
+#         $ref: '#/components/schemas/OSMChange'
 ###
 POST    /change/test                        @org.maproulette.controllers.OSMChangesetController.testChange()
 ###
@@ -92,6 +92,6 @@ POST    /change/test                        @org.maproulette.controllers.OSMChan
 #     required: true
 #     schema:
 #       type: object
-#       $ref: '#/definitions/TagChangeSubmission'
+#       $ref: '#/components/schemas/TagChangeSubmission'
 ###
 POST    /task/:taskId/fix/apply                     @org.maproulette.controllers.api.TaskController.applyTagFix(taskId:Long, comment:String ?= "", tags:String ?= "")

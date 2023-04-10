@@ -8,7 +8,7 @@
 #   '200':
 #     description: The newly created bundle with a unique id.
 #     schema:
-#       $ref: '#/definitions/TaskBundle'
+#       $ref: '#/components/schemas/TaskBundle'
 #   '401':
 #     description: The user is not authorized to make this request
 # parameters:
@@ -22,7 +22,7 @@
 #     description: The JSON structure for the bundle body.
 #     required: true
 #     schema:
-#       $ref: '#/definitions/TaskBundle'
+#       $ref: '#/components/schemas/TaskBundle'
 ###
 POST    /taskBundle                                 @org.maproulette.framework.controller.TaskBundleController.createTaskBundle
 ###
@@ -35,7 +35,7 @@ POST    /taskBundle                                 @org.maproulette.framework.c
 #   '200':
 #     description: The requested task bundle
 #     schema:
-#       $ref: '#/definitions/TaskBundle'
+#       $ref: '#/components/schemas/TaskBundle'
 #   '401':
 #     description: The user is not authorized to make this request
 #   '404':
@@ -87,7 +87,7 @@ DELETE     /taskBundle/:id                          @org.maproulette.framework.c
 #   '200':
 #     description: The task bundle with the new reduced set of tasks
 #     schema:
-#       $ref: '#/definitions/TaskBundle'
+#       $ref: '#/components/schemas/TaskBundle'
 #   '401':
 #     description: The user is not authorized to make this request
 #   '404':
