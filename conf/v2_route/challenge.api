@@ -1157,33 +1157,44 @@ GET     /challenge/:id/extract                      @org.maproulette.controllers
 # tags: [ Challenge ]
 # summary: Create a batch of Challenges
 # deprecated: true
+# responses:
+#   '200':
+#      description: success
 ###
 POST    /challenges                                 @org.maproulette.controllers.api.ChallengeController.batchUploadPost
 ###
 # tags: [ Challenge ]
 # summary: Update a batch of Challenges
-# deprecated: true
+# responses:
+#   '200':
+#      description: success
 ###
 PUT     /challenges                                 @org.maproulette.controllers.api.ChallengeController.batchUploadPut
 ###
 # tags: [ Challenge ]
 # summary: Undeletes a Challenge
 # deprecated: true
-# responses: {}
+# responses:
+#   '200':
+#      description: success
 ###
 PUT  /challenge/:id/undelete                         @org.maproulette.controllers.api.ChallengeController.undelete(id:Long)
 ###
 # tags: [ Challenge ]
 # summary: Create Tasks for Challenge
 # deprecated: true
-# responses: {}
+# responses:
+#   '200':
+#      description: success
 ###
 POST    /challenge/:id/tasks                        @org.maproulette.controllers.api.ChallengeController.createChildren(id:Long)
 ###
 # tags: [ Challenge ]
 # summary: Create Tasks for Challenge
 # deprecated: true
-# responses: {}
+# responses:
+#   '200':
+#      description: success
 ###
 PUT     /challenge/:id/tasks                        @org.maproulette.controllers.api.ChallengeController.updateChildren(id:Long)
 ###
