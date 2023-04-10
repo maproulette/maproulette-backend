@@ -5,8 +5,10 @@
 # responses:
 #   '200':
 #     description: The comment
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
 #   '404':
 #     description: If the comment is not found
 # parameters:
@@ -42,8 +44,10 @@ GET     /task/:id/comments                          @org.maproulette.framework.c
 # responses:
 #   '201':
 #     description: The comment that was added with the new ID
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
 #   '404':
 #     description: If the Task is not found
 # parameters:
@@ -65,8 +69,10 @@ POST    /task/:id/comment                           @org.maproulette.framework.c
 # responses:
 #   '201':
 #     description: The task bundle
-#     schema:
-#       $ref: '#/components/schemas/TaskBundle'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/TaskBundle'
 #   '404':
 #     description: If the bundle is not found
 # parameters:
@@ -88,8 +94,10 @@ POST    /taskBundle/:id/comment                     @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: The comment that was added with the new ID
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
 #   '401':
 #     description: If the user is not the original user who made the comment or a super user
 #   '404':
@@ -128,8 +136,10 @@ DELETE  /task/:id/comment/:commentId                @org.maproulette.framework.c
 # responses:
 #   '201':
 #     description: The comment that was added with the new ID
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeComment'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeComment'
 #   '404':
 #     description: If the Challenge is not found
 # parameters:

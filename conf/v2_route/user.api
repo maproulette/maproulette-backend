@@ -5,8 +5,10 @@
 # responses:
 #   '200':
 #     description: The current logged-in User
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.User'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.User'
 #   '401':
 #     description: If user is not logged in.
 # parameters:
@@ -24,8 +26,10 @@ GET     /user/whoami                               @org.maproulette.framework.co
 # responses:
 #   '200':
 #     description: The retrieved User
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.User'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.User'
 #   '401':
 #     description: The user is not authorized to make this request
 #   '404':
@@ -48,8 +52,10 @@ GET     /user/:userId                               @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: The retrieved User
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.User'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.User'
 #   '401':
 #     description: The user is not authorized to make this request
 #   '404':
@@ -72,8 +78,10 @@ GET     /osmuser/:username                          @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: An ok message stating the user was deleted.
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
 #   '401':
 #     description: The user is not authorized to make this request, only super users can make this request
 # parameters:
@@ -98,8 +106,10 @@ DELETE  /user/:osmId                                @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: The retrieved User (with only basic info)
-#     schema:
-#       $ref: '#/components/schemas/PublicUser'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/PublicUser'
 #   '404':
 #     description: If User with provided ID is not found.
 # parameters:
@@ -115,8 +125,10 @@ GET     /user/:userId/public                               @org.maproulette.fram
 # responses:
 #   '200':
 #     description: The retrieved User (with basic info)
-#     schema:
-#       $ref: '#/components/schemas/PublicUser'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/PublicUser'
 #   '404':
 #     description: If User with provided OSM username is not found.
 # parameters:
@@ -132,8 +144,10 @@ GET     /osmuser/:username/public                          @org.maproulette.fram
 # responses:
 #   '200':
 #     description: An ok message stating the user was deleted
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
 #   '401':
 #     description: The user is not authorized to make this request, only super users can make this request
 # parameters:
@@ -157,8 +171,10 @@ DELETE  /user/:osmId                                @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: The retrieved User
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.User'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.User'
 #   '401':
 #     description: The user is not authorized to make this request, only super users or user matching the supplied ID can make this request
 #   '404':
@@ -181,8 +197,10 @@ PUT     /user/:userId/apikey                        @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: The retrieved users
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.User'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.User'
 #   '401':
 #     description: The user is not authorized to make this request
 # parameters:
@@ -215,8 +233,10 @@ GET     /users/find                                    @org.maproulette.framewor
 # responses:
 #   '200':
 #     description: The retrieved users
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.User'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.User'
 #   '401':
 #     description: The user is not authorized to make this request
 # parameters:
@@ -271,8 +291,10 @@ GET     /user/:userId/saved                         @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: A simple OK status message
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
 #   '401':
 #     description: The user is not authorized to make this request
 #   '404':
@@ -298,8 +320,10 @@ POST    /user/:userId/save/:challengeId             @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: A simple OK status message
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
 #   '401':
 #     description: The user is not authorized to make this request
 #   '404':
@@ -359,8 +383,10 @@ GET     /user/:userId/savedTasks                    @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: A simple OK status message
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
 #   '401':
 #     description: The user is not authorized to make this request
 #   '404':
@@ -386,8 +412,10 @@ POST    /user/:userId/saveTask/:taskId              @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: A simple OK status message
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
 #   '401':
 #     description: The user is not authorized to make this request
 #   '404':
@@ -413,8 +441,10 @@ DELETE   /user/:userId/unsaveTask/:taskId           @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: A response of the User object that was just updated
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.User'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.User'
 #   '401':
 #     description: The user is not authorized to make this request
 #   '404':

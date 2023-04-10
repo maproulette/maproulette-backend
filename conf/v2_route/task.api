@@ -23,8 +23,10 @@ GET     /task/:id/history                       @org.maproulette.framework.contr
 # responses:
 #   '200':
 #     description: The newly created Task with a unique id.
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 #   '304':
 #     description: Not updated responding with empty payload if Task already exists and nothing to update
 #   '400':
@@ -41,8 +43,10 @@ GET     /task/:id/history                       @org.maproulette.framework.contr
 #     in: body
 #     description: The JSON structure for the Task body.
 #     required: true
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 ###
 POST    /task                                       @org.maproulette.controllers.api.TaskController.create
 ###
@@ -84,8 +88,10 @@ POST    /tasks                                      @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: The updated JSON Task
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 #   '304':
 #     description: Not updated responding with empty payload if Task already exists and nothing to update
 #   '400':
@@ -105,8 +111,10 @@ POST    /tasks                                      @org.maproulette.controllers
 #     in: body
 #     description: The JSON structure for the Task body.
 #     required: true
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 ###
 PUT     /task/:id                                   @org.maproulette.controllers.api.TaskController.update(id:Long)
 ###
@@ -165,8 +173,10 @@ PUT     /tasks/changeStatus                        @org.maproulette.controllers.
 # responses:
 #   '200':
 #     description: The retrieved Task
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 #   '404':
 #     description: ID field supplied but no Task found matching the id
 # parameters:
@@ -182,8 +192,10 @@ GET     /task/:id                                   @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: The locked Task
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 #   '404':
 #     description: ID field supplied but no Task found matching the id
 # parameters:
@@ -204,8 +216,10 @@ GET     /task/:id/start                               @org.maproulette.controlle
 # responses:
 #   '200':
 #     description: The change XML data
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 #   '404':
 #     description: No Task found matching the id, or no change data found on the task
 # parameters:
@@ -273,8 +287,10 @@ GET     /task/:id/attachment/$attachmentId<[\w\d-_~\.]+>/data/$filename<[\w\d-_\
 # responses:
 #   '200':
 #     description: The unlocked Task
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 #   '404':
 #     description: ID field supplied but no Task found matching the id
 # parameters:
@@ -293,8 +309,10 @@ GET     /task/:id/release                               @org.maproulette.control
 # responses:
 #   '200':
 #     description: The lock was successfully refreshed
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 #   '403':
 #     description: The user does not own a lock on the task
 #   '404':
@@ -312,8 +330,10 @@ GET     /task/:id/refreshLock                           @org.maproulette.control
 # responses:
 #   '200':
 #     description: The retrieved Task
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 #   '404':
 #     description: No Task found matching the provided name
 # parameters:
@@ -332,8 +352,10 @@ GET     /challenge/:id/task/:name                   @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: A status message containing the ID of the Task that was just deleted
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
 #   '401':
 #     description: The user is not authorized to make this request
 #   '404':
@@ -560,8 +582,10 @@ PUT     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: The task that was updated. With the updated changeset value
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 #   '401':
 #     description: The user is not authorized to make this request
 #   '404':

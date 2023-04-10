@@ -7,8 +7,10 @@
 # responses:
 #   '200':
 #     description: The newly created Virtual Challenge with a unique id.
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.models.VirtualChallenge'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.models.VirtualChallenge'
 #   '304':
 #     description: Not updated responding with empty payload if Virtual Challenge already exists and nothing to update
 #   '400':
@@ -25,8 +27,10 @@
 #     in: body
 #     description: The JSON structure for the Virtual Challenge body.
 #     required: true
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.models.VirtualChallenge'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.models.VirtualChallenge'
 ###
 POST    /virtualchallenge                           @org.maproulette.controllers.api.VirtualChallengeController.create
 ###
@@ -36,8 +40,10 @@ POST    /virtualchallenge                           @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: The updated JSON Virtual Challenge
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.models.VirtualChallenge'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.models.VirtualChallenge'
 #   '304':
 #     description: Not updated responding with empty payload if Virtual Challenge already exists and nothing to update
 #   '400':
@@ -57,8 +63,10 @@ POST    /virtualchallenge                           @org.maproulette.controllers
 #     in: body
 #     description: The JSON structure for the Virtual Challenge body.
 #     required: true
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 ###
 PUT     /virtualchallenge/:id                       @org.maproulette.controllers.api.VirtualChallengeController.update(id:Long)
 ###
@@ -68,8 +76,10 @@ PUT     /virtualchallenge/:id                       @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: The retrieved Virtual Challenge
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.models.VirtualChallenge'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.models.VirtualChallenge'
 #   '404':
 #     description: ID field supplied but no object found matching the id
 # parameters:
@@ -84,8 +94,10 @@ GET     /virtualchallenge/:id                              @org.maproulette.cont
 # responses:
 #   '200':
 #     description: The retrieved Virtual Challenge
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.models.VirtualChallenge'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.models.VirtualChallenge'
 #   '404':
 #     description: No Virtual Challenge found matching the provided name
 # parameters:
@@ -104,8 +116,10 @@ GET     /virtualchallengebyname/:name                   @org.maproulette.control
 # responses:
 #   '200':
 #     description: A status message containing the ID of the Virtual Challenge that was just deleted
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
 #   '401':
 #     description: The user is not authorized to make this request
 #   '404':
@@ -178,8 +192,10 @@ GET     /virtualchallenge/:id/tasks                     @org.maproulette.control
 # responses:
 #   '200':
 #     description: The task if any is found
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: cid
 #     in: path
@@ -196,8 +212,10 @@ GET     /virtualchallenge/:cid/task                 @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: The next task in the list
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: cid
 #     in: path
@@ -214,8 +232,10 @@ GET     /virtualchallenge/:cid/nextTask/:id         @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: The previous task in the list
-#     schema:
-#       $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: cid
 #     in: path
