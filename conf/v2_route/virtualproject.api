@@ -1,7 +1,6 @@
 ###
 # tags: [ Virtual Project ]
 # summary: Add Challenge to a virtual Project
-# produces: [ application/json ]
 # description: Will add a challenge into a virtual project
 # responses:
 #   '200':
@@ -25,7 +24,6 @@ POST     /project/:projectId/challenge/:id/add           @org.maproulette.framew
 ###
 # tags: [ Virtual Project ]
 # summary: Remove Challenge from a virtual Project
-# produces: [ application/json ]
 # description: Will remove a challenge from a virtual project
 # responses:
 #   '200':

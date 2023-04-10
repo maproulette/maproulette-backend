@@ -1,8 +1,6 @@
 ###
 # tags: [ Challenge ]
 # summary: Create a Challenge
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Will create a new challenge from the supplied JSON in the body. When creating the Challenge, leave the ID field
 #               out of the body json, if updating (generally use the PUT method) include the ID field.
 # responses:
@@ -37,8 +35,6 @@ POST    /challenge                                  @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Updates a Challenge
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Will update an already existing challenge from the supplied JSON in the body.
 #               When updating the Challenge object you can within the same json body include Task
 #               children under the "children" key.
@@ -73,7 +69,6 @@ PUT     /challenge/:id                              @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Retrieves an already existing Challenge
-# produces: [ application/json ]
 # description: Retrieves an already existing Challenge based on the supplied ID in the URL.
 # responses:
 #   '200':
@@ -90,7 +85,6 @@ GET     /challenge/:id                              @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Retrieves an already existing Challenge
-# produces: [ application/json ]
 # description: Retrieves an already existing Challenge based on the name of the Challenge rather than an ID
 # responses:
 #   '200':
@@ -166,7 +160,6 @@ DELETE  /challenge/:id/tasks                        @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Find Challenge matching search criteria
-# produces: [ application/json ]
 # description: Finds a list of Challenges that match a specific search criteria. The search criteria is simply a string that is contained in the Challenge name. String case sensitivity is ignored.
 # responses:
 #   '200':
@@ -197,7 +190,6 @@ GET     /challenges/find                            @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Extended Find Challenge matching search criteria
-# produces: [ application/json ]
 # description: Finds a list of Challenges that match a specific search criteria. The search criteria is uses multiple values from the query string
 # responses:
 #   '200':
@@ -246,7 +238,6 @@ GET     /challenges/extendedFind                    @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: List challenges in specified projects
-# produces: [ application/json ]
 # description: Retrieves a lightweight listing of challenges, with just a few basic fields for each, that belong to the specified project(s).
 # responses:
 #   '200':
@@ -277,7 +268,6 @@ GET     /challenges/listing                         @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Move Challenge to another Project
-# produces: [ application/json ]
 # description: Will move a challenge into another project
 # responses:
 #   '200':
@@ -299,7 +289,6 @@ POST     /challenge/:id/project/:projectId           @org.maproulette.controller
 ###
 # tags: [ Challenge ]
 # summary: Move Challenges to another Project
-# produces: [ application/json ]
 # description: Will move a list of challenges into another project
 # responses:
 #   '200':
@@ -322,7 +311,6 @@ POST     /challenges/project/:projectId           @org.maproulette.controllers.a
 ###
 # tags: [ Challenge ]
 # summary: Retrieve tags for Challenge
-# produces: [ application/json ]
 # description: Retrieves all the Tags that have been added to the specified Challenge
 # responses:
 #   '200':
@@ -341,7 +329,6 @@ GET     /challenge/:id/tags                         @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Retrieve challenges based on provided tags
-# produces: [ application/json ]
 # description: Retrieves all the challenges that contain at least one of the supplied tags.
 # responses:
 #   '200':
@@ -393,7 +380,6 @@ DELETE  /challenge/:id/tags                         @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Featured Challenges.
-# produces: [ application/json ]
 # description: Get all the currently featured challenges
 # responses:
 #   '200':
@@ -415,7 +401,6 @@ GET     /challenges/featured                        @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Hottest Challenges.
-# produces: [ application/json ]
 # description: Get the hottest (recently popular) challenges
 # responses:
 #   '200':
@@ -437,7 +422,6 @@ GET     /challenges/hot                             @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Preferred Challenges.
-# produces: [ application/json ]
 # description: Get the preferred challenges which include popular, featured, and newest
 # responses:
 #   '200':
@@ -453,7 +437,6 @@ GET     /challenges/preferred                             @org.maproulette.contr
 ###
 # tags: [ Challenge ]
 # summary: List all the Challenges.
-# produces: [ application/json ]
 # description: Lists all the Challenges in the system
 # responses:
 #   '200':
@@ -478,7 +461,6 @@ GET     /challenges                                 @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Bulk Archive Challenges.
-# produces: [ application/json ]
 # description: Archive or unarchive a list of challenges
 # responses:
 #   '200':
@@ -501,7 +483,6 @@ POST     /challenges/bulkArchive                    @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: List all the Challenges with review tasks.
-# produces: [ application/json ]
 # description: Lists all the Challenges in the system with review tasks.
 # responses:
 #   '200':
@@ -532,8 +513,6 @@ GET     /review/challenges                                 @org.maproulette.fram
 ###
 # tags: [ Challenge ]
 # summary: List all the Challenges Tasks.
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Lists all the Tasks that are children of the supplied Challenge.
 # responses:
 #   '200':
@@ -558,7 +537,6 @@ GET     /challenge/:id/tasks                        @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Add tasks to a challenge
-# consumes: [ application/json ]
 # description: This will create tasks within a challenge based on the provided geojson in the body of the PUT request
 # responses:
 #   '304':
@@ -585,7 +563,6 @@ PUT     /challenge/:id/addTasks                     @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Add tasks to a challenge
-# consumes: [ application/json ]
 # description: This will create tasks within a challenge based on the provided file uploaded as part of the PUT request.
 # responses:
 #   '304':
@@ -630,7 +607,6 @@ PUT     /challenge/:id/addFileTasks                 @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Retrieves children for Challenge
-# produces: [ application/json ]
 # description: Retrieves all the children for a Challenge in an expanded list. Unlike the GET
 #               request /challenge/{id}/tasks, this function will wrap the json array list
 #               inside of the parent Challenge object, so that you see the full hierarchy.
@@ -657,7 +633,6 @@ GET     /challenge/:id/children                     @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Clones a Challenge
-# produces: [ application/json ]
 # description: Clones a challenge
 # responses:
 #   '200':
@@ -685,7 +660,6 @@ PUT     /challenge/:id/clone/:name                  @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Rebuild a Challenge
-# produces: [ application/json ]
 # description: Rebuilds a challenge that was originally built by an overpass query or remote geojson.
 # responses:
 #   '200':
@@ -723,7 +697,6 @@ PUT     /challenge/:id/rebuild                      @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Retrieves random Task
-# produces: [ application/json ]
 # description: Retrieves a random Task based on the search criteria and contained within the current Challenge
 # responses:
 #   '200':
@@ -754,7 +727,6 @@ GET     /challenge/:cid/tasks/random                @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Retrieves random Task
-# produces: [ application/json ]
 # description: Retrieves a random Task based on the search criteria and contained within the current Challenge
 # responses:
 #   '200':
@@ -785,7 +757,6 @@ GET     /challenge/:cid/tasks/randomTasks           @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Retrieves nearby Tasks
-# produces: [ application/json ]
 # description: Retrieves tasks geographically closest to the specified task within the same Challenge
 # responses:
 #   '200':
@@ -810,7 +781,6 @@ GET     /challenge/:cid/tasksNearby/:proximityId           @org.maproulette.cont
 ###
 # tags: [ Challenge ]
 # summary: Retrieves prioritized random Task
-# produces: [ application/json ]
 # description: Retrieves a prioritized random Task contained within the current Challenge,
 #              with higher priority tasks being returned ahead of lower priority tasks
 # responses:
@@ -842,7 +812,6 @@ GET     /challenge/:cid/tasks/prioritizedTasks      @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Retrieves next Task
-# produces: [ application/json ]
 # description: Retrieves the next sequential Task based on the task ordering within the Challenge. If it is currently on the last task it will response with the first task in the challenge.
 # responses:
 #   '200':
@@ -864,7 +833,6 @@ GET     /challenge/:cid/nextTask/:id                @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Retrieves previous Task
-# produces: [ application/json ]
 # description: Retrieves the previous sequential Task based on the task ordering within the Challenge. If it is currently on the first task it will response with the last task in the challenge.
 # responses:
 #   '200':
@@ -886,7 +854,6 @@ GET     /challenge/:cid/previousTask/:id            @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Retrieves Challenge GeoJSON
-# produces: [ application/json ]
 # description: Retrieves the GeoJSON for the Challenge that represents all the Task children of the Challenge.
 # responses:
 #   '200':
@@ -922,7 +889,6 @@ GET     /challenge/view/:id                         @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Retrieves Challenge GeoJSON
-# produces: [ application/json ]
 # description: Retrieves the GeoJSON for the Challenge that represents all the Task children of the Challenge.
 # responses:
 #   '200':
@@ -954,7 +920,6 @@ POST    /challenge/view/:id                         @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Retrieves clustered Task points
-# produces: [ application/json ]
 # description: Retrieves all the Tasks for a specific Challenge as clustered points to potentially display on a map
 # responses:
 #   '200':
@@ -976,7 +941,6 @@ GET     /challenge/clustered/:id                    @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Update Task Priorities
-# produces: [ application/json ]
 # description: Updates all the Task priorities in a Challenge based on the priority rules setup in the Challenge
 # responses:
 #   '200':

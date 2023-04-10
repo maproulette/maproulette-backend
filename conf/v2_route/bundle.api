@@ -1,8 +1,6 @@
 ###
 # tags: [ Bundle ]
 # summary: Create a task bundle
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Create a new task bundle with the task ids in the supplied JSON body.
 # responses:
 #   '200':
@@ -28,8 +26,6 @@ POST    /taskBundle                                 @org.maproulette.framework.c
 ###
 # tags: [ Bundle ]
 # summary: Gets a Task Bundle
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Gets a task bundle based on the supplied id
 # responses:
 #   '200':
@@ -55,8 +51,6 @@ GET     /taskBundle/:id                             @org.maproulette.framework.c
 ###
 # tags: [ Bundle ]
 # summary: Deletes a Task Bundle
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Deletes a task bundle based on the supplied id
 # responses:
 #   '200':
@@ -80,8 +74,6 @@ DELETE     /taskBundle/:id                          @org.maproulette.framework.c
 ###
 # tags: [ Bundle ]
 # summary: Unbundles tasks from Task Bundle
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Removes a list of tasks from a bundle of tasks
 # responses:
 #   '200':

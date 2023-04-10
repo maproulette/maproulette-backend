@@ -1,7 +1,6 @@
 ###
 # tags: [ User ]
 # summary: Retrieves current user
-# produces: [ application/json ]
 # description: Retrieves the current logged-in user's JSON
 # responses:
 #   '200':
@@ -21,7 +20,6 @@ GET     /user/whoami                               @org.maproulette.framework.co
 ###
 # tags: [ User ]
 # summary: Retrieves Users Json information
-# produces: [ application/json ]
 # description: Retrieves User Json based on the supplied ID
 # responses:
 #   '200':
@@ -46,7 +44,6 @@ GET     /user/:userId                               @org.maproulette.framework.c
 ###
 # tags: [ User ]
 # summary: Retrieves Users Json information
-# produces: [ application/json ]
 # description: Retrieves User Json based on the supplied OSM username
 # responses:
 #   '200':
@@ -71,7 +68,6 @@ GET     /osmuser/:username                          @org.maproulette.framework.c
 ###
 # tags: [ User ]
 # summary: Deletes a user from the database
-# produces: [ application/json ]
 # description: This will delete a user completely from the database. It can also optionally anonymize the users data from actions taken in MapRoulette, like change in status for tasks, comments on tasks and answers to survey questions
 # responses:
 #   '200':
@@ -98,7 +94,6 @@ DELETE  /user/:osmId                                @org.maproulette.framework.c
 ###
 # tags: [ User ]
 # summary: Retrieves Users public Json information
-# produces: [ application/json ]
 # description: Retrieves a JSON object that represents the user's public information that anyone can retrieve. This is a limited set of information that only includes certain fields.
 # responses:
 #   '200':
@@ -116,7 +111,6 @@ GET     /user/:userId/public                               @org.maproulette.fram
 ###
 # tags: [ User ]
 # summary: Retrieves Users public Json information
-# produces: [ application/json ]
 # description: Retrieves User Json based on the supplied OSM username
 # responses:
 #   '200':
@@ -134,7 +128,6 @@ GET     /osmuser/:username/public                          @org.maproulette.fram
 ###
 # tags: [ User ]
 # summary: Deletes a user from the database
-# produces: [ application/json ]
 # description: This will delete a user completely from the database. It can also optionally anonymize the users data from actions taken in MapRoulette, like change in status for tasks, comments on tasks and answers to survey questions
 # responses:
 #   '200':
@@ -160,7 +153,6 @@ DELETE  /user/:osmId                                @org.maproulette.framework.c
 ###
 # tags: [ User ]
 # summary: Generates an API_KEY for a specified user
-# produces: [ application/json ]
 # description: This API will generate or regenerate the API_KEY for a specified user
 # responses:
 #   '200':
@@ -185,7 +177,6 @@ PUT     /user/:userId/apikey                        @org.maproulette.framework.c
 ###
 # tags: [ User ]
 # summary: Search for users by OSM username
-# produces: [ application/json ]
 # description: Retrieves list of matching users
 # responses:
 #   '200':
@@ -220,7 +211,6 @@ GET     /users/find                                    @org.maproulette.framewor
 ###
 # tags: [ User ]
 # summary: Get a list of users
-# produces: [ application/json ]
 # description: Retrieves list of matching users
 # responses:
 #   '200':
@@ -246,7 +236,6 @@ GET     /users                                         @org.maproulette.framewor
 ###
 # tags: [ User ]
 # summary: Retrieves Users Saved Challenged
-# produces: [ application/json ]
 # description: Retrieves that list of challenges that has been saved by the User
 # responses:
 #   '200':
@@ -332,7 +321,6 @@ DELETE   /user/:userId/unsave/:challengeId          @org.maproulette.framework.c
 ###
 # tags: [ User ]
 # summary: Retrieves Users Saved Tasks
-# produces: [ application/json ]
 # description: Retrieves that list of tasks that has been saved by the User
 # responses:
 #   '200':

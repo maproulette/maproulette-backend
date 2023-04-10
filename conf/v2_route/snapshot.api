@@ -1,7 +1,6 @@
 ###
 # tags: [ Snapshot ]
 # summary: Records a snapshot for a challenge
-# produces: [ application/json ]
 # description: Creates a challenge snapshot.
 # responses:
 #   '200':
@@ -15,7 +14,6 @@ GET     /snapshot/challenge/:challengeId/record     @org.maproulette.framework.c
 ###
 # tags: [ Snapshot ]
 # summary: Creates a csv of all snapshots for a challenge.
-# produces: [ application/json ]
 # description: Creates a csv export of all snaphshots for a challenge.
 # responses:
 #   '200':
@@ -29,7 +27,6 @@ GET     /snapshot/challenge/:challengeId/export     @org.maproulette.framework.c
 ###
 # tags: [ Snapshot ]
 # summary: Gets a snapshot
-# produces: [ application/json ]
 # description: Retrieves a challenge snapshot
 # responses:
 #   '200':
@@ -43,7 +40,6 @@ GET     /snapshot/:snapshotId                       @org.maproulette.framework.c
 ###
 # tags: [ Snapshot ]
 # summary: Deletes a snapshot
-# produces: [ application/json ]
 # description: Deletes a challenge snapshot
 # responses:
 #   '200':
@@ -57,7 +53,6 @@ DELETE  /snapshot/:snapshotId                       @org.maproulette.framework.c
 ###
 # tags: [ Snapshot ]
 # summary: Gets the list of snapshots for a challenge
-# produces: [ application/json ]
 # description: Retrieves a list challenge snapshots
 # responses:
 #   '200':

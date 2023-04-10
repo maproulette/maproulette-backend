@@ -40,7 +40,6 @@ PUT    /team/:id                                    @org.maproulette.framework.c
 ###
 # tags: [ Team ]
 # summary: Retrieves a team
-# produces: [ application/json ]
 # description: Retrieves a team based on a specific ID.
 # responses:
 #   '200':
@@ -58,7 +57,6 @@ GET     /team/:id                                   @org.maproulette.framework.c
 ###
 # tags: [ Team ]
 # summary: Find teams by name
-# produces: [ application/json ]
 # description: Search for teams by name
 # responses:
 #   '200':
@@ -85,7 +83,6 @@ GET     /teams/find                                 @org.maproulette.framework.c
 ###
 # tags: [ Team ]
 # summary: Retrieves users who are members of a team
-# produces: [ application/json ]
 # description: Retrieves all the user members of a team
 # responses:
 #   '200':
@@ -106,7 +103,6 @@ GET     /team/:id/userMembers                       @org.maproulette.framework.c
 ###
 # tags: [ Team ]
 # summary: Retrieves all team memberships for a user
-# produces: [ application/json ]
 # description: Retrieves all the given user's team memberships
 # responses:
 #   '200':

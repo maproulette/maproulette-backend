@@ -1,7 +1,6 @@
 ###
 # tags: [ Leaderboard ]
 # summary: Fetches the mapper leaderboard stats
-# produces: [ application/json ]
 # description: Fetches the mapper leaderboard stats
 # responses:
 #   '200':
@@ -36,7 +35,6 @@ GET     /data/user/leaderboard                      @org.maproulette.framework.c
 ###
 # tags: [ Leaderboard ]
 # summary: Fetches leaderboard stats with ranking for the user
-# produces: [ application/json ]
 # description: Fetches user's current ranking and stats in the leaderboard along with a number of mappers above and below in the rankings.
 # responses:
 #   '200':
@@ -74,7 +72,6 @@ GET     /data/user/:userId/leaderboard              @org.maproulette.framework.c
 ###
 # tags: [ Leaderboard ]
 # summary: Gets the top challenges worked on by the user
-# produces: [ application/json ]
 # description: Gets the top challenges worked on by the user
 # responses:
 #   '200':
@@ -109,7 +106,6 @@ GET     /data/user/:userId/topChallenges            @org.maproulette.framework.c
 ###
 # tags: [ Leaderboard ]
 # summary: Fetches the reviewer leaderboard stats
-# produces: [ application/json ]
 # description: Fetches the reviewer leaderboard stats
 # responses:
 #   '200':

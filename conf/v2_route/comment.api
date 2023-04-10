@@ -1,7 +1,6 @@
 ###
 # tags: [ Comment ]
 # summary: Retrieves a comment
-# produces: [ application/json ]
 # description: Retrieves a comment based on a specific ID.
 # responses:
 #   '200':
@@ -19,7 +18,6 @@ GET     /comment/:id                                @org.maproulette.framework.c
 ###
 # tags: [ Comment ]
 # summary: Retrieves comments for a Task
-# produces: [ application/json ]
 # description: Retrieves all the comments for a specific Task
 # responses:
 #   '200':
@@ -146,7 +144,6 @@ POST    /challenge/:id/comment                           @org.maproulette.framew
 ###
 # tags: [ Comment ]
 # summary: Retrieves comments for a Challenge
-# produces: [ application/json ]
 # description: Retrieves all the challenge comments for a specific Challenge
 # responses:
 #   '200':

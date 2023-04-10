@@ -36,8 +36,6 @@ GET     /tags                                       @org.maproulette.framework.c
 ###
 # tags: [ Keyword ]
 # summary: Create a Keyword
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Will create a new Keyword from the supplied JSON in the body. When creating the Task, leave the ID field
 #               out of the body json, if updating (generally use the PUT method) include the ID field.
 # responses:
@@ -68,8 +66,6 @@ POST    /keyword                                    @org.maproulette.framework.c
 ###
 # tags: [ Keyword ]
 # summary: Create a batch of Keywords
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Will create multiple new Keyword from the JSONArray supplied in the body. Each JSON object
 #               is basically a Keyword object that is processed similarly to the singular /keyword POST. If
 #               Keywords already exist with the name, they will simply be skipped, ie. not updated.
@@ -102,8 +98,6 @@ POST    /keywords                                   @org.maproulette.framework.c
 ###
 # tags: [ Keyword ]
 # summary: Updates a Keyword
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Will update an already existing Keyword from the supplied JSON in the body.
 # responses:
 #   '200':
@@ -136,8 +130,6 @@ PUT     /keyword/:id                                @org.maproulette.framework.c
 ###
 # tags: [ Keyword ]
 # summary: Update a batch of Keywords
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Will update multiple already existing Keywords from the JSONArray supplied in the body. Each JSON object
 #               is basically a Keyword object that is processed similarly to the singular /keyword POST. If a Keyword
 #               does not exist it will be created from scratch
@@ -170,7 +162,6 @@ PUT     /keywords                                   @org.maproulette.framework.c
 ###
 # tags: [ Keyword ]
 # summary: Retrieves an already existing Keyword
-# produces: [ application/json ]
 # description: Retrieves an already existing Keyword based on the supplied ID in the URL.
 # responses:
 #   '200':
@@ -212,7 +203,6 @@ DELETE  /keyword/:id                                @org.maproulette.framework.c
 ###
 # tags: [ Keyword ]
 # summary: Finds Keywords
-# produces: [ application/json ]
 # description: Retrieves existing Keywords based on a prefix for the Keyword. So if search for "tes" will retrieve all Keywords that start with "tes", like "tester", "testing", "test". The search string is case insensitive.
 # responses:
 #   '200':

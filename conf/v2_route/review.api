@@ -1,7 +1,6 @@
 ###
 # tags: [ Review ]
 # summary: Retrieves and claims a review needed Task
-# produces: [ application/json ]
 # description: Retrieves a Task and claims that task for review
 # responses:
 #   '200':
@@ -18,7 +17,6 @@ GET     /task/:id/review/start                       @org.maproulette.framework.
 ###
 # tags: [ Review ]
 # summary: Cancels a claim on a task for review
-# produces: [ application/json ]
 # description: Cancels a claim on a task for review
 # responses:
 #   '200':
@@ -35,7 +33,6 @@ GET     /task/:id/review/cancel                       @org.maproulette.framework
 ###
 # tags: [ Review ]
 # summary: Retrieves tasks that need review
-# produces: [ application/json ]
 # description: Retrieves list of Tasks and total count
 # responses:
 #   '200':
@@ -82,7 +79,6 @@ GET     /tasks/review                          @org.maproulette.framework.contro
 # tags: [ Review ]
 # summary: Retrieves reviewed tasks that have been reviewed either by this user or where the user requested
 #          the review.
-# produces: [ application/json ]
 # description: Retrieves list of Tasks
 # responses:
 #   '200':
@@ -137,7 +133,6 @@ GET     /tasks/reviewed                          @org.maproulette.framework.cont
 ###
 # tags: [ Review ]
 # summary: Retrieves and claims a the next review needed Task
-# produces: [ application/json ]
 # description: Retrieves the next Task (given the search parameters) and claims that task for review
 # responses:
 #   '200':
@@ -178,7 +173,6 @@ GET     /tasks/review/next                       @org.maproulette.framework.cont
 ###
 # tags: [ Review ]
 # summary: Retrieves nearby Tasks
-# produces: [ application/json ]
 # description: Retrieves review tasks geographically closest to the specified task within the given filters
 # responses:
 #   '200':
@@ -206,7 +200,6 @@ GET     /tasks/review/nearby/:proximityId           @org.maproulette.framework.c
 ###
 # tags: [ Review ]
 # summary: Retrieves tasks that need review
-# produces: [ application/json ]
 # description: Retrieves list of Tasks and total count
 # responses:
 #   '200':
@@ -252,7 +245,6 @@ GET     /tasks/review/metrics                          @org.maproulette.framewor
 ###
 # tags: [ Review ]
 # summary: Retrieves task review clusters
-# produces: [ application/json ]
 # description: Retrieves task clusters that contain the centroid location for a group of review tasks
 # responses:
 #   '200':
@@ -339,7 +331,6 @@ GET     /tasks/metareview/reviewers/export                          @org.maproul
 ###
 # tags: [ Review ]
 # summary: Retrieves metrics grouped by tag
-# produces: [ application/json ]
 # description: Retrieves list of Tasks and total count
 # responses:
 #   '200':

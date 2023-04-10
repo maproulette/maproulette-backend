@@ -1,7 +1,6 @@
 ###
 # tags: [ Task ]
 # summary: Retrieves a history for the task
-# produces: [ application/json ]
 # description: Retrieves list of task history log entries. This includes comments,
 #              status actions, and review actions.
 # responses:
@@ -19,8 +18,6 @@ GET     /task/:id/history                       @org.maproulette.framework.contr
 ###
 # tags: [ Task ]
 # summary: Create a Task
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Will create a new Task from the supplied JSON in the body. When creating the Task, leave the ID field
 #               out of the body json, if updating (generally use the PUT method) include the ID field.
 # responses:
@@ -51,8 +48,6 @@ POST    /task                                       @org.maproulette.controllers
 ###
 # tags: [ Task ]
 # summary: Create a batch of Tasks
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Will create multiple new Tasks from the JSONArray supplied in the body. Each JSON object
 #               is basically a Task object that is processed similarly to the singular /sask POST. If
 #               Tasks already exist with the name, they will simply be skipped, ie. not updated.
@@ -85,8 +80,6 @@ POST    /tasks                                      @org.maproulette.controllers
 ###
 # tags: [ Task ]
 # summary: Updates a Task
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Will update an already existing Task from the supplied JSON in the body.
 # responses:
 #   '200':
@@ -119,8 +112,6 @@ PUT     /task/:id                                   @org.maproulette.controllers
 ###
 # tags: [ Task ]
 # summary: Update a batch of Tasks
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Will update multiple already existing Tasks from the JSONArray supplied in the body. Each JSON object
 #               is basically a Task object that is processed similarly to the singular /task POST. If a Task
 #               does not exist it will be created from scratch
@@ -153,8 +144,6 @@ PUT     /tasks                                      @org.maproulette.controllers
 ###
 # tags: [ Task ]
 # summary: Changes status on tasks matching criteria
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Will changes status on tasks that match the given search parameters.
 # responses:
 #   '200':
@@ -172,7 +161,6 @@ PUT     /tasks/changeStatus                        @org.maproulette.controllers.
 ###
 # tags: [ Task ]
 # summary: Retrieves an already existing Task
-# produces: [ application/json ]
 # description: Retrieves an already existing Task based on the supplied ID in the URL.
 # responses:
 #   '200':
@@ -190,7 +178,6 @@ GET     /task/:id                                   @org.maproulette.controllers
 ###
 # tags: [ Task ]
 # summary: Start working on a Task (locks it for the user)
-# produces: [ application/json ]
 # description: Locks a Task based on the supplied ID in the URL.
 # responses:
 #   '200':
@@ -209,7 +196,6 @@ GET     /task/:id/start                               @org.maproulette.controlle
 ###
 # tags: [ Task ]
 # summary: Retrieve any change XML that is part of this task's cooperative work
-# produces: [ application/json ]
 # description: Retrieve change XML that is part of this task's cooperative work.
 #              The cooperative work on the task should be consulted to determine
 #              if any change exists for the task, and which change format was
@@ -237,7 +223,6 @@ GET     /task/:id/cooperative/change/$filename<\w[\w\d-_\.]*>            @org.ma
 ###
 # tags: [ Task ]
 # summary: Retrieve task attachment
-# produces: [ application/json ]
 # description: Retrieve attachment identified by attachmentId on specified task
 #
 # responses:
@@ -258,7 +243,6 @@ GET     /task/:id/attachment/$attachmentId<[\w\d-_~\.]+>                 @org.ma
 ###
 # tags: [ Task ]
 # summary: Download task attachment data as file
-# produces: [ application/json ]
 # description: Download attachment attachment data as file
 #
 # responses:
@@ -285,7 +269,6 @@ GET     /task/:id/attachment/$attachmentId<[\w\d-_~\.]+>/data/$filename<[\w\d-_\
 ###
 # tags: [ Task ]
 # summary: Release a Task (unlocks it)
-# produces: [ application/json ]
 # description: Unlocks a Task based on the supplied ID in the URL.
 # responses:
 #   '200':
@@ -303,7 +286,6 @@ GET     /task/:id/release                               @org.maproulette.control
 ###
 # tags: [ Task ]
 # summary: Refresh an existing lock on a Task
-# produces: [ application/json ]
 # description: Refreshes an existing lock, extending its allowed duration, on the
 #              task with the supplied ID. The requesting user must already own an
 #              active lock on the task (i.e. via the task/:id/start API) or a 403
@@ -326,7 +308,6 @@ GET     /task/:id/refreshLock                           @org.maproulette.control
 ###
 # tags: [ Task ]
 # summary: Retrieves an already existing Task
-# produces: [ application/json ]
 # description: Retrieves an already existing Task based on the name of the Task rather than an ID
 # responses:
 #   '200':
@@ -371,7 +352,6 @@ DELETE  /task/:id                                   @org.maproulette.controllers
 ###
 # tags: [ Task ]
 # summary: Find Task matching search criteria
-# produces: [ application/json ]
 # description: Finds a list of Tasks that match a specific search criteria. The search criteria is simply a string that is contained in the Task name. String case sensitivity is ignored.
 # responses:
 #   '200':
@@ -402,7 +382,6 @@ GET     /tasks/find                                 @org.maproulette.controllers
 ###
 # tags: [ Task ]
 # summary: Retrieve tags for Task
-# produces: [ application/json ]
 # description: Retrieves all the Tags that have been added to the specified Task
 # responses:
 #   '200':
@@ -421,7 +400,6 @@ GET     /task/:id/tags                              @org.maproulette.controllers
 ###
 # tags: [ Task ]
 # summary: Retrieve Tasks based on provided tags
-# produces: [ application/json ]
 # description: Retrieves all the Tasks that contain at least one of the supplied tags.
 # responses:
 #   '200':
@@ -500,7 +478,6 @@ DELETE  /task/:id/tags                              @org.maproulette.controllers
 ###
 # tags: [ Task ]
 # summary: Retrieves random Task
-# produces: [ application/json ]
 # description: Retrieves a random Task based on the search criteria.
 # responses:
 #   '200':
@@ -537,7 +514,6 @@ GET     /tasks/random                               @org.maproulette.controllers
 ###
 # tags: [ Task ]
 # summary: Retrieves Tasks within a bounding box
-# produces: [ application/json ]
 # description: Retrieves tasks within a given bounding box.
 # responses:
 #   '200':
@@ -580,7 +556,6 @@ PUT     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.c
 ###
 # tags: [ Task ]
 # summary: Update Task Changeset
-# produces: [ application/json ]
 # description: Will update the changeset of the task. It will do this by attempting to match the OSM changeset to the Task based on the geometry and the time that the changeset was executed.
 # responses:
 #   '200':
@@ -605,7 +580,6 @@ PUT     /task/:id/changeset                         @org.maproulette.controllers
 ###
 # tags: [ Task ]
 # summary: Update Completion Responses
-# produces: [ application/json ]
 # description: Will update the completion responses on the Task.
 # responses:
 #   '304':
@@ -631,7 +605,6 @@ PUT     /task/:id/responses                           @org.maproulette.framework
 ###
 # tags: [ Task ]
 # summary: Update Task Status
-# produces: [ application/json ]
 # description: Will update a Tasks status to one of the following. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Too Hard
 # responses:
 #   '304':
@@ -669,7 +642,6 @@ PUT     /task/:id/:status                           @org.maproulette.controllers
 ###
 # tags: [ Task ]
 # summary: Update Bundle Task Status
-# produces: [ application/json ]
 # description: Will update a Bundled list of Tasks statuses to one of the following. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Too Hard
 # responses:
 #   '200':
@@ -706,7 +678,6 @@ PUT     /taskBundle/:bundleId/:status                           @org.maproulette
 ###
 # tags: [ Task ]
 # summary: Update Task Review Status
-# produces: [ application/json ]
 # description: Will update a Tasks review status to one of the following. 0 - Requested, 1 - Approved, 2 - Rejected, 3 - Assisted
 # responses:
 #   '200':
@@ -746,8 +717,6 @@ PUT     /task/:id/review/:status                           @org.maproulette.fram
 ###
 # tags: [ Task ]
 # summary: Changes review status to "Unnecessary" on tasks matching criteria
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Will change review status on tasks that match the given search parameters
 #              indicating the tasks do not need a review.
 # responses:
@@ -768,7 +737,6 @@ PUT     /tasks/review/remove                               @org.maproulette.fram
 ###
 # tags: [ Task ]
 # summary: Update Task Review Status for a Bundle
-# produces: [ application/json ]
 # description: Will update a Tasks review status to one of the following. 0 - Requested, 1 - Approved, 2 - Rejected, 3 - Assisted
 # responses:
 #   '200':
@@ -805,7 +773,6 @@ PUT     /taskBundle/:id/review/:status                     @org.maproulette.fram
 ###
 # tags: [ Task ]
 # summary: Update Task Meta Review Status
-# produces: [ application/json ]
 # description: Will update a Tasks meta review status to one of the following. 0 - (re)Requested, 1 - Approved, 2 - Rejected, 3 - Assisted
 # responses:
 #   '200':
@@ -839,7 +806,6 @@ PUT     /task/:id/metareview/:status                           @org.maproulette.
 ###
 # tags: [ Task ]
 # summary: Update Meta Review Status for a Bundle
-# produces: [ application/json ]
 # description: Will update Tasks meta review status to one of the following. 0 - Requested, 1 - Approved, 2 - Rejected, 3 - Assisted
 # responses:
 #   '200':
@@ -873,7 +839,6 @@ PUT     /taskBundle/:id/metareview/:status                     @org.maproulette.
 ###
 # tags: [ Task ]
 # summary: Retrieves task clusters.
-# produces: [ application/json ]
 # description: Retrieves task clusters that contain the centroid location for a group of tasks
 # responses:
 #   '200':
@@ -892,7 +857,6 @@ PUT     /taskCluster                                @org.maproulette.framework.c
 ###
 # tags: [ Task ]
 # summary: Retrieves tasks in a cluster
-# produces: [ application/json ]
 # description: Retrieves tasks contained in a cluster retrieved from api /api/v2/challenge/:id/taskCluster
 # responses:
 #   '200':

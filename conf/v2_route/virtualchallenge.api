@@ -1,8 +1,6 @@
 ###
 # tags: [ Virtual Challenge ]
 # summary: Create a Virtual Challenge
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Will create a new Virtual Challenge from the supplied JSON in the body.
 #               When creating the Virtual Challenge, leave the ID field out of the body json,
 #               if updating (generally use the PUT method) include the ID field.
@@ -34,8 +32,6 @@ POST    /virtualchallenge                           @org.maproulette.controllers
 ###
 # tags: [ Virtual Challenge ]
 # summary: Updates a Virtual Challenge
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Will update an already existing Virtual Challenge from the supplied JSON in the body.
 # responses:
 #   '200':
@@ -68,7 +64,6 @@ PUT     /virtualchallenge/:id                       @org.maproulette.controllers
 ###
 # tags: [ Virtual Challenge ]
 # summary: Retrieves an already existing Virtual Challenge
-# produces: [ application/json ]
 # description: Retrieves an already existing Virtual Challenge based on the supplied ID in the URL.
 # responses:
 #   '200':
@@ -85,7 +80,6 @@ GET     /virtualchallenge/:id                              @org.maproulette.cont
 ###
 # tags: [ Virtual Challenge ]
 # summary: Retrieves an already existing Virtual Challenge
-# produces: [ application/json ]
 # description: Retrieves an already existing Virtual Challenge based on the name of the Virtual Challenge rather than an ID
 # responses:
 #   '200':
@@ -135,7 +129,6 @@ DELETE  /virtualchallenge/:id                           @org.maproulette.control
 ###
 # tags: [ Virtual Challenge ]
 # summary: List all the Virtual Challenge.
-# produces: [ application/json ]
 # description: Lists all the Virtual Challenges in the system
 # responses:
 #   '200':
@@ -157,8 +150,6 @@ GET     /virtualchallenges                              @org.maproulette.control
 ###
 # tags: [ Virtual Challenge ]
 # summary: List all the Virtual Challenges Tasks.
-# consumes: [ application/json ]
-# produces: [ application/json ]
 # description: Lists all the Tasks that are children of the supplied Virtual Challenge.
 # responses:
 #   '200':
@@ -183,7 +174,6 @@ GET     /virtualchallenge/:id/tasks                     @org.maproulette.control
 ###
 # tags: [ Virtual Challenge ]
 # summary: Retrieves random Task
-# produces: [ application/json ]
 # description: Retrieves a random Task based on the search criteria and contained within the current Virtual Challenge
 # responses:
 #   '200':
@@ -202,7 +192,6 @@ GET     /virtualchallenge/:cid/task                 @org.maproulette.controllers
 ###
 # tags: [ Virtual Challenge ]
 # summary: Retrieves next Task
-# produces: [ application/json ]
 # description: Retrieves the next sequential Task based on the task ordering within the Virtual Challenge. If it is currently on the last task it will response with the first task in the Virtual Challenge.
 # responses:
 #   '200':
@@ -221,7 +210,6 @@ GET     /virtualchallenge/:cid/nextTask/:id         @org.maproulette.controllers
 ###
 # tags: [ Virtual Challenge ]
 # summary: Retrieves previous Task
-# produces: [ application/json ]
 # description: Retrieves the previous sequential Task based on the task ordering within the Virtual Challenge. If it is currently on the first task it will response with the last task in the Virtual Challenge.
 # responses:
 #   '200':
@@ -240,7 +228,6 @@ GET     /virtualchallenge/:cid/previousTask/:id     @org.maproulette.controllers
 ###
 # tags: [ Virtual Challenge ]
 # summary: Retrieves Virtual Challenge GeoJSON
-# produces: [ application/json ]
 # description: Retrieves the GeoJSON for the Virtual Challenge that represents all the associated Tasks of the Virtual Challenge.
 #               WARNING* This API query can be quite slow due to retrieving all the points that is grouped in various different challenges
 # responses:
@@ -260,7 +247,6 @@ GET     /virtualchallenge/view/:id                  @org.maproulette.controllers
 ###
 # tags: [ Virtual Challenge ]
 # summary: Retrieves clustered Task points
-# produces: [ application/json ]
 # description: Retrieves all the Tasks for a specific Virtual Challenge as clustered points to potentially display on a map.
 # responses:
 #   '200':
@@ -282,7 +268,6 @@ GET     /virtualchallenge/clustered/:id             @org.maproulette.controllers
 ###
 # tags: [ Virtual Challenge ]
 # summary: Retrieves nearby Tasks in Virtual Challenge
-# produces: [ application/json ]
 # description: Retrieves tasks geographically closest to the specified task within the same Virtual Challenge
 # responses:
 #   '200':
