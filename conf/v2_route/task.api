@@ -39,14 +39,13 @@ GET     /task/:id/history                       @org.maproulette.framework.contr
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
-#   - name: body
-#     in: body
-#     description: The JSON structure for the Task body.
-#     required: true
-#     content:
-#       application/json:
-#         schema:
-#           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+# requestBody:
+#   description: The JSON structure for the Task body.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 ###
 POST    /task                                       @org.maproulette.controllers.api.TaskController.create
 ###
@@ -70,15 +69,15 @@ POST    /task                                       @org.maproulette.controllers
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
-#   - name: body
-#     in: body
-#     description: The JSON structure for the Task body.
-#     required: true
-#     schema:
-#       type: array
-#       items:
-#         type: object
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+# requestBody:
+#   description: The JSON structure for the Task body.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: array
+#         items:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 ###
 POST    /tasks                                      @org.maproulette.controllers.api.TaskController.batchUploadPost
 ###
@@ -107,14 +106,13 @@ POST    /tasks                                      @org.maproulette.controllers
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
-#   - name: body
-#     in: body
-#     description: The JSON structure for the Task body.
-#     required: true
-#     content:
-#       application/json:
-#         schema:
-#           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+# requestBody:
+#   description: The JSON structure for the Task body.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 ###
 PUT     /task/:id                                   @org.maproulette.controllers.api.TaskController.update(id:Long)
 ###
@@ -138,15 +136,15 @@ PUT     /task/:id                                   @org.maproulette.controllers
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
-#   - name: body
-#     in: body
-#     description: The JSON structure for the Task body.
-#     required: true
-#     schema:
-#       type: array
-#       items:
-#         type: object
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+# requestBody:
+#   description: The JSON structure for the Task body.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: array
+#         items:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 ###
 PUT     /tasks                                      @org.maproulette.controllers.api.TaskController.batchUploadPut
 ###
@@ -621,9 +619,8 @@ PUT     /task/:id/changeset                         @org.maproulette.controllers
 #   - name: id
 #     in: path
 #     description: The ID of the task
-#   - name: completionResponses
-#     in: body
-#     description: key/value json to be stored with this task.
+# requestBody:
+#   description: key/value json to be stored with this task.
 ###
 PUT     /task/:id/responses                           @org.maproulette.framework.controller.TaskController.updateCompletionResponses(id:Long)
 ###
@@ -658,9 +655,8 @@ PUT     /task/:id/responses                           @org.maproulette.framework
 #   - name: tags
 #     in: query
 #     description: Optional tags to associate with this task
-#   - name: completionResponses
-#     in: body
-#     description: Optional key/value json to be stored with this task.
+# requestBody:
+#   description: Optional key/value json to be stored with this task.
 ###
 PUT     /task/:id/:status                           @org.maproulette.controllers.api.TaskController.setTaskStatus(id:Long, status:Int, comment:String ?= "", tags:String ?="")
 ###

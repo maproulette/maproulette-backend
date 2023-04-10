@@ -453,20 +453,20 @@ DELETE   /user/:userId/unsaveTask/:taskId           @org.maproulette.framework.c
 #   - name: userId
 #     in: path
 #     description: The id of the user to update the settings for
-#   - name: body
-#     in: body
-#     description: The JSON structure for the users UserSettings. You can optionally include a key properties which would be a JSON object that contains any extra information for the user.
-#     required: true
-#     schema:
-#       type: array
-#       items:
-#         type: object
-#         $ref: '#/components/schemas/org.maproulette.framework.model.UserSettings'
 #   - name: apiKey
 #     in: header
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
+# requestBody:
+#   description: The JSON structure for the users UserSettings. You can optionally include a key properties which would be a JSON object that contains any extra information for the user.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: array
+#         items:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.UserSettings'
 ###
 PUT    /user/:userId                                @org.maproulette.framework.controller.UserController.updateUser(userId:Long)
 ###
@@ -600,15 +600,6 @@ PUT     /user/:userId/project/:projectId/:role  @org.maproulette.framework.contr
 #   - name: role
 #     in: path
 #     description: Either 1 - Admin, 2 - Write, 3 - Read
-#   - name: body
-#     in: body
-#     description: A JSON array of user ids. If using OSM user Ids then the
-#                  isOSMUserId query parameter must be set to true
-#     required: true
-#     schema:
-#       type: array
-#       items:
-#         type: integer
 #   - name: isOSMUserId
 #     in: query
 #     type: boolean
@@ -619,6 +610,17 @@ PUT     /user/:userId/project/:projectId/:role  @org.maproulette.framework.contr
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
+# requestBody:
+#   description: A JSON array of user ids. If using OSM user Ids then the
+#                isOSMUserId query parameter must be set to true
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: array
+#         items:
+#           type: integer
+#           format: int64
 ###
 PUT     /user/project/:projectId/:role         @org.maproulette.framework.controller.UserController.addUsersToProject(projectId:Long, role:Int, isOSMUserId:Boolean ?= false)
 ###
@@ -669,16 +671,6 @@ DELETE  /user/:userId/project/:projectId/:role  @org.maproulette.framework.contr
 #   - name: role
 #     in: path
 #     description: Either 1 - Admin, 2 - Write, 3 - Read
-#   - name: body
-#     in: body
-#     description: A JSON array of user ids. This can be either the MapRoulette or OSM Id.
-#                  If using OSM user ids, then the isOSMUserId query parameter must be
-#                  set to true
-#     required: true
-#     schema:
-#       type: array
-#       items:
-#         type: integer
 #   - name: isOSMUserId
 #     in: query
 #     type: boolean
@@ -689,5 +681,17 @@ DELETE  /user/:userId/project/:projectId/:role  @org.maproulette.framework.contr
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
+# requestBody:
+#   description: A JSON array of user ids. This can be either the MapRoulette or OSM Id.
+#                If using OSM user ids, then the isOSMUserId query parameter must be
+#                set to true
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: array
+#         items:
+#           type: integer
+#           format: int64
 ###
 DELETE  /user/project/:projectId/:role         @org.maproulette.framework.controller.UserController.removeUsersFromProject(projectId:Long, role:Int, isOSMUserId:Boolean ?= false)

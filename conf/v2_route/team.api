@@ -10,14 +10,13 @@
 #         schema:
 #           $ref: '#/components/schemas/org.maproulette.framework.model.Group'
 # parameters:
-#   - name: body
-#     in: body
-#     description: The JSON structure for the team (a group) body
-#     required: true
-#     content:
-#       application/json:
-#         schema:
-#           $ref: '#/components/schemas/org.maproulette.framework.model.Group'
+# requestBody:
+#   description: The JSON structure for the team (a group) body
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Group'
 ###
 POST    /team                                       @org.maproulette.framework.controller.TeamController.createTeam()
 ###
@@ -35,14 +34,13 @@ POST    /team                                       @org.maproulette.framework.c
 #   - name: id
 #     in: path
 #     description: The ID for the team
-#   - name: body
-#     in: body
-#     description: The JSON structure for the team (a group) body
-#     required: true
-#     content:
-#       application/json:
-#         schema:
-#           $ref: '#/components/schemas/org.maproulette.framework.model.Group'
+# requestBody:
+#   description: The JSON structure for the team (a group) body
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Group'
 ###
 PUT    /team/:id                                    @org.maproulette.framework.controller.TeamController.updateTeam(id: Long)
 ###

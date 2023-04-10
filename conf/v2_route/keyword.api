@@ -57,14 +57,13 @@ GET     /tags                                       @org.maproulette.framework.c
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
-#   - name: body
-#     in: body
-#     description: The JSON structure for the Keyword body.
-#     required: true
-#     content:
-#       application/json:
-#         schema:
-#           $ref: '#/components/schemas/Keyword'
+# requestBody:
+#   description: The JSON structure for the Keyword body.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/Keyword'
 ###
 POST    /keyword                                    @org.maproulette.framework.controller.TagController.insert
 ###
@@ -88,15 +87,15 @@ POST    /keyword                                    @org.maproulette.framework.c
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
-#   - name: body
-#     in: body
-#     description: The JSON structure for the Keyword body.
-#     required: true
-#     schema:
-#       type: array
-#       items:
-#         type: object
-#         $ref: '#/components/schemas/Keyword'
+# requestBody:
+#   description: The JSON structure for the Keyword body.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: array
+#         items:
+#           $ref: '#/components/schemas/Keyword'
 ###
 POST    /keywords                                   @org.maproulette.framework.controller.TagController.batchUploadPost
 ###
@@ -125,14 +124,13 @@ POST    /keywords                                   @org.maproulette.framework.c
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
-#   - name: body
-#     in: body
-#     description: The JSON structure for the Keyword body.
-#     required: true
-#     content:
-#       application/json:
-#         schema:
-#           $ref: '#/components/schemas/Keyword'
+# requestBody:
+#   description: The JSON structure for the Keyword body.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/Keyword'
 ###
 PUT     /keyword/:id                                @org.maproulette.framework.controller.TagController.update(id:Long)
 ###
@@ -156,15 +154,15 @@ PUT     /keyword/:id                                @org.maproulette.framework.c
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
-#   - name: body
-#     in: body
-#     description: The JSON structure for the Keyword body.
-#     required: true
-#     schema:
-#       type: array
-#       items:
-#         type: object
-#         $ref: '#/components/schemas/Keyword'
+# requestBody:
+#   description: The JSON structure for the Keyword body.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: array
+#         items:
+#           $ref: '#/components/schemas/Keyword'
 ###
 PUT     /keywords                                   @org.maproulette.framework.controller.TagController.batchUploadPut
 ###

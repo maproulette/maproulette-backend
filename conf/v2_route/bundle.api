@@ -17,14 +17,13 @@
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
-#   - name: body
-#     in: body
-#     description: The JSON structure for the bundle body.
-#     required: true
-#     content:
-#       application/json:
-#         schema:
-#           $ref: '#/components/schemas/TaskBundle'
+# requestBody:
+#   description: The JSON structure for the bundle body.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/TaskBundle'
 ###
 POST    /taskBundle                                 @org.maproulette.framework.controller.TaskBundleController.createTaskBundle
 ###

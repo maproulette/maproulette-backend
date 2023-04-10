@@ -17,15 +17,15 @@
 #   - name: changeType
 #     in: query
 #     description: delta to return a delta version of the changes that would be applied. osmchange for the actual OSMChange value that would be applied to the OSM servers
-#   - name: body
-#     in: body
-#     description: The tag changes
-#     required: true
-#     schema:
-#       type: array
-#       items:
-#         type: object
-#         $ref: '#/components/schemas/TagChange'
+# requestBody:
+#   description: The tag changes
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: array
+#         items:
+#           $ref: '#/components/schemas/TagChange'
 ###
 POST    /change/tag/test                            @org.maproulette.controllers.OSMChangesetController.testTagChange(changeType:String ?= "delta")
 ###
@@ -44,15 +44,15 @@ POST    /change/tag/test                            @org.maproulette.controllers
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
-#   - name: body
-#     in: body
-#     description: The nodes to be created
-#     required: true
-#     schema:
-#       type: array
-#       items:
-#         type: object
-#         $ref: '#/components/schemas/OSMChange'
+# requestBody:
+#   description: The nodes to be created
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: array
+#         items:
+#           $ref: '#/components/schemas/OSMChange'
 ###
 POST    /change/test                        @org.maproulette.controllers.OSMChangesetController.testChange()
 ###
@@ -83,12 +83,12 @@ POST    /change/test                        @org.maproulette.controllers.OSMChan
 #   - name: tags
 #     in: query
 #     description: A list of mrTags to be stored with the task
-#   - name: body
-#     in: body
-#     description: The TagChangeSubmission
-#     required: true
-#     schema:
-#       type: object
-#       $ref: '#/components/schemas/TagChangeSubmission'
+# requestBody:
+#   description: The TagChangeSubmission
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/TagChangeSubmission'
 ###
 POST    /task/:taskId/fix/apply                     @org.maproulette.controllers.api.TaskController.applyTagFix(taskId:Long, comment:String ?= "", tags:String ?= "")

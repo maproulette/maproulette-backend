@@ -23,14 +23,13 @@
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
-#   - name: body
-#     in: body
-#     description: The JSON structure for the project body.
-#     required: true
-#     content:
-#       application/json:
-#         schema:
-#           $ref: '#/components/schemas/Project'
+# requestBody:
+#   description: The JSON structure for the project body.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/Project'
 ###
 POST    /project                                    @org.maproulette.framework.controller.ProjectController.insert
 ###
@@ -60,14 +59,13 @@ POST    /project                                    @org.maproulette.framework.c
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
-#   - name: body
-#     in: body
-#     description: The JSON structure for the project body.
-#     required: true
-#     content:
-#       application/json:
-#         schema:
-#           $ref: '#/components/schemas/Project'
+# requestBody:
+#   description: The JSON structure for the project body.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/Project'
 ###
 PUT     /project/:id                                @org.maproulette.framework.controller.ProjectController.update(id:Long)
 ###

@@ -23,14 +23,13 @@
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
-#   - name: body
-#     in: body
-#     description: The JSON structure for the Virtual Challenge body.
-#     required: true
-#     content:
-#       application/json:
-#         schema:
-#           $ref: '#/components/schemas/org.maproulette.models.VirtualChallenge'
+# requestBody:
+#   description: The JSON structure for the Virtual Challenge body.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/org.maproulette.models.VirtualChallenge'
 ###
 POST    /virtualchallenge                           @org.maproulette.controllers.api.VirtualChallengeController.create
 ###
@@ -59,14 +58,13 @@ POST    /virtualchallenge                           @org.maproulette.controllers
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
-#   - name: body
-#     in: body
-#     description: The JSON structure for the Virtual Challenge body.
-#     required: true
-#     content:
-#       application/json:
-#         schema:
-#           $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+# requestBody:
+#   description: The JSON structure for the Virtual Challenge body.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 ###
 PUT     /virtualchallenge/:id                       @org.maproulette.controllers.api.VirtualChallengeController.update(id:Long)
 ###

@@ -24,16 +24,15 @@
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
-#   - name: body
-#     in: body
-#     description: The JSON structure for the Challenge body, include the key "children" to create Task children objects.
-#                   Although the model schema shows a hierarchy include "general", "creation", "priority" and "extra" this
-#                   JSON structure can be flatten and you can exclude those top level keys and have the children in the root level.
-#     required: true
-#     content:
-#       application/json:
-#         schema:
-#           $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+# requestBody:
+#   description: The JSON structure for the Challenge body, include the key "children" to create Task children objects.
+#                Although the model schema shows a hierarchy include "general", "creation", "priority" and "extra" this
+#                JSON structure can be flatten and you can exclude those top level keys and have the children in the root level.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 ###
 POST    /challenge                                  @org.maproulette.controllers.api.ChallengeController.create
 ###
@@ -64,14 +63,13 @@ POST    /challenge                                  @org.maproulette.controllers
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
-#   - name: body
-#     in: body
-#     description: The JSON structure for the Challenge body, include the key "children" to create or update Task children objects.
-#     required: true
-#     content:
-#       application/json:
-#         schema:
-#           $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+# requestBody:
+#   description: The JSON structure for the Challenge body, include the key "children" to create or update Task children objects.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 ###
 PUT     /challenge/:id                              @org.maproulette.controllers.api.ChallengeController.update(id:Long)
 ###
@@ -316,10 +314,19 @@ POST     /challenge/:id/project/:projectId           @org.maproulette.controller
 #   - name: projectId
 #     in: path
 #     description: The ID of the project you are moving the challenge too.
-#   - name: challenges
-#     in: body
-#     description: a list of challenge ids to be moved
-#     required: true
+# requestBody:
+#   description: a list of challenge ids to be moved
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: object
+#         properties:
+#           challenges:
+#             type: array
+#             items:
+#               type: integer
+#               format: int64
 ###
 POST     /challenges/project/:projectId           @org.maproulette.controllers.api.ChallengeController.moveChallenges(projectId:Long)
 ###
@@ -480,18 +487,22 @@ GET     /challenges                                 @org.maproulette.controllers
 #   '200':
 #     description: A success message
 # parameters:
-#   - name: ids
-#     in: body
-#     description: A JSON array of challenge IDs
-#     required: true
+# requestBody:
+#   required: true
+#   content:
+#     application/json:
 #     schema:
-#       type: array
-#       items:
-#         type: integer
-#   - name: isArchived
-#     in: body
-#     description: a boolean indicating if challenges should be archived (true) or unarchived (false)
-#     required: true
+#       type: object
+#       properties:
+#         ids:
+#           description: A JSON array of challenge IDs
+#           type: array
+#           items:
+#             type: integer
+#         isArchived:
+#           description: a boolean indicating if challenges should be archived (true) or unarchived (false)
+#           type: boolean
+#       required: [ ids, isArchived ]
 ###
 POST     /challenges/bulkArchive                    @org.maproulette.controllers.api.ChallengeController.bulkArchive()
 ###
@@ -568,10 +579,9 @@ GET     /challenge/:id/tasks                        @org.maproulette.controllers
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
-#   - name: body
-#     in: body
-#     description: The geojson to build the tasks from.
-#     required: true
+# requestBody:
+#   description: The geojson to build the tasks from.
+#   required: true
 ###
 PUT     /challenge/:id/addTasks                     @org.maproulette.controllers.api.ChallengeController.addTasksToChallenge(id:Long)
 ###
@@ -612,10 +622,9 @@ PUT     /challenge/:id/addTasks                     @org.maproulette.controllers
 #     description: The user's apiKey to authorize the request
 #     required: true
 #     type: string
-#   - name: body
-#     in: body
-#     description: The geojson to build the tasks from.
-#     required: true
+# requestBody:
+#   description: The geojson to build the tasks from.
+#   required: true
 ###
 PUT     /challenge/:id/addFileTasks                 @org.maproulette.controllers.api.ChallengeController.addTasksToChallengeFromFile(id:Long, lineByLine:Boolean ?= true, removeUnmatched:Boolean ?= false, dataOriginDate:Option[String], skipSnapshot:Boolean ?= false)
 ###
@@ -1271,10 +1280,16 @@ PUT     /challenge/:id/tasks                        @org.maproulette.controllers
 #     in: path
 #     description: The ID of the challenge
 #     required: true
-#   - name: isArchived
-#     in: body
-#     description: boolean indicating if the challenge should be archived or unarchived
-#     required: false
+# requestBody:
+#   required: false
+#   content:
+#     application/json:
+#       schema:
+#         type: object
+#         properties:
+#           isArchived:
+#             type: boolean
+#             description: boolean indicating if the challenge should be archived or unarchived
 ###
 POST     /challenge/:challengeId/archive   @org.maproulette.controllers.api.ChallengeController.archiveChallenge(challengeId: Long)
 ### NoDocs ###
