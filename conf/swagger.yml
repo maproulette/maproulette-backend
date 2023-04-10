@@ -300,7 +300,7 @@ components:
           description: "Extra public user settings"
   securitySchemes:
     apiKey:
-      description: The user's apiKey to authorize the request
-      type: string
+      type: apiKey
       in: header
       name: apiKey
+      description: The user's apiKey to authorize the request
