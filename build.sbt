@@ -254,3 +254,5 @@ deleteRoutesFile := {
 
 lazy val regenerateRoutesFile = taskKey[Unit]("Regenerate the swagger routes file")
 regenerateRoutesFile := Def.sequential(deleteRoutesFile, generateRoutesFile).value
+
+swaggerV3 := true
