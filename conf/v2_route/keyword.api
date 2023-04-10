@@ -51,12 +51,6 @@ GET     /tags                                       @org.maproulette.framework.c
 #     description: Invalid json payload for Keyword
 #   '401':
 #     description: The user is not authorized to make this request
-# parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: The JSON structure for the Keyword body.
 #   required: true
@@ -81,12 +75,6 @@ POST    /keyword                                    @org.maproulette.framework.c
 #     description: Invalid json payload for Keyword
 #   '401':
 #     description: The user is not authorized to make this request
-# parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: The JSON structure for the Keyword body.
 #   required: true
@@ -119,11 +107,6 @@ POST    /keywords                                   @org.maproulette.framework.c
 #   - name: id
 #     in: path
 #     description: The ID of the Keyword that is being updated
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: The JSON structure for the Keyword body.
 #   required: true
@@ -148,12 +131,6 @@ PUT     /keyword/:id                                @org.maproulette.framework.c
 #     description: Invalid json payload for Keyword
 #   '401':
 #     description: The user is not authorized to make this request
-# parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: The JSON structure for the Keyword body.
 #   required: true
@@ -203,11 +180,6 @@ GET     /keyword/:id                                @org.maproulette.framework.c
 #   - name: id
 #     in: path
 #     description: The id of the Keyword being deleted
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 DELETE  /keyword/:id                                @org.maproulette.framework.controller.TagController.delete(id:Long)
 ###

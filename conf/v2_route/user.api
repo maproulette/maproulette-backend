@@ -11,12 +11,6 @@
 #           $ref: '#/components/schemas/org.maproulette.framework.model.User'
 #   '401':
 #     description: If user is not logged in.
-# parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 GET     /user/whoami                               @org.maproulette.framework.controller.UserController.whoami()
 ###
@@ -38,11 +32,6 @@ GET     /user/whoami                               @org.maproulette.framework.co
 #   - name: userId
 #     in: path
 #     description: The id or OsmId of the user to retrieve. It will first try to match on the OSM id and if not found it will retrieve based on the MapRoulette Id.
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 GET     /user/:userId                               @org.maproulette.framework.controller.UserController.getUser(userId:Long)
 ###
@@ -64,11 +53,6 @@ GET     /user/:userId                               @org.maproulette.framework.c
 #   - name: username
 #     in: path
 #     description: The OSM username of the user to retrieve
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 GET     /osmuser/:username                          @org.maproulette.framework.controller.UserController.getUserByOSMUsername(username:String)
 ###
@@ -92,11 +76,6 @@ GET     /osmuser/:username                          @org.maproulette.framework.c
 #     in: query
 #     description: Whether to anonymize the users data, false by default
 #     default: false
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 DELETE  /user/:osmId                                @org.maproulette.framework.controller.UserController.deleteUser(osmId:Long, anonymize:Boolean ?= false)
 ###
@@ -157,11 +136,6 @@ GET     /osmuser/:username/public                          @org.maproulette.fram
 #   - name: anonymize
 #     in: query
 #     description: Whether to anonymize the users data, false by default
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 DELETE  /user/:osmId                                @org.maproulette.framework.controller.UserController.deleteUser(osmId:Long, anonymize:Boolean ?= false)
 ###
@@ -183,11 +157,6 @@ DELETE  /user/:osmId                                @org.maproulette.framework.c
 #   - name: userId
 #     in: path
 #     description: The id of the user to retrieve
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 PUT     /user/:userId/apikey                        @org.maproulette.framework.controller.UserController.generateAPIKey(userId:Long)
 ###
@@ -277,11 +246,6 @@ GET     /users                                         @org.maproulette.framewor
 #   - name: page
 #     in: query
 #     description: Used in conjunction with the limit parameter to page through X number of responses. Default value is 0, ie. first page.
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 GET     /user/:userId/saved                         @org.maproulette.framework.controller.UserController.getSavedChallenges(userId:Long, limit:Int ?= 10, page:Int ?= 0)
 ###
@@ -306,11 +270,6 @@ GET     /user/:userId/saved                         @org.maproulette.framework.c
 #   - name: challengeId
 #     in: path
 #     description: The id of the challenge to save
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 POST    /user/:userId/save/:challengeId             @org.maproulette.framework.controller.UserController.saveChallenge(userId:Long, challengeId:Long)
 ###
@@ -335,11 +294,6 @@ POST    /user/:userId/save/:challengeId             @org.maproulette.framework.c
 #   - name: challengeId
 #     in: path
 #     description: The id of the challenge to unsave
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 DELETE   /user/:userId/unsave/:challengeId          @org.maproulette.framework.controller.UserController.unsaveChallenge(userId:Long, challengeId:Long)
 ###
@@ -369,11 +323,6 @@ DELETE   /user/:userId/unsave/:challengeId          @org.maproulette.framework.c
 #   - name: page
 #     in: query
 #     description: Used in conjunction with the limit parameter to page through X number of responses. Default value is 0, ie. first page.
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 GET     /user/:userId/savedTasks                    @org.maproulette.framework.controller.UserController.getSavedTasks(userId:Long, challengeIds:String ?= "", limit:Int ?= 10, page:Int ?= 0)
 ###
@@ -398,11 +347,6 @@ GET     /user/:userId/savedTasks                    @org.maproulette.framework.c
 #   - name: taskId
 #     in: path
 #     description: The id of the Task to save
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 POST    /user/:userId/saveTask/:taskId              @org.maproulette.framework.controller.UserController.saveTask(userId:Long, taskId:Long)
 ###
@@ -427,11 +371,6 @@ POST    /user/:userId/saveTask/:taskId              @org.maproulette.framework.c
 #   - name: taskId
 #     in: path
 #     description: The id of the task to unsave
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 DELETE   /user/:userId/unsaveTask/:taskId           @org.maproulette.framework.controller.UserController.unsaveTask(userId:Long, taskId:Long)
 ###
@@ -453,11 +392,6 @@ DELETE   /user/:userId/unsaveTask/:taskId           @org.maproulette.framework.c
 #   - name: userId
 #     in: path
 #     description: The id of the user to update the settings for
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: The JSON structure for the users UserSettings. You can optionally include a key properties which would be a JSON object that contains any extra information for the user.
 #   required: true
@@ -482,11 +416,6 @@ PUT    /user/:userId                                @org.maproulette.framework.c
 #   - name: userId
 #     in: path
 #     description: The osm id of the user to update the settings for
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 PUT     /user/:userId/refresh                        @org.maproulette.framework.controller.UserController.refreshProfile(userId:Long)
 ###
@@ -514,11 +443,6 @@ PUT     /user/:userId/refresh                        @org.maproulette.framework.
 #     in: query
 #     description: If true, indirect managers via teams will also be included
 #     default: false
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 GET     /user/project/:projectId                     @org.maproulette.framework.controller.UserController.getUsersManagingProject(projectId:Long, osmIds:String ?= "", includeTeams:Boolean ?= false)
 ###
@@ -546,11 +470,6 @@ GET     /user/project/:projectId                     @org.maproulette.framework.
 #     type: boolean
 #     default: false
 #     description: Specify if the user id is to be treated as an OSM user id
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 POST     /user/:userId/project/:projectId/:role  @org.maproulette.framework.controller.UserController.addUserToProject(userId:Long, projectId:Long, role:Int, isOSMUserId:Boolean ?= false)
 ###
@@ -577,11 +496,6 @@ POST     /user/:userId/project/:projectId/:role  @org.maproulette.framework.cont
 #     type: boolean
 #     default: false
 #     description: Specify if the user id is to be treated as an OSM user id
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 PUT     /user/:userId/project/:projectId/:role  @org.maproulette.framework.controller.UserController.setUserProjectRole(userId:Long, projectId:Long, role:Int, isOSMUserId:Boolean ?= false)
 ###
@@ -605,11 +519,6 @@ PUT     /user/:userId/project/:projectId/:role  @org.maproulette.framework.contr
 #     type: boolean
 #     default: false
 #     description: Specify if the user ids are to be treated as OSM user ids
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: A JSON array of user ids. If using OSM user Ids then the
 #                isOSMUserId query parameter must be set to true
@@ -648,11 +557,6 @@ PUT     /user/project/:projectId/:role         @org.maproulette.framework.contro
 #     type: boolean
 #     default: false
 #     description: Specify if the user ids are to be treated as OSM user ids
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 DELETE  /user/:userId/project/:projectId/:role  @org.maproulette.framework.controller.UserController.removeUserFromProject(userId:Long, projectId:Long, role:Int, isOSMUserId:Boolean ?= false)
 ###
@@ -676,11 +580,6 @@ DELETE  /user/:userId/project/:projectId/:role  @org.maproulette.framework.contr
 #     type: boolean
 #     default: false
 #     description: Specify if the user ids are to be treated as OSM user ids
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: A JSON array of user ids. This can be either the MapRoulette or OSM Id.
 #                If using OSM user ids, then the isOSMUserId query parameter must be

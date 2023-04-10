@@ -17,12 +17,6 @@
 #     description: Invalid json payload for Virtual Challenge
 #   '401':
 #     description: The user is not authorized to make this request
-# parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: The JSON structure for the Virtual Challenge body.
 #   required: true
@@ -53,11 +47,6 @@ POST    /virtualchallenge                           @org.maproulette.controllers
 #   - name: id
 #     in: path
 #     description: The ID of the Virtual Challenge that is being updated
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: The JSON structure for the Virtual Challenge body.
 #   required: true
@@ -131,11 +120,6 @@ GET     /virtualchallengebyname/:name                   @org.maproulette.control
 #     description: If set to true, will delete the virtual challenge immediately instead of delayed
 #     default: false
 #     type: boolean
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 DELETE  /virtualchallenge/:id                           @org.maproulette.controllers.api.VirtualChallengeController.delete(id:Long, immediate:Boolean ?= true)
 ###
@@ -148,7 +132,6 @@ DELETE  /virtualchallenge/:id                           @org.maproulette.control
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.models.VirtualChallenge'
 # parameters:
 #   - name: limit
@@ -169,7 +152,6 @@ GET     /virtualchallenges                              @org.maproulette.control
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: id
@@ -272,7 +254,6 @@ GET     /virtualchallenge/view/:id                  @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.ClusteredPoint'
 # parameters:
 #   - name: id

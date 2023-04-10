@@ -24,6 +24,8 @@ tags:
   - name: "Review"
   - name: "Changes"
   - name: "Bundle"
+security:
+  - apiKey: []
 components:
   schemas:
     Project:
@@ -296,3 +298,9 @@ components:
         settings:
           $ref: "#/components/schemas/PublicUserSettings"
           description: "Extra public user settings"
+  securitySchemes:
+    apiKey:
+      description: The user's apiKey to authorize the request
+      type: string
+      in: header
+      name: apiKey

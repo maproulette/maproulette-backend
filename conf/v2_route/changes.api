@@ -9,11 +9,6 @@
 #   '401':
 #     description: The user is not authorized to make this request
 # parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 #   - name: changeType
 #     in: query
 #     description: delta to return a delta version of the changes that would be applied. osmchange for the actual OSMChange value that would be applied to the OSM servers
@@ -38,12 +33,6 @@ POST    /change/tag/test                            @org.maproulette.controllers
 #     description: A OsmChange XML definition that would be sent to the OpenStreetMap servers. For more information see https://wiki.openstreetmap.org/wiki/OsmChange
 #   '401':
 #     description: The user is not authorized to make this request
-# parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: The nodes to be created
 #   required: true
@@ -66,11 +55,6 @@ POST    /change/test                        @org.maproulette.controllers.OSMChan
 #   '401':
 #     description: The user is not authorized to make this request
 # parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 #   - name: taskId
 #     in: query
 #     description: The task id that should be marked as fixed after this tag change has been applied.

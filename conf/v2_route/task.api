@@ -33,12 +33,6 @@ GET     /task/:id/history                       @org.maproulette.framework.contr
 #     description: Invalid json payload for Task
 #   '401':
 #     description: The user is not authorized to make this request
-# parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: The JSON structure for the Task body.
 #   required: true
@@ -63,12 +57,6 @@ POST    /task                                       @org.maproulette.controllers
 #     description: Invalid json payload for Task
 #   '401':
 #     description: The user is not authorized to make this request
-# parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: The JSON structure for the Task body.
 #   required: true
@@ -101,11 +89,6 @@ POST    /tasks                                      @org.maproulette.controllers
 #   - name: id
 #     in: path
 #     description: The ID of the Task that is being updated
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: The JSON structure for the Task body.
 #   required: true
@@ -130,12 +113,6 @@ PUT     /task/:id                                   @org.maproulette.controllers
 #     description: Invalid json payload for Task
 #   '401':
 #     description: The user is not authorized to make this request
-# parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: The JSON structure for the Task body.
 #   required: true
@@ -156,12 +133,6 @@ PUT     /tasks                                      @org.maproulette.controllers
 #     description: A simple OK status message with number of tasks updated.
 #   '401':
 #     description: The user is not authorized to make this request
-# parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 PUT     /tasks/changeStatus                        @org.maproulette.controllers.api.TaskController.bulkStatusChange(newStatus:Int)
 ###
@@ -362,11 +333,6 @@ GET     /challenge/:id/task/:name                   @org.maproulette.controllers
 #   - name: id
 #     in: path
 #     description: The id of the Task being deleted
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 DELETE  /task/:id                                   @org.maproulette.controllers.api.TaskController.delete(id:Long, immediate:Boolean ?= true)
 ###
@@ -462,11 +428,6 @@ GET     /tasks/tags                                 @org.maproulette.controllers
 #     in: query
 #     description: A complete comma separated list of tags. If empty, then all tags will be removed.
 #     required: true
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 GET  /task/:id/tags/update                              @org.maproulette.controllers.api.TaskController.updateItemTags(id:Long, tags:String ?= "")
 ###
@@ -488,11 +449,6 @@ GET  /task/:id/tags/update                              @org.maproulette.control
 #     in: query
 #     description: A comma separated list of tags
 #     required: true
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 DELETE  /task/:id/tags                              @org.maproulette.controllers.api.TaskController.deleteTagsFromItem(id:Long, tags:String ?= "")
 ###
@@ -589,11 +545,6 @@ PUT     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.c
 #   '404':
 #     description: The task with the supplied ID was not found.
 # parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 #   - name: id
 #     in: path
 #     description: The ID of the task
@@ -611,11 +562,6 @@ PUT     /task/:id/changeset                         @org.maproulette.controllers
 #   '404':
 #     description: The task with the supplied ID was not found.
 # parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 #   - name: id
 #     in: path
 #     description: The ID of the task
@@ -635,11 +581,6 @@ PUT     /task/:id/responses                           @org.maproulette.framework
 #   '404':
 #     description: The task with the supplied ID was not found.
 # parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 #   - name: id
 #     in: path
 #     description: The ID of the task
@@ -671,11 +612,6 @@ PUT     /task/:id/:status                           @org.maproulette.controllers
 #   '404':
 #     description: The bundle or primary task was not found with the supplied Id.
 # parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 #   - name: bundleId
 #     in: path
 #     description: The ID of the bundle
@@ -707,11 +643,6 @@ PUT     /taskBundle/:bundleId/:status                           @org.maproulette
 #   '404':
 #     description: The task with the supplied ID was not found.
 # parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 #   - name: id
 #     in: path
 #     description: The ID of the task
@@ -745,11 +676,6 @@ PUT     /task/:id/review/:status                           @org.maproulette.fram
 #   '401':
 #     description: The user is not authorized to make this request
 # parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 #   - name: task ids
 #     description: Task ids to change (OR search parameters can be used instead)
 ###
@@ -766,11 +692,6 @@ PUT     /tasks/review/remove                               @org.maproulette.fram
 #   '404':
 #     description: The task with the supplied ID was not found.
 # parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 #   - name: id
 #     in: path
 #     description: The ID of the bundle
@@ -802,11 +723,6 @@ PUT     /taskBundle/:id/review/:status                     @org.maproulette.fram
 #   '404':
 #     description: The task with the supplied ID was not found.
 # parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 #   - name: id
 #     in: path
 #     description: The ID of the task
@@ -835,11 +751,6 @@ PUT     /task/:id/metareview/:status                           @org.maproulette.
 #   '404':
 #     description: The task with the supplied ID was not found.
 # parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 #   - name: id
 #     in: path
 #     description: The ID of the bundle

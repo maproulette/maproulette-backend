@@ -17,12 +17,6 @@
 #     description: Invalid json payload for Project
 #   '401':
 #     description: The user is not authorized to make this request
-# parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: The JSON structure for the project body.
 #   required: true
@@ -54,11 +48,6 @@ POST    /project                                    @org.maproulette.framework.c
 # parameters:
 #   - name: id
 #     description: The ID of the project that is being updated
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: The JSON structure for the project body.
 #   required: true
@@ -148,11 +137,6 @@ GET     /projectByName/:name                        @org.maproulette.framework.c
 #     description: If set to true, will delete the project immediately instead of delayed and deleted through a scheduled job on the backend
 #     default: false
 #     type: boolean
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 DELETE  /project/:id                                @org.maproulette.framework.controller.ProjectController.delete(id:Long, immediate:Boolean ?= false)
 ###
@@ -216,11 +200,6 @@ GET     /projects                                   @org.maproulette.framework.c
 #         type: object
 #         $ref: '#/components/schemas/Project'
 # parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 #   - name: limit
 #     in: query
 #     description: Limit the number of results returned in the response. Default value is 10.

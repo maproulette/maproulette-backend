@@ -14,11 +14,6 @@
 #   - name: projectId
 #     in: path
 #     description: The ID of the project you are adding the challenge to.
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 POST     /project/:projectId/challenge/:id/add           @org.maproulette.framework.controller.VirtualProjectController.addChallenge(projectId:Long, id:Long)
 ###
@@ -37,10 +32,5 @@ POST     /project/:projectId/challenge/:id/add           @org.maproulette.framew
 #   - name: projectId
 #     in: path
 #     description: The ID of the project you are removing the challenge from.
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 POST     /project/:projectId/challenge/:id/remove           @org.maproulette.framework.controller.VirtualProjectController.removeChallenge(projectId:Long, id:Long)

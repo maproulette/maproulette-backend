@@ -18,12 +18,6 @@
 #     description: Invalid json payload for Challenge
 #   '401':
 #     description: The user is not authorized to make this request
-# parameters:
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: The JSON structure for the Challenge body, include the key "children" to create Task children objects.
 #                Although the model schema shows a hierarchy include "general", "creation", "priority" and "extra" this
@@ -58,11 +52,6 @@ POST    /challenge                                  @org.maproulette.controllers
 #   - name: id
 #     in: path
 #     description: The ID of the Challenge that is being updated
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: The JSON structure for the Challenge body, include the key "children" to create or update Task children objects.
 #   required: true
@@ -134,13 +123,6 @@ GET     /project/:id/challenge/:name                @org.maproulette.controllers
 #   - name: immediate
 #     in: query
 #     description: If set to true, will delete the virtual challenge immediately instead of delayed
-#     default: false
-#     type: boolean
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 DELETE  /challenge/:id                              @org.maproulette.controllers.api.ChallengeController.delete(id:Long, immediate:Boolean ?= false)
 ###
@@ -162,11 +144,6 @@ DELETE  /challenge/:id                              @org.maproulette.controllers
 #   - name: statusFilters
 #     in: query
 #     description: A comma separated list of status ID's. 0 = Created, 1 = Fixed, 2 = False Positive, 3 = Skipped, 4 = Deleted, 5 = Already Fixed, 6 = Too Hard
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 DELETE  /challenge/:id/tasks                        @org.maproulette.controllers.api.ChallengeController.deleteTasks(id:Long, statusFilters ?= "")
 ###
@@ -209,7 +186,6 @@ GET     /challenges/find                            @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: pid
@@ -391,11 +367,6 @@ GET     /challenges/tags                            @org.maproulette.controllers
 #   - name: tags
 #     in: query
 #     description: A comma separated list of tags
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 DELETE  /challenge/:id/tags                         @org.maproulette.controllers.api.ChallengeController.deleteTagsFromItem(id:Long, tags:String ?= "")
 ###
@@ -574,11 +545,6 @@ GET     /challenge/:id/tasks                        @org.maproulette.controllers
 #   - name: id
 #     in: path
 #     description: The id of the parent Challenge where all the children are being created.
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: The geojson to build the tasks from.
 #   required: true
@@ -617,11 +583,6 @@ PUT     /challenge/:id/addTasks                     @org.maproulette.controllers
 #     in: query
 #     description: If included will skip recording a snapshot before proceeding. (By default false, so it will create snapshot.)
 #     default: false
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 # requestBody:
 #   description: The geojson to build the tasks from.
 #   required: true
@@ -675,11 +636,6 @@ GET     /challenge/:id/children                     @org.maproulette.controllers
 #   - name: name
 #     in: path
 #     description: The name of the new challenge
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 PUT     /challenge/:id/clone/:name                  @org.maproulette.controllers.api.ChallengeController.cloneChallenge(id:Long, name:String)
 ###
@@ -697,11 +653,6 @@ PUT     /challenge/:id/clone/:name                  @org.maproulette.controllers
 #   - name: id
 #     in: path
 #     description: The id of the Challenge to rebuild.
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 #   - name: removeUnmatched
 #     in: query
 #     description: Used to remove incomplete tasks that have been addressed
@@ -984,11 +935,6 @@ GET     /challenge/clustered/:id                    @org.maproulette.controllers
 #   - name: id
 #     in: path
 #     description: The id of the parent project.
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 PUT     /challenge/:id/updateTaskPriorities         @org.maproulette.controllers.api.ChallengeController.updateTaskPriorities(id:Long)
 ###
@@ -1008,11 +954,6 @@ PUT     /challenge/:id/updateTaskPriorities         @org.maproulette.controllers
 #   - name: id
 #     in: path
 #     description: The id of the parent project.
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 ###
 PUT     /challenge/:id/resetTaskInstructions        @org.maproulette.controllers.api.ChallengeController.resetTaskInstructions(id:Long)
 ###
@@ -1131,11 +1072,6 @@ GET     /challenge/:id/extractReviewHistory             @org.maproulette.control
 #     in: path
 #     description: The ID of the challenge
 #     required: true
-#   - name: apiKey
-#     in: header
-#     description: The user's apiKey to authorize the request
-#     required: true
-#     type: string
 #   - name: limit
 #     in: query
 #     description: Limit the number of results returned in the response. Default value is -1 (no limit).
@@ -1249,19 +1185,22 @@ PUT     /challenges                                 @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # summary: Undeletes a Challenge
-# deprecated : true
+# deprecated: true
+# responses: {}
 ###
 PUT  /challenge/:id/undelete                         @org.maproulette.controllers.api.ChallengeController.undelete(id:Long)
 ###
 # tags: [ Challenge ]
 # summary: Create Tasks for Challenge
 # deprecated: true
+# responses: {}
 ###
 POST    /challenge/:id/tasks                        @org.maproulette.controllers.api.ChallengeController.createChildren(id:Long)
 ###
 # tags: [ Challenge ]
 # summary: Create Tasks for Challenge
 # deprecated: true
+# responses: {}
 ###
 PUT     /challenge/:id/tasks                        @org.maproulette.controllers.api.ChallengeController.updateChildren(id:Long)
 ###
