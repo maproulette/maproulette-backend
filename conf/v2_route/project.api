@@ -86,7 +86,6 @@ GET     /project/:id                                @org.maproulette.framework.c
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/Project'
 # parameters:
 #   - name: projectIds
@@ -149,7 +148,6 @@ DELETE  /project/:id                                @org.maproulette.framework.c
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/Project'
 # parameters:
 #   - name: onlyEnabled
@@ -173,7 +171,6 @@ GET     /projects/featured                          @org.maproulette.framework.c
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/Project'
 # parameters:
 #   - name: limit
@@ -197,7 +194,6 @@ GET     /projects                                   @org.maproulette.framework.c
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/Project'
 # parameters:
 #   - name: limit
@@ -282,7 +278,6 @@ GET     /project/search/clustered                   @org.maproulette.framework.c
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: id
@@ -356,7 +351,6 @@ GET     /project/:projectId/tasks/extract             @org.maproulette.controlle
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: id

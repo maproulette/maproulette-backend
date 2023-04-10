@@ -274,7 +274,6 @@ GET     /virtualchallenge/clustered/:id             @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: limit

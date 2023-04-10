@@ -192,7 +192,6 @@ DELETE  /keyword/:id                                @org.maproulette.framework.c
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/Keyword'
 # parameters:
 #   - name: prefix

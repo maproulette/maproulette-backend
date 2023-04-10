@@ -345,7 +345,6 @@ DELETE  /task/:id                                   @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: q
@@ -375,7 +374,6 @@ GET     /tasks/find                                 @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Tag'
 # parameters:
 #   - name: id
@@ -393,7 +391,6 @@ GET     /task/:id/tags                              @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 #   '400':
 #     description: If no tags are supplied a BadRequest response will be returned
@@ -461,7 +458,6 @@ DELETE  /task/:id/tags                              @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: ps
@@ -497,7 +493,6 @@ GET     /tasks/random                               @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.ClusteredPoint'
 # parameters:
 #   - name: left
@@ -777,7 +772,6 @@ PUT     /taskBundle/:id/metareview/:status                     @org.maproulette.
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.TaskCluster'
 # parameters:
 #   - name: points
@@ -795,7 +789,6 @@ PUT     /taskCluster                                @org.maproulette.framework.c
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.ClusteredPoint'
 # parameters:
 #   - name: id

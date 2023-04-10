@@ -27,7 +27,6 @@ GET     /comment/:id                                @org.maproulette.framework.c
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
 #   '404':
 #     description: If the Task is not found
@@ -161,7 +160,6 @@ POST    /challenge/:id/comment                           @org.maproulette.framew
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeComment'
 #   '404':
 #     description: If the Challenge is not found

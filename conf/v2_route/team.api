@@ -72,7 +72,6 @@ GET     /team/:id                                   @org.maproulette.framework.c
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Group'
 #   '404':
 #     description: If the team is not found
@@ -98,7 +97,6 @@ GET     /teams/find                                 @org.maproulette.framework.c
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.TeamUser'
 #   '404':
 #     description: If the team is not found
@@ -118,7 +116,6 @@ GET     /team/:id/userMembers                       @org.maproulette.framework.c
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.TeamUser'
 #   '404':
 #     description: If the team is not found
@@ -300,7 +297,6 @@ DELETE   /team/:teamId/project/:projectId        @org.maproulette.framework.cont
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Group'
 #   '401':
 #     description: The user is not authorized to make this request

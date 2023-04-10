@@ -232,7 +232,6 @@ GET     /users                                         @org.maproulette.framewor
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 #   '401':
 #     description: The user is not authorized to make this request
@@ -306,7 +305,6 @@ DELETE   /user/:userId/unsave/:challengeId          @org.maproulette.framework.c
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 #   '401':
 #     description: The user is not authorized to make this request
@@ -428,7 +426,6 @@ PUT     /user/:userId/refresh                        @org.maproulette.framework.
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.ProjectManager'
 #   '401':
 #     description: The user is not authorized to make this request

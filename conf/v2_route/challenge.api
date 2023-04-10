@@ -156,7 +156,6 @@ DELETE  /challenge/:id/tasks                        @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: q
@@ -233,7 +232,6 @@ GET     /challenges/extendedFind                    @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeListing'
 # parameters:
 #   - name: projectIds
@@ -263,7 +261,6 @@ GET     /challenges/listing                         @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Tag'
 # parameters:
 #   - name: id
@@ -284,7 +281,6 @@ POST     /challenge/:id/project/:projectId           @org.maproulette.controller
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Tag'
 # parameters:
 #   - name: projectId
@@ -315,7 +311,6 @@ POST     /challenges/project/:projectId           @org.maproulette.controllers.a
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Tag'
 # parameters:
 #   - name: id
@@ -333,7 +328,6 @@ GET     /challenge/:id/tags                         @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 #   '400':
 #     description: If not tags are supplied a BadRequest response will be returned
@@ -379,7 +373,6 @@ DELETE  /challenge/:id/tags                         @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: limit
@@ -400,7 +393,6 @@ GET     /challenges/featured                        @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: limit
@@ -436,7 +428,6 @@ GET     /challenges/preferred                             @org.maproulette.contr
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: limit
@@ -486,7 +477,6 @@ POST     /challenges/bulkArchive                    @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: reviewTasksType
@@ -516,7 +506,6 @@ GET     /review/challenges                                 @org.maproulette.fram
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: id
@@ -600,7 +589,6 @@ PUT     /challenge/:id/addFileTasks                 @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: id
@@ -680,7 +668,6 @@ PUT     /challenge/:id/rebuild                      @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: cid
@@ -710,7 +697,6 @@ GET     /challenge/:cid/tasks/random                @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: cid
@@ -740,7 +726,6 @@ GET     /challenge/:cid/tasks/randomTasks           @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: limit
@@ -765,7 +750,6 @@ GET     /challenge/:cid/tasksNearby/:proximityId           @org.maproulette.cont
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: cid
@@ -907,7 +891,6 @@ POST    /challenge/view/:id                         @org.maproulette.controllers
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.ClusteredPoint'
 # parameters:
 #   - name: id

@@ -8,7 +8,6 @@
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.UserNotification'
 #   '401':
 #     description: The user is not authorized to make this request
@@ -97,7 +96,6 @@ PUT  /user/:userId/notifications/delete                 @org.maproulette.framewo
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.UserNotification'
 #   '401':
 #     description: The user is not authorized to make this request

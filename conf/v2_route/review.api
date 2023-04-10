@@ -40,7 +40,6 @@ GET     /task/:id/review/cancel                       @org.maproulette.framework
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: onlySaved
@@ -87,7 +86,6 @@ GET     /tasks/review                          @org.maproulette.framework.contro
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: startDate
@@ -180,7 +178,6 @@ GET     /tasks/review/next                       @org.maproulette.framework.cont
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: limit
@@ -207,7 +204,6 @@ GET     /tasks/review/nearby/:proximityId           @org.maproulette.framework.c
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: reviewTasksType
@@ -252,7 +248,6 @@ GET     /tasks/review/metrics                          @org.maproulette.framewor
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.TaskCluster'
 # parameters:
 #   - name: reviewTasksType
@@ -338,7 +333,6 @@ GET     /tasks/metareview/reviewers/export                          @org.maproul
 #     schema:
 #       type: array
 #       items:
-#         type: object
 #         $ref: '#/components/schemas/org.maproulette.framework.model.ReviewMetrics'
 # parameters:
 #   - name: reviewTasksType
