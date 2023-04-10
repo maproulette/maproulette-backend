@@ -1,5 +1,5 @@
 ---
-swagger: "2.0"
+openapi: "3.1.0"
 info:
   title: "MapRoulette API"
   description: "API for MapRoulette enabling the creation and maintenance of MapRoulette challenges"
@@ -8,11 +8,8 @@ info:
   license:
     name: "Apache License version 2.0"
     url: "http://www.apache.org/licenses/"
-basePath: "/api/v2"
-consumes:
-  - application/json
-produces:
-  - application/json
+servers:
+  - url: /api/v2
 tags:
   - name: "Project"
   - name: "Virtual Project"
@@ -27,275 +24,275 @@ tags:
   - name: "Review"
   - name: "Changes"
   - name: "Bundle"
-
-definitions:
-  Project:
-    properties:
-      id:
-        readOnly: true
-        type: integer
-        format: int64
-        description: "The ID of the project"
-        example: 12345
-      owner:
-        type: integer
-        format: int64
-        readOnly: true
-        description: "The OSM identifier of the owner of the project, set automatically"
-      name:
-        type: string
-        example: "Project_1234"
-        description: "The internal name of the project"
-      created:
-        type: integer
-        format: epoch
-        description: "The time that this project was created, set by the database"
-        readOnly: true
-      modified:
-        type: integer
-        format: epoch
-        description: "The last time that this project was modified, set by the database"
-        readOnly: true
-      description:
-        type: string
-        example: "This is my project"
-        description: "The description for the project"
-      grants:
-        type: array
-        items:
-          $ref: "#/definitions/org.maproulette.framework.model.Grant"
-        readOnly: true
-        description: "The grants associated with the project, which is completely managed by the backend"
-      enabled:
-        type: boolean
-        description: "Whether this project is enabled for use or not"
-        default: false
-      displayName:
-        type: String
-        example: "My Project"
-        description: "The friendly name that can be displayed to users"
-      deleted:
-        type: boolean
-        description: "Field stating whether this project is ready to be deleted by the system"
-        readOnly: true
-        default: false
-      featured:
-        type: boolean
-        description: "Whether or not this is a featured project. Only super users can set this field"
-        default: false
-    required:
-      - name
-  TaskBundle:
-    properties:
-      id:
-        type: integer
-        format: int64
-        description: "The identifier for the task bundle"
-      name:
-        writeOnly: true
-        type: string
-        description: "A name for the task bundle"
-      ownerId:
-        readOnly: true
-        type: integer
-        format: int64
-        description: "The creator of the task bundle"
-      taskIds:
-        type: array
-        items:
+components:
+  schemas:
+    Project:
+      properties:
+        id:
+          readOnly: true
           type: integer
           format: int64
-        description: "A list of task identifiers associated with the task bundle"
-      tasks:
-        readOnly: true
-        type: array
-        items:
-          $ref: "#/definitions/org.maproulette.framework.model.Task"
-        description: "An optional list of full task objects associated with the bundle"
-    required:
-      - taskIds
-  OSMType:
-    type: string
-    enum:
-      - NODE
-      - WAY
-      - RELATION
-  TagChange:
-    properties:
-      osmId:
-        type: integer
-        format: int64
-        description: "The OSM identifier of the feature that will have it's tags changed"
-      osmType:
-        $ref: "#/definitions/OSMType"
-        description: "The type of OSM object, NODE, WAY or RELATION"
-      updates:
-        type: object
-        additionalProperties:
+          description: "The ID of the project"
+          example: 12345
+        owner:
+          type: integer
+          format: int64
+          readOnly: true
+          description: "The OSM identifier of the owner of the project, set automatically"
+        name:
           type: string
-        example:
-          highway: primary
-        description: "The tags that you want to update on the feature. You will also place any tags you want to add in this object"
-      deletes:
-        type: array
-        items:
+          example: "Project_1234"
+          description: "The internal name of the project"
+        created:
+          type: integer
+          format: epoch
+          description: "The time that this project was created, set by the database"
+          readOnly: true
+        modified:
+          type: integer
+          format: epoch
+          description: "The last time that this project was modified, set by the database"
+          readOnly: true
+        description:
           type: string
-        example:
-          - highway
-          - name
-        description: "The tags that you want to delete from the feature"
-  TagChangeResult:
-    properties:
-      osmId:
-        type: integer
-        format: int64
-      osmType:
-        $ref: "#/definitions/OSMType"
-      creates:
-        type: object
-        additionalProperties:
+          example: "This is my project"
+          description: "The description for the project"
+        grants:
+          type: array
+          items:
+            $ref: "#/components/schemas/org.maproulette.framework.model.Grant"
+          readOnly: true
+          description: "The grants associated with the project, which is completely managed by the backend"
+        enabled:
+          type: boolean
+          description: "Whether this project is enabled for use or not"
+          default: false
+        displayName:
+          type: String
+          example: "My Project"
+          description: "The friendly name that can be displayed to users"
+        deleted:
+          type: boolean
+          description: "Field stating whether this project is ready to be deleted by the system"
+          readOnly: true
+          default: false
+        featured:
+          type: boolean
+          description: "Whether or not this is a featured project. Only super users can set this field"
+          default: false
+      required:
+        - name
+    TaskBundle:
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: "The identifier for the task bundle"
+        name:
+          writeOnly: true
           type: string
-        example:
-          test: test!
-      updates:
-        type: object
-        additionalProperties:
+          description: "A name for the task bundle"
+        ownerId:
+          readOnly: true
+          type: integer
+          format: int64
+          description: "The creator of the task bundle"
+        taskIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          description: "A list of task identifiers associated with the task bundle"
+        tasks:
+          readOnly: true
+          type: array
+          items:
+            $ref: "#/components/schemas/org.maproulette.framework.model.Task"
+          description: "An optional list of full task objects associated with the bundle"
+      required:
+        - taskIds
+    OSMType:
+      type: string
+      enum:
+        - NODE
+        - WAY
+        - RELATION
+    TagChange:
+      properties:
+        osmId:
+          type: integer
+          format: int64
+          description: "The OSM identifier of the feature that will have it's tags changed"
+        osmType:
+          $ref: "#/components/schemas/OSMType"
+          description: "The type of OSM object, NODE, WAY or RELATION"
+        updates:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            highway: primary
+          description: "The tags that you want to update on the feature. You will also place any tags you want to add in this object"
+        deletes:
+          type: array
+          items:
+            type: string
+          example:
+            - highway
+            - name
+          description: "The tags that you want to delete from the feature"
+    TagChangeResult:
+      properties:
+        osmId:
+          type: integer
+          format: int64
+        osmType:
+          $ref: "#/components/schemas/OSMType"
+        creates:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            test: test!
+        updates:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            test: test!
+        deletes:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            test: test!
+    TagChangeSubmission:
+      properties:
+        comment:
           type: string
-        example:
-          test: test!
-      deletes:
-        type: object
-        additionalProperties:
+        changes:
+          type: array
+          items:
+            $ref: "#/components/schemas/TagChange"
+    OSMChangeSubmission:
+      properties:
+        comment:
           type: string
-        example:
-          test: test!
-  TagChangeSubmission:
-    properties:
-      comment:
-        type: string
-      changes:
-        type: array
-        items:
-          $ref: "#/definitions/TagChange"
-  OSMChangeSubmission:
-    properties:
-      comment:
-        type: string
-      changes:
-        $ref: "#/definitions/OSMChange"
-  OSMChange:
-    properties:
-      creates:
-        type: array
-        items:
-          $ref: "#/definitions/ElementCreate"
-        description: "Set of features to create"
-      updates:
-        type: array
-        items:
-          $ref: "#/definitions/ElementUpdate"
-        description: "Set of features to update"
-  ElementCreate:
-    properties:
-      osmId:
-        readOnly: true
-        type: integer
-        format: int64
-        description: "The OSM identifier of the newly created feature"
-      osmType:
-        $ref: "#/definitions/OSMType"
-        description: "The type of OSM feature, NODE, WAY or RELATION"
-      fields:
-        type: object
-        additionalProperties: true
-      tags:
-        type: object
-        additionalProperties: true
-        description: "The tags that should be included with the creation of the feature"
-  ElementUpdate:
-    properties:
-      osmId:
-        type: integer
-        format: int64
-        description: "The OSM identifier for the feature that is to be updated"
-      osmType:
-        $ref: "#/definitions/OSMType"
-        description: "The type of OSM feature, NODE, WAY or RELATION"
-      version:
-        type: integer
-        description: "The version of the OSM feature that you are updating from"
-      tags:
-        $ref: "#/definitions/ElementTagChange"
-        description: "The tag changes that should be updated for this feature"
-  ElementTagChange:
-    properties:
-      updates:
-        type: object
-        additionalProperties: true
-      deletes:
-        type: array
-        items:
+        changes:
+          $ref: "#/components/schemas/OSMChange"
+    OSMChange:
+      properties:
+        creates:
+          type: array
+          items:
+            $ref: "#/components/schemas/ElementCreate"
+          description: "Set of features to create"
+        updates:
+          type: array
+          items:
+            $ref: "#/components/schemas/ElementUpdate"
+          description: "Set of features to update"
+    ElementCreate:
+      properties:
+        osmId:
+          readOnly: true
+          type: integer
+          format: int64
+          description: "The OSM identifier of the newly created feature"
+        osmType:
+          $ref: "#/components/schemas/OSMType"
+          description: "The type of OSM feature, NODE, WAY or RELATION"
+        fields:
+          type: object
+          additionalProperties: true
+        tags:
+          type: object
+          additionalProperties: true
+          description: "The tags that should be included with the creation of the feature"
+    ElementUpdate:
+      properties:
+        osmId:
+          type: integer
+          format: int64
+          description: "The OSM identifier for the feature that is to be updated"
+        osmType:
+          $ref: "#/components/schemas/OSMType"
+          description: "The type of OSM feature, NODE, WAY or RELATION"
+        version:
+          type: integer
+          description: "The version of the OSM feature that you are updating from"
+        tags:
+          $ref: "#/components/schemas/ElementTagChange"
+          description: "The tag changes that should be updated for this feature"
+    ElementTagChange:
+      properties:
+        updates:
+          type: object
+          additionalProperties: true
+        deletes:
+          type: array
+          items:
+            type: string
+    Keyword:
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+          description: "The identifier of the Keyword"
+        name:
           type: string
-  Keyword:
-    properties:
-      id:
-        type: integer
-        format: int64
-        readOnly: true
-        description: "The identifier of the Keyword"
-      name:
-        type: string
-        description: "The keyword name"
-      description:
-        type: string
-        description: "The description for the keyword"
-      created:
-        readOnly: true
-        type: integer
-        format: epoch
-      modified:
-        readOnly: true
-        type: integer
-        format: epoch
-      tagType:
-        type: string
-        default: "challenges"
-        description: "The type of object that the keyword is associated with"
-    required:
-      - name
-  PublicOSMUser:
-    properties:
-      id:
-        type: integer
-        format: int64
-        description: "The OSM identifier for the user"
-      avatarURL:
-        type: string
-        description: "The URL that links to an avatar pic that can be displayed"
-      displayName:
-        type: string
-        description: "The OSM User name"
-  PublicUserSettings:
-    properties:
-      leaderboardOptOut:
-        type: boolean
-        description: "Whether the user has opted out of being displayed on the MapRoulette leaderboard"
-  PublicUser:
-    properties:
-      id:
-        type: integer
-        format: int64
-        description: "The identifier for the user"
-      osmProfile:
-        $ref: "#/definitions/PublicOSMUser"
-        description: "Public OSM user information"
-      name:
-        type: string
-        description: "The OSM User name"
-      created:
-        type: integer
-        format: epoch
-        description: "The date that the user was created in MapRoulette"
-      settings:
-        $ref: "#/definitions/PublicUserSettings"
-        description: "Extra public user settings"
+          description: "The keyword name"
+        description:
+          type: string
+          description: "The description for the keyword"
+        created:
+          readOnly: true
+          type: integer
+          format: epoch
+        modified:
+          readOnly: true
+          type: integer
+          format: epoch
+        tagType:
+          type: string
+          default: "challenges"
+          description: "The type of object that the keyword is associated with"
+      required:
+        - name
+    PublicOSMUser:
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: "The OSM identifier for the user"
+        avatarURL:
+          type: string
+          description: "The URL that links to an avatar pic that can be displayed"
+        displayName:
+          type: string
+          description: "The OSM User name"
+    PublicUserSettings:
+      properties:
+        leaderboardOptOut:
+          type: boolean
+          description: "Whether the user has opted out of being displayed on the MapRoulette leaderboard"
+    PublicUser:
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: "The identifier for the user"
+        osmProfile:
+          $ref: "#/components/schemas/PublicOSMUser"
+          description: "Public OSM user information"
+        name:
+          type: string
+          description: "The OSM User name"
+        created:
+          type: integer
+          format: epoch
+          description: "The date that the user was created in MapRoulette"
+        settings:
+          $ref: "#/components/schemas/PublicUserSettings"
+          description: "Extra public user settings"
