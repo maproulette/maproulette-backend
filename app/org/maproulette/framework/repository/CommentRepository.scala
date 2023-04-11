@@ -55,14 +55,13 @@ class CommentRepository @Inject() (override val db: Database) extends Repository
   )(implicit c: Option[Connection] = None): List[Comment] = {
     withMRConnection { implicit c =>
       val query =
-        s"""
-           |SELECT count(*) OVER() AS full_count, c.id, c.project_id, c.challenge_id, c.task_id, c.created, c.action_id, c.comment, u.name, u.avatar_url, c.osm_id FROM TASK_COMMENTS c
-           |inner join users as u on c.osm_id = u.osm_id
-           |WHERE u.id = ${userId}
-           |ORDER BY c.${sort} ${order} LIMIT ${limit} OFFSET ${limit * page}
-       """.stripMargin
-      SQL(query)
-        .as(CommentRepository.expandedParser.*)
+        SQL"""
+           SELECT count(*) OVER() AS full_count, c.id, c.project_id, c.challenge_id, c.task_id, c.created, c.action_id, c.comment, u.name, u.avatar_url, c.osm_id FROM TASK_COMMENTS c
+           inner join users as u on c.osm_id = u.osm_id
+           WHERE u.id = $userId
+           ORDER BY c.#$sort #$order LIMIT #$limit OFFSET #${(limit * page).toLong}
+        """
+      query.as(CommentRepository.expandedParser.*)
     }
   }
 

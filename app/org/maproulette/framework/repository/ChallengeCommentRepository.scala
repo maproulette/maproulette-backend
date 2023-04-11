@@ -61,15 +61,14 @@ class ChallengeCommentRepository @Inject() (override val db: Database) extends R
       }
 
       val query =
-        s"""
-           |SELECT count(*) OVER() AS full_count, c.id, c.project_id, c.challenge_id, c.created, c.comment, c.osm_id, u.name, u.avatar_url, ch.name as challenge_name FROM CHALLENGE_COMMENTS c
-           |inner join users as u on c.osm_id = u.osm_id
-           |inner join challenges as ch on c.challenge_id = ch.id
-           |WHERE u.id = ${userId}
-           |ORDER BY ${sort} ${order} LIMIT ${limit} OFFSET ${limit * page};
-         """.stripMargin
-      SQL(query)
-        .as(ChallengeCommentRepository.expandedParser.*)
+        SQL"""
+           SELECT count(*) OVER() AS full_count, c.id, c.project_id, c.challenge_id, c.created, c.comment, c.osm_id, u.name, u.avatar_url, ch.name as challenge_name FROM CHALLENGE_COMMENTS c
+           inner join users as u on c.osm_id = u.osm_id
+           inner join challenges as ch on c.challenge_id = ch.id
+           WHERE u.id = $userId
+           ORDER BY #$sort #$order LIMIT #$limit OFFSET #${(limit * page).toLong}
+         """
+      query.as(ChallengeCommentRepository.expandedParser.*)
     }
   }
 
