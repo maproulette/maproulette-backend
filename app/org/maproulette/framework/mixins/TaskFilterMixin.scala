@@ -6,7 +6,6 @@ package org.maproulette.framework.mixins
 
 import org.maproulette.framework.model.{User, Challenge, Project}
 import org.maproulette.framework.psql.{Query, _}
-import org.maproulette.framework.psql.{AND}
 import org.maproulette.framework.psql.filter._
 import org.maproulette.data.Actions
 
@@ -90,24 +89,19 @@ trait TaskFilterMixin {
     query.addFilterGroup(
       FilterGroup(
         List(
-          BaseParameter(
+          FilterParameter.conditional(
             Challenge.FIELD_DELETED,
-            true,
+            false,
             Operator.BOOL,
-            true,
-            useValueDirectly = true,
             table = Some("c")
           ),
-          BaseParameter(
+          FilterParameter.conditional(
             Project.FIELD_DELETED,
-            true,
+            false,
             Operator.BOOL,
-            true,
-            useValueDirectly = true,
             table = Some("p")
           )
-        ),
-        AND()
+        )
       )
     )
   }

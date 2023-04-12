@@ -111,20 +111,6 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
         )
       )
 
-    query = query.addFilterGroup(
-      FilterGroup(
-        List(
-          BaseParameter(
-            Challenge.FIELD_ENABLED,
-            true,
-            Operator.BOOL,
-            useValueDirectly = true,
-            table = Some("c")
-          )
-        )
-      )
-    )
-
     query = params.taskParams.excludeTaskIds match {
       case Some(excludedIds) if !excludedIds.isEmpty =>
         //this.appendInWhereClause(whereClause, s"(tasks.id NOT IN (${excludedIds.mkString(",")}))")
