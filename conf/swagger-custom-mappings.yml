@@ -7,3 +7,7 @@
     specAsParameter: []
     specAsProperty:
       type: object
+  - type: play\.api\.libs\.oauth\.requesttoken
+    specAsParameter: []
+    specAsProperty:
+      type: object
