@@ -7,7 +7,8 @@
 #     description: A OsmChange XML definition that would be sent to the OpenStreetMap servers. For more information see https://wiki.openstreetmap.org/wiki/OsmChange
 #     content:
 #       application: xml
-#         schema: string
+#         schema:
+#           type: string
 #   '401':
 #     description: The user is not authorized to make this request
 # parameters:
@@ -34,7 +35,8 @@ POST    /change/tag/test                            @org.maproulette.controllers
 #     description: A OsmChange XML definition that would be sent to the OpenStreetMap servers. For more information see https://wiki.openstreetmap.org/wiki/OsmChange
 #     content:
 #       application: xml
-#         schema: string
+#         schema:
+#           type: string
 #   '401':
 #     description: The user is not authorized to make this request
 # requestBody:
@@ -57,7 +59,8 @@ POST    /change/test                        @org.maproulette.controllers.OSMChan
 #     description: A OsmChange XML definition that would be sent to the OpenStreetMap servers. For more information see https://wiki.openstreetmap.org/wiki/OsmChange
 #     content:
 #       application: xml
-#         schema: string
+#         schema:
+#           type: string
 #   '401':
 #     description: The user is not authorized to make this request
 # parameters:
