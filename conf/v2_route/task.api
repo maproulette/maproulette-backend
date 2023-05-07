@@ -683,7 +683,8 @@ PUT     /task/:id/review/:status                           @org.maproulette.fram
 #   '401':
 #     description: The user is not authorized to make this request
 # parameters:
-#   - name: task ids
+#   - name: ids
+#     in: query
 #     description: Task ids to change (OR search parameters can be used instead)
 ###
 PUT     /tasks/review/remove                               @org.maproulette.framework.controller.TaskReviewController.removeReviewRequest(ids:String?="", asMetaReview:Boolean ?= false)
@@ -828,5 +829,8 @@ GET     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.c
 # tags: [ Task ]
 # summary: Retrieves task clusters. USE PUT METHOD
 # deprecated: true
+# responses:
+#   '200':
+#     description: Success
 ###
 GET     /taskCluster                                @org.maproulette.framework.controller.TaskController.getTaskClusters(points:Int ?= 100)

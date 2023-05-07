@@ -793,11 +793,14 @@ GET     /challenge/:cid/tasks/randomTasks           @org.maproulette.controllers
 #           items:
 #             $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
+#   - name: cid
+#     in: path
+#     description: The id of the parent Challenge limiting the tasks to only a descendent of that Challenge.
 #   - name: limit
 #     in: query
 #     description: Limit the number of results returned in the response. Default value is 5.
-#   - name: proximity
-#     in: query
+#   - name: proximityId
+#     in: path
 #     description: Id of task around which geographically closest tasks are desired
 #   - name: excludeSelfLocked
 #     in: query
@@ -904,17 +907,21 @@ GET     /challenge/:cid/previousTask/:id            @org.maproulette.controllers
 #   - name: reviewStatus
 #     in: query
 #     description: Can filter the Tasks returned by the reviewStatus of the Task. 0 - Requested, 1 - Approved, 2 - Rejected, 3 - Assisted, 4 - Disputed
-#   - name: taskPropertySearch
-#     in: POST form data
-#     description: Can filter by specific task properties.
 #   - name: timezone
 #     in: query
 #     description: A timezone offset to apply to time fields. Format should be like '+HH:MM'. Default is GMT (+00:00)
-#     required: optional
 #   - name: filename
 #     in: query
 #     description: Optional filename to be used for the export
-#     default: challenge_geojson.json
+#     schema:
+#       type: string
+#       default: challenge_geojson.json
+# requestBody:
+#   description: Can filter by specific task properties.
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/org.maproulette.session.TaskPropertySearch'
 ###
 GET     /challenge/view/:id                         @org.maproulette.controllers.api.ChallengeController.getChallengeGeoJSON(id:Long, status:String ?= "", reviewStatus:String ?= "", priority:String ?= "", timezone:String ?= "", filename:String ?= "")
 ###
@@ -942,10 +949,15 @@ GET     /challenge/view/:id                         @org.maproulette.controllers
 #   - name: filename
 #     in: query
 #     description: Optional filename to be used for the export
-#     default: challenge_geojson.json
-#   - name: taskPropertySearch
-#     in: POST form data
-#     description: Can filter by specific task properties.
+#     schema:
+#       type: string
+#       default: challenge_geojson.json
+# requestBody:
+#   description: Can filter by specific task properties.
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/org.maproulette.session.TaskPropertySearch'
 ###
 POST    /challenge/view/:id                         @org.maproulette.controllers.api.ChallengeController.getChallengeGeoJSON(id:Long, status:String ?= "", reviewStatus:String ?= "", priority:String ?= "", timezone:String ?= "", filename:String ?= "")
 ###
@@ -1012,7 +1024,7 @@ PUT     /challenge/:id/resetTaskInstructions        @org.maproulette.controllers
 # tags: [ Challenge ]
 # summary: Retrieve all comments for Challenge
 # description: This will retrieve all the comments for all the children tasks of a given challenge
-# response:
+# responses:
 #   '200':
 #     description: A list of comments for that challenge
 #     content:
@@ -1038,7 +1050,7 @@ GET     /challenge/:id/comments                     @org.maproulette.controllers
 # tags: [ Challenge ]
 # summary: Retrieve all comments for Challenge
 # description: This will retrieve all the comments for all the children tasks of a given challenge and respond with a csv
-# response:
+# responses:
 #   '200':
 #     description: A CSV file containing the following data "ProjectID,ChallengeID,TaskID,OSM_UserID,OSM_Username,Comments,TaskLink"
 #   '404':
@@ -1060,7 +1072,7 @@ GET     /challenge/:id/comments/extract             @org.maproulette.controllers
 # tags: [ Challenge ]
 # summary: Retrieve summaries of all tasks for Challenge
 # description: This will retrieve summaries of all the tasks of a given challenge and respond with a csv
-# response:
+# responses:
 #   '200':
 #     description: A CSV file containing the following data "TaskID,ChallengeID,TaskName,TaskStatus,TaskPriority,Username"
 #   '404':
@@ -1085,20 +1097,22 @@ GET     /challenge/:id/comments/extract             @org.maproulette.controllers
 #   - name: reviewStatus
 #     in: query
 #     description: Can filter the Tasks returned by the reviewStatus of the Task. 0 - Requested, 1 - Approved, 2 - Rejected, 3 - Assisted, 4 - Disputed
-#   - name: taskPropertySearch
-#     in: POST form data
-#     description: Can filter by specific task properties.
 #   - name: timezone
 #     in: query
 #     description: A timezone offset to apply to time fields. Format should be like '+HH:MM'. Default is GMT (+00:00)
-#     required: optional
+# requestBody:
+#   description: Can filter by specific task properties.
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/org.maproulette.session.TaskPropertySearch'
 ###
 GET     /challenge/:id/tasks/extract             @org.maproulette.controllers.api.ChallengeController.extractTaskSummaries(id:Long, limit:Int ?= -1, page:Int ?= 0, status:String ?= "", reviewStatus:String ?= "", priority:String ?= "", exportProperties:String ?= "", timezone:String ?= "")
 ###
 # tags: [ Challenge ]
 # summary: Retrieve task review history of a Challenge
 # description: This will retrieve review history of all the tasks of a given challenge and respond with a csv
-# response:
+# responses:
 #   '200':
 #     description: A CSV file containing the following data "ID,TaskID,RequestedBy,ReviewedBy,ReviewStatus,ReviewedAt,ReviewStartedAt,OriginalReviewer,MetaReviewStatus,MetaReviewedBy,MetaReviewedAt"
 #   '404':
@@ -1114,7 +1128,7 @@ GET     /challenge/:id/extractReviewHistory             @org.maproulette.control
 # tags: [ Challenge ]
 # summary: Retrieve summaries of all tasks for Challenge
 # description: This will retrieve summaries of all the tasks of a given challenge and respond with a csv
-# response:
+# responses:
 #   '200':
 #     description: A CSV file containing the following data "TaskID,ChallengeID,TaskName,TaskStatus,TaskPriority,Username"
 #   '404':
@@ -1139,20 +1153,22 @@ GET     /challenge/:id/extractReviewHistory             @org.maproulette.control
 #   - name: reviewStatus
 #     in: query
 #     description: Can filter the Tasks returned by the reviewStatus of the Task. 0 - Requested, 1 - Approved, 2 - Rejected, 3 - Assisted, 4 - Disputed
-#   - name: taskPropertySearch
-#     in: POST form data
-#     description: Can filter by specific task properties.
 #   - name: timezone
 #     in: query
 #     description: A timezone offset to apply to time fields. Format should be like '+HH:MM'. Default is GMT (+00:00)
-#     required: optional
+# requestBody:
+#   description: Can filter by specific task properties.
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/org.maproulette.session.TaskPropertySearch'
 ###
 POST     /challenge/:id/tasks/extract             @org.maproulette.controllers.api.ChallengeController.extractTaskSummaries(id:Long, limit:Int ?= -1, page:Int ?= 0, status:String ?= "", reviewStatus:String ?= "", priority:String ?= "", exportProperties:String ?= "", timezone:String ?= "")
 ###
 # tags: [ Challenge ]
 # summary: Match OSM Changesets
 # description: This will go through every task and try to match an OSM changeset with the task
-# response:
+# responses:
 #   '200':
 #     description: Will always return Ok unless not authenticated
 #   '401':
@@ -1167,14 +1183,16 @@ POST     /challenge/:id/tasks/extract             @org.maproulette.controllers.a
 #   - name: skipSet
 #     in: query
 #     description: Will skip any tasks if the changesets are already set if this is set to true
-#     default: false
+#     schema:
+#       type: boolean
+#       default: false
 ###
 GET     /challenge/:id/matchChangesets          @org.maproulette.controllers.api.ChallengeController.matchChangeSets(id:Long, skipSet:Boolean ?= false)
 ###
 # tags: [ Challenge ]
 # summary: Create Challenge from Github
 # description: This will pull the following files from Github, ${name}_create.json, ${name}_geojson.json, ${name}_info.md, and create a Challenge from it. The create file will be the json used to create the challenge. Similarly to if you supplied json in the create method. The info.md file is just an informational file that can be used later for challenge information to the user. And geojson.json which is used to generate the tasks. If the challenge has been previously created, it will just update the tasks from the geojson
-# response:
+# responses:
 #   '200':
 #     description: The retrieved Challenge
 #     content:
@@ -1208,7 +1226,7 @@ POST     /project/:projectId/challenge/:username/:repo/:name   @org.maproulette.
 # tags: [ Challenge ]
 # summary: Extracts a Challenge Package
 # description: This will retrieve a package of the challenge, which will contain json to recreate the challenge, geojson to recreate the tasks, info page in md format if any, all the comments extracted from for the challenge and any metrics and the time the challenge was extracted.
-# response:
+# responses:
 #   '200':
 #     description: A gzipped file containing a package of the challenge
 #   '401':
@@ -1270,7 +1288,7 @@ PUT     /challenge/:id/tasks                        @org.maproulette.controllers
 # tags: [ Challenge ]
 # summary: Update archive status
 # description: This will update the archive status of the challenge
-# response:
+# responses:
 #   '200':
 #     description: a success message
 #   '401':

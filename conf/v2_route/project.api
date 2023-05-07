@@ -136,8 +136,9 @@ GET     /projectByName/:name                        @org.maproulette.framework.c
 #   - name: immediate
 #     in: query
 #     description: If set to true, will delete the project immediately instead of delayed and deleted through a scheduled job on the backend
-#     default: false
-#     type: boolean
+#     schema:
+#       type: boolean
+#       default: false
 ###
 DELETE  /project/:id                                @org.maproulette.framework.controller.ProjectController.delete(id:Long, immediate:Boolean ?= false)
 ###
@@ -305,7 +306,7 @@ GET     /project/:id/challenges                     @org.maproulette.framework.c
 # tags: [ Project ]
 # summary: Retrieve all comments for Project
 # description: This will retrieve all the comments of the descendent tasks of a given Project
-# response:
+# responses:
 #   '200':
 #     description: A list of comments of the descendent tasks of a given Project
 #     content:
@@ -331,7 +332,7 @@ GET     /project/:id/comments                     @org.maproulette.framework.con
 # tags: [ Project ]
 # summary: Retrieve summaries of all tasks in a Project
 # description: This will retrieve summaries of all the tasks of a given project and respond with a csv
-# response:
+# responses:
 #   '200':
 #     description: A CSV file containing the following data "TaskID,ChallengeID,TaskName,TaskStatus,TaskPriority,Username"
 #   '404':
