@@ -70,7 +70,7 @@ components:
           description: "Whether this project is enabled for use or not"
           default: false
         displayName:
-          type: String
+          type: string
           example: "My Project"
           description: "The friendly name that can be displayed to users"
         deleted:
