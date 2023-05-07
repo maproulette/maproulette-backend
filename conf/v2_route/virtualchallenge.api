@@ -118,10 +118,8 @@ GET     /virtualchallengebyname/:name                   @org.maproulette.control
 #   - name: immediate
 #     in: query
 #     description: If set to true, will delete the virtual challenge immediately instead of delayed
-#     default: false
-#     type: boolean
 ###
-DELETE  /virtualchallenge/:id                           @org.maproulette.controllers.api.VirtualChallengeController.delete(id:Long, immediate:Boolean ?= true)
+DELETE  /virtualchallenge/:id                           @org.maproulette.controllers.api.VirtualChallengeController.delete(id:Long, immediate:Boolean ?= false)
 ###
 # tags: [ Virtual Challenge ]
 # summary: List all the Virtual Challenge.
