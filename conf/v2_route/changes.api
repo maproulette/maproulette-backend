@@ -2,10 +2,12 @@
 # tags: [ Changes ]
 # summary: Test Changes
 # description: Takes in a group of changes and instead of submitting them to OSM will return a standard OSMChange XML that would have been submitted to the OSM servers
-# produces: [ application/xml ]
 # responses:
 #   '200':
 #     description: A OsmChange XML definition that would be sent to the OpenStreetMap servers. For more information see https://wiki.openstreetmap.org/wiki/OsmChange
+#     content:
+#       application: xml
+#         schema: string
 #   '401':
 #     description: The user is not authorized to make this request
 # parameters:
@@ -27,10 +29,12 @@ POST    /change/tag/test                            @org.maproulette.controllers
 # tags: [ Changes ]
 # summary: Test OSM changes (currently only node creation or tag changes)
 # description: Takes in a set of changes and, instead of submitting them to OSM, will return a standard OSMChange XML that would have been submitted to the OSM servers
-# produces: [ application/xml ]
 # responses:
 #   '200':
 #     description: A OsmChange XML definition that would be sent to the OpenStreetMap servers. For more information see https://wiki.openstreetmap.org/wiki/OsmChange
+#     content:
+#       application: xml
+#         schema: string
 #   '401':
 #     description: The user is not authorized to make this request
 # requestBody:
@@ -48,10 +52,12 @@ POST    /change/test                        @org.maproulette.controllers.OSMChan
 # tags: [ Changes ]
 # summary: Apply Tag Changes for task
 # description: Submit a group of changes to OSM. Will return a standard OSMChange XML that has been applied to the OSM servers standard OSMChange XML that would have been submitted to the OSM servers
-# produces: [ application/xml ]
 # responses:
 #   '200':
 #     description: A OsmChange XML definition that would be sent to the OpenStreetMap servers. For more information see https://wiki.openstreetmap.org/wiki/OsmChange
+#     content:
+#       application: xml
+#         schema: string
 #   '401':
 #     description: The user is not authorized to make this request
 # parameters:
