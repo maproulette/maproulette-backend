@@ -6,7 +6,7 @@
 #   '200':
 #     description: A OsmChange XML definition that would be sent to the OpenStreetMap servers. For more information see https://wiki.openstreetmap.org/wiki/OsmChange
 #     content:
-#       application: xml
+#       application/xml:
 #         schema:
 #           type: string
 #   '401':
@@ -34,7 +34,7 @@ POST    /change/tag/test                            @org.maproulette.controllers
 #   '200':
 #     description: A OsmChange XML definition that would be sent to the OpenStreetMap servers. For more information see https://wiki.openstreetmap.org/wiki/OsmChange
 #     content:
-#       application: xml
+#       application/xml:
 #         schema:
 #           type: string
 #   '401':
@@ -58,7 +58,7 @@ POST    /change/test                        @org.maproulette.controllers.OSMChan
 #   '200':
 #     description: A OsmChange XML definition that would be sent to the OpenStreetMap servers. For more information see https://wiki.openstreetmap.org/wiki/OsmChange
 #     content:
-#       application: xml
+#       application/xml:
 #         schema:
 #           type: string
 #   '401':
