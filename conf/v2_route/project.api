@@ -345,11 +345,11 @@ GET     /project/:id/comments                     @org.maproulette.framework.con
 #   - name: cId
 #     in: query
 #     description: A list of challengeIds to include. If not provided, then all challenges in the project are used.
-#     required: optional
+#     required: false
 #   - name: timezone
 #     in: query
 #     description: A timezone offset to apply to time fields. Format should be like '+HH:MM'. Default is GMT (+00:00)
-#     required: optional
+#     required: false
 ###
 GET     /project/:projectId/tasks/extract             @org.maproulette.controllers.api.ChallengeController.extractAllTaskSummaries(projectId:Long, cId:Option[String], timezone:String ?= "")
 ###
@@ -384,5 +384,8 @@ GET     /project/:id/tasks                          @org.maproulette.framework.c
 # tags: [ Project ]
 # summary: Find project matching search criteria. Use GET /projects to find instead.
 # deprecated: true
+# responses:
+#   '200':
+#     description: success
 ###
 GET     /projects/find                              @org.maproulette.framework.controller.ProjectController.find(q:String ?= "", limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= true)

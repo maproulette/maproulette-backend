@@ -9,7 +9,6 @@
 #     content:
 #       application/json:
 #         schema:
-#           type: object
 #           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: id
@@ -574,6 +573,10 @@ PUT     /task/:id/changeset                         @org.maproulette.controllers
 #     description: The ID of the task
 # requestBody:
 #   description: key/value json to be stored with this task.
+#   content:
+#     application/json:
+#       schema:
+#         type: object
 ###
 PUT     /task/:id/responses                           @org.maproulette.framework.controller.TaskController.updateCompletionResponses(id:Long)
 ###
@@ -605,6 +608,11 @@ PUT     /task/:id/responses                           @org.maproulette.framework
 #     description: Optional tags to associate with this task
 # requestBody:
 #   description: Optional key/value json to be stored with this task.
+#   required: false
+#   content:
+#     application/json:
+#       schema:
+#         type: object
 ###
 PUT     /task/:id/:status                           @org.maproulette.controllers.api.TaskController.setTaskStatus(id:Long, status:Int, comment:String ?= "", tags:String ?="")
 ###
@@ -823,6 +831,9 @@ GET     /tasksInCluster/:clusterId                  @org.maproulette.framework.c
 # tags: [ Task ]
 # summary: Retrieves Tasks within a bounding box
 # deprecated: true
+# responses:
+#   '200':
+#     description: Success
 ###
 GET     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.controller.TaskController.getTasksInBoundingBox(left:Double, bottom:Double, right:Double, top:Double, limit:Int ?= 10000, page:Int ?= 0, excludeLocked:Boolean ?= false, sort:String ?= "", order:String ?= "ASC", includeTotal:Boolean ?= false, includeGeometries:Boolean ?=false, includeTags:Boolean ?= false)
 ###

@@ -1,36 +1,57 @@
 ###
 # tags: [ Tag ]
 # deprecated: true
+# responses:
+#   '200':
+#     description: Success
 ###
 POST    /tags                                       @org.maproulette.framework.controller.TagController.batchUploadPost
 ###
 # tags: [ Tag ]
 # deprecated: true
+# responses:
+#   '200':
+#     description: Success
 ###
 POST    /tag                                        @org.maproulette.framework.controller.TagController.insert
 ###
 # tags: [ Tag ]
 # deprecated: true
+# responses:
+#   '200':
+#     description: Success
 ###
 PUT     /tag/:id                                    @org.maproulette.framework.controller.TagController.update(id:Long)
 ###
 # tags: [ Tag ]
 # deprecated: true
+# responses:
+#   '200':
+#     description: Success
 ###
 PUT     /tags                                       @org.maproulette.framework.controller.TagController.batchUploadPut
 ###
 # tags: [ Tag ]
 # deprecated: true
+# responses:
+#   '200':
+#     description: Success
 ###
 GET     /tag/:id                                    @org.maproulette.framework.controller.TagController.retrieve(id:Long)
 ###
 # tags: [ Tag ]
 # deprecated: true
+# responses:
+#   '200':
+#     description: Success
 ###
 DELETE  /tag/:id                                    @org.maproulette.framework.controller.TagController.delete(id:Long)
 ###
 # tags: [ Tag ]
 # deprecated: true
+# responses:
+#   '200':
+#     description: Success
 ###
 GET     /tags                                       @org.maproulette.framework.controller.TagController.getTags(prefix: String ?= "", tagType: String ?= "", limit: Int ?= 10, page: Int ?= 0)
 ###

@@ -86,11 +86,12 @@ GET     /tasks/review                          @org.maproulette.framework.contro
 # responses:
 #   '200':
 #     description: The list of tasks and total count
-#     description: The list of tasks
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: startDate
 #     in: query
