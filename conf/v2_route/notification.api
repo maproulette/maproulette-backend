@@ -5,10 +5,12 @@
 # responses:
 #   '200':
 #     description: The retrieved UserNotifications
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.UserNotification'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.UserNotification'
 #   '401':
 #     description: The user is not authorized to make this request
 # parameters:
@@ -93,10 +95,12 @@ PUT  /user/:userId/notifications/delete                 @org.maproulette.framewo
 # responses:
 #   '200':
 #     description: The retrieved NotificationSubscriptions
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.UserNotification'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.UserNotification'
 #   '401':
 #     description: The user is not authorized to make this request
 # parameters:

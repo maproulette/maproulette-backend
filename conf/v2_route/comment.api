@@ -24,10 +24,12 @@ GET     /comment/:id                                @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: The comments
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
 #   '404':
 #     description: If the Task is not found
 # parameters:
@@ -157,10 +159,12 @@ POST    /challenge/:id/comment                           @org.maproulette.framew
 # responses:
 #   '200':
 #     description: The comments
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeComment'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeComment'
 #   '404':
 #     description: If the Challenge is not found
 # parameters:

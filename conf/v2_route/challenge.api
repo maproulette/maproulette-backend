@@ -153,10 +153,12 @@ DELETE  /challenge/:id/tasks                        @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: A list of Challenges found
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: q
 #     in: query
@@ -182,43 +184,71 @@ GET     /challenges/find                            @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: A list of Challenges found
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: pid
 #     in: query
+#     schema:
+#       type: integer
 #     description: The id of the project to limit your search too
 #   - name: ps
 #     in: query
+#     schema:
+#       type: string
 #     description: The search string used to match the project names. Default value is empty string, ie. will match all projects.
 #   - name: pe
 #     in: query
+#     schema:
+#       type: boolean
 #     description: Boolean variable true|false that limits the search by enabled projects only if set to true. Default will is true.
 #   - name: ct
 #     in: query
+#     schema:
+#       type: array
+#       items:
+#         type: integer
 #     description: Comma separated list of tags to limit the returned challenges by
 #   - name: cs
 #     in: query
+#     schema:
+#       type: string
 #     description: The search string used to match the Challenge names. Default value is empty string, ie. will match all challenges.
 #   - name: ce
 #     in: query
+#     schema:
+#       type: boolean
 #     description: Boolean variable true|false that limits the search by enabled projects only if set to true. Default will is true.
 #   - name: cd
 #     in: query
+#     schema:
+#       type: integer
+#       enum: [1, 2, 3, -1]
 #     description: The difficulty level to limit the returned challenges by. Following difficulty Integers can be used. 1 - Easy, 2 - Normal, 3 - Expert, -1 - Any difficulty. Default value is -1.
 #   - name: limit
 #     in: query
+#     schema:
+#       type: integer
 #     description: Limit the number of results returned in the response. Default value is 10.
 #   - name: page
 #     in: query
+#     schema:
+#       type: integer
 #     description: Used in conjunction with the limit parameter to page through X number of responses. Default value is 0, ie. first page.
 #   - name: sort
 #     in: query
-#     description: Sorts the results retuned in the response. Parameter is optional, if not provided then results will not be sorted.
+#     schema:
+#       type: boolean
+#     description: Sorts the results returned in the response. Parameter is optional, if not provided then results will not be sorted.
 #   - name: order
 #     in: query
+#     schema:
+#       type: string
+#       enum: [ ASC, DESC ]
 #     description: Sort order direction. Either ASC or DESC. Default is "ASC" (ascending)
 ###
 GET     /challenges/extendedFind                    @org.maproulette.controllers.api.ChallengeController.extendedFind(limit:Int ?= 10, page:Int ?= 0, sort:String ?= "", order:String ?= "ASC")
@@ -229,16 +259,20 @@ GET     /challenges/extendedFind                    @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: A listing of challenges containing a few basic fields for each.
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeListing'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeListing'
 # parameters:
 #   - name: projectIds
 #     in: query
 #     description: Comma-separated list of project ids for which child challenges are desired. Default value is empty string, ie. all projects.
 #   - name: parentId
 #     in: query
+#     schema:
+#       type: integer
 #     description: This field will be ignored for this request
 #   - name: limit
 #     in: query
@@ -258,10 +292,12 @@ GET     /challenges/listing                         @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: Empty status body
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Tag'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Tag'
 # parameters:
 #   - name: id
 #     in: path
@@ -278,10 +314,12 @@ POST     /challenge/:id/project/:projectId           @org.maproulette.controller
 # responses:
 #   '200':
 #     description: list of challenge IDs successfully moved
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Tag'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Tag'
 # parameters:
 #   - name: projectId
 #     in: path
@@ -308,10 +346,12 @@ POST     /challenges/project/:projectId           @org.maproulette.controllers.a
 # responses:
 #   '200':
 #     description: A list of Tags associated with the Challenge. Empty array if not found.
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Tag'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Tag'
 # parameters:
 #   - name: id
 #     in: path
@@ -325,10 +365,12 @@ GET     /challenge/:id/tags                         @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: A list of Challenges that contain at least one of the supplied tags. An empty list otherwise.
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 #   '400':
 #     description: If not tags are supplied a BadRequest response will be returned
 # parameters:
@@ -370,10 +412,12 @@ DELETE  /challenge/:id/tags                         @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: A list of all the featured Challenges
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: limit
 #     in: query
@@ -390,10 +434,12 @@ GET     /challenges/featured                        @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: A list of all the hottest Challenges in order of recent popularity
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: limit
 #     in: query
@@ -410,8 +456,10 @@ GET     /challenges/hot                             @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: A map of each list challenge types ("popular":[], "featured":[], "newest":[])
-#     schema:
-#       type: object
+#     content:
+#       application/json:
+#         schema:
+#           type: object
 # parameters:
 #   - name: limit
 #     in: query
@@ -425,10 +473,12 @@ GET     /challenges/preferred                             @org.maproulette.contr
 # responses:
 #   '200':
 #     description: A list of all the Challenges
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: limit
 #     in: query
@@ -448,23 +498,22 @@ GET     /challenges                                 @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: A success message
-# parameters:
 # requestBody:
 #   required: true
 #   content:
 #     application/json:
-#     schema:
-#       type: object
-#       properties:
-#         ids:
-#           description: A JSON array of challenge IDs
-#           type: array
-#           items:
-#             type: integer
-#         isArchived:
-#           description: a boolean indicating if challenges should be archived (true) or unarchived (false)
-#           type: boolean
-#       required: [ ids, isArchived ]
+#       schema:
+#         type: object
+#         properties:
+#           ids:
+#             description: A JSON array of challenge IDs
+#             type: array
+#             items:
+#               type: integer
+#           isArchived:
+#             description: a boolean indicating if challenges should be archived (true) or unarchived (false)
+#             type: boolean
+#         required: [ ids, isArchived ]
 ###
 POST     /challenges/bulkArchive                    @org.maproulette.controllers.api.ChallengeController.bulkArchive()
 ###
@@ -474,10 +523,12 @@ POST     /challenges/bulkArchive                    @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: A list of all the Challenges with review tasks
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: reviewTasksType
 #     in: query
@@ -503,10 +554,12 @@ GET     /review/challenges                                 @org.maproulette.fram
 # responses:
 #   '200':
 #     description: A list of all the Tasks
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: id
 #     in: path
@@ -537,6 +590,10 @@ GET     /challenge/:id/tasks                        @org.maproulette.controllers
 # requestBody:
 #   description: The geojson to build the tasks from.
 #   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: object
 ###
 PUT     /challenge/:id/addTasks                     @org.maproulette.controllers.api.ChallengeController.addTasksToChallenge(id:Long)
 ###
@@ -567,14 +624,16 @@ PUT     /challenge/:id/addTasks                     @org.maproulette.controllers
 #                  will be recreated if they still appear in the updated source
 #                  data. If set to false, unmatched existing tasks are simply
 #                  left as-is.
-#     default: false
 #   - name: skipSnapshot
 #     in: query
 #     description: If included will skip recording a snapshot before proceeding. (By default false, so it will create snapshot.)
-#     default: false
 # requestBody:
 #   description: The geojson to build the tasks from.
 #   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: object
 ###
 PUT     /challenge/:id/addFileTasks                 @org.maproulette.controllers.api.ChallengeController.addTasksToChallengeFromFile(id:Long, lineByLine:Boolean ?= true, removeUnmatched:Boolean ?= false, dataOriginDate:Option[String], skipSnapshot:Boolean ?= false)
 ###
@@ -586,10 +645,12 @@ PUT     /challenge/:id/addFileTasks                 @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: The Challenge with all the Task Challenge objects of the Challenge in a JSON array in the key "children"
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: id
 #     in: path
@@ -651,11 +712,9 @@ PUT     /challenge/:id/clone/:name                  @org.maproulette.controllers
 #                  will be recreated if they still appear in the updated source
 #                  data. If set to false, unmatched existing tasks are simply
 #                  left as-is.
-#     default: false
 #   - name: skipSnapshot
 #     in: query
 #     description: If included will skip recording a snapshot before proceeding. (By default false, so it will create snapshot.)
-#     default: false
 ###
 PUT     /challenge/:id/rebuild                      @org.maproulette.controllers.api.ChallengeController.rebuildChallenge(id:Long, removeUnmatched:Boolean ?= false, skipSnapshot:Boolean ?= false)
 ###
@@ -665,10 +724,12 @@ PUT     /challenge/:id/rebuild                      @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: The list of tasks that match the search criteria
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: cid
 #     in: path
@@ -694,10 +755,12 @@ GET     /challenge/:cid/tasks/random                @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: The list of tasks that match the search criteria
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: cid
 #     in: path
@@ -723,10 +786,12 @@ GET     /challenge/:cid/tasks/randomTasks           @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: The list of geographically closest tasks
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: limit
 #     in: query
@@ -747,10 +812,12 @@ GET     /challenge/:cid/tasksNearby/:proximityId           @org.maproulette.cont
 # responses:
 #   '200':
 #     description: The list of tasks that match the search criteria
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: cid
 #     in: path
@@ -888,10 +955,12 @@ POST    /challenge/view/:id                         @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: An array of clustered point representations for a Task. If none found will return an empty list
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.ClusteredPoint'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.ClusteredPoint'
 # parameters:
 #   - name: id
 #     in: path

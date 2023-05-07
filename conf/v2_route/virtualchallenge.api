@@ -129,10 +129,12 @@ DELETE  /virtualchallenge/:id                           @org.maproulette.control
 # responses:
 #   '200':
 #     description: A list of all the Virtual Challenges
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.models.VirtualChallenge'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.models.VirtualChallenge'
 # parameters:
 #   - name: limit
 #     in: query
@@ -149,10 +151,12 @@ GET     /virtualchallenges                              @org.maproulette.control
 # responses:
 #   '200':
 #     description: A list of all the Tasks
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: id
 #     in: path
@@ -251,10 +255,12 @@ GET     /virtualchallenge/view/:id                  @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: An array of clustered point representations for a Task. If none found will return an empty list
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.ClusteredPoint'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.ClusteredPoint'
 # parameters:
 #   - name: id
 #     in: path
@@ -271,10 +277,12 @@ GET     /virtualchallenge/clustered/:id             @org.maproulette.controllers
 # responses:
 #   '200':
 #     description: The list of geographically closest tasks
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: limit
 #     in: query

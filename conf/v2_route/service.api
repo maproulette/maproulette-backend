@@ -5,8 +5,9 @@
 # responses:
 #   '200':
 #     description: Service information
-#     schema:
-#       type: object
-#       $ref: '#/components/schemas/org.maproulette.models.service.info.ServiceInfo'
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.models.service.info.ServiceInfo'
 ###
 GET     /service/info                      @org.maproulette.framework.controller.ServiceInfoController.getServiceInfo()

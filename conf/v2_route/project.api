@@ -83,10 +83,12 @@ GET     /project/:id                                @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: A list of projects, empty list if none found
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/Project'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/Project'
 # parameters:
 #   - name: projectIds
 #     in: query
@@ -145,10 +147,12 @@ DELETE  /project/:id                                @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: An array of all the featured projects
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/Project'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/Project'
 # parameters:
 #   - name: onlyEnabled
 #     in: query
@@ -168,10 +172,12 @@ GET     /projects/featured                          @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: A list of all the projects
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/Project'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/Project'
 # parameters:
 #   - name: limit
 #     in: query
@@ -191,10 +197,12 @@ GET     /projects                                   @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: A list of all the projects
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/Project'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/Project'
 # parameters:
 #   - name: limit
 #     in: query
@@ -275,10 +283,12 @@ GET     /project/search/clustered                   @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: A list of all the challenges
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 # parameters:
 #   - name: id
 #     in: path
@@ -348,10 +358,12 @@ GET     /project/:projectId/tasks/extract             @org.maproulette.controlle
 # responses:
 #   '200':
 #     description: The list of tasks that match the search criteria
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 # parameters:
 #   - name: id
 #     in: path

@@ -9,27 +9,61 @@
 #   - name: userIds
 #     in: query
 #     description: The optional user ids to search by
+#     required: false
+#     schema:
+#       type: array
+#       items:
+#         type: integer
 #   - name: projectIds
 #     in: query
 #     description: The optional project ids to search by
+#     required: false
+#     schema:
+#       type: array
+#       items:
+#         type: integer
 #   - name: challengeIds
 #     in: query
 #     description: The optional challenge ids to search by
+#     required: false
+#     schema:
+#       type: array
+#       items:
+#         type: integer
 #   - name: countryCodes
 #     in: query
 #     description: The optional country codes to search by
+#     required: false
+#     schema:
+#       type: array
+#       items:
+#         type: string
 #   - name: monthDuration
 #     in: query
 #     description: The optional number of past months to search by (with 0 as current month and -1 as all time)
+#     required: false
+#     schema:
+#       type: integer
 #   - name: start
 #     in: query
 #     description: The optional start date when not using monthDuration
+#     required: false
+#     schema:
+#       type: string
+#       format: date
 #   - name: end
 #     in: query
 #     description: The optional end date when not using monthDuration
+#     required: false
+#     schema:
+#       type: string
+#       format: date
 #   - name: onlyEnabled
 #     in: query
 #     description: Limit search to only enabled challenges
+#     required: false
+#     schema:
+#       type: boolean
 ###
 GET     /data/user/leaderboard                      @org.maproulette.framework.controller.LeaderboardController.getMapperLeaderboard(limit:Int ?= 20, offset:Int ?= 0)
 ###
@@ -43,30 +77,54 @@ GET     /data/user/leaderboard                      @org.maproulette.framework.c
 #   - name: userId
 #     in: query
 #     description: User id to fetch ranking for.
+#     schema:
+#       type: integer
 #   - name: projectIds
 #     in: query
 #     description: The optional project ids to search by
+#     schema:
+#       type: array
+#       items:
+#         type: integer
 #   - name: challengeIds
 #     in: query
 #     description: The optional challenge ids to search by
+#     schema:
+#       type: array
+#       items:
+#         type: integer
 #   - name: countryCodes
 #     in: query
 #     description: The optional country codes to search by
+#     schema:
+#       type: array
+#       items:
+#         type: string
 #   - name: monthDuration
 #     in: query
 #     description: The optional number of past months to search by (with 0 as current month and -1 as all time)
+#     schema:
+#       type: integer
 #   - name: start
 #     in: query
 #     description: The optional start date when not using monthDuration
+#     schema:
+#       type: string
 #   - name: end
 #     in: query
 #     description: The optional end date when not using monthDuration
+#     schema:
+#       type: string
 #   - name: onlyEnabled
 #     in: query
 #     description: Limit search to only enabled challenges
+#     schema:
+#       type: boolean
 #   - name: bracket
 #     in: query
 #     description: How many results before and after the found user to return
+#     schema:
+#       type: integer
 ###
 GET     /data/user/:userId/leaderboard              @org.maproulette.framework.controller.LeaderboardController.getLeaderboardForUser(userId:Long, bracket:Int ?= 0)
 ###
@@ -80,27 +138,49 @@ GET     /data/user/:userId/leaderboard              @org.maproulette.framework.c
 #   - name: userId
 #     in: query
 #     description: User id to fetch challenges for.
+#     schema:
+#       type: integer
 #   - name: projectIds
 #     in: query
 #     description: The optional project ids to search by
+#     schema:
+#       type: array
+#       items:
+#         type: integer
 #   - name: challengeIds
 #     in: query
 #     description: The optional challenge ids to search by
+#     schema:
+#       type: array
+#       items:
+#         type: integer
 #   - name: countryCodes
 #     in: query
 #     description: The optional country codes to search by
+#     schema:
+#       type: array
+#       items:
+#         type: string
 #   - name: monthDuration
 #     in: query
 #     description: The optional number of past months to search by (with 0 as current month and -1 as all time)
+#     schema:
+#       type: integer
 #   - name: start
 #     in: query
 #     description: The optional start date when not using monthDuration
+#     schema:
+#       type: string
 #   - name: end
 #     in: query
 #     description: The optional end date when not using monthDuration
+#     schema:
+#       type: string
 #   - name: onlyEnabled
 #     in: query
 #     description: Limit search to only enabled challenges
+#     schema:
+#       type: boolean
 ###
 GET     /data/user/:userId/topChallenges            @org.maproulette.framework.controller.LeaderboardController.getUserTopChallenges(userId:Long, limit:Int ?= 20, offset:Int ?= 0)
 ###
@@ -114,17 +194,35 @@ GET     /data/user/:userId/topChallenges            @org.maproulette.framework.c
 #   - name: projectIds
 #     in: query
 #     description: The optional project ids to search by
+#     schema:
+#       type: array
+#       items:
+#         type: integer
 #   - name: challengeIds
 #     in: query
 #     description: The optional challenge ids to search by
+#     schema:
+#       type: array
+#       items:
+#         type: integer
 #   - name: monthDuration
 #     in: query
 #     description: The optional number of past months to search by (with 0 as current month and -1 as all time)
+#     schema:
+#       type: integer
 #   - name: start
 #     in: query
 #     description: The optional start date when not using monthDuration
+#     required: false
+#     schema:
+#       type: string
+#       format: date
 #   - name: end
 #     in: query
 #     description: The optional end date when not using monthDuration
+#     required: false
+#     schema:
+#       type: string
+#       format: date
 ###
 GET     /data/reviewer/leaderboard                      @org.maproulette.framework.controller.LeaderboardController.getReviewerLeaderboard(limit:Int ?= 20, offset:Int ?= 0)

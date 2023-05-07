@@ -9,7 +9,6 @@
 #       application/json:
 #         schema:
 #           $ref: '#/components/schemas/org.maproulette.framework.model.Group'
-# parameters:
 # requestBody:
 #   description: The JSON structure for the team (a group) body
 #   required: true
@@ -69,10 +68,12 @@ GET     /team/:id                                   @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: a list of matching teams
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Group'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Group'
 #   '404':
 #     description: If the team is not found
 # parameters:
@@ -94,10 +95,12 @@ GET     /teams/find                                 @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: The users
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.TeamUser'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.TeamUser'
 #   '404':
 #     description: If the team is not found
 # parameters:
@@ -113,10 +116,12 @@ GET     /team/:id/userMembers                       @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: The memberships
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.TeamUser'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.TeamUser'
 #   '404':
 #     description: If the team is not found
 # parameters:
@@ -294,10 +299,12 @@ DELETE   /team/:teamId/project/:projectId        @org.maproulette.framework.cont
 # responses:
 #   '200':
 #     description: a list of teams
-#     schema:
-#       type: array
-#       items:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Group'
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Group'
 #   '401':
 #     description: The user is not authorized to make this request
 # parameters:
