@@ -29,6 +29,7 @@ security:
 components:
   schemas:
     Project:
+      type: object
       properties:
         id:
           readOnly: true
@@ -85,6 +86,7 @@ components:
       required:
         - name
     TaskBundle:
+      type: object
       properties:
         id:
           type: integer
@@ -120,6 +122,7 @@ components:
         - WAY
         - RELATION
     TagChange:
+      type: object
       properties:
         osmId:
           type: integer
@@ -144,6 +147,7 @@ components:
             - name
           description: "The tags that you want to delete from the feature"
     TagChangeResult:
+      type: object
       properties:
         osmId:
           type: integer
@@ -169,6 +173,7 @@ components:
           example:
             test: test!
     TagChangeSubmission:
+      type: object
       properties:
         comment:
           type: string
@@ -177,12 +182,14 @@ components:
           items:
             $ref: "#/components/schemas/TagChange"
     OSMChangeSubmission:
+      type: object
       properties:
         comment:
           type: string
         changes:
           $ref: "#/components/schemas/OSMChange"
     OSMChange:
+      type: object
       properties:
         creates:
           type: array
@@ -195,6 +202,7 @@ components:
             $ref: "#/components/schemas/ElementUpdate"
           description: "Set of features to update"
     ElementCreate:
+      type: object
       properties:
         osmId:
           readOnly: true
@@ -212,6 +220,7 @@ components:
           additionalProperties: true
           description: "The tags that should be included with the creation of the feature"
     ElementUpdate:
+      type: object
       properties:
         osmId:
           type: integer
@@ -227,6 +236,7 @@ components:
           $ref: "#/components/schemas/ElementTagChange"
           description: "The tag changes that should be updated for this feature"
     ElementTagChange:
+      type: object
       properties:
         updates:
           type: object
@@ -236,6 +246,7 @@ components:
           items:
             type: string
     Keyword:
+      type: object
       properties:
         id:
           type: integer
@@ -263,6 +274,7 @@ components:
       required:
         - name
     PublicOSMUser:
+      type: object
       properties:
         id:
           type: integer
@@ -275,11 +287,13 @@ components:
           type: string
           description: "The OSM User name"
     PublicUserSettings:
+      type: object
       properties:
         leaderboardOptOut:
           type: boolean
           description: "Whether the user has opted out of being displayed on the MapRoulette leaderboard"
     PublicUser:
+      type: object
       properties:
         id:
           type: integer
