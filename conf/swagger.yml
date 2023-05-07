@@ -116,6 +116,7 @@ components:
       required:
         - taskIds
     OSMType:
+      description: "The type of OSM feature, NODE, WAY or RELATION"
       type: string
       enum:
         - NODE
@@ -130,7 +131,6 @@ components:
           description: "The OSM identifier of the feature that will have it's tags changed"
         osmType:
           $ref: "#/components/schemas/OSMType"
-          description: "The type of OSM object, NODE, WAY or RELATION"
         updates:
           type: object
           additionalProperties:
@@ -211,7 +211,6 @@ components:
           description: "The OSM identifier of the newly created feature"
         osmType:
           $ref: "#/components/schemas/OSMType"
-          description: "The type of OSM feature, NODE, WAY or RELATION"
         fields:
           type: object
           additionalProperties: true
@@ -228,14 +227,13 @@ components:
           description: "The OSM identifier for the feature that is to be updated"
         osmType:
           $ref: "#/components/schemas/OSMType"
-          description: "The type of OSM feature, NODE, WAY or RELATION"
         version:
           type: integer
           description: "The version of the OSM feature that you are updating from"
         tags:
           $ref: "#/components/schemas/ElementTagChange"
-          description: "The tag changes that should be updated for this feature"
     ElementTagChange:
+      description: "The tag changes that should be updated for this feature"
       type: object
       properties:
         updates:
@@ -274,6 +272,7 @@ components:
       required:
         - name
     PublicOSMUser:
+      description: "Public OSM user information"
       type: object
       properties:
         id:
@@ -287,6 +286,7 @@ components:
           type: string
           description: "The OSM User name"
     PublicUserSettings:
+      description: "Extra public user settings"
       type: object
       properties:
         leaderboardOptOut:
@@ -301,7 +301,6 @@ components:
           description: "The identifier for the user"
         osmProfile:
           $ref: "#/components/schemas/PublicOSMUser"
-          description: "Public OSM user information"
         name:
           type: string
           description: "The OSM User name"
@@ -311,7 +310,6 @@ components:
           description: "The date that the user was created in MapRoulette"
         settings:
           $ref: "#/components/schemas/PublicUserSettings"
-          description: "Extra public user settings"
   securitySchemes:
     apiKey:
       type: apiKey
