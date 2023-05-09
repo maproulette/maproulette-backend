@@ -1,5 +1,7 @@
 import java.io.{BufferedWriter, FileWriter}
 import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.attribute.BasicFileAttributes
 import java.time.LocalDate
 import java.time.ZoneOffset
 import sbtbuildinfo.ScalaCaseClassRenderer
@@ -194,50 +196,74 @@ Compile / javaOptions ++= Seq(
   "-Xss32M"
 )
 
+// The apiv2.routes file should always be last as it contains the catch-all routes
+val routeFiles: Seq[String] = Seq(
+  "challenge.api",
+  "changes.api",
+  "comment.api",
+  "data.api",
+  "keyword.api",
+  "notification.api",
+  "project.api",
+  "review.api",
+  "snapshot.api",
+  "task.api",
+  "user.api",
+  "virtualchallenge.api",
+  "virtualproject.api",
+  "bundle.api",
+  "team.api",
+  "follow.api",
+  "leaderboard.api",
+  "service.api",
+  "v2.api"
+)
+
 lazy val generateRoutesFile = taskKey[Unit]("Build the API V2 Routes File")
 generateRoutesFile := {
   val s: TaskStreams          = streams.value
   val genRoutesFilePath: File = file(s"${baseDirectory.value}/conf/${swaggerRoutesFile.value}")
-  if (!genRoutesFilePath.exists()) {
-    genRoutesFilePath.createNewFile()
 
-    // The apiv2.routes file should always be last as it contains the catch all routes
-    val routeFiles = Seq(
-      "challenge.api",
-      "changes.api",
-      "comment.api",
-      "data.api",
-      "keyword.api",
-      "notification.api",
-      "project.api",
-      "review.api",
-      "snapshot.api",
-      "task.api",
-      "user.api",
-      "virtualchallenge.api",
-      "virtualproject.api",
-      "bundle.api",
-      "team.api",
-      "follow.api",
-      "leaderboard.api",
-      "service.api",
-      "v2.api"
-    )
+  def getLastModifiedTime(file: File): Long = {
+    Files.readAttributes(file.toPath, classOf[BasicFileAttributes]).lastModifiedTime().toMillis
+  }
+
+  def generateRoutes(): Unit = {
+    genRoutesFilePath.createNewFile()
     s.log.info(
       s"Generating swagger routes file ${genRoutesFilePath} from ${routeFiles.mkString(",")}"
     )
+
     Using(new BufferedWriter(new FileWriter(genRoutesFilePath, StandardCharsets.UTF_8))) { writer =>
       routeFiles.foreach(file => {
+        val sourceFile = baseDirectory.value / "conf/v2_route" / file
         s.log.info(s"Including contents of ${file} in swagger routes file ${genRoutesFilePath}")
-        Using(Source.fromFile(baseDirectory.value / "conf/v2_route" / file)(StandardCharsets.UTF_8)) {
-          f =>
-            for (line <- f.getLines()) {
-              writer.write(s"$line\n")
-            }
+
+        Using(Source.fromFile(sourceFile)(StandardCharsets.UTF_8)) { f =>
+          for (line <- f.getLines()) {
+            writer.write(s"$line\n")
+          }
         }
       })
     }
+
     s.log.success(s"Successfully created swagger routes file ${genRoutesFilePath}")
+  }
+
+  if (!genRoutesFilePath.exists()) {
+    generateRoutes()
+  } else {
+    val genRoutesLastModified = getLastModifiedTime(genRoutesFilePath)
+    val dependentFilesLastModified =
+      routeFiles.map(file => getLastModifiedTime(baseDirectory.value / "conf/v2_route" / file))
+    val anyFileChanged = dependentFilesLastModified.exists(_ > genRoutesLastModified)
+
+    if (anyFileChanged) {
+      genRoutesFilePath.delete()
+      generateRoutes()
+    } else {
+      s.log.info(s"Swagger routes file ${genRoutesFilePath} is up to date.")
+    }
   }
 }
 
