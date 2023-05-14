@@ -75,7 +75,8 @@ object MPExceptionUtil {
         logger.error(e.getMessage, e)
         BadRequest(Json.toJson(StatusMessage("KO", JsString(e.getMessage))))
       case e: OAuthNotAuthorizedException =>
-        logger.error(e.getMessage)
+        // When a user is not authorized, log it at debug level to avoid simple DoS with logging
+        logger.debug(e.getMessage)
         Unauthorized(Json.toJson(StatusMessage("NotAuthorized", JsString(e.getMessage)))).withNewSession
       case e: IllegalAccessException =>
         logger.error(e.getMessage, e)
