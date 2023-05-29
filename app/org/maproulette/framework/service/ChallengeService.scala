@@ -123,17 +123,9 @@ class ChallengeService @Inject() (
   }
 
   /**
-    * update challenge completion metrics
-    * @param challengeId
-    * @param tasksRemaining
-    * @param completionPercentage
+    * Refreshes the 'completion_percentage' metric for all active (neither deleted nor archived) challenges.
     */
-  def updateChallengeCompletionMetrics(
-      challengeId: Long,
-      tasksRemaining: Integer,
-      completionPercentage: Integer
-  ): Unit = {
-    this.repository
-      .updateChallengeCompletionMetrics(challengeId, tasksRemaining, completionPercentage);
+  def updateCompletionMetricsOfActiveChallenges(): Unit = {
+    this.repository.updateCompletionMetricsOfActiveChallenges();
   }
 }

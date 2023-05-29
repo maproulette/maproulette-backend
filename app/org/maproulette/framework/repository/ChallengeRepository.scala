@@ -158,22 +158,45 @@ class ChallengeRepository @Inject() (override val db: Database) extends Reposito
   }
 
   /**
-    * Update challenge completion metrics
-    * @param challengeId
-    * @param tasksRemaining
-    * @param completionPercentage
+    * Refreshes the 'completion_percentage' metric for all active (neither deleted nor archived) challenges.
+    *
+    * <p>The 'completion_percentage' metric quantifies the ratio of completed tasks within a challenge,
+    * expressed as a percentage. It is computed by the formula:
+    * (completedTaskCount / totalTasks) * 100.
+    *
+    * <p>The PostgreSQL index 'idx_tasks_status_non_zero' was created to avoid a full table scan of the tasks table,
+    * significantly reducing query execution time.
     */
-  def updateChallengeCompletionMetrics(
-      challengeId: Long,
-      tasksRemaining: Integer,
-      completionPercentage: Integer
-  )(implicit c: Option[Connection] = None): Unit = {
+  def updateCompletionMetricsOfActiveChallenges()(implicit c: Option[Connection] = None): Unit = {
     withMRConnection { implicit c =>
       SQL(
         s"""
-           |UPDATE CHALLENGES
-           |	SET tasks_remaining = ${tasksRemaining}, completion_percentage = ${completionPercentage}
-           |	WHERE id = ${challengeId}
+           |UPDATE challenges
+           |SET completion_percentage = new_completion_percentage
+           |FROM (
+           |    SELECT
+           |        challenges.id AS challenge_id,
+           |        completed_task_counts.completed_tasks * 100 / total_task_counts.total_tasks AS new_completion_percentage
+           |    FROM
+           |        challenges
+           |    JOIN (
+           |        SELECT
+           |            parent_id,
+           |            COUNT(*) AS total_tasks
+           |        FROM tasks
+           |        GROUP BY parent_id
+           |    ) AS total_task_counts ON challenges.id = total_task_counts.parent_id
+           |    JOIN (
+           |        SELECT
+           |            parent_id,
+           |            COUNT(*) AS completed_tasks
+           |        FROM tasks
+           |        WHERE status != 0
+           |        GROUP BY parent_id
+           |    ) AS completed_task_counts ON challenges.id = completed_task_counts.parent_id
+           |    WHERE NOT deleted and NOT is_archived
+           |) AS updated_challenges
+           |WHERE challenges.id = updated_challenges.challenge_id;
         """.stripMargin
       ).execute()
     }

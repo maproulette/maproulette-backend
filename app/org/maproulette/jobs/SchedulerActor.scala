@@ -649,42 +649,20 @@ class SchedulerActor @Inject() (
     logger.info(s"Archive Challenges job completed. Time spent: %1d ms".format(totalTime))
   }
 
-  def handleUpdateChallengeCompletionMetrics(action: String) = {
-    val start = System.currentTimeMillis
-    logger.info(action)
+  /**
+    * Updates completion metrics for all active challenges.
+    *
+    * @param action An action descriptor, providing more context for logging.
+    */
+  def handleUpdateChallengeCompletionMetrics(action: String): Unit = {
+    val startTime = System.currentTimeMillis
+    logger.info(s"Starting scheduled job: action=$action")
 
-    this.serviceManager.challenge
-      .activeChallenges(true)
-      .foreach(challenge => {
-        val tasks = this.serviceManager.challenge.getTasksByParentId(challenge.id);
+    this.serviceManager.challenge.updateCompletionMetricsOfActiveChallenges()
 
-        val taskCount            = tasks.length;
-        var tasksRemaining       = 0;
-        var completionPercentage = 0;
-
-        if (taskCount == 0) {
-          completionPercentage = 100;
-        } else {
-          tasks.foreach(task => {
-            if (task.status == 0) {
-              tasksRemaining = tasksRemaining + 1;
-            }
-          })
-
-          val tasksCompleted = taskCount - tasksRemaining;
-
-          if (tasksCompleted != 0) {
-            completionPercentage = tasksCompleted * 100 / taskCount
-          }
-        }
-
-        this.serviceManager.challenge
-          .updateChallengeCompletionMetrics(challenge.id, tasksRemaining, completionPercentage);
-      })
-
-    val totalTime = System.currentTimeMillis - start
+    val elapsedTime = System.currentTimeMillis - startTime
     logger.info(
-      s"Update Challenge Completion Metrics job completed. Time spent: %1d ms".format(totalTime)
+      s"Update Challenge Completion Metrics job completed (action=$action). Time spent: ${elapsedTime} ms"
     )
   }
 

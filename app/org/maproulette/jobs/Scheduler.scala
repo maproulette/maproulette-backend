@@ -96,6 +96,13 @@ class Scheduler @Inject() (
     Config.KEY_SCHEDULER_NOTIFICATION_IMMEDIATE_EMAIL_INTERVAL
   )
 
+  schedule(
+    "updateChallengeCompletionMetrics",
+    "Updating Challenge Completion Metrics",
+    5.minutes,
+    Config.KEY_SCHEDULER_UPDATE_CHALLENGE_COMPLETION_INTERVAL
+  )
+
   scheduleAtTime(
     "sendCountNotificationDailyEmails",
     "Sending Count Notification Daily Emails",
@@ -108,13 +115,6 @@ class Scheduler @Inject() (
     "Archiving Challenges",
     config.getValue(Config.KEY_SCHEDULER_ARCHIVE_CHALLENGES_START),
     Config.KEY_SCHEDULER_ARCHIVE_CHALLENGES_INTERVAL
-  )
-
-  scheduleAtTime(
-    "updateChallengeCompletionMetrics",
-    "Updating Challenge Completion Metrics",
-    config.getValue(Config.KEY_SCHEDULER_UPDATE_CHALLENGE_COMPLETION_START),
-    Config.KEY_SCHEDULER_UPDATE_CHALLENGE_COMPLETION_INTERVAL
   )
 
   scheduleAtTime(
