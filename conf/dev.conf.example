@@ -16,6 +16,11 @@ maproulette {
   debug=true
   bootstrap=true
 
+  scheduler {
+    startTimeJitterForMinuteTasks = "15 seconds"
+    startTimeJitterForHourTasks = "30 seconds"
+  }
+
   # In general the super key should not be enabled, an API user with this key can access the system
   # as a super user and has full access to everything. Use with caution.
   #super.key="CHANGE_ME"

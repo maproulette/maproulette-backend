@@ -5,14 +5,17 @@
 package org.maproulette.jobs
 
 import java.util.Calendar
-
 import akka.actor.{ActorRef, ActorSystem}
+
+import java.util.concurrent.{ThreadLocalRandom, TimeUnit}
 import javax.inject.{Inject, Named}
 import org.maproulette.Config
 import org.maproulette.jobs.SchedulerActor.RunJob
 import org.slf4j.LoggerFactory
 import play.api.Application
 
+import java.time.temporal.ChronoUnit
+import java.time.{LocalDateTime, ZoneOffset}
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
@@ -27,6 +30,15 @@ class Scheduler @Inject() (
 )(implicit application: Application, ec: ExecutionContext) {
 
   private val logger = LoggerFactory.getLogger(this.getClass)
+
+  private lazy val hourlyTaskJitter = config
+    .getValue(Config.KEY_SCHEDULER_START_TIME_JITTER_HOUR_TASKS)
+    .map(durationStr => Duration(durationStr))
+    .get
+  private val minuteTaskJitter = config
+    .getValue(Config.KEY_SCHEDULER_START_TIME_JITTER_MINUTE_TASKS)
+    .map(durationStr => Duration(durationStr))
+    .get
 
   schedule("cleanLocks", "Cleaning locks", 1.minute, Config.KEY_SCHEDULER_CLEAN_LOCKS_INTERVAL)
   schedule(
@@ -155,6 +167,29 @@ class Scheduler @Inject() (
     Config.KEY_SCHEDULER_SNAPSHOT_CHALLENGES_INTERVAL
   )
 
+  private def getJitterDelayByInterval(
+      jitter: Option[FiniteDuration],
+      interval: FiniteDuration
+  ): FiniteDuration = {
+
+    jitter match {
+      case Some(t) =>
+        // A specific jitter was provided. Use that jitter and don't use a random delay
+        t
+      case None =>
+        // A task repeating every hour needs to have a different jitter vs a task that repeats every minute.
+        val randomJitterMillis = if (interval >= 1.hour) {
+          ThreadLocalRandom.current().nextLong(hourlyTaskJitter.toMillis)
+        } else {
+          ThreadLocalRandom.current().nextLong(minuteTaskJitter.toMillis)
+        }
+
+        val ret = FiniteDuration.apply(randomJitterMillis, TimeUnit.MILLISECONDS)
+        logger.trace(s"Using randomJitter=${ret.toSeconds}s for interval=${interval.toSeconds}s")
+        ret
+    }
+  }
+
   /**
     * Conditionally schedules message event to start at an initial time and run every duration
     *
@@ -183,7 +218,9 @@ class Scheduler @Inject() (
         }
         val msBeforeStart = c.getTimeInMillis() - System.currentTimeMillis()
 
-        logger.debug("Scheduling " + action + " to run in " + msBeforeStart + "ms.")
+        logger.debug(
+          s"Task '$name' ('$action') to be scheduled at time not before +${msBeforeStart}ms"
+        )
         schedule(name, action, msBeforeStart.milliseconds, intervalKey)
 
       case _ => logger.error("Invalid start time given for " + action + "!")
@@ -198,17 +235,48 @@ class Scheduler @Inject() (
     * @param action       The action this job is performing for logging
     * @param initialDelay FiniteDuration until the initial message is sent
     * @param intervalKey  Configuration key that, when set, will enable periodic scheduled messages
+    * @param initialDelayJitter Initial start delay to avoid having scheduled jobs running at the exact same time (eg the top of the hour).
+    *                           Most calls should not override this value; the default value of None will imply a random jitter will be used.
     */
   def schedule(
       name: String,
       action: String,
       initialDelay: FiniteDuration,
-      intervalKey: String
+      intervalKey: String,
+      initialDelayJitter: Option[FiniteDuration] = None
   ): Unit = {
     config.withFiniteDuration(intervalKey) { interval =>
+      val firstRunJitter               = getJitterDelayByInterval(initialDelayJitter, initialDelay)
+      val firstRunDelayWithJitter      = initialDelay + firstRunJitter
+      val subsequentRunJitter          = getJitterDelayByInterval(initialDelayJitter, interval)
+      val subsequentRunDelayWithJitter = interval + firstRunDelayWithJitter + subsequentRunJitter
+
+      val firstRunDateTime =
+        LocalDateTime.now(ZoneOffset.UTC).plus(firstRunDelayWithJitter.toMillis, ChronoUnit.MILLIS)
+      val subsequentRunDateTime = LocalDateTime
+        .now(ZoneOffset.UTC)
+        .plus(subsequentRunDelayWithJitter.toMillis, ChronoUnit.MILLIS)
+
+      logger.info(
+        s"Scheduled Task '$name' ('$action'): Configuration: interval=${interval.toSeconds}s initialDelay=${initialDelay.toSeconds}s"
+      )
+      logger.info(
+        s"Scheduled Task '$name' ('$action'): First   run $firstRunDateTime firstRunJitter=${firstRunJitter.toSeconds}s"
+      )
+      logger.info(
+        s"Scheduled Task '$name' ('$action'): Future runs $subsequentRunDateTime subsequentRunJitter=${subsequentRunJitter.toSeconds}s"
+      )
+
       this.system.scheduler
-        .schedule(initialDelay, interval, this.schedulerActor, RunJob(name, action))
-      logger.info(s"$action every $interval")
+        .scheduleOnce(firstRunDelayWithJitter, this.schedulerActor, RunJob(name, action))
+
+      this.system.scheduler
+        .schedule(
+          subsequentRunDelayWithJitter,
+          interval,
+          this.schedulerActor,
+          RunJob(name, action)
+        )
     }
   }
 }
