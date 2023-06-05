@@ -101,7 +101,7 @@ class SchedulerActor @Inject() (
     *    osm.scheduler.cleanLocks.interval=FiniteDuration
     */
   def cleanLocks(action: String): Unit = {
-    logger.info(action)
+    logger.info(s"Scheduled Task '$action': Starting run")
     val start = System.currentTimeMillis
 
     this.db.withTransaction { implicit c =>
@@ -109,7 +109,9 @@ class SchedulerActor @Inject() (
       val locksDeleted = SQL(query).executeUpdate()
 
       val totalTime = System.currentTimeMillis - start
-      logger.info(s"$locksDeleted were found and deleted. Time spent: %1d ms".format(totalTime))
+      logger.info(
+        s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms. $locksDeleted were found and deleted"
+      )
     }
   }
 
@@ -117,7 +119,7 @@ class SchedulerActor @Inject() (
     * This job will remove all stale (older than 1 day) review claim locks from the system
     */
   def cleanClaimLocks(action: String): Unit = {
-    logger.info(action)
+    logger.info(s"Scheduled Task '$action': Starting run")
     val start = System.currentTimeMillis
 
     this.db.withTransaction { implicit c =>
@@ -127,8 +129,7 @@ class SchedulerActor @Inject() (
 
       val totalTime = System.currentTimeMillis - start
       logger.info(
-        s"$claimsRemoved stale review claims were found and deleted. Time spent: %1d ms"
-          .format(totalTime)
+        s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms. $claimsRemoved stale review claims were found and deleted"
       )
     }
   }
@@ -139,7 +140,9 @@ class SchedulerActor @Inject() (
     *    osm.scheduler.runChallengeSchedules.interval=FiniteDuration
     */
   def runChallengeSchedules(action: String): Unit = {
-    logger.info(action)
+    // TOOD(ljdelight): Old code that needs to be purged? This is a NOOP and not use anywhere besides the job scheduler setup.
+    logger.info(s"Scheduled Task '$action': Starting run")
+    logger.info(s"Scheduled Task '$action': Finished run")
   }
 
   /**
@@ -147,7 +150,7 @@ class SchedulerActor @Inject() (
     *    osm.scheduler.updateLocations.interval=FiniteDuration
     */
   def updateLocations(action: String): Unit = {
-    logger.info(action)
+    logger.info(s"Scheduled Task '$action': Starting run")
     val start           = System.currentTimeMillis
     val currentTime     = DateTime.now()
     val challengeFilter = "deleted = false AND is_archived = false AND enabled = true";
@@ -191,7 +194,9 @@ class SchedulerActor @Inject() (
     }
 
     val totalTime = System.currentTimeMillis - start
-    logger.info(s"Completed updating challenge locations. Time spent: %1d ms".format(totalTime))
+    logger.info(
+      s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
+    )
   }
 
   /**
@@ -200,7 +205,7 @@ class SchedulerActor @Inject() (
     *    osm.scheduler.cleanOldTasks.olderThan=FiniteDuration
     */
   def cleanOldTasks(action: String): Unit = {
-    logger.info(action)
+    logger.info(s"Scheduled Task '$action': Starting run")
     val start = System.currentTimeMillis
     config.withFiniteDuration(Config.KEY_SCHEDULER_CLEAN_TASKS_OLDER_THAN) { duration =>
       Metrics.timer("Cleaning old challenge tasks") { () =>
@@ -228,8 +233,7 @@ class SchedulerActor @Inject() (
 
           val totalTime = System.currentTimeMillis - start
           logger.info(
-            s"$tasksDeleted old challenge tasks were found and deleted. Time spent: %1d ms"
-              .format(totalTime)
+            s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms. $tasksDeleted old challenge tasks were found and deleted"
           )
         }
       }
@@ -241,7 +245,8 @@ class SchedulerActor @Inject() (
     *    osm.scheduler.expireTaskReviews.interval=FiniteDuration
     *    osm.scheduler.expireTaskReviews.olderThan=FiniteDuration
     */
-  def expireTaskReviews(str: String): Unit = {
+  def expireTaskReviews(action: String): Unit = {
+    logger.info(s"Scheduled Task '$action': Starting run")
     config.withFiniteDuration(Config.KEY_SCHEDULER_EXPIRE_TASK_REVIEWS_OLDER_THAN) { duration =>
       db.withConnection { implicit c =>
         logger.info(
@@ -253,8 +258,7 @@ class SchedulerActor @Inject() (
 
         val totalTime = System.currentTimeMillis - start
         logger.info(
-          s"$reviewsExpired old task reviews were moved to unnecessary. Time spent: %1d ms"
-            .format(totalTime)
+          s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms. $reviewsExpired old task reviews were moved to unnecessary"
         )
       }
     }
@@ -264,8 +268,8 @@ class SchedulerActor @Inject() (
     * This job will delete expired Virtual Challenges. To enable, set:
     *    osm.scheduler.cleanExpiredVCs.interval=FiniteDuration
     */
-  def cleanExpiredVirtualChallenges(str: String): Unit = {
-    logger.info("cleaning expired virtual challenges")
+  def cleanExpiredVirtualChallenges(action: String): Unit = {
+    logger.info(s"Scheduled Task '$action': Starting run")
     val start = System.currentTimeMillis
     db.withConnection { implicit c =>
       val numberOfDeleted =
@@ -278,8 +282,7 @@ class SchedulerActor @Inject() (
 
       val totalTime = System.currentTimeMillis - start
       logger.info(
-        s"$numberOfDeleted Virtual Challenges expired and removed from database. Time spent: %1d ms"
-          .format(totalTime)
+        s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms $numberOfDeleted Virtual Challenges expired and removed from database"
       )
     }
   }
@@ -290,11 +293,12 @@ class SchedulerActor @Inject() (
     * set to FIXED and changeset value not set to -2. If the value is -2 then it assumes that we have
     * already tried to match the changeset and couldn't find any viable option for it.
     *
-    * @param str
+    * @param action
     */
-  def matchChangeSets(str: String): Unit = {
-    logger.info("match changesets")
+  def matchChangeSets(action: String): Unit = {
     val start = System.currentTimeMillis
+    logger.info(s"Scheduled Task '$action': Starting run")
+
     if (config.osmMatcherEnabled) {
       db.withConnection { implicit c =>
         val query =
@@ -312,7 +316,9 @@ class SchedulerActor @Inject() (
     }
 
     val totalTime = System.currentTimeMillis - start
-    logger.info(s"match changesets job completed. Time spent: %1d ms".format(totalTime))
+    logger.info(
+      s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
+    )
   }
 
   /**
@@ -357,7 +363,7 @@ class SchedulerActor @Inject() (
   }
 
   def cleanDeleted(action: String): Unit = {
-    logger.info(action)
+    logger.info(s"Scheduled Task '$action': Starting run")
     val start = System.currentTimeMillis
     db.withConnection { implicit c =>
       val deletedProjects =
@@ -375,11 +381,13 @@ class SchedulerActor @Inject() (
     }
 
     val totalTime = System.currentTimeMillis - start
-    logger.info(s"cleanDeleted job completed. Time spent: %1d ms".format(totalTime))
+    logger.info(
+      s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
+    )
   }
 
   def keepRightUpdate(action: String): Unit = {
-    logger.info(action)
+    logger.info(s"Scheduled Task '$action': Starting run")
     val start = System.currentTimeMillis
 
     val slidingValue = this.config.config
@@ -407,7 +415,9 @@ class SchedulerActor @Inject() (
     }
 
     val totalTime = System.currentTimeMillis - start
-    logger.info(s"keepRight job completed. Time spent: %1d ms".format(totalTime))
+    logger.info(
+      s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
+    )
   }
 
   /**
@@ -417,7 +427,7 @@ class SchedulerActor @Inject() (
     */
   def rebuildChallengesLeaderboard(action: String): Unit = {
     val start = System.currentTimeMillis
-    logger.info(action)
+    logger.info(s"Scheduled Task '$action': Starting run")
 
     db.withConnection { implicit c =>
       // Clear TABLEs
@@ -456,7 +466,7 @@ class SchedulerActor @Inject() (
 
       val totalTime = System.currentTimeMillis - start
       logger.info(
-        s"Rebuilt Challenges Leaderboard successfully. Time spent: %1d ms".format(totalTime)
+        s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
       )
     }
   }
@@ -468,7 +478,7 @@ class SchedulerActor @Inject() (
     */
   def rebuildCountryLeaderboard(action: String): Unit = {
     val start = System.currentTimeMillis
-    logger.info(action)
+    logger.info(s"Scheduled Task '$action': Starting run")
 
     db.withConnection { implicit c =>
       // Clear TABLEs
@@ -536,13 +546,15 @@ class SchedulerActor @Inject() (
       }
 
       val totalTime = System.currentTimeMillis - start
-      logger.info(s"Rebuilt Country Leaderboard successfully. Time spent: %1d ms".format(totalTime))
+      logger.info(
+        s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
+      )
     }
   }
 
   def sendImmediateNotificationEmails(action: String) = {
     val start = System.currentTimeMillis
-    logger.info(action)
+    logger.info(s"Scheduled Task '$action': Starting run")
 
     // Gather notifications needing an immediate email and send email for each
     this.serviceManager.notification
@@ -569,7 +581,7 @@ class SchedulerActor @Inject() (
 
     val totalTime = System.currentTimeMillis - start
     logger.info(
-      s"Send Immediate Notification Emails job completed. Time spent: %1d ms".format(totalTime)
+      s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
     )
   }
 
@@ -585,7 +597,7 @@ class SchedulerActor @Inject() (
 
   def handleSendCountNotificationEmails(action: String, subscriptionType: Int) = {
     val start = System.currentTimeMillis
-    logger.info(action)
+    logger.info(s"Scheduled Task '$action': Starting run")
 
     this.serviceManager.notification
       .usersWithTasksToBeReviewed(
@@ -609,7 +621,7 @@ class SchedulerActor @Inject() (
 
     val totalTime = System.currentTimeMillis - start
     logger.info(
-      s"Send NotificationCount Emails job completed. Time spent: %1d ms".format(totalTime)
+      s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
     )
   }
 
@@ -625,6 +637,7 @@ class SchedulerActor @Inject() (
 
   def handleArchiveChallenges(action: String) = {
     val start = System.currentTimeMillis
+    logger.info(s"Scheduled Task '$action': Starting run")
 
     val currentDate = DateTime.now()
     val staleDate =
@@ -646,7 +659,9 @@ class SchedulerActor @Inject() (
       })
 
     val totalTime = System.currentTimeMillis - start
-    logger.info(s"Archive Challenges job completed. Time spent: %1d ms".format(totalTime))
+    logger.info(
+      s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
+    )
   }
 
   /**
@@ -656,19 +671,19 @@ class SchedulerActor @Inject() (
     */
   def handleUpdateChallengeCompletionMetrics(action: String): Unit = {
     val startTime = System.currentTimeMillis
-    logger.info(s"Starting scheduled job: action=$action")
+    logger.info(s"Scheduled Task '$action': Starting run")
 
     this.serviceManager.challenge.updateCompletionMetricsOfActiveChallenges()
 
     val elapsedTime = System.currentTimeMillis - startTime
     logger.info(
-      s"Update Challenge Completion Metrics job completed (action=$action). Time spent: ${elapsedTime} ms"
+      s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", elapsedTime)}ms"
     )
   }
 
   def sendDigestNotificationEmails(action: String) = {
     val start = System.currentTimeMillis
-    logger.info(action)
+    logger.info(s"Scheduled Task '$action': Starting run")
 
     // Compile together notification digests for each user with pending notifications
     val digests = this.serviceManager.notification
@@ -702,7 +717,9 @@ class SchedulerActor @Inject() (
     })
 
     val totalTime = System.currentTimeMillis - start
-    logger.info(s"sendDigestNotificationEmails job completed. Time spent: %1d ms".format(totalTime))
+    logger.info(
+      s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
+    )
   }
 
   /**
@@ -712,7 +729,7 @@ class SchedulerActor @Inject() (
     */
   def snapshotUserMetrics(action: String): Unit = {
     val start = System.currentTimeMillis
-    logger.info(action)
+    logger.info(s"Scheduled Task '$action': Starting run")
 
     db.withConnection { implicit c =>
       SQL(s"""UPDATE user_metrics set score=data.score, total_fixed=data.total_fixed,
@@ -763,7 +780,9 @@ class SchedulerActor @Inject() (
     }
 
     val totalTime = System.currentTimeMillis - start
-    logger.info(s"snapshotUserMetrics job completed. Time spent: %1d ms".format(totalTime))
+    logger.info(
+      s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
+    )
   }
 
   /**
@@ -773,7 +792,7 @@ class SchedulerActor @Inject() (
     */
   def snapshotChallenges(action: String): Unit = {
     val start = System.currentTimeMillis
-    logger.info(action)
+    logger.info(s"Scheduled Task '$action': Starting run")
 
     db.withConnection { implicit c =>
       val ids = SQL(s"""SELECT id FROM challenges""").as(long("id").*)
@@ -781,7 +800,9 @@ class SchedulerActor @Inject() (
         this.snapshotManager.recordChallengeSnapshot(id, false)
       })
       val totalTime = System.currentTimeMillis - start
-      logger.info(s"snapshotChallenges job completed. Time spent: %1d ms".format(totalTime))
+      logger.info(
+        s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
+      )
     }
   }
 
