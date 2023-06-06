@@ -14,7 +14,7 @@ import anorm.{ToParameterValue, SimpleSql, Row, SqlParser, RowParser, ~, SQL}
 import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
 import org.maproulette.framework.model.{Task, TaskReview, TaskWithReview, User}
-import org.maproulette.framework.psql.{Query, Grouping, Order, Paging}
+import org.maproulette.framework.psql.{Query, Grouping, GroupField, Order, Paging}
 import org.maproulette.framework.mixins.{Locking, TaskParserMixin}
 import org.maproulette.framework.service.UserService
 import org.maproulette.session.SearchParameters
@@ -37,6 +37,58 @@ class TaskReviewRepository @Inject() (
 
   val parser       = this.getTaskParser(this.taskRepository.updateAndRetrieve)
   val reviewParser = this.getTaskWithReviewParser(this.taskRepository.updateAndRetrieve)
+
+val taskReviewParser: RowParser[TaskReview] = {
+      get[Long]("id") ~
+      get[Long]("taskId").? ~
+      get[Option[Int]]("reviewStatus").? ~
+      get[Option[String]]("challengeName").? ~
+      get[Option[Long]]("reviewRequestedBy").? ~
+      get[Option[String]]("reviewRequestedByUsername").? ~
+      get[Option[Long]]("reviewedBy").? ~
+      get[Option[String]]("reviewedByUsername").? ~
+      get[Option[DateTime]]("reviewedAt").? ~
+      get[Option[Long]]("metaReviewedBy").? ~
+      get[Option[Int]]("metaReviewStatus") ~
+      get[Option[DateTime]]("metaReviewedAt").? ~
+      get[Option[DateTime]]("reviewStartedAt").? ~
+      get[Option[List[Long]]]("additionalReviewers").? ~
+      get[Option[Long]]("reviewClaimedBy").? ~
+      get[Option[String]]("reviewClaimedByUsername").? ~
+      get[Option[DateTime]]("reviewClaimedAt").? ~
+      get[Option[Int]]("originalReviewer") ~
+      get[Option[String]]("metaReviewedByUsername") ~
+      get[String]("errorTags") map {
+        case id ~ taskId ~ reviewStatus ~ challengeName ~ reviewRequestedBy ~ 
+             reviewRequestedByUsername ~ reviewedBy ~ reviewedByUsername ~ reviewedAt ~ 
+             metaReviewedBy ~ metaReviewStatus ~ metaReviewedAt ~ reviewStartedAt ~ 
+             additionalReviewers ~ reviewClaimedBy ~ reviewClaimedByUsername ~ 
+             reviewClaimedAt ~ originalReviewer ~ metaReviewedByUsername => {
+        new TaskReview(
+            id = id,
+            taskId,
+            reviewStatus,
+            challengeName,
+            reviewRequestedBy,
+            reviewRequestedByUsername,
+            reviewedBy,
+            reviewedByUsername,
+            reviewedAt,
+            metaReviewedBy,
+            metaReviewStatus,
+            metaReviewedAt,
+            reviewStartedAt,
+            additionalReviewers,
+            reviewClaimedBy,
+            reviewClaimedByUsername,
+            reviewClaimedAt,
+            originalReviewer,
+            metaReviewedByUsername
+        )
+      }
+    }
+  }
+
 
   /**
     * Gets a Task object with review data
@@ -456,4 +508,51 @@ class TaskReviewRepository @Inject() (
          """).executeUpdate()
     }
   }
+
+ /**
+    * Inserts a row into the task review history table.
+    *
+    * @param task
+    * @param reviewedBy - leave blank if this is meta review, include if it's
+    *                     the reviewer requesting another meta review
+    * @param metaReviewedBy
+    * @param metaReviewStatus
+    * @param reviewClaimedAt
+    * @param errorTags
+    */
+  def executeTaskReviewQuery(
+      query: Query,
+      joinClause: StringBuilder = new StringBuilder(),
+      groupByTags: Boolean = false,
+  ): List[TaskReview] = {
+    var groupFields = ""
+    var groupBy =
+        if (groupByTags) {
+        groupFields = ", TRIM(tags.name) as tag_name, tags.tag_type as tag_type"
+        joinClause ++= "INNER JOIN tags_on_tasks tot ON tot.task_id = tasks.id "
+        joinClause ++= "INNER JOIN tags tags ON tags.id = tot.tag_id "
+        Grouping(GroupField("tag_name", table = Some("")), GroupField("tag_type", table = Some("")))
+      } else {
+        Grouping()
+      }
+
+      query
+        .build(
+          s"""
+         SELECT COUNT(*) AS total,
+         COUNT(tasks.completed_time_spent) as tasksWithReviewTime,
+         COALESCE(SUM(EXTRACT(EPOCH FROM (task_review.reviewed_at - task_review.review_started_at)) * 1000),0) as totalReviewTime,
+
+         ${groupFields}
+         FROM tasks
+         INNER JOIN challenges c ON c.id = tasks.parent_id
+         LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
+         INNER JOIN projects p ON p.id = c.parent_id
+         ${joinClause}
+        """,
+          groupBy
+        )
+        .as(taskReviewParser.*)
+    }
+
 }

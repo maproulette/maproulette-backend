@@ -134,6 +134,19 @@ class TaskReviewServiceSpec(implicit val application: Application) extends Frame
       (results.head.id == reviewTask.id) mustEqual false
     }
 
+// this is were code is possibly needed... need to resolve different issues to get to here
+
+    // "get All Review Related Tasks" taggedAs (TaskReviewTag) in {
+    //   val result = this.service.getTasksMetrics(User.superUser, new SearchParameters())
+
+    //   // Expecting review metrics for 2 users
+    //   result.length mustEqual 2
+
+    //   // Each user expected to have one task they want reviewed
+    //   result(0).total mustEqual 1
+    //   result(1).total mustEqual 1
+    // }
+
     "get Nearby Review Tasks does not returned claimed tasks" taggedAs (TaskReviewTag) in {
       // Get a task (other than reviewTask) and start reviewing it
       var task = this.service.nextTaskReview(
