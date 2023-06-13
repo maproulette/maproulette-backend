@@ -5,6 +5,7 @@
 package org.maproulette.framework.controller
 
 import javax.inject.Inject
+import akka.util.ByteString
 import org.maproulette.data.ActionManager
 import org.maproulette.exception.NotFoundException
 import org.maproulette.framework.service.{TaskReviewService, TagService, ServiceManager}
@@ -16,6 +17,7 @@ import org.maproulette.session.{SessionManager, SearchParameters, SearchLocation
 import org.maproulette.utils.Utils
 import play.api.mvc._
 import play.api.libs.json._
+import play.api.http.HttpEntity
 
 import org.maproulette.data.{
   TaskItem,
@@ -233,6 +235,60 @@ class TaskReviewController @Inject() (
               result,
               includeTags
             )
+          )
+        )
+      }
+    }
+  }
+
+   /**
+    * Returns a CSV export of review metrics per mapper.
+    *
+    * SearchParameters:
+    *   mappers Optional limit to reviews of tasks by specific mappers
+    *   reviewers Optional limit reviews done by specific reviewers
+    *   priorities Optional limit to only these priorities
+    *   startDate Optional start date to filter by reviewedAt date
+    *   endDate Optional end date to filter by reviewedAt date
+    * @param onlySaved Only include saved challenges
+    * @return
+    */
+  def extractAllReviewRelatedTasks(
+      onlySaved: Boolean = false
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      SearchParameters.withSearch { implicit params =>
+        val metrics = this.service.getTasksMetrics(
+          User.userOrMocked(user),
+          params,
+          onlySaved
+        )
+
+        val seqString = metrics.map(row => {
+
+          val result = new StringBuilder(
+            s"${row.id},${row.taskId},${row.reviewStatus},${row.challengeName}," +
+            s"${row.reviewRequestedBy},${row.reviewRequestedByUsername},${row.reviewedBy}," +
+            s"${row.reviewedByUsername},${row.reviewedAt},${row.metaReviewedBy},${row.metaReviewStatus}," +
+            s"${row.metaReviewedAt},${row.reviewStartedAt},${row.additionalReviewers}," +
+            s"${row.reviewClaimedBy},${row.reviewClaimedByUsername},${row.reviewClaimedAt}," +
+            s"${row.originalReviewer},${row.metaReviewedByUsername}"
+          )
+          result.toString
+        })
+
+        Result(
+          header = ResponseHeader(
+            OK,
+            Map(CONTENT_DISPOSITION -> s"attachment; filename=mapper_review_metrics.csv")
+          ),
+          body = HttpEntity.Strict(
+            ByteString(
+               s"Internal Id,Review Status,Mapper,Challenge," +
+                s"Project,Mapped On,Reviewer,Reviewed On,Status,Priority,Actions,Comments," +
+                s"Tags,Additional Reviewers,Meta-Review Status,Meta,Reviewer,Meta-Reviewed On\n"
+            ).concat(ByteString(seqString.mkString("\n"))),
+            Some("text/csv; header=present")
           )
         )
       }
