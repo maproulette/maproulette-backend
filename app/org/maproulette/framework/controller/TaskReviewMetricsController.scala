@@ -169,6 +169,106 @@ class TaskReviewMetricsController @Inject() (
     statusMap
   }
 
+    /**
+    * Returns a CSV export of review metrics per mapper.
+    *
+    * SearchParameters:
+    *   mappers Optional limit to reviews of tasks by specific mappers
+    *   reviewers Optional limit reviews done by specific reviewers
+    *   priorities Optional limit to only these priorities
+    *   startDate Optional start date to filter by reviewedAt date
+    *   endDate Optional end date to filter by reviewedAt date
+    * @param onlySaved Only include saved challenges
+    * @return
+    */
+  def extractReviewTasksMetrics(
+      onlySaved: Boolean = false
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      SearchParameters.withSearch { implicit params =>
+        val allReviewStatuses = List(
+          Task.REVIEW_STATUS_REQUESTED,
+          Task.REVIEW_STATUS_APPROVED,
+          Task.REVIEW_STATUS_APPROVED_WITH_REVISIONS,
+          Task.REVIEW_STATUS_APPROVED_WITH_FIXES_AFTER_REVISIONS,
+          Task.REVIEW_STATUS_REJECTED,
+          Task.REVIEW_STATUS_ASSISTED,
+          Task.REVIEW_STATUS_DISPUTED
+        )
+
+        val metrics = this.service.getReviewTaskMetrics(
+          User.userOrMocked(user),
+          params.copy(
+            taskParams = SearchTaskParameters(
+              taskReviewStatus = Some(allReviewStatuses)
+            )
+          ),
+          onlySaved
+        )
+
+        val (projectName, challengeName, mapperNames) = retrieveObjectNames(params, metrics)
+
+        val byReviewStatusMetrics =
+          allReviewStatuses
+            .map(reviewStatus => {
+              val reviewStatusMetrics = this.service.getMapperMetrics(
+                User.userOrMocked(user),
+                params.copy(
+                  taskParams = SearchTaskParameters(
+                    taskReviewStatus = Some(List(reviewStatus))
+                  )
+                ),
+                onlySaved
+              )
+
+              reviewStatus -> (reviewStatusMetrics.map(m => m.userId.get -> m).toMap)
+            })
+            .toMap
+
+        val seqString = metrics.map(row => {
+          var mapper = mapperNames.get(row.userId.get)
+
+          val result = new StringBuilder(
+            s"${internal id},${review status},${mapper.get},${if (challengeName == "") "" else s"${challengeName},${projectName},"}" +
+              s"${mapped on}, ${reviewer}, ${reviewedOn}, ${status}, ${priority}, ${actions}, ${comments}, ${tags}," +
+              s"${additionalReviewers},${metaReviewStatus},${metaReviewer},${metaReviewedOn}"
+          )
+
+          allReviewStatuses.foreach(rs => {
+            if (byReviewStatusMetrics.get(rs).get.contains(row.userId.get)) {
+              val rsRow         = byReviewStatusMetrics.get(rs).get(row.userId.get)
+              val rsTimeSeconds = Math.round(rsRow.avgReviewTime / 1000)
+              val rsPercent     = Math.round(rsRow.total * 100 / row.total)
+              result ++=
+                s"\n${mapper.get},${projectName},${if (challengeName == "") ""
+                else s"${challengeName},"}" +
+                  s"${Task.reviewStatusMap.get(rs).get},${rsRow.total}," +
+                  s"${rsPercent},${rsTimeSeconds},,,,," +
+                  s",${rsRow.fixed},${rsRow.falsePositive},${rsRow.alreadyFixed}," +
+                  s"${rsRow.tooHard}"
+            }
+          })
+          result.toString
+        })
+
+        Result(
+          header = ResponseHeader(
+            OK,
+            Map(CONTENT_DISPOSITION -> s"attachment; filename=mapper_review_metrics.csv")
+          ),
+          body = HttpEntity.Strict(
+            ByteString(
+              s"Internal Id, Review Status, Mapper,${if (challengeName == "") "" else "Challenge,"}, Project" +
+                s"Mapped On, Reviewer, Reviewed On, Status, Priority, Actions, comments, Tags" +
+                s"Additional Reviewers, Meta-Review Status, Meta-Reviewer, Meta-Reviewed On\n"
+            ).concat(ByteString(seqString.mkString("\n"))),
+            Some("text/csv; header=present")
+          )
+        )
+      }
+    }
+  }
+
   /**
     * Returns a CSV export of review metrics per mapper.
     *

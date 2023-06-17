@@ -62,6 +62,36 @@ class TaskReviewMetricsService @Inject() (
       .head
   }
 
+   /**
+    * Gets a list of tasks that have been reviewed (either by this user or requested by this user)
+    *
+    * @param user      The user executing the request
+    * @param searchParameters
+    * @param onlySaved Only include saved challenges
+    * @return A list of review metrics by mapper
+    */
+  def getReviewTaskMetrics(
+      user: User,
+      params: SearchParameters,
+      onlySaved: Boolean = false
+  ): List[ReviewMetrics] = {
+    val query = this.setupReviewSearchClause(
+      Query.empty,
+      user,
+      permission,
+      params,
+      4,
+      true,
+      onlySaved,
+      excludeOtherReviewers = true,
+      includeVirtualProjects = true
+    )
+
+    this.repository.executeReviewMetricsQuery(
+      query,
+      groupByMappers = true
+    )
+
   /**
     * Gets a list of tasks that have been reviewed (either by this user or requested by this user)
     *

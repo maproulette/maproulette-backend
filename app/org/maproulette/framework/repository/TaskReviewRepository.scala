@@ -14,7 +14,7 @@ import anorm.{ToParameterValue, SimpleSql, Row, SqlParser, RowParser, ~, SQL}
 import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
 import org.maproulette.framework.model.{Task, TaskReview, TaskWithReview, User}
-import org.maproulette.framework.psql.{Query, Grouping, Order, Paging}
+import org.maproulette.framework.psql.{Query, Grouping, GroupField, Order, Paging}
 import org.maproulette.framework.mixins.{Locking, TaskParserMixin}
 import org.maproulette.framework.service.UserService
 import org.maproulette.session.SearchParameters
@@ -38,6 +38,57 @@ class TaskReviewRepository @Inject() (
   val parser       = this.getTaskParser(this.taskRepository.updateAndRetrieve)
   val reviewParser = this.getTaskWithReviewParser(this.taskRepository.updateAndRetrieve)
 
+  val taskReviewParser: RowParser[TaskReview] = {
+      get[Long]("id") ~
+      get[Long]("taskId") ~
+      get[Int]("reviewStatus").? ~
+      get[String]("challengeName").? ~
+      get[Option[Long]]("reviewRequestedBy") ~
+      get[Option[String]]("reviewRequestedByUsername") ~
+      get[Option[Long]]("reviewedBy") ~
+      get[Option[String]]("reviewedByUsername") ~
+      get[Option[DateTime]]("reviewedAt") ~
+      get[Option[Long]]("metaReviewedBy") ~
+      get[Option[Int]]("metaReviewStatus") ~
+      get[Option[DateTime]]("metaReviewedAt") ~
+      get[Option[DateTime]]("reviewStartedAt") ~
+      get[Option[List[Long]]]("additionalReviewers") ~
+      get[Option[Long]]("reviewClaimedBy") ~
+      get[Option[String]]("reviewClaimedByUsername") ~
+      get[Option[DateTime]]("reviewClaimedAt") ~
+      get[Option[Int]]("originalReviewer") ~
+      get[Option[String]]("metaReviewedByUsername") ~
+      get[String]("errorTags") map {
+        case id ~ taskId ~ reviewStatus ~ challengeName ~ reviewRequestedBy ~ 
+             reviewRequestedByUsername ~ reviewedBy ~ reviewedByUsername ~ reviewedAt ~ 
+             metaReviewedBy ~ metaReviewStatus ~ metaReviewedAt ~ reviewStartedAt ~ 
+             additionalReviewers ~ reviewClaimedBy ~ reviewClaimedByUsername ~ 
+             reviewClaimedAt ~ originalReviewer ~ metaReviewedByUsername ~ errorTags => {
+        new TaskReview(
+            id = id,
+            taskId,
+            reviewStatus,
+            challengeName,
+            reviewRequestedBy,
+            reviewRequestedByUsername,
+            reviewedBy,
+            reviewedByUsername,
+            reviewedAt,
+            metaReviewedBy,
+            metaReviewStatus,
+            metaReviewedAt,
+            reviewStartedAt,
+            additionalReviewers,
+            reviewClaimedBy,
+            reviewClaimedByUsername,
+            reviewClaimedAt,
+            originalReviewer,
+            metaReviewedByUsername,
+          errorTags
+        )
+      }
+    }
+  }
   /**
     * Gets a Task object with review data
     *
@@ -454,6 +505,57 @@ class TaskReviewRepository @Inject() (
                     ${if (reviewClaimedAt != null) s"'${reviewClaimedAt}'"
       else "NULL"}, ${if (!errorTags.isEmpty) s"'${errorTags}'" else "NULL"})
          """).executeUpdate()
+    }
+  }
+
+def executeTaskReviewQuery(
+      query: Query,
+      joinClause: StringBuilder = new StringBuilder(),
+      groupByMappers: Boolean = false,
+      groupByTags: Boolean = false,
+      groupByReviewers: Boolean = false,
+      projectIds: Option[List[Long]] = None,
+      challengeIds: Option[List[Long]] = None
+  ): List[TaskReview] = {
+
+  this.withMRTransaction { implicit c =>
+      // Attempt to fetch challenges to filter by
+      val challengeList =
+        challengeIds match {
+          case Some(ids) => Some(ids)
+          case None =>
+            projectIds match {
+              case Some(ids) =>
+                val projectChallenges =
+                  SQL(
+                    s"SELECT id FROM challenges WHERE parent_id IN (${ids.mkString(",")})"
+                  )
+               Some(projectChallenges)
+              case None => None
+            }
+        }
+
+      query
+        .build(
+          s"""
+      SELECT
+    task_id,
+    review_status,
+    mapper
+    challenge
+    mapped on
+    reviewed By,
+    status,
+    priority,
+     additionalReviewers,
+    metaReviewStatus,
+     metaReviewedBy,
+    metaReviewedAt,
+  FROM
+    task_reviews
+    """
+        )
+        .as(taskReviewParser.*)
     }
   }
 }
