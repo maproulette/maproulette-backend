@@ -205,7 +205,7 @@ class TaskReviewService @Inject() (
     * @param onlySaved Only include saved challenges
     * @return A list of review metrics by mapper
     */
-  def getTasksMetrics(
+  def getReviewTableData(
       user: User,
       params: SearchParameters,
       onlySaved: Boolean = false
@@ -220,7 +220,7 @@ class TaskReviewService @Inject() (
       onlySaved,
     )
 
-    this.repository.executeTaskReviewQuery(
+    this.repository.extractReviewTable(
       query,
     )
   }

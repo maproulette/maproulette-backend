@@ -241,6 +241,7 @@ class TaskReviewController @Inject() (
     }
   }
 
+
    /**
     * Returns a CSV export of review metrics per mapper.
     *
@@ -258,7 +259,7 @@ class TaskReviewController @Inject() (
     ): Action[AnyContent] = Action.async { implicit request =>
       this.sessionManager.userAwareRequest { implicit user =>
         SearchParameters.withSearch { implicit params =>
-          val metrics = this.service.getTaskWithReview(
+          val metrics = this.service.getReviewTableData(
             User.userOrMocked(user),
             params,
             onlySaved

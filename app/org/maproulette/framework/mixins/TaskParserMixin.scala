@@ -107,6 +107,65 @@ trait TaskParserMixin {
     }
   }
 
+    def getTaskReviewParser(
+      updateAndRetrieve: (Long, Option[String], Option[String], Option[String]) => (
+          String,
+          Option[String],
+          Option[String]
+      )
+  ): RowParser[TaskReview] = {
+      get[Long]("id") ~
+      get[Long]("task_id") ~
+      get[Int]("review_status").? ~
+      get[String]("challenge_name").? ~
+      get[Long]("review_requested_by").? ~
+      get[String]("review_requested_by_username").? ~
+      get[Long]("reviewed_by").? ~
+      get[String]("reviewed_by_username").? ~
+      get[DateTime]("reviewed_at").? ~
+      get[Long]("meta_reviewed_by").? ~
+      get[Int]("meta_review_status").? ~
+      get[DateTime]("meta_reviewed_at").? ~
+      get[DateTime]("review_started_at").? ~
+      get[List[Long]]("additional_reviewers").? ~
+      get[Long]("review_claimed_by").? ~
+      get[String]("review_claimed_by_username").? ~
+      get[DateTime]("review_claimed_at").? ~
+      get[Int]("original_reviewer").? ~
+      get[String]("meta_reviewed_by_username").? ~
+      get[String]("error_tags") map {
+        case id ~ taskId ~ reviewStatus ~ challengeName ~ reviewRequestedBy ~ 
+             reviewRequestedByUsername ~ reviewedBy ~ reviewedByUsername ~ reviewedAt ~ 
+             metaReviewedBy ~ metaReviewStatus ~ metaReviewedAt ~ reviewStartedAt ~ 
+             additionalReviewers ~ reviewClaimedBy ~ reviewClaimedByUsername ~ 
+             reviewClaimedAt ~ originalReviewer ~ metaReviewedByUsername ~ errorTags => {
+        new TaskReview(
+            id = id,
+            taskId,
+            reviewStatus,
+            challengeName,
+            reviewRequestedBy,
+            reviewRequestedByUsername,
+            reviewedBy,
+            reviewedByUsername,
+            reviewedAt,
+            metaReviewedBy,
+            metaReviewStatus,
+            metaReviewedAt,
+            reviewStartedAt,
+            additionalReviewers,
+            reviewClaimedBy,
+            reviewClaimedByUsername,
+            reviewClaimedAt,
+            None,
+            None,
+            errorTags = ""
+        )
+      }
+    }
+  }
+
+
   def getTaskWithReviewParser(
       updateAndRetrieve: (Long, Option[String], Option[String], Option[String]) => (
           String,

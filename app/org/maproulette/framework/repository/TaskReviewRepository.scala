@@ -37,58 +37,8 @@ class TaskReviewRepository @Inject() (
 
   val parser       = this.getTaskParser(this.taskRepository.updateAndRetrieve)
   val reviewParser = this.getTaskWithReviewParser(this.taskRepository.updateAndRetrieve)
+  val taskReviewTableParser = this.getTaskReviewParser(this.taskRepository.updateAndRetrieve)
 
-  val taskReviewParser: RowParser[TaskReview] = {
-      get[Long]("id") ~
-      get[Long]("taskId") ~
-      get[Int]("reviewStatus").? ~
-      get[String]("challengeName").? ~
-      get[Option[Long]]("reviewRequestedBy") ~
-      get[Option[String]]("reviewRequestedByUsername") ~
-      get[Option[Long]]("reviewedBy") ~
-      get[Option[String]]("reviewedByUsername") ~
-      get[Option[DateTime]]("reviewedAt") ~
-      get[Option[Long]]("metaReviewedBy") ~
-      get[Option[Int]]("metaReviewStatus") ~
-      get[Option[DateTime]]("metaReviewedAt") ~
-      get[Option[DateTime]]("reviewStartedAt") ~
-      get[Option[List[Long]]]("additionalReviewers") ~
-      get[Option[Long]]("reviewClaimedBy") ~
-      get[Option[String]]("reviewClaimedByUsername") ~
-      get[Option[DateTime]]("reviewClaimedAt") ~
-      get[Option[Int]]("originalReviewer") ~
-      get[Option[String]]("metaReviewedByUsername") ~
-      get[String]("errorTags") map {
-        case id ~ taskId ~ reviewStatus ~ challengeName ~ reviewRequestedBy ~ 
-             reviewRequestedByUsername ~ reviewedBy ~ reviewedByUsername ~ reviewedAt ~ 
-             metaReviewedBy ~ metaReviewStatus ~ metaReviewedAt ~ reviewStartedAt ~ 
-             additionalReviewers ~ reviewClaimedBy ~ reviewClaimedByUsername ~ 
-             reviewClaimedAt ~ originalReviewer ~ metaReviewedByUsername ~ errorTags => {
-        new TaskReview(
-            id = id,
-            taskId,
-            reviewStatus,
-            challengeName,
-            reviewRequestedBy,
-            reviewRequestedByUsername,
-            reviewedBy,
-            reviewedByUsername,
-            reviewedAt,
-            metaReviewedBy,
-            metaReviewStatus,
-            metaReviewedAt,
-            reviewStartedAt,
-            additionalReviewers,
-            reviewClaimedBy,
-            reviewClaimedByUsername,
-            reviewClaimedAt,
-            originalReviewer,
-            metaReviewedByUsername,
-          errorTags
-        )
-      }
-    }
-  }
   /**
     * Gets a Task object with review data
     *
@@ -508,54 +458,28 @@ class TaskReviewRepository @Inject() (
     }
   }
 
-def executeTaskReviewQuery(
-      query: Query,
-      joinClause: StringBuilder = new StringBuilder(),
-      groupByMappers: Boolean = false,
-      groupByTags: Boolean = false,
-      groupByReviewers: Boolean = false,
-      projectIds: Option[List[Long]] = None,
-      challengeIds: Option[List[Long]] = None
-  ): List[TaskReview] = {
-
-  this.withMRTransaction { implicit c =>
-      // Attempt to fetch challenges to filter by
-      val challengeList =
-        challengeIds match {
-          case Some(ids) => Some(ids)
-          case None =>
-            projectIds match {
-              case Some(ids) =>
-                val projectChallenges =
-                  SQL(
-                    s"SELECT id FROM challenges WHERE parent_id IN (${ids.mkString(",")})"
-                  )
-               Some(projectChallenges)
-              case None => None
-            }
-        }
-
+def extractReviewTable(query: Query): List[TaskReview] = {
+   this.withMRConnection { implicit c =>
+      val query = Query.simple(List())
       query
         .build(
           s"""
-      SELECT
-    task_id,
-    review_status,
-    mapper
-    challenge
-    mapped on
-    reviewed By,
-    status,
-    priority,
-     additionalReviewers,
-    metaReviewStatus,
-     metaReviewedBy,
-    metaReviewedAt,
-  FROM
-    task_reviews
-    """
-        )
-        .as(taskReviewParser.*)
+            SELECT
+              *,
+              c.name AS challenge_name,
+              mappers.name AS review_requested_by_username,
+              reviewers.name AS reviewed_by_username,
+              claimers.name AS review_claimed_by_username
+            FROM task_review
+            LEFT OUTER JOIN users mappers ON task_review.review_requested_by = mappers.id
+            LEFT OUTER JOIN tasks ON tasks.id = task_review.task_id
+            LEFT OUTER JOIN users reviewers ON task_review.reviewed_by = reviewers.id
+            LEFT OUTER JOIN users claimers ON task_review.review_claimed_by = claimers.id
+            INNER JOIN challenges c ON c.id = tasks.parent_id
+            INNER JOIN projects p ON p.id = c.parent_id
+      """
+      ).as(taskReviewTableParser.*)
     }
   }
 }
+
