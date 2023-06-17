@@ -435,42 +435,42 @@ class SchedulerActor @Inject() (
       SQL("DELETE FROM user_top_challenges WHERE country_code IS NULL").executeUpdate()
 
       // Past Month
-      logger.info("Scheduled Task '$action': updating user_leaderboard for the last month")
+      logger.info(s"Scheduled Task '$action': updating user_leaderboard for the last month")
       SQL(LeaderboardHelper.rebuildChallengesLeaderboardSQL(SchedulerActor.ONE_MONTH, config))
         .executeUpdate()
-      logger.info("Scheduled Task '$action': updating user_top_challenges for the last month")
+      logger.info(s"Scheduled Task '$action': updating user_top_challenges for the last month")
       SQL(LeaderboardHelper.rebuildTopChallengesSQL(SchedulerActor.ONE_MONTH, config))
         .executeUpdate()
 
       // Past 3 Months
-      logger.info("Scheduled Task '$action': updating user_leaderboard for the last 3 months")
+      logger.info(s"Scheduled Task '$action': updating user_leaderboard for the last 3 months")
       SQL(LeaderboardHelper.rebuildChallengesLeaderboardSQL(SchedulerActor.THREE_MONTHS, config))
         .executeUpdate()
-      logger.info("Scheduled Task '$action': updating user_top_challenges for the last 3 months")
+      logger.info(s"Scheduled Task '$action': updating user_top_challenges for the last 3 months")
       SQL(LeaderboardHelper.rebuildTopChallengesSQL(SchedulerActor.THREE_MONTHS, config))
         .executeUpdate()
 
       // Past 6 Months
-      logger.info("Scheduled Task '$action': updating user_leaderboard for the last 6 months")
+      logger.info(s"Scheduled Task '$action': updating user_leaderboard for the last 6 months")
       SQL(LeaderboardHelper.rebuildChallengesLeaderboardSQL(SchedulerActor.SIX_MONTHS, config))
         .executeUpdate()
-      logger.info("Scheduled Task '$action': updating user_top_challenges for the last 6 months")
+      logger.info(s"Scheduled Task '$action': updating user_top_challenges for the last 6 months")
       SQL(LeaderboardHelper.rebuildTopChallengesSQL(SchedulerActor.SIX_MONTHS, config))
         .executeUpdate()
 
       // Past Year
-      logger.info("Scheduled Task '$action': updating user_leaderboard for the last 12 months")
+      logger.info(s"Scheduled Task '$action': updating user_leaderboard for the last 12 months")
       SQL(LeaderboardHelper.rebuildChallengesLeaderboardSQL(SchedulerActor.TWELVE_MONTHS, config))
         .executeUpdate()
-      logger.info("Scheduled Task '$action': updating user_top_challenges for the last 12 months")
+      logger.info(s"Scheduled Task '$action': updating user_top_challenges for the last 12 months")
       SQL(LeaderboardHelper.rebuildTopChallengesSQL(SchedulerActor.TWELVE_MONTHS, config))
         .executeUpdate()
 
       // All Time
-      logger.info("Scheduled Task '$action': updating user_leaderboard for ALL TIME")
+      logger.info(s"Scheduled Task '$action': updating user_leaderboard for ALL TIME")
       SQL(LeaderboardHelper.rebuildChallengesLeaderboardSQL(SchedulerActor.ALL_TIME, config))
         .executeUpdate()
-      logger.info("Scheduled Task '$action': updating user_top_challenges for ALL TIME")
+      logger.info(s"Scheduled Task '$action': updating user_top_challenges for ALL TIME")
       SQL(LeaderboardHelper.rebuildTopChallengesSQL(SchedulerActor.ALL_TIME, config))
         .executeUpdate()
 
