@@ -457,11 +457,11 @@ class TaskReviewRepository @Inject() (
     }
   }
 
- /**
+  /**
     * Builds a query to retreive data for the review table data.
- */
-def executeReviewTableData(query: Query): List[TaskWithReview] = {
-   this.withMRConnection { implicit c =>
+    */
+  def executeReviewTableData(query: Query): List[TaskWithReview] = {
+    this.withMRConnection { implicit c =>
       val query = Query.simple(List())
       query
         .build(
@@ -508,7 +508,8 @@ def executeReviewTableData(query: Query): List[TaskWithReview] = {
               INNER JOIN challenges c ON c.id = tasks.parent_id
               INNER JOIN projects p ON p.id = c.parent_id
       """
-      ).as(reviewParser.*)
+        )
+        .as(reviewParser.*)
     }
   }
 }

@@ -197,7 +197,7 @@ class TaskReviewService @Inject() (
       .headOption
   }
 
-    /**
+  /**
     * Gets a list of the data in the Review Table
     *
     * @param user      The user executing the request
@@ -216,11 +216,11 @@ class TaskReviewService @Inject() (
       params,
       4,
       true,
-      onlySaved,
+      onlySaved
     )
 
     this.repository.executeReviewTableData(
-      query,
+      query
     )
   }
 
