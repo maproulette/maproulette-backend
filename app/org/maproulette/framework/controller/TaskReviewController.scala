@@ -5,6 +5,7 @@
 package org.maproulette.framework.controller
 
 import javax.inject.Inject
+import akka.util.ByteString
 import org.maproulette.data.ActionManager
 import org.maproulette.exception.NotFoundException
 import org.maproulette.framework.service.{TaskReviewService, TagService, ServiceManager}
@@ -12,10 +13,11 @@ import org.maproulette.framework.psql.Paging
 import org.maproulette.framework.model.{Challenge, ChallengeListing, Project, User, Tag, Task}
 import org.maproulette.framework.mixins.{ParentMixin, TagsControllerMixin}
 import org.maproulette.framework.repository.TaskRepository
-import org.maproulette.session.{SessionManager, SearchParameters, SearchLocation}
+import org.maproulette.session.{SessionManager, SearchParameters, SearchLocation, SearchTaskParameters}
 import org.maproulette.utils.Utils
 import play.api.mvc._
 import play.api.libs.json._
+import play.api.http.HttpEntity
 
 import org.maproulette.data.{
   TaskItem,
@@ -238,6 +240,80 @@ class TaskReviewController @Inject() (
       }
     }
   }
+
+
+   /**
+    * Returns a CSV export of the data displayed in the review table.
+    *
+    * SearchParameters:
+    *   taskId Optional limit to reviews to equivalent taskId structure
+    *   reviewStatus Optional limit reviews to equivalent reviewStatus
+    *   reviewRequestedByUsername Optional limit reviews to equivalent mapper name
+    *   challengeName Optional limit reviews to equivalent challenge name
+    *   parent Optional limit reviews to equivalent project name
+    *   mappedOn Optional limit reviews to equivalent submittion date
+    *   reviewedBy Optional limit reviews to equivalent reviewer
+    *   reviewedAt Optional limit reviews to equivalent reviewed At date
+    *   status Optional limit reviews to equivalent status
+    *   priority Optional limit reviews to equivalent priority
+    *   additionalReviewers Optional limit reviews to equivalent priority
+    * @param onlySaved Only include saved challenges
+    * @return
+    */
+    def extractReviewTableData(
+        onlySaved: Boolean = false
+    ): Action[AnyContent] = Action.async { implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        SearchParameters.withSearch { implicit params =>
+         val allReviewStatuses = List(
+          0
+        )
+        val allStatuses = List(
+          Task.STATUS_CREATED,
+        )
+        val allPriorities = List(
+          Challenge.PRIORITY_LOW  
+        )
+
+          val metrics = this.service.getReviewTableData(
+            User.userOrMocked(user),
+            params.copy(
+            taskParams = SearchTaskParameters(
+              taskReviewStatus = Some(allReviewStatuses),
+              taskStatus= Some(allStatuses),
+              taskPriorities = Some(allPriorities)
+            )
+          ),
+            onlySaved
+          )
+
+          val seqString = metrics.map(row => {
+            val result = new StringBuilder(
+              s"${row.review.taskId},${Task.reviewStatusMap.get(row.review.reviewStatus.get).get}," +
+              s"${row.review.reviewRequestedByUsername.getOrElse("")},${row.review.challengeName.getOrElse("")}," +
+              s"${row.task.parent},${row.task.mappedOn.getOrElse("")},${row.review.reviewedByUsername.getOrElse("")}," +
+              s"${row.review.reviewedAt.getOrElse("")},${Task.statusMap.get(row.task.status.get).get}," +
+              s"${Challenge.priorityMap.get(row.task.priority).get},${row.review.additionalReviewers.getOrElse("")}"
+            )
+            result.toString
+          })
+
+          Result(
+            header = ResponseHeader(
+              OK,
+              Map(CONTENT_DISPOSITION -> s"attachment; filename=review_table.csv")
+            ),
+            body = HttpEntity.Strict(
+              ByteString(
+                s"INTERNAL ID,REVIEW STATUS,MAPPER,CHALLENGE,PROJECT,MAPPED ON,REVIEWER," +
+                s"REVIEWED ON,STATUS,PRIORITY,ADDITIONAL REVIEWERS\n"
+              ).concat(ByteString(seqString.mkString("\n"))),
+              Some("text/csv; header=present")
+            )
+          )
+        }
+      }
+    }
 
   /**
     * Gets clusters of review tasks. Uses kmeans method in postgis.

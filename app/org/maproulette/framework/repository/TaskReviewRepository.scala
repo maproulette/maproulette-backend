@@ -14,7 +14,7 @@ import anorm.{ToParameterValue, SimpleSql, Row, SqlParser, RowParser, ~, SQL}
 import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
 import org.maproulette.framework.model.{Task, TaskReview, TaskWithReview, User}
-import org.maproulette.framework.psql.{Query, Grouping, Order, Paging}
+import org.maproulette.framework.psql.{Query, Grouping, GroupField, Order, Paging}
 import org.maproulette.framework.mixins.{Locking, TaskParserMixin}
 import org.maproulette.framework.service.UserService
 import org.maproulette.session.SearchParameters
@@ -454,6 +454,61 @@ class TaskReviewRepository @Inject() (
                     ${if (reviewClaimedAt != null) s"'${reviewClaimedAt}'"
       else "NULL"}, ${if (!errorTags.isEmpty) s"'${errorTags}'" else "NULL"})
          """).executeUpdate()
+    }
+  }
+
+ /**
+    * Builds a query to retreive data for the review table data.
+ */
+def executeReviewTableData(query: Query): List[TaskWithReview] = {
+   this.withMRConnection { implicit c =>
+      val query = Query.simple(List())
+      query
+        .build(
+          s"""
+            SELECT
+              tasks.id,
+              tasks.name,
+              tasks.created,
+              tasks.modified,
+              tasks.parent_id,
+              tasks.instruction,
+              NULL AS geo_location,
+              tasks.status,
+              NULL AS geo_json,
+              NULL AS cooperative_work,
+              tasks.mapped_on,
+              tasks.completed_time_spent,
+              tasks.completed_by,
+              task_review.review_status,
+              task_review.review_requested_by,
+              task_review.reviewed_by,
+              task_review.reviewed_at,
+              task_review.meta_reviewed_by,
+              task_review.meta_review_status,
+              task_review.meta_reviewed_at,
+              task_review.review_started_at,
+              task_review.review_claimed_by,
+              task_review.review_claimed_at,
+              task_review.additional_reviewers,
+              task_review.error_tags,
+              tasks.priority,
+              tasks.changeset_id,
+              tasks.bundle_id,
+              tasks.is_bundle_primary,
+              c.name AS challenge_name,
+              mappers.name AS review_requested_by_username,
+              reviewers.name AS reviewed_by_username,
+              NULL AS responses
+            FROM
+              tasks
+              INNER JOIN task_review ON task_review.task_id = tasks.id
+              LEFT OUTER JOIN users mappers ON task_review.review_requested_by = mappers.id
+              LEFT OUTER JOIN users reviewers ON task_review.reviewed_by = reviewers.id
+              INNER JOIN challenges c ON c.id = tasks.parent_id
+              INNER JOIN projects p ON p.id = c.parent_id
+      """
+      ).as(reviewParser.*)
     }
   }
 }

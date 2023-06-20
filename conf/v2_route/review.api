@@ -312,6 +312,34 @@ GET     /taskCluster/review                                @org.maproulette.fram
 GET     /tasks/review/mappers/export                          @org.maproulette.framework.controller.TaskReviewMetricsController.extractMapperMetrics(onlySaved:Boolean ?= false)
 ###
 # tags: [ Review ]
+# summary: Retrieve a summary of review coverage for tasks
+# description: This will retrieve a summary of review coverage for each mapper and respond with a csv
+# response:
+#   '200':
+#     description: A CSV file containing the following data "Tasks,Approved,Rejected,ApprovedWithFixes,Disputed,Total"
+# parameters:
+#   - name: tasks
+#     in: query
+#     description: the task ids to search by (extractAllReviewRelatedTasks)
+#   - name: reviewers
+#     in: query
+#     description: the reviewer ids to search by (reviewed_by)
+#   - name: priorities
+#     in: query
+#     description: the priorities to search by
+#   - name: startDate
+#     in: query
+#     description: Whether results should be tasks that have been reviewed after this date (format 'YYYY-MM-DD')
+#   - name: endDate
+#     in: query
+#     description: Whether results should be tasks that have been reviewed before this date (format 'YYYY-MM-DD')
+#   - name: onlySaved
+#     in: query
+#     description: Only show challenges that have been saved.
+###
+GET     /tasks/review/reviewTable/export              @org.maproulette.framework.controller.TaskReviewController.extractReviewTableData(onlySaved:Boolean ?= false)
+###
+# tags: [ Review ]
 # summary: Retrieve a summary of meta-review coverage for reviewers
 # description: This will retrieve a summary of meta-review coverage for each reviewer and respond with a csv
 # responses:
