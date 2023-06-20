@@ -312,30 +312,46 @@ GET     /taskCluster/review                                @org.maproulette.fram
 GET     /tasks/review/mappers/export                          @org.maproulette.framework.controller.TaskReviewMetricsController.extractMapperMetrics(onlySaved:Boolean ?= false)
 ###
 # tags: [ Review ]
-# summary: Retrieve a summary of review coverage for tasks
-# description: This will retrieve a summary of review coverage for each mapper and respond with a csv
+# summary: Retrieve a summary of review coverage for review related tasks
+# description: This will retrieve a summary of review coverage for each review related task and respond with a csv
 # response:
 #   '200':
-#     description: A CSV file containing the following data "Tasks,Approved,Rejected,ApprovedWithFixes,Disputed,Total"
+#     description: A CSV file containing the following data: 
+#     "internal id,review status,mapper,challenge,project,mapped on,reviewer,reviewed on,status,priority,additional reviewers"
 # parameters:
-#   - name: tasks
-#     in: query
-#     description: the task ids to search by (extractAllReviewRelatedTasks)
-#   - name: reviewers
-#     in: query
-#     description: the reviewer ids to search by (reviewed_by)
-#   - name: priorities
-#     in: query
-#     description: the priorities to search by
-#   - name: startDate
-#     in: query
-#     description: Whether results should be tasks that have been reviewed after this date (format 'YYYY-MM-DD')
-#   - name: endDate
-#     in: query
-#     description: Whether results should be tasks that have been reviewed before this date (format 'YYYY-MM-DD')
-#   - name: onlySaved
-#     in: query
-#     description: Only show challenges that have been saved.
+#   - name:taskId 
+#     in: query 
+#     description: Optional limit to reviews to equivalent taskId structure
+#   - name: reviewStatus 
+#     in: query 
+#     description: Optional limit reviews to equivalent reviewStatus
+#   - name: reviewRequestedByUsername 
+#     in: query 
+#     description: Optional limit reviews to equivalent mapper name
+#   - name: challengeName 
+#     in: query 
+#     description: Optional limit reviews to equivalent challenge name
+#   - name: parent 
+#     in: query 
+#     description: Optional limit reviews to equivalent project name
+#   - name: mappedOn 
+#     in: query 
+#     description: Optional limit reviews to equivalent submittion date
+#   - name: reviewedBy 
+#     in: query 
+#     description: Optional limit reviews to equivalent reviewer
+#   - name: reviewedAt 
+#     in: query 
+#     description: Optional limit reviews to equivalent reviewed At date
+#   - name: status 
+#     in: query 
+#     description: Optional limit reviews to equivalent status
+#   - name: priority 
+#     in: query 
+#     description: Optional limit reviews to equivalent priority
+#   - name: additionalReviewers 
+#     in: query 
+#     description: Optional limit reviews to equivalent priority
 ###
 GET     /tasks/review/reviewTable/export              @org.maproulette.framework.controller.TaskReviewController.extractReviewTableData(onlySaved:Boolean ?= false)
 ###
