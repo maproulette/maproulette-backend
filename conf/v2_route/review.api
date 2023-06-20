@@ -318,7 +318,7 @@ GET     /tasks/review/mappers/export                          @org.maproulette.f
 #   '200':
 #     description: A CSV file containing the following data "internal id,review status,mapper,challenge,project,mapped on,reviewer,reviewed on,status,priority,additional reviewers"
 # parameters:
-#   - name:taskId 
+#   - name: taskId 
 #     in: query 
 #     description: Optional limit to reviews to equivalent taskId structure
 #   - name: reviewStatus 
