@@ -18,8 +18,7 @@ import org.maproulette.framework.repository.TaskRepository
 import org.maproulette.session.{
   SessionManager,
   SearchParameters,
-  SearchLocation,
-  SearchTaskParameters
+  SearchLocation
 }
 import org.maproulette.utils.Utils
 import play.api.mvc._
