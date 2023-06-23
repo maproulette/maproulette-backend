@@ -462,7 +462,6 @@ class TaskReviewRepository @Inject() (
     */
   def executeReviewTableData(query: Query): List[TaskWithReview] = {
     this.withMRConnection { implicit c =>
-      val query = Query.simple(List())
       query
         .build(
           s"""

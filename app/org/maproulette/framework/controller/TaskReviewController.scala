@@ -7,6 +7,8 @@ package org.maproulette.framework.controller
 import javax.inject.Inject
 import akka.util.ByteString
 import org.maproulette.data.ActionManager
+import org.maproulette.Config
+import org.apache.commons.lang3.StringUtils
 import org.maproulette.exception.NotFoundException
 import org.maproulette.framework.service.{TaskReviewService, TagService, ServiceManager}
 import org.maproulette.framework.psql.Paging
@@ -45,6 +47,7 @@ class TaskReviewController @Inject() (
     override val sessionManager: SessionManager,
     override val actionManager: ActionManager,
     override val bodyParsers: PlayBodyParsers,
+    val config: Config,
     service: TaskReviewService,
     taskRepository: TaskRepository,
     components: ControllerComponents,
@@ -265,40 +268,150 @@ class TaskReviewController @Inject() (
     * @return
     */
   def extractReviewTableData(
+      taskId: String,
+      reviewStatus: String,
+      mapper: String,
+      challengeId: String,
+      projectIds: String,
+      mappedOn: String,
+      reviewedBy: String,
+      reviewedAt: String,
+      status: String,
+      priority: String,
+      tagFilter: String,
+      onlySaved: Boolean = false
+  ): Action[AnyContent] = {
+
+    this._extractReviewTableData(
+      taskId,
+      reviewStatus,
+      mapper,
+      challengeId,
+      projectIds,
+      mappedOn,
+      reviewedBy,
+      reviewedAt,
+      status,
+      priority,
+      tagFilter,
+      onlySaved
+    )
+  }
+
+  def _extractReviewTableData(
+      taskId: String,
+      reviewStatus: String,
+      mapper: String,
+      challengeId: String,
+      projectIds: String,
+      mappedOn: String,
+      reviewedBy: String,
+      reviewedAt: String,
+      status: String,
+      priority: String,
+      tagFilter: String,
       onlySaved: Boolean = false
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       SearchParameters.withSearch { implicit params =>
-        val allReviewStatuses = List(
-          0
-        )
-        val allStatuses = List(
-          Task.STATUS_CREATED
-        )
-        val allPriorities = List(
-          Challenge.PRIORITY_LOW
-        )
-
+        val statusFilter = if (StringUtils.isEmpty(status)) {
+          None
+        } else {
+          Some(Utils.split(status).map(_.toInt))
+        }
+        val reviewStatusFilter = if (StringUtils.isEmpty(reviewStatus)) {
+          None
+        } else {
+          Some(Utils.split(reviewStatus).map(_.toInt))
+        }
+        val priorityFilter = if (StringUtils.isEmpty(priority)) {
+          None
+        } else {
+          Some(Utils.split(priority).map(_.toInt))
+        }
+        val projectIdsFilter = if (StringUtils.isEmpty(projectIds)) {
+          None
+        } else {
+          Some(Utils.split(projectIds).map(_.toLong))
+        }
+        val challengeIdsFilter = if (StringUtils.isEmpty(challengeId)) {
+          None
+        } else {
+          Some(Utils.split(challengeId).map(_.toLong))
+        }
+        val tagFiltering = if (StringUtils.isEmpty(tagFilter)) {
+          None
+        } else {
+          Some(Utils.split(tagFilter).map(_.toString))
+        }
+        val taskIdFilter = if (StringUtils.isEmpty(taskId)) {
+          None
+        } else {
+          Some((taskId).toLong)
+        }
+        val mappedOnFilter = if (StringUtils.isEmpty(mappedOn)) {
+          None
+        } else {
+          Some((mappedOn))
+        }
+        val mapperFilter = if (StringUtils.isEmpty(mapper)) {
+          None
+        } else {
+          Some((mapper))
+        }
+        val reviewByFilter = if (StringUtils.isEmpty(reviewedBy)) {
+          None
+        } else {
+          Some((reviewedBy))
+        }
+        val reviewedAtFilter = if (StringUtils.isEmpty(reviewedAt)) {
+          None
+        } else {
+          Some((reviewedAt))
+        }
         val metrics = this.service.getReviewTableData(
           User.userOrMocked(user),
           params.copy(
-            taskParams = SearchTaskParameters(
-              taskReviewStatus = Some(allReviewStatuses),
-              taskStatus = Some(allStatuses),
-              taskPriorities = Some(allPriorities)
-            )
+            projectIds = projectIdsFilter,
+            challengeParams = params.challengeParams
+              .copy(
+                challengeIds = challengeIdsFilter
+              ),
+            taskParams = params.taskParams
+              .copy(
+                taskId = taskIdFilter,
+                taskTags = tagFiltering,
+                taskStatus = statusFilter,
+                taskReviewStatus = reviewStatusFilter,
+                taskPriorities = priorityFilter,
+                taskMappedOn = mappedOnFilter
+              ),
+            reviewParams = params.reviewParams
+              .copy(
+                endDate = reviewedAtFilter
+              ),
+            mapper = mapperFilter,
+            reviewer = reviewByFilter
           ),
           onlySaved
         )
 
+        val urlPrefix = config.getPublicOrigin match {
+          case Some(origin) => s"${origin}/"
+          case None         => s"http://${request.host}/"
+        }
+
         val seqString = metrics.map(row => {
+          var taskLink =
+            s"[[Task Link=${urlPrefix}challenge/${row.task.parent}/task/${row.review.taskId}]]"
+          var comments = ""
           val result = new StringBuilder(
             s"${row.review.taskId},${Task.reviewStatusMap.get(row.review.reviewStatus.get).get}," +
               s"${row.review.reviewRequestedByUsername.getOrElse("")},${row.review.challengeName.getOrElse("")}," +
               s"${row.task.parent},${row.task.mappedOn
                 .getOrElse("")},${row.review.reviewedByUsername.getOrElse("")}," +
               s"${row.review.reviewedAt.getOrElse("")},${Task.statusMap.get(row.task.status.get).get}," +
-              s"${Challenge.priorityMap.get(row.task.priority).get},${row.review.additionalReviewers
+              s"${Challenge.priorityMap.get(row.task.priority).get},${taskLink},${comments},${row.task.errorTags},${row.review.additionalReviewers
                 .getOrElse("")}"
           )
           result.toString
@@ -312,7 +425,7 @@ class TaskReviewController @Inject() (
           body = HttpEntity.Strict(
             ByteString(
               s"INTERNAL ID,REVIEW STATUS,MAPPER,CHALLENGE,PROJECT,MAPPED ON,REVIEWER," +
-                s"REVIEWED ON,STATUS,PRIORITY,ADDITIONAL REVIEWERS\n"
+                s"REVIEWED ON,STATUS,PRIORITY,ACTIONS, COMMENTS,TAGS,ADDITIONAL REVIEWERS\n"
             ).concat(ByteString(seqString.mkString("\n"))),
             Some("text/csv; header=present")
           )
