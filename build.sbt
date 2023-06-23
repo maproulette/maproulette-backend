@@ -190,6 +190,10 @@ scalacOptions ++= Seq(
 
 Test / javaOptions ++= Option(System.getProperty("config.file")).map("-Dconfig.file=" + _).toSeq
 
+// Disable building docs to speed up the build
+Compile / doc / sources := Seq.empty
+Compile / packageDoc / publishArtifact := false
+
 Compile / javaOptions ++= Seq(
   "-Xmx2G",
   // Increase stack size for compilation
