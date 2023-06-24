@@ -352,7 +352,7 @@ GET     /tasks/review/mappers/export                          @org.maproulette.f
 #     in: query 
 #     description: Optional limit reviews to equivalent priority
 ###
-GET     /tasks/review/reviewTable/export              @org.maproulette.framework.controller.TaskReviewController.extractReviewTableData(taskId: String ?= "", reviewStatus: String, mapper: String ?= "", challengeId: String ?= "", projectIds: String ?= "", mappedOn: String ?= "", reviewedBy: String ?= "", reviewedAt: String ?= "", status: String, priority: String, tagFilter: String ?= "", onlySaved: Boolean = false)
+GET     /tasks/review/reviewTable/export              @org.maproulette.framework.controller.TaskReviewController.extractReviewTableData(taskId: String ?= "", reviewStatus: String ?= "", mapper: String ?= "", challengeId: String ?= "", projectIds: String ?= "", mappedOn: String ?= "", reviewedBy: String ?= "", reviewedAt: String ?= "", status: String ?= "", priority: String ?= "", tagFilter: String ?= "", onlySaved: Boolean = false)
 ###
 # tags: [ Review ]
 # summary: Retrieve a summary of meta-review coverage for reviewers
