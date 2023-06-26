@@ -207,6 +207,8 @@ class TaskReviewService @Inject() (
   def getReviewTableData(
       user: User,
       params: SearchParameters,
+      sortBy: String = "",
+      direction: String = "",
       onlySaved: Boolean = false
   ): List[TaskWithReview] = {
     val query = this.setupReviewSearchClause(
@@ -220,7 +222,9 @@ class TaskReviewService @Inject() (
     )
 
     this.repository.executeReviewTableData(
-      query
+      query,
+      sortBy,
+      direction
     )
   }
 

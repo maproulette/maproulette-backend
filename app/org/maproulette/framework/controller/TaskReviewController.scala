@@ -274,6 +274,9 @@ class TaskReviewController @Inject() (
       status: String,
       priority: String,
       tagFilter: String,
+      sortBy: String,
+      direction: String,
+      invertedFilters: String,
       onlySaved: Boolean = false
   ): Action[AnyContent] = {
 
@@ -289,6 +292,9 @@ class TaskReviewController @Inject() (
       status,
       priority,
       tagFilter,
+      sortBy,
+      direction,
+      invertedFilters,
       onlySaved
     )
   }
@@ -305,10 +311,18 @@ class TaskReviewController @Inject() (
       status: String,
       priority: String,
       tagFilter: String,
+      sortBy: String,
+      direction: String,
+      invertedFilters: String,
       onlySaved: Boolean = false
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       SearchParameters.withSearch { implicit params =>
+        val invertFiltering = if (StringUtils.isEmpty(invertedFilters)) {
+          None
+        } else {
+          Some(Utils.split(invertedFilters).map(_.toString))
+        }
         val statusFilter = if (StringUtils.isEmpty(status)) {
           None
         } else {
@@ -357,7 +371,7 @@ class TaskReviewController @Inject() (
         val reviewByFilter = if (StringUtils.isEmpty(reviewedBy)) {
           None
         } else {
-          Some((reviewedBy))
+          Some(reviewedBy)
         }
         val reviewedAtFilter = if (StringUtils.isEmpty(reviewedAt)) {
           None
@@ -385,9 +399,12 @@ class TaskReviewController @Inject() (
               .copy(
                 endDate = reviewedAtFilter
               ),
+            invertFields = invertFiltering,
             mapper = mapperFilter,
             reviewer = reviewByFilter
           ),
+          sortBy,
+          direction,
           onlySaved
         )
 

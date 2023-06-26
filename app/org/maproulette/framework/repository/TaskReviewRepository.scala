@@ -460,8 +460,15 @@ class TaskReviewRepository @Inject() (
   /**
     * Builds a query to retreive data for the review table data.
     */
-  def executeReviewTableData(query: Query): List[TaskWithReview] = {
+  def executeReviewTableData(
+      query: Query,
+      sortBy: String = "",
+      direction: String = ""
+  ): List[TaskWithReview] = {
     this.withMRConnection { implicit c =>
+      // val orderByClause = if (sortBy.nonEmpty) s"ORDER BY $sortBy $direction" else ""
+      //  ORDER BY id ASC
+      //  ${orderByClause}
       query
         .build(
           s"""
