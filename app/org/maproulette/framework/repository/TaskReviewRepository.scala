@@ -14,7 +14,7 @@ import anorm.{ToParameterValue, SimpleSql, Row, SqlParser, RowParser, ~, SQL}
 import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
 import org.maproulette.framework.model.{Task, TaskReview, TaskWithReview, User}
-import org.maproulette.framework.psql.{Query, Grouping, Order, Paging}
+import org.maproulette.framework.psql.{Query, Grouping, OrderField, Order, Paging}
 import org.maproulette.framework.mixins.{Locking, TaskParserMixin}
 import org.maproulette.framework.service.UserService
 import org.maproulette.session.SearchParameters
@@ -466,10 +466,15 @@ class TaskReviewRepository @Inject() (
       direction: String = ""
   ): List[TaskWithReview] = {
     this.withMRConnection { implicit c =>
-      // val orderByClause = if (sortBy.nonEmpty) s"ORDER BY $sortBy $direction" else ""
-      //  ORDER BY id ASC
-      //  ${orderByClause}
-      query
+      val directionByColumn = if (direction == "ASC") {
+        Order.ASC
+      } else {
+        Order.DESC
+      }
+      val querySimple =
+        query.copy(order = Order(List(OrderField(sortBy, directionByColumn, table = Some("")))))
+
+      querySimple
         .build(
           s"""
             SELECT
