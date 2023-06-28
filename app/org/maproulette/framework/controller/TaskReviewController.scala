@@ -420,7 +420,7 @@ class TaskReviewController @Inject() (
           val result = new StringBuilder(
             s"${row.review.taskId},${Task.reviewStatusMap.get(row.review.reviewStatus.get).get}," +
               s"${row.review.reviewRequestedByUsername.getOrElse("")},${row.review.challengeName.getOrElse("")}," +
-              s"${row.task.parent},${row.task.mappedOn
+              s"${row.review.projectName.getOrElse("")},${row.task.mappedOn
                 .getOrElse("")},${row.review.reviewedByUsername.getOrElse("")}," +
               s"${row.review.reviewedAt.getOrElse("")},${Task.statusMap.get(row.task.status.get).get}," +
               s"${Challenge.priorityMap.get(row.task.priority).get},${taskLink},${comments},${row.task.errorTags},${row.review.additionalReviewers

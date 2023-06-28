@@ -144,6 +144,7 @@ trait TaskParserMixin {
       get[Option[Long]]("tasks.bundle_id") ~
       get[Option[Boolean]]("tasks.is_bundle_primary") ~
       get[Option[String]]("challenge_name") ~
+      get[Option[String]]("project_name") ~
       get[Option[String]]("review_requested_by_username") ~
       get[Option[String]]("reviewed_by_username") ~
       get[Option[String]]("responses") map {
@@ -151,7 +152,7 @@ trait TaskParserMixin {
             cooperativeWork ~ mappedOn ~ completedTimeSpent ~ completedBy ~ reviewStatus ~ reviewRequestedBy ~
             reviewedBy ~ reviewedAt ~ metaReviewedBy ~ metaReviewStatus ~ metaReviewedAt ~ reviewStartedAt ~
             reviewClaimedBy ~ reviewClaimedAt ~ additionalReviewers ~ errorTags ~
-            priority ~ changesetId ~ bundleId ~ isBundlePrimary ~ challengeName ~ reviewRequestedByUsername ~
+            priority ~ changesetId ~ bundleId ~ isBundlePrimary ~ challengeName ~ projectName ~ reviewRequestedByUsername ~
             reviewedByUsername ~ responses =>
         val values = updateAndRetrieve(id, geojson, location, cooperativeWork)
         TaskWithReview(
@@ -194,6 +195,7 @@ trait TaskParserMixin {
             id,
             reviewStatus,
             challengeName,
+            projectName,
             reviewRequestedBy,
             reviewRequestedByUsername,
             reviewedBy,

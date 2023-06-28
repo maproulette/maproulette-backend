@@ -16,6 +16,7 @@ case class TaskReview(
     taskId: Long,
     reviewStatus: Option[Int],
     challengeName: Option[String],
+    projectName: Option[String],
     reviewRequestedBy: Option[Long],
     reviewRequestedByUsername: Option[String],
     reviewedBy: Option[Long],

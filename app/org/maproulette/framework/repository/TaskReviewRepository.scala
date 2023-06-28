@@ -49,6 +49,7 @@ class TaskReviewRepository @Inject() (
       query.build(s"""
         SELECT $retrieveColumnsWithReview,
                challenges.name as challenge_name,
+               p.name as project_name
                mappers.name as review_requested_by_username,
                reviewers.name as reviewed_by_username
         FROM tasks
@@ -56,6 +57,7 @@ class TaskReviewRepository @Inject() (
         LEFT OUTER JOIN users mappers ON task_review.review_requested_by = mappers.id
         LEFT OUTER JOIN users reviewers ON task_review.reviewed_by = reviewers.id
         INNER JOIN challenges ON challenges.id = tasks.parent_id
+        INNER JOIN projects p ON p.id = c.parent_id
         WHERE tasks.id = {taskId}
       """).on(Symbol("taskId") -> taskId).as(this.reviewParser.single)
     }
@@ -508,6 +510,7 @@ class TaskReviewRepository @Inject() (
               tasks.bundle_id,
               tasks.is_bundle_primary,
               c.name AS challenge_name,
+              p.display_name AS project_name,
               mappers.name AS review_requested_by_username,
               reviewers.name AS reviewed_by_username,
               NULL AS responses
