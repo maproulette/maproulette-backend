@@ -152,8 +152,8 @@ trait TaskParserMixin {
             cooperativeWork ~ mappedOn ~ completedTimeSpent ~ completedBy ~ reviewStatus ~ reviewRequestedBy ~
             reviewedBy ~ reviewedAt ~ metaReviewedBy ~ metaReviewStatus ~ metaReviewedAt ~ reviewStartedAt ~
             reviewClaimedBy ~ reviewClaimedAt ~ additionalReviewers ~ errorTags ~
-            priority ~ changesetId ~ bundleId ~ isBundlePrimary ~ challengeName ~ projectName ~ reviewRequestedByUsername ~
-            reviewedByUsername ~ responses =>
+            priority ~ changesetId ~ bundleId ~ isBundlePrimary ~ challengeName ~ projectName ~
+            reviewRequestedByUsername ~ reviewedByUsername ~ responses =>
         val values = updateAndRetrieve(id, geojson, location, cooperativeWork)
         TaskWithReview(
           Task(
