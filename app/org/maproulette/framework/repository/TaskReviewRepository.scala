@@ -49,7 +49,7 @@ class TaskReviewRepository @Inject() (
       query.build(s"""
         SELECT $retrieveColumnsWithReview,
                challenges.name as challenge_name,
-               p.name as project_name
+               p.name as project_name,
                mappers.name as review_requested_by_username,
                reviewers.name as reviewed_by_username
         FROM tasks
