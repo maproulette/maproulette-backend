@@ -437,7 +437,7 @@ class TaskReviewController @Inject() (
           body = HttpEntity.Strict(
             ByteString(
               s"INTERNAL ID,REVIEW STATUS,MAPPER,CHALLENGE,PROJECT,MAPPED ON,REVIEWER," +
-                s"REVIEWED ON,STATUS,PRIORITY,ACTIONS, COMMENTS,TAGS,ADDITIONAL REVIEWERS\n"
+                s"REVIEWED ON,STATUS,PRIORITY,ACTIONS,COMMENTS,TAGS,ADDITIONAL REVIEWERS\n"
             ).concat(ByteString(seqString.mkString("\n"))),
             Some("text/csv; header=present")
           )
