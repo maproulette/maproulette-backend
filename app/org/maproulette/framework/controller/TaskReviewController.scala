@@ -271,11 +271,14 @@ class TaskReviewController @Inject() (
       mappedOn: String,
       reviewedBy: String,
       reviewedAt: String,
+      metaReviewedBy: String,
+      metaReviewStatus: String,
       status: String,
       priority: String,
       tagFilter: String,
       sortBy: String,
       direction: String,
+      displayedColumns: String,
       invertedFilters: String,
       onlySaved: Boolean = false
   ): Action[AnyContent] = {
@@ -289,11 +292,14 @@ class TaskReviewController @Inject() (
       mappedOn,
       reviewedBy,
       reviewedAt,
+      metaReviewedBy,
+      metaReviewStatus,
       status,
       priority,
       tagFilter,
       sortBy,
       direction,
+      displayedColumns,
       invertedFilters,
       onlySaved
     )
@@ -308,11 +314,14 @@ class TaskReviewController @Inject() (
       mappedOn: String,
       reviewedBy: String,
       reviewedAt: String,
+      metaReviewedBy: String,
+      metaReviewStatus: String,
       status: String,
       priority: String,
       tagFilter: String,
       sortBy: String,
       direction: String,
+      displayedColumns: String,
       invertedFilters: String,
       onlySaved: Boolean = false
   ): Action[AnyContent] = Action.async { implicit request =>
@@ -337,6 +346,11 @@ class TaskReviewController @Inject() (
           None
         } else {
           Some(Utils.split(priority).map(_.toInt))
+        }
+        val metaReviewStatusFilter = if (StringUtils.isEmpty(metaReviewStatus)) {
+          None
+        } else {
+          Some(Utils.split(metaReviewStatus).map(_.toInt))
         }
         val projectIdsFilter = if (StringUtils.isEmpty(projectIds)) {
           None
@@ -368,6 +382,11 @@ class TaskReviewController @Inject() (
         } else {
           Some((mapper))
         }
+        val metaReviewedByFilter = if (StringUtils.isEmpty(metaReviewedBy)) {
+          None
+        } else {
+          Some((metaReviewedBy))
+        }
         val reviewByFilter = if (StringUtils.isEmpty(reviewedBy)) {
           None
         } else {
@@ -397,11 +416,13 @@ class TaskReviewController @Inject() (
               ),
             reviewParams = params.reviewParams
               .copy(
-                endDate = reviewedAtFilter
+                endDate = reviewedAtFilter,
+                metaReviewStatus = metaReviewStatusFilter
               ),
             invertFields = invertFiltering,
             mapper = mapperFilter,
-            reviewer = reviewByFilter
+            reviewer = reviewByFilter,
+            metaReviewer = metaReviewedByFilter
           ),
           sortBy,
           direction,
@@ -413,20 +434,34 @@ class TaskReviewController @Inject() (
           case None         => s"http://${request.host}/"
         }
 
-        val seqString = metrics.map(row => {
-          var taskLink =
-            s"[[Task Link=${urlPrefix}challenge/${row.task.parent}/task/${row.review.taskId}]]"
-          var comments = ""
-          val result = new StringBuilder(
-            s"${row.review.taskId},${Task.reviewStatusMap.get(row.review.reviewStatus.get).get}," +
-              s"${row.review.reviewRequestedByUsername.getOrElse("")},${row.review.challengeName.getOrElse("")}," +
-              s"${row.review.projectName.getOrElse("")},${row.task.mappedOn
-                .getOrElse("")},${row.review.reviewedByUsername.getOrElse("")}," +
-              s"${row.review.reviewedAt.getOrElse("")},${Task.statusMap.get(row.task.status.get).get}," +
-              s"${Challenge.priorityMap.get(row.task.priority).get},${taskLink},${comments},${row.task.errorTags},${row.review.additionalReviewers
-                .getOrElse("")}"
-          )
-          result.toString
+        val seqString = metrics
+          .map(row => {
+            val mappedData =
+              (displayedColumns.split(",")).map { key =>
+                val updatedKey = key match {
+                  case "Internal Id"   => row.review.taskId
+                  case "Review Status" => Task.reviewStatusMap.get(row.review.reviewStatus.get).get
+                  case "Mapper"        => row.review.reviewRequestedByUsername.getOrElse("")
+                  case "Challenge"     => row.review.challengeName.getOrElse("")
+                  case "Project"       => row.review.projectName.getOrElse("")
+                  case "Mapped On"     => row.task.mappedOn.getOrElse("")
+                  case "Reviewer"      => row.review.reviewedByUsername.getOrElse("")
+                  case "Reviewed On"   => row.review.reviewedAt.getOrElse("")
+                  case "Status"        => Task.statusMap.get(row.task.status.get).get
+                  case "Priority"      => Challenge.priorityMap.get(row.task.priority).get
+                  case "Actions" =>
+                    s"[[Task Link=${urlPrefix}challenge/${row.task.parent}/task/${row.review.taskId}]]"
+                  case "View Comments"        => ""
+                  case "Tags"                 => row.task.errorTags
+                  case "Additional Reviewers" => row.review.additionalReviewers.getOrElse("")
+                  case "Meta Review Status"   => row.review.metaReviewStatus
+                  case "Meta Reviewed By"     => row.review.metaReviewedByUsername.getOrElse("")
+                  case "Meta Reviewed At"     => row.review.metaReviewedAt.getOrElse("")
+                }
+                updatedKey
+              }
+            val result = new StringBuilder(mappedData.mkString(","))
+            result.toString
         })
 
         Result(
@@ -436,8 +471,7 @@ class TaskReviewController @Inject() (
           ),
           body = HttpEntity.Strict(
             ByteString(
-              s"INTERNAL ID,REVIEW STATUS,MAPPER,CHALLENGE,PROJECT,MAPPED ON,REVIEWER," +
-                s"REVIEWED ON,STATUS,PRIORITY,ACTIONS,COMMENTS,TAGS,ADDITIONAL REVIEWERS\n"
+              s"${displayedColumns}\n"
             ).concat(ByteString(seqString.mkString("\n"))),
             Some("text/csv; header=present")
           )
