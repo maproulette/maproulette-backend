@@ -437,32 +437,34 @@ class TaskReviewController @Inject() (
         val seqString = metrics
           .map(row => {
             val mappedData =
-              (displayedColumns.split(",")).map { key =>
-                val updatedKey = key match {
-                  case "Internal Id"   => row.review.taskId
-                  case "Review Status" => Task.reviewStatusMap.get(row.review.reviewStatus.get).get
-                  case "Mapper"        => row.review.reviewRequestedByUsername.getOrElse("")
-                  case "Challenge"     => row.review.challengeName.getOrElse("")
-                  case "Project"       => row.review.projectName.getOrElse("")
-                  case "Mapped On"     => row.task.mappedOn.getOrElse("")
-                  case "Reviewer"      => row.review.reviewedByUsername.getOrElse("")
-                  case "Reviewed On"   => row.review.reviewedAt.getOrElse("")
-                  case "Status"        => Task.statusMap.get(row.task.status.get).get
-                  case "Priority"      => Challenge.priorityMap.get(row.task.priority).get
-                  case "Actions" =>
-                    s"[[Task Link=${urlPrefix}challenge/${row.task.parent}/task/${row.review.taskId}]]"
-                  case "View Comments"        => ""
-                  case "Tags"                 => row.task.errorTags
-                  case "Additional Reviewers" => row.review.additionalReviewers.getOrElse("")
-                  case "Meta Review Status"   => row.review.metaReviewStatus
-                  case "Meta Reviewed By"     => row.review.metaReviewedByUsername.getOrElse("")
-                  case "Meta Reviewed At"     => row.review.metaReviewedAt.getOrElse("")
-                }
-                updatedKey
+              (displayedColumns.split(",")).map {
+                key =>
+                  val updatedKey = key match {
+                    case "Internal Id" => row.review.taskId
+                    case "Review Status" =>
+                      Task.reviewStatusMap.get(row.review.reviewStatus.get).get
+                    case "Mapper"      => row.review.reviewRequestedByUsername.getOrElse("")
+                    case "Challenge"   => row.review.challengeName.getOrElse("")
+                    case "Project"     => row.review.projectName.getOrElse("")
+                    case "Mapped On"   => row.task.mappedOn.getOrElse("")
+                    case "Reviewer"    => row.review.reviewedByUsername.getOrElse("")
+                    case "Reviewed On" => row.review.reviewedAt.getOrElse("")
+                    case "Status"      => Task.statusMap.get(row.task.status.get).get
+                    case "Priority"    => Challenge.priorityMap.get(row.task.priority).get
+                    case "Actions" =>
+                      s"[[Task Link=${urlPrefix}challenge/${row.task.parent}/task/${row.review.taskId}]]"
+                    case "View Comments"        => ""
+                    case "Tags"                 => row.task.errorTags
+                    case "Additional Reviewers" => row.review.additionalReviewers.getOrElse("")
+                    case "Meta Review Status"   => row.review.metaReviewStatus
+                    case "Meta Reviewed By"     => row.review.metaReviewedByUsername.getOrElse("")
+                    case "Meta Reviewed At"     => row.review.metaReviewedAt.getOrElse("")
+                  }
+                  updatedKey
               }
             val result = new StringBuilder(mappedData.mkString(","))
             result.toString
-        })
+          })
 
         Result(
           header = ResponseHeader(
