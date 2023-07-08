@@ -285,6 +285,11 @@ class TaskReviewController @Inject() (
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       SearchParameters.withSearch { implicit params =>
+        val columnsToDisplay = if (displayedColumns == "") {
+          "Internal Id,Review Status,Mapper,Challenge,Project,Mapped On,Reviewer,Reviewed On,Status,Priority,Actions,View Comments,Tags,Additional Reviewers"
+        } else {
+          displayedColumns
+        }
         val invertFiltering        = parseParameterString(invertedFilters)
         val statusFilter           = parseParameterInt(status)
         val reviewStatusFilter     = parseParameterInt(reviewStatus)
@@ -332,7 +337,7 @@ class TaskReviewController @Inject() (
         val urlPrefix = config.getPublicOrigin.fold(s"https://${request.host}/")(_ + "/")
 
         val csvRows = metrics.map { row =>
-          displayedColumns.split(",").flatMap {
+          columnsToDisplay.split(",").flatMap {
             case "Internal Id"   => Seq(row.review.taskId)
             case "Review Status" => Seq(Task.reviewStatusMap(row.review.reviewStatus.get))
             case "Mapper"        => Seq(row.review.reviewRequestedByUsername.getOrElse(""))
@@ -364,7 +369,7 @@ class TaskReviewController @Inject() (
         val csvWriter  = new CSVWriter(csvContent)
 
         // Write header
-        csvWriter.writeRow(displayedColumns.split(",").toVector)
+        csvWriter.writeRow(columnsToDisplay.split(",").toVector)
 
         // Write rows
         csvRows.foreach(row => csvWriter.writeRow(row.toVector))
