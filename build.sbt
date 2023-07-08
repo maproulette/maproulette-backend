@@ -92,17 +92,18 @@ libraryDependencies ++= Seq(
   "joda-time"               % "joda-time"       % "2.12.0",
   // TODO(ljdelight): The vividsolutions package was moved to the Eclipse Foundation as LocationTech.
   //                  See the upgrade guide https://github.com/locationtech/jts/blob/master/MIGRATION.md
-  "com.vividsolutions" % "jts"                 % "1.13",
-  "org.wololo"         % "jts2geojson"         % "0.14.3",
-  "org.apache.commons" % "commons-lang3"       % "3.12.0",
-  "commons-codec"      % "commons-codec"       % "1.14",
-  "com.typesafe.play"  %% "play-mailer"        % "8.0.1",
-  "com.typesafe.play"  %% "play-mailer-guice"  % "8.0.1",
-  "com.typesafe.akka"  %% "akka-cluster-tools" % "2.6.20",
-  "com.typesafe.akka"  %% "akka-cluster-typed" % "2.6.20",
-  "com.typesafe.akka"  %% "akka-slf4j"         % "2.6.20",
-  "net.debasishg"      %% "redisclient"        % "3.42",
-  "com.github.blemale" %% "scaffeine"          % "5.2.1"
+  "com.vividsolutions"   % "jts"                 % "1.13",
+  "org.wololo"           % "jts2geojson"         % "0.14.3",
+  "org.apache.commons"   % "commons-lang3"       % "3.12.0",
+  "commons-codec"        % "commons-codec"       % "1.14",
+  "com.typesafe.play"    %% "play-mailer"        % "8.0.1",
+  "com.typesafe.play"    %% "play-mailer-guice"  % "8.0.1",
+  "com.typesafe.akka"    %% "akka-cluster-tools" % "2.6.20",
+  "com.typesafe.akka"    %% "akka-cluster-typed" % "2.6.20",
+  "com.typesafe.akka"    %% "akka-slf4j"         % "2.6.20",
+  "net.debasishg"        %% "redisclient"        % "3.42",
+  "com.github.blemale"   %% "scaffeine"          % "5.2.1",
+  "com.github.tototoshi" %% "scala-csv"          % "1.3.10"
 )
 
 val jacksonVersion         = "2.13.4"
