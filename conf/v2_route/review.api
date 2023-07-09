@@ -316,43 +316,64 @@ GET     /tasks/review/mappers/export                          @org.maproulette.f
 # description: This will retrieve a summary of review coverage for each review related task and respond with a csv
 # response:
 #   '200':
-#     description: A CSV file containing the following data "internal id,review status,mapper,challenge,project,mapped on,reviewer,reviewed on,status,priority,additional reviewers"
+#     description: A CSV file containing the following data "Internal Id,Review Status,Mapper,Challenge,Project,Mapped On,Reviewer,Reviewed On,Status,Priority,Actions,View Comments,Tags,Additional Reviewers"
 # parameters:
-#   - name: taskId 
-#     in: query 
-#     description: Optional limit to reviews to equivalent taskId structure
-#   - name: reviewStatus 
-#     in: query 
-#     description: Optional limit reviews to equivalent reviewStatus
-#   - name: reviewRequestedByUsername 
-#     in: query 
-#     description: Optional limit reviews to equivalent mapper name
-#   - name: challengeName 
-#     in: query 
-#     description: Optional limit reviews to equivalent challenge name
-#   - name: parent 
-#     in: query 
-#     description: Optional limit reviews to equivalent project name
-#   - name: mappedOn 
-#     in: query 
-#     description: Optional limit reviews to equivalent submittion date
-#   - name: reviewedBy 
-#     in: query 
-#     description: Optional limit reviews to equivalent reviewer
-#   - name: reviewedAt 
-#     in: query 
-#     description: Optional limit reviews to equivalent reviewed At date
-#   - name: status 
-#     in: query 
-#     description: Optional limit reviews to equivalent status
-#   - name: priority 
-#     in: query 
-#     description: Optional limit reviews to equivalent priority
-#   - name: additionalReviewers 
-#     in: query 
-#     description: Optional limit reviews to equivalent priority
+#  - name: taskId
+#    in: query
+#    description: Optional limit reviews to equivalent taskId.
+#  - name: reviewStatus
+#    in: query
+#    description: Optional limit reviews to equivalent reviewStatus.
+#  - name: mapper
+#    in: query
+#    description: Optional limit reviews to equivalent mapper.
+#  - name: challengeId
+#    in: query
+#    description: Optional limit reviews to equivalent challengeId.
+#  - name: projectIds
+#    in: query
+#    description: Optional limit reviews to equivalent projectIds.
+#  - name: mappedOn
+#    in: query
+#    description: Optional limit reviews to equivalent mappedOn.
+#  - name: reviewedBy
+#    in: query
+#    description: Optional limit reviews to equivalent reviewedBy.
+#  - name: reviewedAt
+#    in: query
+#    description: Optional limit reviews to equivalent reviewedAt.
+#  - name: metaReviewedBy
+#    in: query
+#    description: Optional limit reviews to equivalent metaReviewedBy.
+#  - name: metaReviewStatus
+#    in: query
+#    description: Optional limit reviews to equivalent metaReviewStatus.
+#  - name: status
+#    in: query
+#    description: Optional limit reviews to equivalent status.
+#  - name: priority
+#    in: query
+#    description: Optional limit reviews to equivalent priority.
+#  - name: tagFilter
+#    in: query
+#    description: Optional limit reviews to equivalent tagFilter.
+#  - name: sortBy
+#    in: query
+#    description: Optional limit reviews to equivalent sortBy.
+#  - name: direction
+#    in: query
+#    description: Optional limit reviews to equivalent direction.
+#  - name: displayedColumns
+#    in: query
+#    description: Optional limit reviews to equivalent displayedColumns.
+#  - name: invertedFilters
+#    in: query
+#    description: Optional limit reviews to equivalent invertedFilters.
+#  - name: onlySaved
+#    in: query
+#    description: Optional limit reviews to equivalent onlySaved.
 ###
-GET     /tasks/review/reviewTable/export              @org.maproulette.framework.controller.TaskReviewController.extractReviewTableData(taskId: String ?= "", reviewStatus: String ?= "", mapper: String ?= "", challengeId: String ?= "", projectIds: String ?= "", mappedOn: String ?= "", reviewedBy: String ?= "", reviewedAt: String ?= "", metaReviewedBy: String ?= "", metaReviewStatus: String ?= "", status: String ?= "", priority: String ?= "", tagFilter: String ?= "", sortBy: String ?= "", direction: String ?= "", displayedColumns: String ?= "", invertedFilters: String ?= "", onlySaved: Boolean = false)
+GET     /tasks/review/reviewTable/export              @org.maproulette.framework.controller.TaskReviewController.extractReviewTableData(taskId: String ?= "", reviewStatus: String ?= "0,1,2,3,4,5,6,7,-1", mapper: String ?= "", challengeId: String ?= "", projectIds: String ?= "", mappedOn: String ?= "", reviewedBy: String ?= "", reviewedAt: String ?= "", metaReviewedBy: String ?= "", metaReviewStatus: String ?= "2,0,1,2,3,6", status: String ?= "0,1,2,3,4,5,6,9", priority: String ?= "0,1,2", tagFilter: String ?= "", sortBy: String ?= "mapped_on", direction: String ?= "ASC", displayedColumns: String ?= "Internal Id,Review Status,Mapper,Challenge,Project,Mapped On,Reviewer,Reviewed On,Status,Priority,Actions,View Comments,Tags,Additional Reviewers", invertedFilters: String ?= "", onlySaved: Boolean = false)
 ###
 # tags: [ Review ]
 # summary: Retrieve a summary of meta-review coverage for reviewers

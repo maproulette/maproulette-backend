@@ -249,17 +249,23 @@ class TaskReviewController @Inject() (
     * Returns a CSV export of the data displayed in the review table.
     *
     * SearchParameters:
-    *   taskId Optional limit to reviews to equivalent taskId structure
-    *   reviewStatus Optional limit reviews to equivalent reviewStatus
-    *   reviewRequestedByUsername Optional limit reviews to equivalent mapper name
-    *   challengeName Optional limit reviews to equivalent challenge name
-    *   parent Optional limit reviews to equivalent project name
-    *   mappedOn Optional limit reviews to equivalent submittion date
-    *   reviewedBy Optional limit reviews to equivalent reviewer
-    *   reviewedAt Optional limit reviews to equivalent reviewed At date
-    *   status Optional limit reviews to equivalent status
-    *   priority Optional limit reviews to equivalent priority
-    *   additionalReviewers Optional limit reviews to equivalent priority
+    * @param taskId Optional limit reviews to equivalent taskId
+    * @param reviewStatus Optional limit reviews to equivalent reviewStatus
+    * @param mapper Optional limit reviews to equivalent mapper
+    * @param challengeId Optional limit reviews to equivalent challengeId
+    * @param projectIds Optional limit reviews to equivalent projectIds
+    * @param mappedOn Optional limit reviews to equivalent mappedOn
+    * @param reviewedBy Optional limit reviews to equivalent reviewedBy
+    * @param reviewedAt Optional limit reviews to equivalent reviewedAt
+    * @param metaReviewedBy Optional limit reviews to equivalent metaReviewedBy
+    * @param metaReviewStatus Optional limit reviews to equivalent metaReviewStatus
+    * @param status Optional limit reviews to equivalent status
+    * @param priority Optional limit reviews to equivalent priority
+    * @param tagFilter Optional limit reviews to equivalent tagFilter
+    * @param sortBy Optional limit reviews to equivalent sortBy
+    * @param direction Optional limit reviews to equivalent direction
+    * @param displayedColumns Optional limit reviews to equivalent displayedColumns
+    * @param invertedFilters Optional limit reviews to equivalent invertedFilters
     * @param onlySaved Only include saved challenges
     * @return
     */
@@ -285,11 +291,6 @@ class TaskReviewController @Inject() (
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       SearchParameters.withSearch { implicit params =>
-        val columnsToDisplay = if (displayedColumns == "") {
-          "Internal Id,Review Status,Mapper,Challenge,Project,Mapped On,Reviewer,Reviewed On,Status,Priority,Actions,View Comments,Tags,Additional Reviewers"
-        } else {
-          displayedColumns
-        }
         val invertFiltering        = parseParameterString(invertedFilters)
         val statusFilter           = parseParameterInt(status)
         val reviewStatusFilter     = parseParameterInt(reviewStatus)
@@ -337,7 +338,7 @@ class TaskReviewController @Inject() (
         val urlPrefix = config.getPublicOrigin.fold(s"https://${request.host}/")(_ + "/")
 
         val csvRows = metrics.map { row =>
-          columnsToDisplay.split(",").flatMap {
+          displayedColumns.split(",").flatMap {
             case "Internal Id"   => Seq(row.review.taskId)
             case "Review Status" => Seq(Task.reviewStatusMap(row.review.reviewStatus.get))
             case "Mapper"        => Seq(row.review.reviewRequestedByUsername.getOrElse(""))
@@ -369,7 +370,7 @@ class TaskReviewController @Inject() (
         val csvWriter  = new CSVWriter(csvContent)
 
         // Write header
-        csvWriter.writeRow(columnsToDisplay.split(",").toVector)
+        csvWriter.writeRow(displayedColumns.split(",").toVector)
 
         // Write rows
         csvRows.foreach(row => csvWriter.writeRow(row.toVector))

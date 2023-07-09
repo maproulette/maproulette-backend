@@ -468,20 +468,13 @@ class TaskReviewRepository @Inject() (
       direction: String = ""
   ): List[TaskWithReview] = {
     this.withMRConnection { implicit c =>
-      val sortByColumn = if (sortBy == "") {
-        "tasks.id"
-      } else {
-        sortBy
-      }
       val directionByColumn = if (direction == "ASC") {
         Order.ASC
       } else {
         Order.DESC
       }
       val querySimple =
-        query.copy(order =
-          Order(List(OrderField(sortByColumn, directionByColumn, table = Some(""))))
-        )
+        query.copy(order = Order(List(OrderField(sortBy, directionByColumn, table = Some("")))))
 
       querySimple
         .build(
