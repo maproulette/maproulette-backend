@@ -320,60 +320,61 @@ GET     /tasks/review/mappers/export                          @org.maproulette.f
 # parameters:
 #  - name: taskId
 #    in: query
-#    description: Optional limit reviews to equivalent taskId.
+#    description: Reviews to equivalent taskId.
 #  - name: reviewStatus
 #    in: query
-#    description: Optional limit reviews to equivalent reviewStatus.
+#    description: Reviews to equivalent reviewStatus.
 #  - name: mapper
 #    in: query
-#    description: Optional limit reviews to equivalent mapper.
+#    description: Reviews to equivalent mapper.
 #  - name: challengeId
 #    in: query
-#    description: Optional limit reviews to equivalent challengeId.
+#    description: Reviews to equivalent challengeId.
 #  - name: projectIds
 #    in: query
-#    description: Optional limit reviews to equivalent projectIds.
+#    description: Reviews to equivalent projectIds.
+#    required: true
 #  - name: mappedOn
 #    in: query
-#    description: Optional limit reviews to equivalent mappedOn.
+#    description: Reviews to equivalent mappedOn.
 #  - name: reviewedBy
 #    in: query
-#    description: Optional limit reviews to equivalent reviewedBy.
+#    description: Reviews to equivalent reviewedBy.
 #  - name: reviewedAt
 #    in: query
-#    description: Optional limit reviews to equivalent reviewedAt.
+#    description: Reviews to equivalent reviewedAt.
 #  - name: metaReviewedBy
 #    in: query
-#    description: Optional limit reviews to equivalent metaReviewedBy.
+#    description: Reviews to equivalent metaReviewedBy.
 #  - name: metaReviewStatus
 #    in: query
-#    description: Optional limit reviews to equivalent metaReviewStatus.
+#    description: Reviews to equivalent metaReviewStatus.
 #  - name: status
 #    in: query
-#    description: Optional limit reviews to equivalent status.
+#    description: Reviews to equivalent status.
 #  - name: priority
 #    in: query
-#    description: Optional limit reviews to equivalent priority.
+#    description: Reviews to equivalent priority.
 #  - name: tagFilter
 #    in: query
-#    description: Optional limit reviews to equivalent tagFilter.
+#    description: Sort order direction. Either ASC or DESC.
 #  - name: sortBy
 #    in: query
-#    description: Optional limit reviews to equivalent sortBy.
+#    description: Reviews to equivalent sortBy.
 #  - name: direction
 #    in: query
-#    description: Optional limit reviews to equivalent direction.
+#    description: Reviews to equivalent direction.
 #  - name: displayedColumns
 #    in: query
-#    description: Optional limit reviews to equivalent displayedColumns.
+#    description: Reviews to equivalent displayedColumns.
 #  - name: invertedFilters
 #    in: query
-#    description: Optional limit reviews to equivalent invertedFilters.
+#    description: Reviews to equivalent invertedFilters.
 #  - name: onlySaved
 #    in: query
-#    description: Optional limit reviews to equivalent onlySaved.
+#    description: Reviews to equivalent onlySaved.
 ###
-GET     /tasks/review/reviewTable/export              @org.maproulette.framework.controller.TaskReviewController.extractReviewTableData(taskId: String ?= "", reviewStatus: String ?= "0,1,2,3,4,5,6,7,-1", mapper: String ?= "", challengeId: String ?= "", projectIds: String ?= "", mappedOn: String ?= "", reviewedBy: String ?= "", reviewedAt: String ?= "", metaReviewedBy: String ?= "", metaReviewStatus: String ?= "2,0,1,2,3,6", status: String ?= "0,1,2,3,4,5,6,9", priority: String ?= "0,1,2", tagFilter: String ?= "", sortBy: String ?= "mapped_on", direction: String ?= "ASC", displayedColumns: String ?= "Internal Id,Review Status,Mapper,Challenge,Project,Mapped On,Reviewer,Reviewed On,Status,Priority,Actions,View Comments,Tags,Additional Reviewers", invertedFilters: String ?= "", onlySaved: Boolean = false)
+GET     /tasks/review/reviewTable/export              @org.maproulette.framework.controller.TaskReviewController.extractReviewTableData(taskId: String ?= "", reviewStatus: String ?= "0,1,2,3,4,5,6,7,-1", mapper: String ?= "", challengeId: String ?= "", projectIds: String ?= "1", mappedOn: String ?= "", reviewedBy: String ?= "", reviewedAt: String ?= "", metaReviewedBy: String ?= "", metaReviewStatus: String ?= "2,0,1,2,3,6", status: String ?= "0,1,2,3,4,5,6,9", priority: String ?= "0,1,2", tagFilter: String ?= "", sortBy: String ?= "mapped_on", direction: String ?= "ASC", displayedColumns: String ?= "Internal Id,Review Status,Mapper,Challenge,Project,Mapped On,Reviewer,Reviewed On,Status,Priority,Actions,View Comments,Tags,Additional Reviewers", invertedFilters: String ?= "", onlySaved: Boolean = false)
 ###
 # tags: [ Review ]
 # summary: Retrieve a summary of meta-review coverage for reviewers

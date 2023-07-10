@@ -249,23 +249,23 @@ class TaskReviewController @Inject() (
     * Returns a CSV export of the data displayed in the review table.
     *
     * SearchParameters:
-    * @param taskId Optional limit reviews to equivalent taskId
-    * @param reviewStatus Optional limit reviews to equivalent reviewStatus
-    * @param mapper Optional limit reviews to equivalent mapper
-    * @param challengeId Optional limit reviews to equivalent challengeId
-    * @param projectIds Optional limit reviews to equivalent projectIds
-    * @param mappedOn Optional limit reviews to equivalent mappedOn
-    * @param reviewedBy Optional limit reviews to equivalent reviewedBy
-    * @param reviewedAt Optional limit reviews to equivalent reviewedAt
-    * @param metaReviewedBy Optional limit reviews to equivalent metaReviewedBy
-    * @param metaReviewStatus Optional limit reviews to equivalent metaReviewStatus
-    * @param status Optional limit reviews to equivalent status
-    * @param priority Optional limit reviews to equivalent priority
-    * @param tagFilter Optional limit reviews to equivalent tagFilter
-    * @param sortBy Optional limit reviews to equivalent sortBy
-    * @param direction Optional limit reviews to equivalent direction
-    * @param displayedColumns Optional limit reviews to equivalent displayedColumns
-    * @param invertedFilters Optional limit reviews to equivalent invertedFilters
+    * @param taskId Reviews to equivalent taskId
+    * @param reviewStatus Reviews to equivalent reviewStatus
+    * @param mapper Reviews to equivalent mapper
+    * @param challengeId Reviews to equivalent challengeId
+    * @param projectIds Reviews to equivalent projectIds
+    * @param mappedOn Reviews to equivalent mappedOn
+    * @param reviewedBy Reviews to equivalent reviewedBy
+    * @param reviewedAt Reviews to equivalent reviewedAt
+    * @param metaReviewedBy Reviews to equivalent metaReviewedBy
+    * @param metaReviewStatus Reviews to equivalent metaReviewStatus
+    * @param status Reviews to equivalent status
+    * @param priority Reviews to equivalent priority
+    * @param tagFilter Reviews to equivalent tagFilter
+    * @param sortBy Sort order direction. Either ASC or DESC
+    * @param direction Reviews to equivalent direction
+    * @param displayedColumns Reviews to equivalent displayedColumns
+    * @param invertedFilters Reviews to equivalent invertedFilters
     * @param onlySaved Only include saved challenges
     * @return
     */
