@@ -249,24 +249,24 @@ class TaskReviewController @Inject() (
     * Returns a CSV export of the data displayed in the review table.
     *
     * SearchParameters:
-    * @param taskId Reviews to equivalent taskId
-    * @param reviewStatus Reviews to equivalent reviewStatus
-    * @param mapper Reviews to equivalent mapper
-    * @param challengeId Reviews to equivalent challengeId
-    * @param projectIds Reviews to equivalent projectIds
-    * @param mappedOn Reviews to equivalent mappedOn
-    * @param reviewedBy Reviews to equivalent reviewedBy
-    * @param reviewedAt Reviews to equivalent reviewedAt
-    * @param metaReviewedBy Reviews to equivalent metaReviewedBy
-    * @param metaReviewStatus Reviews to equivalent metaReviewStatus
-    * @param status Reviews to equivalent status
-    * @param priority Reviews to equivalent priority
-    * @param tagFilter Reviews to equivalent tagFilter
-    * @param sortBy Sort order direction. Either ASC or DESC
-    * @param direction Reviews to equivalent direction
-    * @param displayedColumns Reviews to equivalent displayedColumns
-    * @param invertedFilters Reviews to equivalent invertedFilters
-    * @param onlySaved Only include saved challenges
+    * @param taskId Reviews to equivalent taskId. Example (Int) - 14
+    * @param reviewStatus Reviews to equivalent reviewStatus. Available Values - 0,1,2,3,4,5,6,7,-1
+    * @param mapper Reviews to equivalent mapper. Example (String) - Username123
+    * @param challengeId Reviews to equivalent challengeId. Example (Int)'s (no spaces) - 23,45,1,12
+    * @param projectIds Reviews to equivalent projectIds. Example (Int)'s (no spaces) - 1,12,3
+    * @param mappedOn Reviews to equivalent mappedOn. format - YYYY-MM-DD
+    * @param reviewedBy Reviews to equivalent reviewedBy. Example - Username567
+    * @param reviewedAt Reviews to equivalent reviewedAt. format - YYYY-MM-DD
+    * @param metaReviewedBy Reviews to equivalent metaReviewedBy. Example - Username987
+    * @param metaReviewStatus Reviews to equivalent metaReviewStatus. Available Values - 2,0,1,2,3,6
+    * @param status Reviews to equivalent status. Available Values - 0,1,2,3,4,5,6,9
+    * @param priority Reviews to equivalent priority. Available Values - 0,1,2
+    * @param tagFilter Reviews to equivalent tagFilter. Example - Geometries
+    * @param sortBy Reviews to equivalent sortBy. (You must pick only one) Available Values - Internal Id,Review Status,Mapper,Challenge,Project,Mapped On,Reviewer,Reviewed On,Status,Priority,Actions,Additional Reviewers
+    * @param direction Sort order direction. Either ASC or DESC.
+    * @param displayedColumns Reviews to equivalent displayedColumns. Available Values - Internal Id,Review Status,Mapper,Challenge,Project,Mapped On,Reviewer,Reviewed On,Status,Priority,Actions,Additional Reviewers
+    * @param invertedFilters Reviews to equivalent invertedFilters. Available Values - cid,priorities,pid,m,trStatus,r,tStatus
+    * @param onlySaved Reviews to equivalent onlySaved.
     * @return
     */
   def extractReviewTableData(
@@ -298,7 +298,6 @@ class TaskReviewController @Inject() (
         val metaReviewStatusFilter = parseParameterInt(metaReviewStatus)
         val projectIdsFilter       = parseParameterLong(projectIds)
         val challengeIdsFilter     = parseParameterLong(challengeId)
-        val tagFiltering           = parseParameterString(tagFilter)
         val taskIdFilter           = parseParameterLong(taskId).map(_.head)
         val mappedOnFilter         = parseParameterString(mappedOn).map(_.head)
         val mapperFilter           = parseParameterString(mapper).map(_.head)
@@ -315,7 +314,6 @@ class TaskReviewController @Inject() (
             ),
             taskParams = params.taskParams.copy(
               taskId = taskIdFilter,
-              taskTags = tagFiltering,
               taskStatus = statusFilter,
               taskReviewStatus = reviewStatusFilter,
               taskPriorities = priorityFilter,
@@ -353,8 +351,6 @@ class TaskReviewController @Inject() (
               Seq(
                 s"[[Task Link=${urlPrefix}challenge/${row.task.parent}/task/${row.review.taskId}]]"
               )
-            case "View Comments"        => Seq("")
-            case "Tags"                 => Seq(row.task.errorTags)
             case "Additional Reviewers" => Seq(row.review.additionalReviewers.getOrElse(""))
             case "Meta Review Status"   => Seq(row.review.metaReviewStatus)
             case "Meta Reviewed By"     => Seq(row.review.metaReviewedByUsername.getOrElse(""))

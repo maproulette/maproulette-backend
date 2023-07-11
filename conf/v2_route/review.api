@@ -316,65 +316,67 @@ GET     /tasks/review/mappers/export                          @org.maproulette.f
 # description: This will retrieve a summary of review coverage for each review related task and respond with a csv
 # response:
 #   '200':
-#     description: A CSV file containing the following data "Internal Id,Review Status,Mapper,Challenge,Project,Mapped On,Reviewer,Reviewed On,Status,Priority,Actions,View Comments,Tags,Additional Reviewers"
+#     description: A CSV file containing the following data "Internal Id,Review Status,Mapper,Challenge,Project,Mapped On,Reviewer,Reviewed On,Status,Priority,Actions,Additional Reviewers"
 # parameters:
 #  - name: taskId
 #    in: query
-#    description: Reviews to equivalent taskId.
+#    description: Reviews to equivalent taskId. Example (Int) - 14
 #  - name: reviewStatus
 #    in: query
-#    description: Reviews to equivalent reviewStatus.
+#    description: Reviews to equivalent reviewStatus. Available Values - 0,1,2,3,4,5,6,7,-1
 #  - name: mapper
 #    in: query
-#    description: Reviews to equivalent mapper.
+#    description: Reviews to equivalent mapper. Example (String) - Username123
 #  - name: challengeId
 #    in: query
-#    description: Reviews to equivalent challengeId.
+#    description: Reviews to equivalent challengeId. Example (Int)'s (no spaces) - 23,45,1,12
 #  - name: projectIds
 #    in: query
-#    description: Reviews to equivalent projectIds.
+#    description: Reviews to equivalent projectIds. Example (Int)'s (no spaces) - 1,12,3
 #    required: true
 #  - name: mappedOn
 #    in: query
-#    description: Reviews to equivalent mappedOn.
+#    description: Reviews to equivalent mappedOn. format - YYYY-MM-DD
 #  - name: reviewedBy
 #    in: query
-#    description: Reviews to equivalent reviewedBy.
+#    description: Reviews to equivalent reviewedBy. Example - Username567
 #  - name: reviewedAt
 #    in: query
-#    description: Reviews to equivalent reviewedAt.
+#    description: Reviews to equivalent reviewedAt. format - YYYY-MM-DD
 #  - name: metaReviewedBy
 #    in: query
-#    description: Reviews to equivalent metaReviewedBy.
+#    description: Reviews to equivalent metaReviewedBy. Example - Username987
 #  - name: metaReviewStatus
 #    in: query
-#    description: Reviews to equivalent metaReviewStatus.
+#    description: Reviews to equivalent metaReviewStatus. Available Values - 2,0,1,2,3,6
 #  - name: status
 #    in: query
-#    description: Reviews to equivalent status.
+#    description: Reviews to equivalent status. Available Values - 0,1,2,3,4,5,6,9
 #  - name: priority
 #    in: query
-#    description: Reviews to equivalent priority.
+#    description: Reviews to equivalent priority. Available Values - 0,1,2
 #  - name: tagFilter
 #    in: query
-#    description: Sort order direction. Either ASC or DESC.
+#    description: Reviews to equivalent tagFilter. Example - Geometries
 #  - name: sortBy
 #    in: query
-#    description: Reviews to equivalent sortBy.
+#    description: Reviews to equivalent sortBy. (You must pick only one) Available Values - Internal Id,Review Status,Mapper,Challenge,Project,Mapped On,Reviewer,Reviewed On,Status,Priority,Actions,Additional Reviewers
+#    required: true
 #  - name: direction
 #    in: query
-#    description: Reviews to equivalent direction.
+#    description: Sort order direction. Either ASC or DESC.
+#    required: true
 #  - name: displayedColumns
 #    in: query
-#    description: Reviews to equivalent displayedColumns.
+#    description: Reviews to equivalent displayedColumns. Available Values - Internal Id,Review Status,Mapper,Challenge,Project,Mapped On,Reviewer,Reviewed On,Status,Priority,Actions,Additional Reviewers
 #  - name: invertedFilters
 #    in: query
-#    description: Reviews to equivalent invertedFilters.
+#    description: Reviews to equivalent invertedFilters. Available Values - cid,priorities,pid,m,trStatus,r,tStatus
 #  - name: onlySaved
 #    in: query
 #    description: Reviews to equivalent onlySaved.
 ###
-GET     /tasks/review/reviewTable/export              @org.maproulette.framework.controller.TaskReviewController.extractReviewTableData(taskId: String ?= "", reviewStatus: String ?= "0,1,2,3,4,5,6,7,-1", mapper: String ?= "", challengeId: String ?= "", projectIds: String ?= "1", mappedOn: String ?= "", reviewedBy: String ?= "", reviewedAt: String ?= "", metaReviewedBy: String ?= "", metaReviewStatus: String ?= "2,0,1,2,3,6", status: String ?= "0,1,2,3,4,5,6,9", priority: String ?= "0,1,2", tagFilter: String ?= "", sortBy: String ?= "mapped_on", direction: String ?= "ASC", displayedColumns: String ?= "Internal Id,Review Status,Mapper,Challenge,Project,Mapped On,Reviewer,Reviewed On,Status,Priority,Actions,View Comments,Tags,Additional Reviewers", invertedFilters: String ?= "", onlySaved: Boolean = false)
+GET     /tasks/review/reviewTable/export              @org.maproulette.framework.controller.TaskReviewController.extractReviewTableData(taskId: String ?= "", reviewStatus: String ?= "0,1,2,3,4,5,6,7,-1", mapper: String ?= "", challengeId: String ?= "", projectIds: String ?= "", mappedOn: String ?= "", reviewedBy: String ?= "", reviewedAt: String ?= "", metaReviewedBy: String ?= "", metaReviewStatus: String ?= "2,0,1,2,3,6", status: String ?= "0,1,2,3,4,5,6,9", priority: String ?= "0,1,2", tagFilter: String ?= "", sortBy: String ?= "mapped_on", direction: String ?= "ASC", displayedColumns: String ?= "Internal Id,Review Status,Mapper,Challenge,Project,Mapped On,Reviewer,Reviewed On,Status,Priority,Actions,Additional Reviewers", invertedFilters: String ?= "", onlySaved: Boolean ?= false)
 ###
 # tags: [ Review ]
 # summary: Retrieve a summary of meta-review coverage for reviewers
