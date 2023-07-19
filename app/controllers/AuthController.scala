@@ -154,7 +154,7 @@ class AuthController @Inject() (
         wsClient.url(authorizeEndpoint).withQueryStringParameters(params.toSeq: _*).uri.toString
 
       val json = Json.obj(
-        "state" -> state,
+        "state"    -> state,
         "redirect" -> url
       )
 
