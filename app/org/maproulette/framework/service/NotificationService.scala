@@ -176,7 +176,7 @@ class NotificationService @Inject() (
     }
   }
 
-  /**
+ /**
     * Create one or more new notifications for users mentioned by name in a
     * comment. The recipient user(s) will be extracted from the comment
     *
@@ -191,24 +191,53 @@ class NotificationService @Inject() (
   ): Unit = {
     // match [@username] (username may contain spaces) or @username (no spaces allowed)
     val mentionRegex = """\[@([^\]]+)\]|@([\w\d_-]+)""".r.unanchored
-
     val challengeOwner = this.serviceManager.user.retrieveByOSMId(challenge.general.owner).get
-
-    // Challenge owners should be notified everytime a challenge comment is posted unless its their comment
-    if (fromUser.id != challengeOwner.id) {
-      this.addNotification(
-        UserNotification(
-          -1,
-          userId = challengeOwner.id,
-          notificationType = UserNotification.NOTIFICATION_TYPE_CHALLENGE_COMMENT,
-          fromUsername = Some(fromUser.osmProfile.displayName),
-          taskId = None,
-          challengeId = Some(challenge.id),
-          targetId = Some(comment.id),
-          extra = Some(comment.comment)
-        ),
-        User.superUser
-      )
+    
+    // Challenge owners and any parent project admins should be notified everytime a challenge comment is posted unless its their comment
+    
+    if (fromUser.id == challengeOwner.id) {
+      this.serviceManager.project.retrieve(challenge.general.parent) match {
+        case Some(parentProject) =>
+          val managers = this.serviceManager.user.getUsersManagingProject(parentProject.id, None, User.superUser)
+          // if(managers.length > 1) {
+              managers.foreach { manager =>
+              if(manager.userId != fromUser.id) {
+                this.addNotification(
+                  UserNotification(
+                    -1,
+                    userId = manager.userId,
+                    notificationType = UserNotification.NOTIFICATION_TYPE_CHALLENGE_COMMENT,
+                    fromUsername = Some(fromUser.osmProfile.displayName),
+                    taskId = None,
+                    challengeId = Some(challenge.id),
+                    targetId = Some(comment.id),
+                    extra = Some(comment.comment)
+                  ),
+                  User.superUser
+                )
+              }
+            }
+          //   }
+          // } else {
+          //   this.addNotification(
+          //     UserNotification(
+          //       -1,
+          //       userId = challengeOwner.id,
+          //       notificationType = UserNotification.NOTIFICATION_TYPE_CHALLENGE_COMMENT,
+          //       fromUsername = Some(fromUser.osmProfile.displayName),
+          //       taskId = None,
+          //       challengeId = Some(challenge.id),
+          //       targetId = Some(comment.id),
+          //       extra = Some(comment.comment)
+          //     ),
+          //     User.superUser
+          //   )
+          // }
+        case None =>
+          throw new NotFoundException(
+            s"Parent project ${challenge.general.parent} not found for challenge ${challenge.id}"
+          )
+      }
     }
 
     for (m <- mentionRegex.findAllMatchIn(comment.comment)) {
