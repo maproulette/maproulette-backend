@@ -192,15 +192,24 @@ class NotificationService @Inject() (
     // match [@username] (username may contain spaces) or @username (no spaces allowed)
     val mentionRegex = """\[@([^\]]+)\]|@([\w\d_-]+)""".r.unanchored
     val challengeOwner = this.serviceManager.user.retrieveByOSMId(challenge.general.owner).get
+    val buildNotification = (userId: Long) => {
+      UserNotification(
+        -1,
+        userId = userId,
+        notificationType = UserNotification.NOTIFICATION_TYPE_CHALLENGE_COMMENT,
+        fromUsername = Some(fromUser.osmProfile.displayName),
+        taskId = None,
+        challengeId = Some(challenge.id),
+        targetId = Some(comment.id),
+        extra = Some(comment.comment)
+      )
+    }
+    // Challenge owners and any parent project managers should be notified everytime a challenge comment is posted unless its their comment
     
-    // Challenge owners and any parent project admins should be notified everytime a challenge comment is posted unless its their comment
-    
-    if (fromUser.id == challengeOwner.id) {
       this.serviceManager.project.retrieve(challenge.general.parent) match {
         case Some(parentProject) =>
-          val managers = this.serviceManager.user.getUsersManagingProject(parentProject.id, None, User.superUser)
-          // if(managers.length > 1) {
-              managers.foreach { manager =>
+          this.serviceManager.user.getUsersManagingProject(parentProject.id, None, User.superUser)
+            .foreach { manager =>
               if(manager.userId != fromUser.id) {
                 this.addNotification(
                   UserNotification(
@@ -217,28 +226,16 @@ class NotificationService @Inject() (
                 )
               }
             }
-          //   }
-          // } else {
-          //   this.addNotification(
-          //     UserNotification(
-          //       -1,
-          //       userId = challengeOwner.id,
-          //       notificationType = UserNotification.NOTIFICATION_TYPE_CHALLENGE_COMMENT,
-          //       fromUsername = Some(fromUser.osmProfile.displayName),
-          //       taskId = None,
-          //       challengeId = Some(challenge.id),
-          //       targetId = Some(comment.id),
-          //       extra = Some(comment.comment)
-          //     ),
-          //     User.superUser
-          //   )
-          // }
+        // If no parent project found and therefore no managers extracted, notify only challenge owner
         case None =>
-          throw new NotFoundException(
-            s"Parent project ${challenge.general.parent} not found for challenge ${challenge.id}"
-          )
+          if (fromUser.id != challengeOwner.id) {
+            this.addNotification(
+               buildNotification(challengeOwner.id),
+              User.superUser
+            )
+          }
       }
-    }
+    
 
     for (m <- mentionRegex.findAllMatchIn(comment.comment)) {
       // use first non-null group
