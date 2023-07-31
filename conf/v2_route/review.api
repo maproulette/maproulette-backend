@@ -330,9 +330,9 @@ GET     /tasks/review/mappers/export                          @org.maproulette.f
 #  - name: challengeId
 #    in: query
 #    description: Reviews to equivalent challengeId. Example (Int)'s (no spaces) - 23,45,1,12
-#  - name: projectIds
+#  - name: projectId
 #    in: query
-#    description: Reviews to equivalent projectIds. Example (Int)'s (no spaces) - 1,12,3
+#    description: Reviews to equivalent projectId. Example (Int) - 12
 #    required: true
 #  - name: mappedOn
 #    in: query
@@ -376,7 +376,7 @@ GET     /tasks/review/mappers/export                          @org.maproulette.f
 #    in: query
 #    description: Reviews to equivalent onlySaved.
 ###
-GET     /tasks/review/reviewTable/export              @org.maproulette.framework.controller.TaskReviewController.extractReviewTableData(taskId: String ?= "", reviewStatus: String ?= "0,1,2,3,4,5,6,7,-1", mapper: String ?= "", challengeId: String ?= "", projectIds: String ?= "", mappedOn: String ?= "", reviewedBy: String ?= "", reviewedAt: String ?= "", metaReviewedBy: String ?= "", metaReviewStatus: String ?= "2,0,1,2,3,6", status: String ?= "0,1,2,3,4,5,6,9", priority: String ?= "0,1,2", tagFilter: String ?= "", sortBy: String ?= "mapped_on", direction: String ?= "ASC", displayedColumns: String ?= "Internal Id,Review Status,Mapper,Challenge,Project,Mapped On,Reviewer,Reviewed On,Status,Priority,Actions,Additional Reviewers", invertedFilters: String ?= "", onlySaved: Boolean ?= false)
+GET     /tasks/review/reviewTable/export              @org.maproulette.framework.controller.TaskReviewController.extractReviewTableData(taskId: String ?= "", reviewStatus: String ?= "0,1,2,3,4,5,6,7,-1", mapper: String ?= "", challengeId: String ?= "", projectId: String ?= "", mappedOn: String ?= "", reviewedBy: String ?= "", reviewedAt: String ?= "", metaReviewedBy: String ?= "", metaReviewStatus: String ?= "2,0,1,2,3,6", status: String ?= "0,1,2,3,4,5,6,9", priority: String ?= "0,1,2", tagFilter: String ?= "", sortBy: String ?= "mapped_on", direction: String ?= "ASC", displayedColumns: String ?= "Internal Id,Review Status,Mapper,Challenge,Project,Mapped On,Reviewer,Reviewed On,Status,Priority,Actions,Additional Reviewers", invertedFilters: String ?= "", onlySaved: Boolean ?= false)
 ###
 # tags: [ Review ]
 # summary: Retrieve a summary of meta-review coverage for reviewers

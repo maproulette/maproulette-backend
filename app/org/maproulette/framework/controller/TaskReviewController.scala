@@ -253,7 +253,7 @@ class TaskReviewController @Inject() (
     * @param reviewStatus Reviews to equivalent reviewStatus. Available Values - 0,1,2,3,4,5,6,7,-1
     * @param mapper Reviews to equivalent mapper. Example (String) - Username123
     * @param challengeId Reviews to equivalent challengeId. Example (Int)'s (no spaces) - 23,45,1,12
-    * @param projectIds Reviews to equivalent projectIds. Example (Int)'s (no spaces) - 1,12,3
+    * @param projectId Reviews to equivalent projectId. Example (Int) - 12
     * @param mappedOn Reviews to equivalent mappedOn. format - YYYY-MM-DD
     * @param reviewedBy Reviews to equivalent reviewedBy. Example - Username567
     * @param reviewedAt Reviews to equivalent reviewedAt. format - YYYY-MM-DD
@@ -274,7 +274,7 @@ class TaskReviewController @Inject() (
       reviewStatus: String,
       mapper: String,
       challengeId: String,
-      projectIds: String,
+      projectId: String,
       mappedOn: String,
       reviewedBy: String,
       reviewedAt: String,
@@ -291,12 +291,15 @@ class TaskReviewController @Inject() (
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       SearchParameters.withSearch { implicit params =>
+        if (projectId.split(",").length != 1) {
+          throw new IllegalArgumentException("Exactly one project ID is required.")
+        }
         val invertFiltering        = parseParameterString(invertedFilters)
         val statusFilter           = parseParameterInt(status)
         val reviewStatusFilter     = parseParameterInt(reviewStatus)
         val priorityFilter         = parseParameterInt(priority)
         val metaReviewStatusFilter = parseParameterInt(metaReviewStatus)
-        val projectIdsFilter       = parseParameterLong(projectIds)
+        val projectIdFilter        = parseParameterLong(projectId)
         val challengeIdsFilter     = parseParameterLong(challengeId)
         val taskIdFilter           = parseParameterLong(taskId).map(_.head)
         val mappedOnFilter         = parseParameterString(mappedOn).map(_.head)
@@ -308,7 +311,7 @@ class TaskReviewController @Inject() (
         val metrics = this.service.getReviewTableData(
           User.userOrMocked(user),
           params.copy(
-            projectIds = projectIdsFilter,
+            projectIds = projectIdFilter,
             challengeParams = params.challengeParams.copy(
               challengeIds = challengeIdsFilter
             ),
