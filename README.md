@@ -148,39 +148,39 @@ A few known setup misconfigurations could be:
 
 ---
 
-### Step 3: Setup OAuth Login and Run the front-end GUI
+### Step 3: Setup OAuth 2.0 Login and Run the front-end GUI
 
 With the database and MapRoulette server working together, it's now time to get the front-end login workflow working!
 
 High level the user visits to MapRoulette, clicks 'login' and is sent to OpenStreepMap to login then, after authentication, MapRoulette is able to make OSM changes of behalf
-of the user. This is done by registering the local dev instance of MapRoulette as an OSM OAuth Application to create keys, and then
+of the user. This is done by registering the local dev instance of MapRoulette as an OSM OAuth 2.0 Application to create keys, and then
 the those keys are pasted into the MapRoulette server configuration. More details on how OSM uses OAuth is on
 the [OpenStreetMap OAuth documentation](https://wiki.openstreetmap.org/wiki/OAuth).
 
-#### Register localhost as an OpenStreetMap OAuth Application
+#### Register localhost as an OpenStreetMap OAuth 2.0 Application
 
-Within OpenStreetMap, MapRoulette needs to be setup as an "OAuth Application" so that changes in MapRoulette are associated
+Within OpenStreetMap, MapRoulette needs to be setup as an "OAuth 2 Application" so that changes in MapRoulette are associated
 with a user's OSM account.
 
 1. Login to the [development OpenStreetMap server](https://master.apis.dev.openstreetmap.org) (make an account if needed)
 1. In the top right, click the user and go to `My Settings`
-1. Then click `OAuth 1 settings` tab
-1. At the bottom of the OAuth 1 settings page, click `Register your application`
+1. Then click `OAuth 2 applications` tab
+1. At the bottom of the OAuth2 settings page, click `Register new application`
 1. Register using these settings:
    * `Name`: maprouletteDevLocalhost (any name is fine)
-   * `Main Application URL`: <http://127.0.0.1:9000>
-   * `Callback URL`: <http://127.0.0.1:9000>
-   * `Support URL`: empty string is fine
-   * `Request the following permissions from the user`: Select
-     * `read their user preferences`
-     * `modify their user preferences` (MapRoulette saves the user's MR API key in OSM)
-     * `modify the map` (MapRoulette tasks edit the map)
+   * `Redirect URIs`: <http://127.0.0.1:9000>
+   * `Confidential application`: Keep this checked
+   * `Permissions`: Select
+     * `Read user preferences`
+     * `Modify user preferences` (MapRoulette saves the user's MR API key in OSM)
+     * `Modify the map` (MapRoulette tasks edit the map)
 
-Click `Register` and note the displayed Consumer Key and the Consumer Secret. Copy and paste those keys into the MapRoulette
+Click `Register` and note the displayed Client ID and the Client Secret. Copy and paste those keys into the MapRoulette
 `conf/dev.conf` file's osm section where it has "CHANGE_ME":
 
 ```text
 osm {
+  # The OSM OAuth 2.0 Client ID and Client Secret, respectively
   consumerKey="CHANGE_ME"
   consumerSecret="CHANGE_ME"
 }
