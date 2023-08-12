@@ -114,6 +114,7 @@ trait TaskParserMixin {
           Option[String]
       )
   ): RowParser[TaskWithReview] = {
+    // tasks fields
     get[Long]("tasks.id") ~
       get[String]("tasks.name") ~
       get[DateTime]("tasks.created") ~
@@ -127,6 +128,12 @@ trait TaskParserMixin {
       get[Option[DateTime]]("tasks.mapped_on") ~
       get[Option[Long]]("tasks.completed_time_spent") ~
       get[Option[Long]]("tasks.completed_by") ~
+      get[Int]("tasks.priority") ~
+      get[Option[Long]]("tasks.changeset_id") ~
+      get[Option[Long]]("tasks.bundle_id") ~
+      get[Option[Boolean]]("tasks.is_bundle_primary") ~
+      get[Option[String]]("responses") ~
+      // task_review fields
       get[Option[Int]]("task_review.review_status") ~
       get[Option[Long]]("task_review.review_requested_by") ~
       get[Option[Long]]("task_review.reviewed_by") ~
@@ -139,21 +146,20 @@ trait TaskParserMixin {
       get[Option[DateTime]]("task_review.review_claimed_at") ~
       get[Option[List[Long]]]("task_review.additional_reviewers") ~
       get[Option[String]]("task_review.error_tags") ~
-      get[Int]("tasks.priority") ~
-      get[Option[Long]]("tasks.changeset_id") ~
-      get[Option[Long]]("tasks.bundle_id") ~
-      get[Option[Boolean]]("tasks.is_bundle_primary") ~
+      // challenges and projects fields
       get[Option[String]]("challenge_name") ~
       get[Option[String]]("project_name") ~
+      // users fields
       get[Option[String]]("review_requested_by_username") ~
-      get[Option[String]]("reviewed_by_username") ~
-      get[Option[String]]("responses") map {
+      get[Option[String]]("reviewed_by_username") map {
       case id ~ name ~ created ~ modified ~ parent_id ~ instruction ~ location ~ status ~ geojson ~
-            cooperativeWork ~ mappedOn ~ completedTimeSpent ~ completedBy ~ reviewStatus ~ reviewRequestedBy ~
+            cooperativeWork ~ mappedOn ~ completedTimeSpent ~ completedBy ~
+            priority ~ changesetId ~ bundleId ~ isBundlePrimary ~ responses ~
+            reviewStatus ~ reviewRequestedBy ~
             reviewedBy ~ reviewedAt ~ metaReviewedBy ~ metaReviewStatus ~ metaReviewedAt ~ reviewStartedAt ~
             reviewClaimedBy ~ reviewClaimedAt ~ additionalReviewers ~ errorTags ~
-            priority ~ changesetId ~ bundleId ~ isBundlePrimary ~ challengeName ~ projectName ~
-            reviewRequestedByUsername ~ reviewedByUsername ~ responses =>
+            challengeName ~ projectName ~
+            reviewRequestedByUsername ~ reviewedByUsername =>
         val values = updateAndRetrieve(id, geojson, location, cooperativeWork)
         TaskWithReview(
           Task(

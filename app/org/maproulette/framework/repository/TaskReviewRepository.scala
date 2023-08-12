@@ -480,19 +480,27 @@ class TaskReviewRepository @Inject() (
         .build(
           s"""
             SELECT
+              -- tasks fields
               tasks.id,
               tasks.name,
               tasks.created,
               tasks.modified,
               tasks.parent_id,
               tasks.instruction,
-              NULL AS geo_location,
+              ST_AsGeoJSON(tasks.location) AS geo_location,
               tasks.status,
-              NULL AS geo_json,
-              NULL AS cooperative_work,
+              tasks.geojson::TEXT AS geo_json,
+              tasks.cooperative_work_json::TEXT AS cooperative_work,
               tasks.mapped_on,
               tasks.completed_time_spent,
               tasks.completed_by,
+              tasks.priority,
+              tasks.changeset_id,
+              tasks.bundle_id,
+              tasks.is_bundle_primary,
+              tasks.completion_responses::TEXT AS responses,
+
+              -- task_review fields
               task_review.review_status,
               task_review.review_requested_by,
               task_review.reviewed_by,
@@ -505,22 +513,26 @@ class TaskReviewRepository @Inject() (
               task_review.review_claimed_at,
               task_review.additional_reviewers,
               task_review.error_tags,
-              tasks.priority,
-              tasks.changeset_id,
-              tasks.bundle_id,
-              tasks.is_bundle_primary,
+
+              -- challenges and projects fields
               c.name AS challenge_name,
               p.display_name AS project_name,
+
+              -- users fields
               mappers.name AS review_requested_by_username,
-              reviewers.name AS reviewed_by_username,
-              NULL AS responses
-            FROM
-              tasks
-              INNER JOIN task_review ON task_review.task_id = tasks.id
-              LEFT OUTER JOIN users mappers ON task_review.review_requested_by = mappers.id
-              LEFT OUTER JOIN users reviewers ON task_review.reviewed_by = reviewers.id
-              INNER JOIN challenges c ON c.id = tasks.parent_id
-              INNER JOIN projects p ON p.id = c.parent_id
+              reviewers.name AS reviewed_by_username
+
+            FROM tasks
+            -- Joining with task_review
+            INNER JOIN task_review ON task_review.task_id = tasks.id
+
+            -- Joining with challenges and projects
+            INNER JOIN challenges c ON c.id = tasks.parent_id
+            INNER JOIN projects p ON p.id = c.parent_id
+
+            -- Joining with users
+            LEFT OUTER JOIN users mappers ON task_review.review_requested_by = mappers.id
+            LEFT OUTER JOIN users reviewers ON task_review.reviewed_by = reviewers.id
       """
         )
         .as(reviewParser.*)
