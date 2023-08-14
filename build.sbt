@@ -10,7 +10,7 @@ import scala.util.Using
 
 name := "MapRouletteAPI"
 
-version := "4.0.0"
+version := "4.4.5"
 
 scalaVersion := "2.13.10"
 
