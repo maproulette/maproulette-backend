@@ -341,10 +341,13 @@ class TaskReviewController @Inject() (
         val csvRows = metrics.map { row =>
           displayedColumns.split(",").flatMap {
             case "Internal Id"   => Seq(row.review.taskId)
+            case "Feature Id"    => Seq(row.task.name)
             case "Review Status" => Seq(Task.reviewStatusMap(row.review.reviewStatus.get))
             case "Mapper"        => Seq(row.review.reviewRequestedByUsername.getOrElse(""))
             case "Challenge"     => Seq(row.review.challengeName.getOrElse(""))
+            case "Challenge Id"  => Seq(row.task.parent)
             case "Project"       => Seq(row.review.projectName.getOrElse(""))
+            case "Project Id"    => Seq(row.review.projectId.getOrElse(""))
             case "Mapped On"     => Seq(row.task.mappedOn.getOrElse(""))
             case "Reviewer"      => Seq(row.review.reviewedByUsername.getOrElse(""))
             case "Reviewed On"   => Seq(row.review.reviewedAt.getOrElse(""))

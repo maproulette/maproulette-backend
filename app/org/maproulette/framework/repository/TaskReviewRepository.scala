@@ -516,6 +516,7 @@ class TaskReviewRepository @Inject() (
 
               -- challenges and projects fields
               c.name AS challenge_name,
+              p.id AS project_id,
               p.display_name AS project_name,
 
               -- users fields

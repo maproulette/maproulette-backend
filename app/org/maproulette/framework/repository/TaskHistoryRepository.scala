@@ -64,6 +64,7 @@ class TaskHistoryRepository @Inject() (override val db: Database) extends Reposi
           None,
           None,
           None,
+          None,
           requestedBy,
           None,
           reviewedBy,

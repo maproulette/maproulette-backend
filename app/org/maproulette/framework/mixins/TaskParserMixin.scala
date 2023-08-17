@@ -149,6 +149,7 @@ trait TaskParserMixin {
       // challenges and projects fields
       get[Option[String]]("challenge_name") ~
       get[Option[String]]("project_name") ~
+      get[Option[Int]]("project_id") ~
       // users fields
       get[Option[String]]("review_requested_by_username") ~
       get[Option[String]]("reviewed_by_username") map {
@@ -158,7 +159,7 @@ trait TaskParserMixin {
             reviewStatus ~ reviewRequestedBy ~
             reviewedBy ~ reviewedAt ~ metaReviewedBy ~ metaReviewStatus ~ metaReviewedAt ~ reviewStartedAt ~
             reviewClaimedBy ~ reviewClaimedAt ~ additionalReviewers ~ errorTags ~
-            challengeName ~ projectName ~
+            challengeName ~ projectName ~ projectId ~
             reviewRequestedByUsername ~ reviewedByUsername =>
         val values = updateAndRetrieve(id, geojson, location, cooperativeWork)
         TaskWithReview(
@@ -202,6 +203,7 @@ trait TaskParserMixin {
             reviewStatus,
             challengeName,
             projectName,
+            projectId,
             reviewRequestedBy,
             reviewRequestedByUsername,
             reviewedBy,
