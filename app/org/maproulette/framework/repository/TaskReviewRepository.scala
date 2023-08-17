@@ -50,6 +50,7 @@ class TaskReviewRepository @Inject() (
         SELECT $retrieveColumnsWithReview,
                challenges.name as challenge_name,
                projects.name as project_name,
+               projects.id as project_id,
                mappers.name as review_requested_by_username,
                reviewers.name as reviewed_by_username
         FROM tasks
