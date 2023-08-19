@@ -9,15 +9,14 @@ import scala.io.Source
 import scala.util.Using
 
 name := "MapRouletteAPI"
-
-version := "4.0.0"
-
 scalaVersion := "2.13.10"
-
 Universal / packageName := "MapRouletteAPI"
 
 // Developers can run 'sbt format' to easily format their source; this is required to pass a PR build.
 addCommandAlias("format", "scalafmtAll; scalafmtSbt; scalafixAll")
+
+enablePlugins(GitVersioning)
+git.useGitDescribe := true
 
 // Setup BuildInfo plugin to write important build-time values to a generated file (org.maproulette.models.service.info.BuildInfo)
 enablePlugins(BuildInfoPlugin)
@@ -32,6 +31,14 @@ buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion)
 buildInfoKeys += BuildInfoKey.action("buildDate")(LocalDate.now(ZoneOffset.UTC).toString)
 buildInfoKeys += BuildInfoKey.action("javaVersion")(sys.props("java.version"))
 buildInfoKeys += BuildInfoKey.action("javaVendor")(sys.props("java.vendor"))
+buildInfoKeys += BuildInfoKey.action("gitDescribe")(git.gitDescribedVersion.value)
+buildInfoKeys += BuildInfoKey.action("gitHasUncommitedChanges")(git.gitUncommittedChanges.value)
+buildInfoKeys += BuildInfoKey.action("gitHeadCommit")(git.gitHeadCommit.value)
+buildInfoKeys += BuildInfoKey.action("gitHeadCommitUrl")(
+  // The URL will not work if the commit is not pushed to the remote repository.
+  s"https://github.com/maproulette/maproulette-backend/commit/${git.gitHeadCommit.value.get}"
+)
+buildInfoKeys += BuildInfoKey.action("gitHeadCommitDate")(git.gitHeadCommitDate.value)
 
 // Configure scalastyle. This does not run during compile, run it with 'sbt scalastyle' or 'sbt test:scalastyle'.
 Compile / scalastyleConfig := baseDirectory.value / "conf/scalastyle-config.xml"
