@@ -204,28 +204,38 @@ class NotificationService @Inject() (
         extra = Some(comment.comment)
       )
     }
-    // Challenge owners and any parent project managers should be notified everytime a challenge comment is posted unless its their comment
-    
+    // Challenge owners and any parent project managers should be notified everytime
+    // a challenge comment is posted unless its their comment
       this.serviceManager.project.retrieve(challenge.general.parent) match {
         case Some(parentProject) =>
-          this.serviceManager.user.getUsersManagingProject(parentProject.id, None, User.superUser)
-            .foreach { manager =>
-              if(manager.userId != fromUser.id) {
+          this.serviceManager.user.getUsersManagingProject(parentProject.id, None, User.superUser) match {
+            case Nil =>
+              if (fromUser.id != challengeOwner.id) {
                 this.addNotification(
-                  UserNotification(
-                    -1,
-                    userId = manager.userId,
-                    notificationType = UserNotification.NOTIFICATION_TYPE_CHALLENGE_COMMENT,
-                    fromUsername = Some(fromUser.osmProfile.displayName),
-                    taskId = None,
-                    challengeId = Some(challenge.id),
-                    targetId = Some(comment.id),
-                    extra = Some(comment.comment)
-                  ),
+                  buildNotification(challengeOwner.id),
                   User.superUser
                 )
               }
-            }
+            case managers =>
+              managers.foreach { manager =>
+                if (manager.userId != fromUser.id && manager.roles.contains(1)) {
+                  this.addNotification(
+                    UserNotification(
+                      -1,
+                      userId = manager.userId,
+                      notificationType = UserNotification.NOTIFICATION_TYPE_CHALLENGE_COMMENT,
+                      fromUsername = Some(fromUser.osmProfile.displayName),
+                      taskId = None,
+                      challengeId = Some(challenge.id),
+                      targetId = Some(comment.id),
+                      extra = Some(comment.comment)
+                    ),
+                    User.superUser
+                  )
+                }
+              }
+          }
+
         // If no parent project found and therefore no managers extracted, notify only challenge owner
         case None =>
           if (fromUser.id != challengeOwner.id) {
@@ -235,7 +245,6 @@ class NotificationService @Inject() (
             )
           }
       }
-    
 
     for (m <- mentionRegex.findAllMatchIn(comment.comment)) {
       // use first non-null group
