@@ -176,7 +176,7 @@ class NotificationService @Inject() (
     }
   }
 
- /**
+  /**
     * Create one or more new notifications for users mentioned by name in a
     * comment. The recipient user(s) will be extracted from the comment
     *
@@ -190,7 +190,7 @@ class NotificationService @Inject() (
       challenge: Challenge
   ): Unit = {
     // match [@username] (username may contain spaces) or @username (no spaces allowed)
-    val mentionRegex = """\[@([^\]]+)\]|@([\w\d_-]+)""".r.unanchored
+    val mentionRegex   = """\[@([^\]]+)\]|@([\w\d_-]+)""".r.unanchored
     val challengeOwner = this.serviceManager.user.retrieveByOSMId(challenge.general.owner).get
     val buildNotification = (userId: Long) => {
       UserNotification(
@@ -206,45 +206,46 @@ class NotificationService @Inject() (
     }
     // Challenge owners and any parent project managers should be notified everytime
     // a challenge comment is posted unless its their comment
-      this.serviceManager.project.retrieve(challenge.general.parent) match {
-        case Some(parentProject) =>
-          this.serviceManager.user.getUsersManagingProject(parentProject.id, None, User.superUser) match {
-            case Nil =>
-              if (fromUser.id != challengeOwner.id) {
+    this.serviceManager.project.retrieve(challenge.general.parent) match {
+      case Some(parentProject) =>
+        this.serviceManager.user
+          .getUsersManagingProject(parentProject.id, None, User.superUser) match {
+          case Nil =>
+            if (fromUser.id != challengeOwner.id) {
+              this.addNotification(
+                buildNotification(challengeOwner.id),
+                User.superUser
+              )
+            }
+          case managers =>
+            managers.foreach { manager =>
+              if (manager.userId != fromUser.id && manager.roles.contains(1)) {
                 this.addNotification(
-                  buildNotification(challengeOwner.id),
+                  UserNotification(
+                    -1,
+                    userId = manager.userId,
+                    notificationType = UserNotification.NOTIFICATION_TYPE_CHALLENGE_COMMENT,
+                    fromUsername = Some(fromUser.osmProfile.displayName),
+                    taskId = None,
+                    challengeId = Some(challenge.id),
+                    targetId = Some(comment.id),
+                    extra = Some(comment.comment)
+                  ),
                   User.superUser
                 )
               }
-            case managers =>
-              managers.foreach { manager =>
-                if (manager.userId != fromUser.id && manager.roles.contains(1)) {
-                  this.addNotification(
-                    UserNotification(
-                      -1,
-                      userId = manager.userId,
-                      notificationType = UserNotification.NOTIFICATION_TYPE_CHALLENGE_COMMENT,
-                      fromUsername = Some(fromUser.osmProfile.displayName),
-                      taskId = None,
-                      challengeId = Some(challenge.id),
-                      targetId = Some(comment.id),
-                      extra = Some(comment.comment)
-                    ),
-                    User.superUser
-                  )
-                }
-              }
-          }
+            }
+        }
 
-        // If no parent project found and therefore no managers extracted, notify only challenge owner
-        case None =>
-          if (fromUser.id != challengeOwner.id) {
-            this.addNotification(
-               buildNotification(challengeOwner.id),
-              User.superUser
-            )
-          }
-      }
+      // If no parent project found and therefore no managers extracted, notify only challenge owner
+      case None =>
+        if (fromUser.id != challengeOwner.id) {
+          this.addNotification(
+            buildNotification(challengeOwner.id),
+            User.superUser
+          )
+        }
+    }
 
     for (m <- mentionRegex.findAllMatchIn(comment.comment)) {
       // use first non-null group
