@@ -51,13 +51,17 @@ class TaskBundleService @Inject() (
         }
 
         val challengeId = tasks.head.parent
-
+        val cooperativeWork = tasks.head.cooperativeWork.isDefined
+        
         // Verify tasks
         // 1. Must belong to same challenge
         // 2. Cooperative tasks not allowed
         for (task <- tasks) {
-          if (task.cooperativeWork.isDefined) {
-            throw new InvalidException("Cooperative tasks cannot be bundled.")
+          if (cooperativeWork == true && task.cooperativeWork.isDefined != cooperativeWork) {
+            throw new InvalidException("The main task type is Cooperative. All selected tasks must be Cooperative.")
+          }
+           if (cooperativeWork == false && task.cooperativeWork.isDefined != cooperativeWork) {
+            throw new InvalidException("The main task type is not Cooperative. All selected tasks must not be Cooperative.")
           }
           if (task.parent != challengeId) {
             throw new InvalidException(

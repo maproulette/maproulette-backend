@@ -562,12 +562,6 @@ class TaskDAL @Inject() (
           primaryTaskId match {
             case Some(p) =>
               if (task.id == p) primaryTask = task
-              if (task.cooperativeWork != None) {
-                throw new InvalidException(
-                  "Cannot set task status as part of a bundle on task: " +
-                    task.id + " as it contains cooperative work."
-                )
-              }
             case _ => // do nothing
           }
         }
