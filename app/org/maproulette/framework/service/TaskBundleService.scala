@@ -55,7 +55,7 @@ class TaskBundleService @Inject() (
 
         // Verify tasks
         // 1. Must belong to same challenge
-        // 2. Cooperative tasks not allowed
+        // 2. Must be same task type as main task
         for (task <- tasks) {
           if (cooperativeWork && task.cooperativeWork.isDefined != cooperativeWork) {
             throw new InvalidException(

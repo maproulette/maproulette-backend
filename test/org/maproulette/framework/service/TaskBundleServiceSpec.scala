@@ -97,21 +97,6 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
       }
     }
 
-    "not create a task Bundle with cooperative tasks" taggedAs (TaskTag) in {
-      val task1 = taskDAL
-        .insert(
-          getTestTask(UUID.randomUUID().toString, challenge.id).copy(
-            cooperativeWork = Some("{\"meta\": {\"version\": 1} }")
-          ),
-          User.superUser
-        )
-
-      // Cannot create a bundle with cooperative tasks
-      intercept[InvalidException] {
-        this.service.createTaskBundle(User.superUser, "bad bundle again", List(task1.id))
-      }
-    }
-
     "get a task Bundle" taggedAs (TaskTag) in {
       val task1 = taskDAL
         .insert(
