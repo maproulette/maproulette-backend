@@ -57,12 +57,12 @@ class TaskBundleService @Inject() (
         // 1. Must belong to same challenge
         // 2. Cooperative tasks not allowed
         for (task <- tasks) {
-          if (cooperativeWork == true && task.cooperativeWork.isDefined != cooperativeWork) {
+          if (cooperativeWork && task.cooperativeWork.isDefined != cooperativeWork) {
             throw new InvalidException(
               "The main task type is Cooperative. All selected tasks must be Cooperative."
             )
           }
-          if (cooperativeWork == false && task.cooperativeWork.isDefined != cooperativeWork) {
+          if (!cooperativeWork && task.cooperativeWork.isDefined != cooperativeWork) {
             throw new InvalidException(
               "The main task type is not Cooperative. All selected tasks must not be Cooperative."
             )
