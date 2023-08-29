@@ -554,7 +554,6 @@ class TaskDAL @Inject() (
     var bundleUpdate = ""
 
     // Find primary task in bundle if we are using a bundle
-    // Also check to make sure they aren't cooperative tasks
     bundleId match {
       case Some(b) =>
         bundleUpdate = ", bundle_id = " + b
