@@ -76,15 +76,16 @@ class NotificationSubscriptionRepository @Inject() (
       SQL(
         """
         |INSERT INTO user_notification_subscriptions (user_id, system, mention, review_approved,
-        |                                             review_rejected, review_again, challenge_completed,
-        |                                             meta_review, review_count, revision_count)
+        |                                             review_rejected, review_again, challenge_completed, team,
+        |                                             follow, meta_review, review_count, revision_count)
         |VALUES({userId}, {system}, {mention}, {reviewApproved}, {reviewRejected}, {reviewAgain},
-        |       {challengeCompleted}, {metaReview}, {reviewCount}, {revisionCount})
+        |       {challengeCompleted}, {team}, {follow}, {metaReview}, {reviewCount}, {revisionCount})
         |ON CONFLICT (user_id) DO
         |UPDATE SET system=EXCLUDED.system, mention=EXCLUDED.mention,
         |           review_approved=EXCLUDED.review_approved, review_rejected=EXCLUDED.review_rejected,
-        |           review_again=EXCLUDED.review_again, challenge_completed=EXCLUDED.challenge_completed,
-        |           meta_review=EXCLUDED.meta_review, review_count=EXCLUDED.review_count, revision_count=EXCLUDED.revision_count
+        |           review_again=EXCLUDED.review_again, challenge_completed=EXCLUDED.challenge_completed, 
+        |           team=EXCLUDED.team, follow=EXCLUDED.follow, meta_review=EXCLUDED.meta_review,
+        |           review_count=EXCLUDED.review_count, revision_count=EXCLUDED.revision_count
         """.stripMargin
       ).on(
           Symbol("userId")             -> userId,
@@ -94,6 +95,8 @@ class NotificationSubscriptionRepository @Inject() (
           Symbol("reviewRejected")     -> subscriptions.reviewRejected,
           Symbol("reviewAgain")        -> subscriptions.reviewAgain,
           Symbol("challengeCompleted") -> subscriptions.challengeCompleted,
+          Symbol("team")               -> subscriptions.team,
+          Symbol("follow")             -> subscriptions.follow,
           Symbol("metaReview")         -> subscriptions.metaReview,
           Symbol("reviewCount")        -> subscriptions.reviewCount,
           Symbol("revisionCount")      -> subscriptions.revisionCount
