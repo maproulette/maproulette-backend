@@ -338,4 +338,4 @@ Please fork the project and submit a pull request. See [Postman Docs](postman/RE
 
 Bug and feature requests are best left as an issue right here on Github. For other things, contact maproulette@maproulette.org
 
-MapRoulette now also has a channel #maproulette on the [OSM US Slack community](http://osmus.slack.com). Invite yourself [here](https://osmus-slack.herokuapp.com/)!
+MapRoulette now also has a channel #maproulette on the [OSM US Slack community](https://osmus.slack.com).

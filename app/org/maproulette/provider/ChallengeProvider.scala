@@ -669,7 +669,7 @@ class ChallengeProvider @Inject() (
   }
 
   /**
-    * parse the query, replace various extended overpass query parameters see http://wiki.openstreetmap.org/wiki/Overpass_turbo/Extended_Overpass_Queries
+    * parse the query, replace various extended overpass query parameters see https://wiki.openstreetmap.org/wiki/Overpass_turbo/Extended_Overpass_Queries
     * Currently do not support {{bbox}} or {{center}}
     *
     * @param query The query to parse

@@ -183,7 +183,7 @@ The third option is to provide the GeoJSON directly through the API. This can be
 
 ##### GeoJSON Structure
 
-The GeoJSON provided in any of the above usages must conform to the GeoJSON standards found in [RFC 7946](https://tools.ietf.org/html/rfc7946), you can also find out further information at [geojson.org](http://geojson.org). There is one caveat to this, in that you can also provide LineByLine GeoJSON. That is GeoJSON that as a whole is not valid, as each line in a file contains valid GeoJSON, but each line is a separate GeoJSON entity. The LineByLine GeoJSON is only an option when using files, and cannot be used when supplying the GeoJSON in the body of a Challenge. You can however use the LineByLine GeoJSON when supplying it as the body of the API ```PUT /api/v2/challenge/{id}/addTasks```.
+The GeoJSON provided in any of the above usages must conform to the GeoJSON standards found in [RFC 7946](https://tools.ietf.org/html/rfc7946), you can also find out further information at [geojson.org](https://geojson.org). There is one caveat to this, in that you can also provide LineByLine GeoJSON. That is GeoJSON that as a whole is not valid, as each line in a file contains valid GeoJSON, but each line is a separate GeoJSON entity. The LineByLine GeoJSON is only an option when using files, and cannot be used when supplying the GeoJSON in the body of a Challenge. You can however use the LineByLine GeoJSON when supplying it as the body of the API ```PUT /api/v2/challenge/{id}/addTasks```.
 
 ## Examples
 
