@@ -18,7 +18,8 @@ case class OSMOAuth(
     requestTokenURL: String,
     accessTokenURL: String,
     authorizationURL: String,
-    consumerKey: ConsumerKey
+    consumerKey: ConsumerKey,
+    scope: String
 )
 
 case class OSMQLProvider(providerURL: String, requestTimeout: Duration)
@@ -156,7 +157,8 @@ class Config @Inject() (implicit val configuration: Configuration) {
       ConsumerKey(
         this.config.getOptional[String](Config.KEY_OSM_CONSUMER_KEY).get,
         this.config.getOptional[String](Config.KEY_OSM_CONSUMER_SECRET).get
-      )
+      ),
+      this.config.getOptional[String](Config.KEY_OSM_OAUTH2_SCOPE).get
     )
   }
   lazy val getOSMQLProvider: OSMQLProvider = OSMQLProvider(
@@ -357,6 +359,7 @@ object Config {
   val KEY_OSM_AUTHORIZATION_URL         = s"$GROUP_OSM.authorizationURL"
   val KEY_OSM_CONSUMER_KEY              = s"$GROUP_OSM.consumerKey"
   val KEY_OSM_CONSUMER_SECRET           = s"$GROUP_OSM.consumerSecret"
+  val KEY_OSM_OAUTH2_SCOPE              = s"$GROUP_OSM.oauth2Scope"
   val KEY_SKIP_OSM_CHANGESET_SUBMISSION = s"$GROUP_OSM.skipOSMChangesetSubmission"
 
   val GROUP_CHALLENGES                 = "challenges"

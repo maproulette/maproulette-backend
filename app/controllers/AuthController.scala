@@ -146,7 +146,7 @@ class AuthController @Inject() (
         "client_id"     -> clientId,
         "response_type" -> "code",
         "redirect_uri"  -> config.getMRFrontend,
-        "scope"         -> "read_prefs write_prefs write_api",
+        "scope"         -> config.getOSMOauth.scope,
         "state"         -> state
       )
 
