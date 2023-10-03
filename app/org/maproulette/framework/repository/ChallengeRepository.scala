@@ -262,6 +262,7 @@ object ChallengeRepository {
       get[Option[List[Long]]]("virtual_parent_ids") ~
       get[Boolean]("challenges.is_archived") ~
       get[Int]("challenges.review_setting") ~
+      get[Option[String]]("challenges.layout_json") ~
       get[Option[DateTime]]("challenges.system_archived_at") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
@@ -269,7 +270,7 @@ object ChallengeRepository {
             mediumPriorityRule ~ lowPriorityRule ~ defaultZoom ~ minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~
             customBasemap ~ updateTasks ~ exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ requiresLocal ~ location ~ bounding ~
-            deleted ~ virtualParents ~ isArchived ~ reviewSetting ~ systemArchivedAt =>
+            deleted ~ virtualParents ~ isArchived ~ reviewSetting ~ layoutJSON ~ systemArchivedAt =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -325,6 +326,7 @@ object ChallengeRepository {
             taskBundleIdProperty,
             isArchived,
             reviewSetting,
+            layoutJSON,
             systemArchivedAt
           ),
           status,

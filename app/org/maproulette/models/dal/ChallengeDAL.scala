@@ -121,6 +121,7 @@ class ChallengeDAL @Inject() (
       get[Boolean]("deleted") ~
       get[Boolean]("challenges.is_archived") ~
       get[Int]("challenges.review_setting") ~
+      get[Option[String]]("challenges.layout_json") ~
       get[Option[Int]]("challenges.completion_percentage") ~
       get[Option[Int]]("challenges.tasks_remaining") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
@@ -130,7 +131,7 @@ class ChallengeDAL @Inject() (
             minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~ customBasemap ~ updateTasks ~
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
-            requiresLocal ~ deleted ~ isArchived ~ reviewSetting ~ completionPercentage ~ tasksRemaining =>
+            requiresLocal ~ deleted ~ isArchived ~ reviewSetting ~ layoutJSON ~ completionPercentage ~ tasksRemaining =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -185,7 +186,8 @@ class ChallengeDAL @Inject() (
             taskStyles,
             taskBundleIdProperty,
             isArchived,
-            reviewSetting
+            reviewSetting,
+            layoutJSON
           ),
           status,
           statusMessage,
@@ -255,6 +257,7 @@ class ChallengeDAL @Inject() (
       get[Option[List[String]]]("presets") ~
       get[Boolean]("challenges.is_archived") ~
       get[Int]("challenges.review_setting") ~
+      get[Option[String]]("challenges.layout_json") ~
       get[Option[DateTime]]("challenges.system_archived_at") ~
       get[Option[Int]]("challenges.completion_percentage") ~
       get[Option[Int]]("challenges.tasks_remaining") map {
@@ -266,7 +269,7 @@ class ChallengeDAL @Inject() (
             customBasemap ~ updateTasks ~ exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~
             preferredReviewTags ~ limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~
             dataOriginDate ~ location ~ bounding ~ requiresLocal ~ deleted ~ virtualParents ~
-            presets ~ isArchived ~ reviewSetting ~ systemArchivedAt ~ completionPercentage ~ tasksRemaining =>
+            presets ~ isArchived ~ reviewSetting ~ layoutJSON ~ systemArchivedAt ~ completionPercentage ~ tasksRemaining =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -322,6 +325,7 @@ class ChallengeDAL @Inject() (
             taskBundleIdProperty,
             isArchived,
             reviewSetting,
+            layoutJSON,
             systemArchivedAt,
             presets
           ),
@@ -474,7 +478,7 @@ class ChallengeDAL @Inject() (
                                       medium_priority_rule, low_priority_rule, default_zoom, min_zoom, max_zoom,
                                       default_basemap, default_basemap_id, custom_basemap, updatetasks, exportable_properties,
                                       osm_id_property, task_bundle_id_property, last_task_refresh, data_origin_date, preferred_tags, preferred_review_tags,
-                                      limit_tags, limit_review_tags, task_styles, requires_local, is_archived, review_setting)
+                                      limit_tags, limit_review_tags, task_styles, requires_local, is_archived, review_setting, layout_json)
               VALUES (${challenge.name}, ${challenge.general.owner}, ${challenge.general.parent}, ${challenge.general.difficulty},
                       ${challenge.description}, ${challenge.infoLink}, ${challenge.general.blurb}, ${challenge.general.instruction},
                       ${challenge.general.enabled}, ${challenge.general.featured},
@@ -488,7 +492,7 @@ class ChallengeDAL @Inject() (
                       ${challenge.dataOriginDate.getOrElse(DateTime.now()).toString}::timestamptz,
                       ${challenge.extra.preferredTags}, ${challenge.extra.preferredReviewTags}, ${challenge.extra.limitTags},
                       ${challenge.extra.limitReviewTags}, ${challenge.extra.taskStyles}, ${challenge.general.requiresLocal}, ${challenge.extra.isArchived},
-                      ${challenge.extra.reviewSetting})
+                      ${challenge.extra.reviewSetting}, ${challenge.extra.layoutJSON})
                       ON CONFLICT(parent_id, LOWER(name)) DO NOTHING RETURNING #${this.retrieveColumns}"""
             .as(this.parser.*)
             .headOption
@@ -675,6 +679,10 @@ class ChallengeDAL @Inject() (
             .asOpt[Int]
             .getOrElse(cachedItem.extra.reviewSetting)
 
+          val layoutJSON = (updates \ "layoutJSON")
+            .asOpt[String]
+            .getOrElse(cachedItem.extra.layoutJSON.getOrElse(""))
+
           val presets: List[String] = (updates \ "presets")
             .asOpt[List[String]]
             .getOrElse(cachedItem.extra.presets.getOrElse(null))
@@ -704,7 +712,7 @@ class ChallengeDAL @Inject() (
                   custom_basemap = $customBasemap, updatetasks = $updateTasks, exportable_properties = $exportableProperties,
                   osm_id_property = $osmIdProperty, task_bundle_id_property = $taskBundleIdProperty, preferred_tags = $preferredTags, preferred_review_tags = $preferredReviewTags,
                   limit_tags = $limitTags, limit_review_tags = $limitReviewTags, task_styles = $taskStyles,
-                  requires_local = $requiresLocal, is_archived = $isArchived, review_setting = $reviewSetting
+                  requires_local = $requiresLocal, is_archived = $isArchived, review_setting = $reviewSetting, layout_json = $layoutJSON
                 WHERE id = $id RETURNING #${this.retrieveColumns}""".as(parser.*).headOption
 
           updatedChallenge match {
