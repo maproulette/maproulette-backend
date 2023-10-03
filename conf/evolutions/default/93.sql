@@ -1,7 +1,7 @@
 -- --- !Ups
 ALTER TABLE IF EXISTS challenges
-ADD COLUMN layout_json text DEFAULT '';
+ADD COLUMN widget_layout text DEFAULT '';
 
 -- --- !Downs
 ALTER TABLE IF EXISTS challenges
-DROP COLUMN layout_json;
+DROP COLUMN widget_layout;
