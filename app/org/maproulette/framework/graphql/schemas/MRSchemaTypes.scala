@@ -170,7 +170,13 @@ trait MRSchemaTypes {
   implicit val ChallengePriorityType: ObjectType[Unit, ChallengePriority] =
     deriveObjectType[Unit, ChallengePriority](ObjectTypeName("ChallengePriority"))
   implicit val ChallengeExtraType: ObjectType[Unit, ChallengeExtra] =
-    deriveObjectType[Unit, ChallengeExtra](ObjectTypeName("ChallengeExtra"))
+    deriveObjectType[Unit, ChallengeExtra](
+      ObjectTypeName("ChallengeExtra"),
+      ReplaceField(
+        "widgetLayout",
+        Field("widgetLayout", StringType, resolve = _.value.widgetLayout.getOrElse("").toString)
+      )
+    )
   // Comment Types
   implicit val CommentType: ObjectType[Unit, Comment] =
     deriveObjectType[Unit, Comment](ObjectTypeName("Comment"))

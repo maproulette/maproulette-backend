@@ -5,9 +5,10 @@
 package org.maproulette.models.dal
 
 import java.sql.Connection
-
 import anorm.SqlParser._
 import anorm._
+import anorm.postgresql.{asJson, jsValueColumn}
+
 import javax.inject.{Inject, Singleton}
 import org.apache.commons.lang3.StringUtils
 import org.joda.time.DateTime
@@ -17,9 +18,9 @@ import org.maproulette.data.{Actions, ChallengeType, ProjectType}
 import org.maproulette.exception.{InvalidException, NotFoundException, UniqueViolationException}
 import org.maproulette.framework.model._
 import org.maproulette.framework.repository.{
+  ChallengeListingRepository,
   ProjectRepository,
-  TaskRepository,
-  ChallengeListingRepository
+  TaskRepository
 }
 import org.maproulette.framework.service.{ServiceManager, TagService}
 import org.maproulette.models.dal.mixin.{OwnerMixin, TagDALMixin}
@@ -121,7 +122,7 @@ class ChallengeDAL @Inject() (
       get[Boolean]("deleted") ~
       get[Boolean]("challenges.is_archived") ~
       get[Int]("challenges.review_setting") ~
-      get[Option[String]]("challenges.widget_layout") ~
+      get[Option[JsValue]]("challenges.widget_layout") ~
       get[Option[Int]]("challenges.completion_percentage") ~
       get[Option[Int]]("challenges.tasks_remaining") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
@@ -144,6 +145,7 @@ class ChallengeDAL @Inject() (
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
         }
+
         new Challenge(
           id,
           name,
@@ -257,7 +259,7 @@ class ChallengeDAL @Inject() (
       get[Option[List[String]]]("presets") ~
       get[Boolean]("challenges.is_archived") ~
       get[Int]("challenges.review_setting") ~
-      get[Option[String]]("challenges.widget_layout") ~
+      get[Option[JsValue]]("challenges.widget_layout") ~
       get[Option[DateTime]]("challenges.system_archived_at") ~
       get[Option[Int]]("challenges.completion_percentage") ~
       get[Option[Int]]("challenges.tasks_remaining") map {
@@ -282,6 +284,7 @@ class ChallengeDAL @Inject() (
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
         }
+
         new Challenge(
           id,
           name,
@@ -492,7 +495,8 @@ class ChallengeDAL @Inject() (
                       ${challenge.dataOriginDate.getOrElse(DateTime.now()).toString}::timestamptz,
                       ${challenge.extra.preferredTags}, ${challenge.extra.preferredReviewTags}, ${challenge.extra.limitTags},
                       ${challenge.extra.limitReviewTags}, ${challenge.extra.taskStyles}, ${challenge.general.requiresLocal}, ${challenge.extra.isArchived},
-                      ${challenge.extra.reviewSetting}, ${challenge.extra.widgetLayout})
+                      ${challenge.extra.reviewSetting},
+                      ${asJson(challenge.extra.widgetLayout.getOrElse(Json.parse("{}")))}
                       ON CONFLICT(parent_id, LOWER(name)) DO NOTHING RETURNING #${this.retrieveColumns}"""
             .as(this.parser.*)
             .headOption
@@ -680,8 +684,8 @@ class ChallengeDAL @Inject() (
             .getOrElse(cachedItem.extra.reviewSetting)
 
           val widgetLayout = (updates \ "widgetLayout")
-            .asOpt[String]
-            .getOrElse(cachedItem.extra.widgetLayout.getOrElse(""))
+            .asOpt[JsValue]
+            .getOrElse(cachedItem.extra.widgetLayout.getOrElse(Json.parse("{}")))
 
           val presets: List[String] = (updates \ "presets")
             .asOpt[List[String]]
@@ -712,7 +716,9 @@ class ChallengeDAL @Inject() (
                   custom_basemap = $customBasemap, updatetasks = $updateTasks, exportable_properties = $exportableProperties,
                   osm_id_property = $osmIdProperty, task_bundle_id_property = $taskBundleIdProperty, preferred_tags = $preferredTags, preferred_review_tags = $preferredReviewTags,
                   limit_tags = $limitTags, limit_review_tags = $limitReviewTags, task_styles = $taskStyles,
-                  requires_local = $requiresLocal, is_archived = $isArchived, review_setting = $reviewSetting, widget_layout = $widgetLayout
+                  requires_local = $requiresLocal, is_archived = $isArchived, review_setting = $reviewSetting, widget_layout = ${asJson(
+              widgetLayout
+            )}
                 WHERE id = $id RETURNING #${this.retrieveColumns}""".as(parser.*).headOption
 
           updatedChallenge match {

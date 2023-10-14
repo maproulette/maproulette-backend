@@ -8,7 +8,7 @@ package org.maproulette.framework.repository
 import java.sql.Connection
 import anorm.SqlParser._
 import anorm.{RowParser, SQL, ~}
-
+import anorm.postgresql.jsValueColumn
 import javax.inject.{Inject, Singleton}
 import org.apache.commons.lang3.StringUtils
 import org.joda.time.DateTime
@@ -16,6 +16,7 @@ import org.maproulette.framework.model._
 import org.maproulette.framework.psql.{GroupField, Grouping, OR, Query}
 import org.maproulette.framework.psql.filter._
 import play.api.db.Database
+import play.api.libs.json.JsValue
 
 /**
   * The challenge repository handles all the querying with the databases related to challenge objects
@@ -262,7 +263,7 @@ object ChallengeRepository {
       get[Option[List[Long]]]("virtual_parent_ids") ~
       get[Boolean]("challenges.is_archived") ~
       get[Int]("challenges.review_setting") ~
-      get[Option[String]]("challenges.widget_layout") ~
+      get[Option[JsValue]]("challenges.widget_layout") ~
       get[Option[DateTime]]("challenges.system_archived_at") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
@@ -283,6 +284,7 @@ object ChallengeRepository {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
         }
+
         new Challenge(
           id,
           name,
