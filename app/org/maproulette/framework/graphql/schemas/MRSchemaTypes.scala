@@ -173,8 +173,12 @@ trait MRSchemaTypes {
     deriveObjectType[Unit, ChallengeExtra](
       ObjectTypeName("ChallengeExtra"),
       ReplaceField(
-        "widgetLayout",
-        Field("widgetLayout", StringType, resolve = _.value.widgetLayout.getOrElse("").toString)
+        "taskWidgetLayout",
+        Field(
+          "taskWidgetLayout",
+          StringType,
+          resolve = _.value.taskWidgetLayout.getOrElse("").toString
+        )
       )
     )
   // Comment Types
