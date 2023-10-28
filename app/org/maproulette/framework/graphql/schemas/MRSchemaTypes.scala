@@ -5,6 +5,8 @@
 
 package org.maproulette.framework.graphql.schemas
 
+import play.api.libs.json._
+
 import org.joda.time.DateTime
 import org.maproulette.framework.model._
 import org.maproulette.framework.graphql.fetchers._
@@ -169,6 +171,7 @@ trait MRSchemaTypes {
     deriveObjectType[Unit, ChallengeCreation](ObjectTypeName("ChallengeCreation"))
   implicit val ChallengePriorityType: ObjectType[Unit, ChallengePriority] =
     deriveObjectType[Unit, ChallengePriority](ObjectTypeName("ChallengePriority"))
+
   implicit val ChallengeExtraType: ObjectType[Unit, ChallengeExtra] =
     deriveObjectType[Unit, ChallengeExtra](
       ObjectTypeName("ChallengeExtra"),
@@ -177,7 +180,11 @@ trait MRSchemaTypes {
         Field(
           "taskWidgetLayout",
           StringType,
-          resolve = _.value.taskWidgetLayout.getOrElse("").toString
+          resolve = ctx =>
+            ctx.value.taskWidgetLayout match {
+              case Some(jsValue) => Json.stringify(jsValue)
+              case None          => "{}"
+            }
         )
       )
     )
