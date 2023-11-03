@@ -15,7 +15,7 @@ import org.joda.time.DateTime
 import org.maproulette.Config
 import org.maproulette.cache.CacheManager
 import org.maproulette.data.{Actions, ChallengeType, ProjectType}
-import org.maproulette.exception.{InvalidException, NotFoundException, UniqueViolationException}
+import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.framework.model._
 import org.maproulette.framework.repository.{
   ChallengeListingRepository,
