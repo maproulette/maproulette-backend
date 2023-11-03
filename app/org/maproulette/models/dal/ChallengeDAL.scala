@@ -497,7 +497,7 @@ class ChallengeDAL @Inject() (
                       ${challenge.extra.limitReviewTags}, ${challenge.extra.taskStyles}, ${challenge.general.requiresLocal}, ${challenge.extra.isArchived},
                       ${challenge.extra.reviewSetting},
                       ${asJson(challenge.extra.taskWidgetLayout.getOrElse(Json.parse("{}")))}
-                      ) ON CONFLICT(parent_id, LOWER(name)) DO NOTHING RETURNING #${this.retrieveColumns}"""
+                      ) RETURNING #${this.retrieveColumns}"""
             .as(this.parser.*)
             .headOption
         }
@@ -513,10 +513,6 @@ class ChallengeDAL @Inject() (
       }
     } match {
       case Some(value) => value
-      case None =>
-        throw new UniqueViolationException(
-          s"Challenge with name ${challenge.name} already exists in the database"
-        )
     }
   }
 
