@@ -85,4 +85,4 @@ DELETE     /taskBundle/:id                          @org.maproulette.framework.c
 #     description: The list of task ids to remove from the bundle
 #     required: true
 ###
-GET        /taskBundle/:id/unbundle                 @org.maproulette.framework.controller.TaskBundleController.unbundleTasks(id:Long, taskIds:List[Long])
+POST       /taskBundle/:id/unbundle                 @org.maproulette.framework.controller.TaskBundleController.unbundleTasks(id:Long, taskIds:List[Long])
