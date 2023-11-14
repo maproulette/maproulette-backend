@@ -113,4 +113,5 @@ jobs:
         ./gradlew --info --project-prop runIntegrationTests \
           clean integrationTest \
           --tests '*BatchUploaderIntegrationTest*' \
-          --tests '*ChallengeAPIIntegrationTest*'
+          --tests '*ChallengeAPIIntegrationTest*' \
+          --tests '*ProjectAPIIntegrationTest*'
