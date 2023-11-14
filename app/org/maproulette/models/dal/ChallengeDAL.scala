@@ -15,7 +15,7 @@ import org.joda.time.DateTime
 import org.maproulette.Config
 import org.maproulette.cache.CacheManager
 import org.maproulette.data.{Actions, ChallengeType, ProjectType}
-import org.maproulette.exception.{InvalidException, NotFoundException}
+import org.maproulette.exception.{InvalidException, NotFoundException, UniqueViolationException}
 import org.maproulette.framework.model._
 import org.maproulette.framework.repository.{
   ChallengeListingRepository,
@@ -497,7 +497,7 @@ class ChallengeDAL @Inject() (
                       ${challenge.extra.limitReviewTags}, ${challenge.extra.taskStyles}, ${challenge.general.requiresLocal}, ${challenge.extra.isArchived},
                       ${challenge.extra.reviewSetting},
                       ${asJson(challenge.extra.taskWidgetLayout.getOrElse(Json.parse("{}")))}
-                      ) RETURNING #${this.retrieveColumns}"""
+                      ) ON CONFLICT(parent_id, LOWER(name)) DO NOTHING RETURNING #${this.retrieveColumns}"""
             .as(this.parser.*)
             .headOption
         }
@@ -513,6 +513,10 @@ class ChallengeDAL @Inject() (
       }
     } match {
       case Some(value) => value
+      case None =>
+        throw new UniqueViolationException(
+          s"Challenge with name ${challenge.name} already exists in the database"
+        )
     }
   }
 
