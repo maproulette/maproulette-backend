@@ -34,11 +34,12 @@ class Config @Inject() (implicit val configuration: Configuration) {
     case None       => "/assets/images/logo.png" // default to the MapRoulette Icon
   }
   lazy val superKey: Option[String] = this.config.getOptional[String](Config.KEY_SUPER_KEY)
-  lazy val superAccounts: List[String] =
-    this.config.getOptional[String](Config.KEY_SUPER_ACCOUNTS) match {
-      case Some(accs) => accs.split(",").toList
-      case None       => List.empty
-    }
+  lazy val superAccounts: List[String] = this.config
+    .getOptional[String](Config.KEY_SUPER_ACCOUNTS)
+    .getOrElse("")
+    .split(",")
+    .filter(_.nonEmpty)
+    .toList
   lazy val ignoreSessionTimeout: Boolean = this.sessionTimeout == -1
   lazy val isBootstrapMode: Boolean =
     this.config.getOptional[Boolean](Config.KEY_BOOTSTRAP).getOrElse(false)
