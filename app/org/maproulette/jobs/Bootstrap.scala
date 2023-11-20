@@ -23,15 +23,13 @@ class Bootstrap @Inject() (appLifeCycle: ApplicationLifecycle, db: Database, con
   def start(): Unit = {
     if (!config.isBootstrapMode) {
       // Check superuser settings at startup and output appropriate warnings
-      config.superAccounts.headOption match {
-        case Some("*") =>
-          logger.info(
-            "WARNING: Configuration is setting all users to super users. Make sure this is what you want."
+      config.superAccounts match {
+        case List("*") =>
+          logger.warn(
+            "Configuration is setting all users to super users. Make sure this is what you want."
           )
-        case Some("") =>
-          logger.info(
-            "WARNING: Configuration has NO super users. Make sure this is what you want."
-          )
+        case Nil =>
+          logger.warn("Configuration has NO super users. Make sure this is what you want.")
         case _ => // do nothing
       }
     }
