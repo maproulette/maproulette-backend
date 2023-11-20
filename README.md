@@ -1,5 +1,5 @@
 # MapRoulette API
-[![Build Status](https://travis-ci.org/maproulette/maproulette2.svg?branch=dev)](https://travis-ci.org/maproulette/maproulette2)
+[![Build Status](https://github.com/maproulette/maproulette-backend/actions/workflows/scala.yml/badge.svg)](https://github.com/maproulette/maproulette-backend/actions?query=branch%3Amain)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=maproulette_maproulette2&metric=alert_status)](https://sonarcloud.io/dashboard?id=maproulette_maproulette2)
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/maproulette/maproulette-backend)
 
@@ -46,7 +46,7 @@ or even [Rancher Desktop](https://rancherdesktop.io/).
 as similar to production as possible. It also handles fetching x8664 and aarch64 builds automatically.
 Follow the installation steps and install the JDK and sbt using a command similar to:
 
-* `sdk install java 11.0.17-tem`
+* `sdk install java 11.0.21-tem`
 * `sdk install sbt 1.8.2`
 
 #### Validation
