@@ -38,7 +38,7 @@ case class ActionSummary(
   def percentComplete: Double = (((trueAvailable / total) * 100) - 100) * -1
 
   // available in the database means it is created state, available in the UI, means that it is in state
-  // AVAILABLE, SKIPPED or TOO HARD
+  // AVAILABLE, SKIPPED or CAN'T COMPLETE (Formerly TOO HARD)
   def trueAvailable: Double = available + skipped + deleted
 
   def percentage(value: Double): Double = (value / total) * 100

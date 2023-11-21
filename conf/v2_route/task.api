@@ -582,7 +582,7 @@ PUT     /task/:id/responses                           @org.maproulette.framework
 ###
 # tags: [ Task ]
 # summary: Update Task Status
-# description: Will update a Tasks status to one of the following. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Too Hard
+# description: Will update a Tasks status to one of the following. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Can't Complete
 # responses:
 #   '304':
 #     description: No Content, update successful
@@ -596,7 +596,7 @@ PUT     /task/:id/responses                           @org.maproulette.framework
 #     description: The ID of the task
 #   - name: status
 #     in: path
-#     description: The status to update the Task too. Following status Integers can be used. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Too Hard
+#     description: The status to update the Task too. Following status Integers can be used. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Can't Complete
 #   - name: comment
 #     in: query
 #     description: Any comment that is provided by the user when setting the status
@@ -618,7 +618,7 @@ PUT     /task/:id/:status                           @org.maproulette.controllers
 ###
 # tags: [ Task ]
 # summary: Update Bundle Task Status
-# description: Will update a Bundled list of Tasks statuses to one of the following. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Too Hard
+# description: Will update a Bundled list of Tasks statuses to one of the following. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Can't Complete
 # responses:
 #   '200':
 #     description: TaskBundle
@@ -635,7 +635,7 @@ PUT     /task/:id/:status                           @org.maproulette.controllers
 #     description: The primary ID of the task for this bundle
 #   - name: status
 #     in: path
-#     description: The status to update the Task too. Following status Integers can be used. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Too Hard
+#     description: The status to update the Task too. Following status Integers can be used. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Can't Complete
 #   - name: comment
 #     in: query
 #     description: Any comment that is provided by the user when setting the status

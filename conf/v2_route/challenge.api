@@ -143,7 +143,7 @@ DELETE  /challenge/:id                              @org.maproulette.controllers
 #     description: The id of the Challenge being deleted
 #   - name: statusFilters
 #     in: query
-#     description: A comma separated list of status ID's. 0 = Created, 1 = Fixed, 2 = False Positive, 3 = Skipped, 4 = Deleted, 5 = Already Fixed, 6 = Too Hard
+#     description: A comma separated list of status ID's. 0 = Created, 1 = Fixed, 2 = False Positive, 3 = Skipped, 4 = Deleted, 5 = Already Fixed, 6 = Can't Complete
 ###
 DELETE  /challenge/:id/tasks                        @org.maproulette.controllers.api.ChallengeController.deleteTasks(id:Long, statusFilters ?= "")
 ###
@@ -900,7 +900,7 @@ GET     /challenge/:cid/previousTask/:id            @org.maproulette.controllers
 #     description: The id of the parent Challenge limiting the tasks to only a descendent of that Challenge.
 #   - name: status
 #     in: query
-#     description: Can filter the Tasks returned by the status of the Task. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Too Hard
+#     description: Can filter the Tasks returned by the status of the Task. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Can't Complete
 #   - name: priority
 #     in: query
 #     description: Can filter the Tasks returned by the priority of the Task. 0 - High, 1 - Medium, 2 - Low
@@ -939,7 +939,7 @@ GET     /challenge/view/:id                         @org.maproulette.controllers
 #     description: The id of the parent Challenge limiting the tasks to only a descendent of that Challenge.
 #   - name: status
 #     in: query
-#     description: Can filter the Tasks returned by the status of the Task. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Too Hard
+#     description: Can filter the Tasks returned by the status of the Task. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Can't Complete
 #   - name: priority
 #     in: query
 #     description: Can filter the Tasks returned by the priority of the Task. 0 - High, 1 - Medium, 2 - Low
@@ -979,7 +979,7 @@ POST    /challenge/view/:id                         @org.maproulette.controllers
 #     description: The id of the parent project.
 #   - name: filter
 #     in: query
-#     description: Can filter the Tasks returned by the status of the Task. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Too Hard
+#     description: Can filter the Tasks returned by the status of the Task. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Can't Complete
 ###
 GET     /challenge/clustered/:id                    @org.maproulette.controllers.api.ChallengeController.getClusteredPoints(id:Long, filter:String ?= "", limit:Int ?= 2500, excludeLocked:Boolean ?= false)
 ###
@@ -1090,7 +1090,7 @@ GET     /challenge/:id/comments/extract             @org.maproulette.controllers
 #     description: Used in conjunction with the limit parameter to page through X number of responses. Default value is 0, ie. first page.
 #   - name: status
 #     in: query
-#     description: Can filter the Tasks returned by the status of the Task. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Too Hard
+#     description: Can filter the Tasks returned by the status of the Task. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Can't Complete
 #   - name: priority
 #     in: query
 #     description: Can filter the Tasks returned by the priority of the Task. 0 - High, 1 - Medium, 2 - Low
@@ -1146,7 +1146,7 @@ GET     /challenge/:id/extractReviewHistory             @org.maproulette.control
 #     description: Used in conjunction with the limit parameter to page through X number of responses. Default value is 0, ie. first page.
 #   - name: status
 #     in: query
-#     description: Can filter the Tasks returned by the status of the Task. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Too Hard
+#     description: Can filter the Tasks returned by the status of the Task. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Can't Complete
 #   - name: priority
 #     in: query
 #     description: Can filter the Tasks returned by the priority of the Task. 0 - High, 1 - Medium, 2 - Low

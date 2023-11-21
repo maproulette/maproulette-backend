@@ -243,7 +243,7 @@ GET     /virtualchallenge/:cid/previousTask/:id     @org.maproulette.controllers
 #     description: The id of the parent Virtual Challenge limiting the tasks to only a descendent of that Virtual Challenge.
 #   - name: filter
 #     in: query
-#     description: Can filter the Tasks returned by the status of the Task. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Too Hard
+#     description: Can filter the Tasks returned by the status of the Task. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Can't Complete
 ###
 GET     /virtualchallenge/view/:id                  @org.maproulette.controllers.api.VirtualChallengeController.getVirtualChallengeGeoJSON(id:Long, filter:String ?= "")
 ###
@@ -265,7 +265,7 @@ GET     /virtualchallenge/view/:id                  @org.maproulette.controllers
 #     description: The id of the parent project.
 #   - name: filter
 #     in: query
-#     description: Can filter the Tasks returned by the status of the Task. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Too Hard
+#     description: Can filter the Tasks returned by the status of the Task. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Can't Complete
 ###
 GET     /virtualchallenge/clustered/:id             @org.maproulette.controllers.api.VirtualChallengeController.getClusteredPoints(id:Long, filter:String ?= "")
 ###
