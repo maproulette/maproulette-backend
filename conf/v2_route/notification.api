@@ -131,3 +131,13 @@ GET     /user/:userId/notificationSubscriptions     @org.maproulette.framework.c
 #         $ref: '#/components/schemas/org.maproulette.framework.model.NotificationSubscriptions'
 ###
 PUT     /user/:userId/notificationSubscriptions     @org.maproulette.framework.controller.NotificationController.updateNotificationSubscriptions(userId:Long)
+###
+# tags: [ Notification ]
+# summary: Retrieves System Notices
+# description: Retrieves system notices set up from a third party
+#   '200':
+#     description: The retrieved system notices
+#     content:
+#       application/json
+###
+GET     /user/announcements                         @org.maproulette.framework.controller.NotificationController.getAnnouncements()

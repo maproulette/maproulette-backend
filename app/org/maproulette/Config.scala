@@ -197,6 +197,7 @@ class Config @Inject() (implicit val configuration: Configuration) {
     this.config.getOptional[Int](Config.KEY_TASK_RESET).getOrElse(Config.DEFAULT_TASK_RESET)
   lazy val signIn: Boolean =
     this.config.getOptional[Boolean](Config.KEY_SIGNIN).getOrElse(Config.DEFAULT_SIGNIN)
+  lazy val systemNoticesUrl: String = this.config.getOptional[String](Config.KEY_SYSTEM_NOTICES_URL).getOrElse(Config.DEFAULT_SYSTEM_NOTICES_URL)
 
   //caching properties
   lazy val cacheType: String =
@@ -282,6 +283,7 @@ object Config {
   val KEY_TASK_BASE_COMPLETED_TIME_SPENT = s"$GROUP_MAPROULETTE.task.base_completed_time_spent"
   val KEY_TASK_MAX_TASKS_PER_CHALLENGE   = s"$GROUP_MAPROULETTE.task.max_tasks_per_challenge"
   val KEY_REVIEW_NEEDED_DEFAULT          = s"$GROUP_MAPROULETTE.review.default"
+  val KEY_SYSTEM_NOTICES_URL             = s"$GROUP_MAPROULETTE.systemNoticesUrl"
 
   val SUB_GROUP_SCHEDULER = s"$GROUP_MAPROULETTE.scheduler"
 
@@ -400,6 +402,7 @@ object Config {
   val DEFAULT_MAX_TASKS_PER_CHALLENGE                 = 50000
   val DEFAULT_ARCHIVE_STALE_TIME_IN_MONTHS            = 6
   val DEFAULT_TASK_BASE_COMPLETED_TIME_SPENT          = 14000
+  val DEFAULT_SYSTEM_NOTICES_URL                      = ""
 
   // Redis Cache id's for different caches
   val CACHE_ID_TAGS               = "1";

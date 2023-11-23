@@ -5,14 +5,19 @@
 package org.maproulette.framework.controller
 
 import javax.inject.Inject
-import org.maproulette.exception.StatusMessage
-import org.maproulette.framework.service.{NotificationService}
-import org.maproulette.framework.model.{NotificationSubscriptions}
+import org.maproulette.exception.{MPExceptionUtil, StatusMessage}
+import org.maproulette.framework.service.NotificationService
+import org.maproulette.framework.model.NotificationSubscriptions
 import org.maproulette.framework.psql.{Order, OrderField, Paging}
 import org.maproulette.session.SessionManager
 import org.maproulette.utils.Crypto
+import org.maproulette.Config
 import play.api.libs.json._
 import play.api.mvc._
+import play.api.libs.ws.WSClient
+import scala.concurrent.ExecutionContext
+import scala.concurrent.Future
+import scala.concurrent.Future
 
 /**
   * @author nrotstan
@@ -22,7 +27,9 @@ class NotificationController @Inject() (
     sessionManager: SessionManager,
     components: ControllerComponents,
     bodyParsers: PlayBodyParsers,
-    crypto: Crypto
+    crypto: Crypto,
+    wsClient: WSClient,
+    config: Config
 ) extends AbstractController(components)
     with DefaultWrites {
 
@@ -107,4 +114,36 @@ class NotificationController @Inject() (
         Ok(Json.toJson(StatusMessage("OK", JsString(s"Subscriptions updated"))))
       }
     }
+
+  implicit val ec: ExecutionContext = scala.concurrent.ExecutionContext.global
+  def getAnnouncements(): Action[AnyContent] = Action.async { implicit request =>
+    val url = config.systemNoticesUrl
+
+    if (!url.isEmpty) {
+      wsClient.url(url)
+        .withHttpHeaders(
+          "Accept" -> "application/json"
+        )
+        .get()
+        .map { response =>
+          if (response.status == 200) {
+            try {
+              val json = response.json
+              Ok(Json.toJson(StatusMessage("OK", json)))
+            } catch {
+              case _: Throwable =>
+                InternalServerError(Json.toJson("An error occurred: Invalid JSON response"))
+            }
+          } else {
+            InternalServerError(Json.toJson(s"An error occurred: ${response.status}"))
+          }
+        }
+        .recover {
+          case e: Exception =>
+            InternalServerError(Json.toJson(s"An error occurred: ${e.getMessage}"))
+        }
+    } else {
+      Future.successful(InternalServerError(Json.toJson("An error occurred: System notices not set up on this server")))
+    }
+  }
 }
