@@ -5,7 +5,7 @@
 package org.maproulette.framework.controller
 
 import javax.inject.Inject
-import org.maproulette.exception.{MPExceptionUtil, StatusMessage}
+import org.maproulette.exception.StatusMessage
 import org.maproulette.framework.service.NotificationService
 import org.maproulette.framework.model.NotificationSubscriptions
 import org.maproulette.framework.psql.{Order, OrderField, Paging}
@@ -16,7 +16,6 @@ import play.api.libs.json._
 import play.api.mvc._
 import play.api.libs.ws.WSClient
 import scala.concurrent.ExecutionContext
-import scala.concurrent.Future
 import scala.concurrent.Future
 
 /**
