@@ -79,10 +79,10 @@ object MPExceptionUtil {
         logger.debug(e.getMessage)
         Unauthorized(Json.toJson(StatusMessage("NotAuthorized", JsString(e.getMessage)))).withNewSession
       case e: IllegalAccessException =>
-        logger.error(e.getMessage, e)
+        logger.warn(e.getMessage)
         Forbidden(Json.toJson(StatusMessage("Forbidden", JsString(e.getMessage))))
       case e: NotFoundException =>
-        logger.error(e.getMessage, e)
+        logger.warn(e.getMessage)
         NotFound(Json.toJson(StatusMessage("NotFound", JsString(e.getMessage))))
       case e: ChangeConflictException =>
         logger.error(e.getMessage, e)
