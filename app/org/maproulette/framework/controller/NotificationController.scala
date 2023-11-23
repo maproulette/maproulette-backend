@@ -120,7 +120,8 @@ class NotificationController @Inject() (
     val url = config.systemNoticesUrl
 
     if (!url.isEmpty) {
-      wsClient.url(url)
+      wsClient
+        .url(url)
         .withHttpHeaders(
           "Accept" -> "application/json"
         )
@@ -143,7 +144,11 @@ class NotificationController @Inject() (
             InternalServerError(Json.toJson(s"An error occurred: ${e.getMessage}"))
         }
     } else {
-      Future.successful(InternalServerError(Json.toJson("An error occurred: System notices not set up on this server")))
+      Future.successful(
+        InternalServerError(
+          Json.toJson("An error occurred: System notices not set up on this server")
+        )
+      )
     }
   }
 }

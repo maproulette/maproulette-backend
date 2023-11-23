@@ -197,7 +197,9 @@ class Config @Inject() (implicit val configuration: Configuration) {
     this.config.getOptional[Int](Config.KEY_TASK_RESET).getOrElse(Config.DEFAULT_TASK_RESET)
   lazy val signIn: Boolean =
     this.config.getOptional[Boolean](Config.KEY_SIGNIN).getOrElse(Config.DEFAULT_SIGNIN)
-  lazy val systemNoticesUrl: String = this.config.getOptional[String](Config.KEY_SYSTEM_NOTICES_URL).getOrElse(Config.DEFAULT_SYSTEM_NOTICES_URL)
+  lazy val systemNoticesUrl: String = this.config
+    .getOptional[String](Config.KEY_SYSTEM_NOTICES_URL)
+    .getOrElse(Config.DEFAULT_SYSTEM_NOTICES_URL)
 
   //caching properties
   lazy val cacheType: String =
