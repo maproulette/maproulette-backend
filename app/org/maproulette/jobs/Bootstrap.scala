@@ -4,8 +4,9 @@
  */
 package org.maproulette.jobs
 
-import javax.inject.{Inject, Singleton}
+import javax.inject.{Inject, Provider, Singleton}
 import org.maproulette.Config
+import org.maproulette.framework.service.UserService
 import org.slf4j.LoggerFactory
 import play.api.db.Database
 import play.api.inject.ApplicationLifecycle
@@ -16,7 +17,12 @@ import scala.concurrent.Future
   * @author mcuthbert
   */
 @Singleton
-class Bootstrap @Inject() (appLifeCycle: ApplicationLifecycle, db: Database, config: Config) {
+class Bootstrap @Inject() (
+    appLifeCycle: ApplicationLifecycle,
+    db: Database,
+    config: Config,
+    userService: Provider[UserService]
+) {
 
   private val logger = LoggerFactory.getLogger(this.getClass)
 
@@ -33,6 +39,8 @@ class Bootstrap @Inject() (appLifeCycle: ApplicationLifecycle, db: Database, con
         case _ => // do nothing
       }
     }
+
+    userService.get().promoteSuperUsersInConfig()
   }
 
   appLifeCycle.addStopHook { () =>

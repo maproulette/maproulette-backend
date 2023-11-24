@@ -5,13 +5,15 @@
 
 package org.maproulette.framework.service
 
+import anorm.SqlParser
+
 import javax.inject.{Inject, Singleton}
 import org.maproulette.Config
 import org.maproulette.exception.InvalidException
-import org.maproulette.framework.model.{Grant, Grantee, GrantTarget, User}
+import org.maproulette.framework.model.{Grant, GrantTarget, Grantee, User}
 import org.maproulette.framework.psql.Query
-import org.maproulette.framework.psql.filter.{Parameter, BaseParameter, Operator}
-import org.maproulette.framework.repository.{GrantRepository}
+import org.maproulette.framework.psql.filter.{BaseParameter, Operator, Parameter}
+import org.maproulette.framework.repository.GrantRepository
 import org.maproulette.data._
 import org.maproulette.permissions.Permission
 
@@ -194,6 +196,31 @@ class GrantService @Inject() (
     this.repository.deleteGrants(
       Query.simple(this.grantFilterParameters(granteeList, role, target))
     )
+  }
+
+  def getSuperUserIdsFromDatabase: List[Long] = {
+    repository.withMRConnection { implicit c =>
+      // Search the grants table for grantee_id (eg the user's maproulette id) where the role is -1 (superuser)
+      // and the grantee_type is 5 (user).
+      anorm
+        .SQL("SELECT grantee_id AS id FROM grants WHERE role = -1 AND grantee_type = 5")
+        .as(SqlParser.scalar[Long].*)
+    }
+  }
+
+  def deleteSuperUserFromDatabase(maprouletteUserId: Long): Boolean = {
+    if (maprouletteUserId == User.DEFAULT_SUPER_USER_ID) {
+      throw new IllegalAccessException("The system super user is not allowed to be removed")
+    }
+    repository.withMRTransaction { implicit c =>
+      // Delete the grantee_id (eg the user's maproulette id) where the role is -1 (superuser).
+      anorm
+        .SQL(
+          "DELETE FROM grants WHERE grantee_id = {maprouletteUserId} AND role = -1 AND grantee_type = 5"
+        )
+        .on("maprouletteUserId" -> maprouletteUserId)
+        .executeUpdate() >= 1
+    }
   }
 
   /**

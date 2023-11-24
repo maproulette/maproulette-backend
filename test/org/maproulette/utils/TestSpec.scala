@@ -237,6 +237,7 @@ trait TestSpec extends PlaySpec with MockitoSugar {
 
     // Mocks for users
     when(this.userService.retrieve(-999L)).thenReturn(Some(User.superUser))
+    when(this.userService.isSuperUser(-999L)).thenReturn(true)
     when(this.userService.retrieve(-998L)).thenReturn(Some(User.guestUser))
     doAnswer(_ => Some(User.superUser)).when(this.userService).retrieve(-999L)
     when(this.userService.retrieve(-1L)).thenReturn(Some(User.guestUser))

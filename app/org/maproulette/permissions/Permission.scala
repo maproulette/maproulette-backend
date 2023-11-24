@@ -229,18 +229,13 @@ class Permission @Inject() (
     * Determines if the given user has been configured as a superuser
     */
   def isSuperUser(user: User): Boolean = {
-    if (user.id == User.DEFAULT_SUPER_USER_ID) {
-      return true
-    }
-
-    config.superAccounts.headOption match {
-      case Some("*") => true
-      case Some("")  => false
-      case _ =>
-        config.superAccounts.exists { superId =>
-          superId.toInt == user.osmProfile.id
-        }
-    }
+    // Check if the user is the system super user (id=-999)
+    if (user.id == User.DEFAULT_SUPER_USER_ID) true
+    else
+      config.superAccounts match {
+        case List("*") if config.isDevMode => true
+        case _                             => serviceManager.user.isSuperUser(user.id)
+      }
   }
 
   private def getItem(

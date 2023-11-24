@@ -596,3 +596,65 @@ DELETE  /user/:userId/project/:projectId/:role  @org.maproulette.framework.contr
 #           format: int64
 ###
 DELETE  /user/project/:projectId/:role         @org.maproulette.framework.controller.UserController.removeUsersFromProject(projectId:Long, role:Int, isOSMUserId:Boolean ?= false)
+###
+# tags: [ User ]
+# summary: Promote a standard user to a super user
+# description: Promote a standard user, a 'grantee', to a super user role; the requesting user is called a 'grantor'.
+#              This will add the superuser role to the grantee user, allowing the grantee to perform super user actions.
+#              The grantor must be a super user.
+# responses:
+#   '204':
+#     description: The user was promoted to a superuser or was already a superuser
+#   '401':
+#     description: The request lacks authentication
+#   '403':
+#     description: Use 403 Forbidden if the grantor is not authorized (not a superuser)
+#   '404':
+#     description: The grantee was not found
+# parameters:
+#   - name: userId
+#     in: path
+#     description: The MapRoulette user id of the user (the grantee) to be promoted
+###
+PUT     /superuser/:userId                    @org.maproulette.framework.controller.UserController.promoteUserToSuperUser(userId:Long)
+###
+# tags: [ User ]
+# summary: Remove the superuser role from a super user
+# description: Demote a super user, a 'grantee', back to a standard user; the requesting user is called a 'grantor'.
+#              This will remove the superuser role from the grantee.
+#              The grantor must be a superuser.
+# responses:
+#   '204':
+#     description: The superuser role was removed from the user or the user was not a superuser
+#   '401':
+#     description: The request lacks authentication
+#   '403':
+#     description: Use 403 Forbidden if the grantor is not a superuser, or trying to demote themselves or the system superuser
+#   '404':
+#     description: The grantee was not found
+# parameters:
+#   - name: userId
+#     in: path
+#     description: The MapRoulette user id of the user (the grantee) to be promoted
+###
+DELETE  /superuser/:userId                    @org.maproulette.framework.controller.UserController.demoteSuperUserToUser(userId:Long)
+###
+# tags: [ User ]
+# summary: Get all current superusers
+# description: Return a list of MapRoulette user ids who are superusers. The requesting user must be a super user.
+# responses:
+#   '200':
+#     description: The list was obtained and the response contains the list of superusers
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             type: integer
+#             uniqueItems: true
+#   '401':
+#     description: The request lacks authentication
+#   '403':
+#     description: Use 403 Forbidden if the user is not authorized to make this request
+###
+GET     /superusers                           @org.maproulette.framework.controller.UserController.getSuperUserIds()

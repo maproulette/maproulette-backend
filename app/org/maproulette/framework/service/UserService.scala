@@ -6,7 +6,6 @@
 package org.maproulette.framework.service
 
 import java.util.UUID
-
 import javax.inject.{Inject, Singleton}
 import org.apache.commons.lang3.StringUtils
 import org.joda.time.DateTime
@@ -14,8 +13,8 @@ import org.locationtech.jts.geom.{Coordinate, GeometryFactory}
 import org.locationtech.jts.io.WKTWriter
 import org.maproulette.Config
 import org.maproulette.cache.CacheManager
-import org.maproulette.data.{UserType, GroupType}
-import org.maproulette.exception.{NotFoundException, InvalidException}
+import org.maproulette.data.{GroupType, UserType}
+import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.framework.model._
 import org.maproulette.framework.psql._
 import org.maproulette.framework.psql.filter._
@@ -24,6 +23,7 @@ import org.maproulette.models.dal.TaskDAL
 import org.maproulette.permissions.Permission
 import org.maproulette.session.SearchParameters
 import org.maproulette.utils.{Crypto, Utils, Writers}
+import org.slf4j.LoggerFactory
 import play.api.libs.json.{JsString, JsValue, Json}
 
 /**
@@ -42,8 +42,96 @@ class UserService @Inject() (
     crypto: Crypto
 ) extends ServiceMixin[User]
     with Writers {
+  private val logger = LoggerFactory.getLogger(this.getClass)
+
   // The cache manager for the users
   val cacheManager = new CacheManager[Long, User](config, Config.CACHE_ID_USERS)
+  val superUsers   = scala.collection.mutable.Set[Long]()
+
+  // On class initialization (called when Play initializes), seed the super user from the existing database entries
+  seedSuperUserIds()
+
+  /**
+    * Check if a given maproulette user id is a superuser
+    * @param maprouletteUserId the id of the user to check
+    * @return true if the user is a superuser, false otherwise
+    */
+  def isSuperUser(maprouletteUserId: Long): Boolean = {
+    superUsers.contains(maprouletteUserId)
+  }
+
+  def promoteUserToSuperUser(user: User, grantor: User): Boolean = {
+    if (isSuperUser(user.id)) {
+      logger.info(
+        s"MapRoulette uid=${user.id} (osm_id=${user.osmProfile.id}) is already a superuser, skipping role promotion"
+      )
+      return true
+    }
+
+    logger.warn(s"Adding superuser role to uid=${user.id} (osm_id=${user.osmProfile.id})")
+    val grantName =
+      s"Grant superuser role on uid=${user.id} (osm_id=${user.osmProfile.id}), requested by uid=${grantor.id}"
+    val superUserGrant =
+      new Grant(-1, grantName, Grantee.user(user.id), Grant.ROLE_SUPER_USER, GrantTarget.project(0))
+
+    serviceManager.grant.createGrant(superUserGrant, grantor) match {
+      case Some(grant) =>
+        superUsers += grant.grantee.granteeId
+        clearCache(user.id)
+        true
+      case _ =>
+        // The grant.createGrant function will throw an exception if it fails, so we should never get here. But just in case...
+        logger.warn(
+          s"Failed to add superuser role to uid=${user.id} requested by uid=${grantor.id}"
+        )
+        false
+    }
+  }
+
+  def demoteSuperUserToUser(user: User): Boolean = {
+    if (!isSuperUser(user.id)) {
+      logger.info(
+        s"MapRoulette uid=${user.id} (osm_id=${user.osmProfile.id}) is not a superuser, skipping role demotion"
+      )
+      return true
+    }
+
+    logger.warn(s"Removing superuser role for uid=${user.id} (osm_id=${user.osmProfile.id})")
+    if (serviceManager.grant.deleteSuperUserFromDatabase(user.id)) {
+      superUsers -= user.id
+      clearCache(user.id)
+      true
+    } else {
+      logger.warn(
+        s"Failed to remove superuser role for uid=${user.id} (osm_id=${user.osmProfile.id})"
+      )
+      false
+    }
+  }
+
+  def promoteSuperUsersInConfig(): Unit = {
+    // Look at config.superAccounts and ensure that all of those users are superusers. The below List will contain
+    // both the promoted users and the users that were already superusers.
+    val superusersFromConfig: List[User] = config.superAccounts
+      .filter(_ != "*")
+      .flatMap { osmId =>
+        retrieveByOSMId(osmId.toLong) match {
+          case Some(it) => Some(it)
+          case None =>
+            logger.warn(
+              s"osm_id=${osmId.toLong} has not logged in to this MapRoulette instance! Superuser promotion is not possible as there is no associated MapRoulette User"
+            )
+            None
+        }
+      }
+      .flatMap { user =>
+        if (promoteUserToSuperUser(user, User.superUser)) Some(user) else None
+      }
+  }
+
+  private def seedSuperUserIds(): Unit = {
+    superUsers ++= grantService.getSuperUserIdsFromDatabase
+  }
 
   /**
     * Find the User based on an API key, the API key is unique in the database.

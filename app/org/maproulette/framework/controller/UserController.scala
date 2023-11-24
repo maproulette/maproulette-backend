@@ -556,4 +556,56 @@ class UserController @Inject() (
         }
       }
     }
+
+  /**
+    * Get the current list of superusers
+    * @return the list of maproulette user ids that are superusers
+    */
+  def getSuperUserIds(): Action[AnyContent] = Action.async { implicit request =>
+    implicit val requireSuperUser: Boolean = true
+    this.sessionManager.authenticatedRequest { implicit grantor =>
+      Ok(Json.toJson(this.serviceManager.user.superUsers))
+    }
+  }
+
+  /**
+    * Promotes a user to a super user
+    * @param maprouletteUserId the maproulette user id to promote
+    * @return NoContent if successful or if the user is already a super user
+    */
+  def promoteUserToSuperUser(maprouletteUserId: Long): Action[AnyContent] = Action.async {
+    implicit request =>
+      implicit val requireSuperUser: Boolean = true
+      this.sessionManager.authenticatedRequest { implicit grantor =>
+        this.serviceManager.user.retrieve(maprouletteUserId) match {
+          case Some(grantee) =>
+            this.serviceManager.user.promoteUserToSuperUser(grantee, grantor)
+            NoContent
+          case None =>
+            throw new NotFoundException(s"Could not find user with ID $maprouletteUserId")
+        }
+      }
+  }
+
+  /**
+    * Demotes a user from a super user to a normal user
+    * @param maprouletteUserId the maproulette user id to demote
+    * @return NoContent if successful or if the user is already a normal user
+    */
+  def demoteSuperUserToUser(maprouletteUserId: Long): Action[AnyContent] = Action.async {
+    implicit request =>
+      implicit val requireSuperUser: Boolean = true
+      this.sessionManager.authenticatedRequest { implicit grantor =>
+        this.serviceManager.user.retrieve(maprouletteUserId) match {
+          case Some(grantee) =>
+            if (grantee.id == grantor.id) {
+              throw new IllegalAccessException("A superuser cannot demote themselves")
+            }
+            this.serviceManager.user.demoteSuperUserToUser(grantee)
+            NoContent
+          case None =>
+            throw new NotFoundException(s"Could not find user with ID $maprouletteUserId")
+        }
+      }
+  }
 }
