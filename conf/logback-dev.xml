@@ -17,7 +17,10 @@
     <!-- Set psql to DEBUG to see the sql statements sent to the db -->
     <logger name="org.maproulette.framework.psql" level="INFO" />
 
-    <logger name="play" level="INFO" />
+    <!-- Use DEBUG for play to see useful information and the HTTP requests to overpass. At TRACE level it dumps tcp transactions, so avoid trace level. -->
+    <logger name="play" level="DEBUG" />
+    <!-- Use TRACE for play.api.mvc to see what is happening with the HTTP requests to the backend -->
+    <logger name="play.api.mvc" level="TRACE" />
 
     <!-- More akka logging tweaks can be made in the dev.conf, akka.actor.debug -->
     <logger name="akka" level="INFO" />
