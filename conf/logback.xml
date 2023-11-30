@@ -1,12 +1,37 @@
-<configuration>
+<configuration debug="true" scan="true" scanPeriod="5 seconds">
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-        <!-- encoders are assigned the type
-             ch.qos.logback.classic.encoder.PatternLayoutEncoder by default -->
         <encoder>
             <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
         </encoder>
+        <encoder>
+            <pattern>%date{"HH:mm:ss.SSS"} %-5level [%marker][%thread][%logger{36}] - %message%n</pattern>
+        </encoder>
     </appender>
-    <root level="INFO">
+
+    <!-- Appender for general logs. This will drop TRACE/DEBUG/INFO logs when the queue fills. -->
+    <appender name="ASYNC_GENERAL" class="ch.qos.logback.classic.AsyncAppender">
         <appender-ref ref="STDOUT" />
+       <queueSize>256</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+    </appender>
+
+    <!-- Appender for Access Logs, set to not drop TRACE/DEBUG/INFO logs when the queue fills -->
+    <appender name="ASYNC_ACCESS" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="STDOUT" />
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+    </appender>
+
+    <!-- Logger for Access Logs written by HttpLoggingFilter -->
+    <logger name="AccessLogger" level="INFO" additivity="false">
+        <appender-ref ref="ASYNC_ACCESS" />
+    </logger>
+
+    <logger name="play" level="WARN" />
+    <!-- More akka logging tweaks can be made in the dev.conf, akka.actor.debug -->
+    <logger name="akka" level="WARN" />
+
+    <root level="INFO">
+        <appender-ref ref="ASYNC_GENERAL" />
     </root>
 </configuration>

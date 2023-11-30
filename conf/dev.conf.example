@@ -1,12 +1,5 @@
 include "application.conf"
 
-# Change logging levels to see more interesting things while developing.
-logger {
-  root=DEBUG
-  play=TRACE
-  application=TRACE
-}
-
 db.default {
   url="jdbc:postgresql://localhost:5432/mp_dev"
   url=${?MR_DATABASE_URL}
