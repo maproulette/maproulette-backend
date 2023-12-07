@@ -97,14 +97,18 @@ GET     /challengeComments/user/:id                          @org.maproulette.fr
 #   - name: id
 #     in: path
 #     description: The ID for the Task
-#   - name: comment
-#     in: query
-#     description: A URLEncoded comment for the Task
 #   - name: actionId
 #     in: query
 #     description: An optional action ID that may be associated with the comment
+# requestBody:
+#   description: The JSON structure for the Comments body, include the key "comment" to create or update Task comment objects.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
 ###
-POST    /task/:id/comment                           @org.maproulette.framework.controller.CommentController.add(id:Long, comment:String, actionId:Option[Long])
+POST    /task/:id/comment                           @org.maproulette.framework.controller.CommentController.add(id:Long, actionId:Option[Long])
 ###
 # tags: [ Comment ]
 # summary: Adds comment to each Task in a Task Bundle
@@ -122,14 +126,18 @@ POST    /task/:id/comment                           @org.maproulette.framework.c
 #   - name: id
 #     in: path
 #     description: The ID for the bundle
-#   - name: comment
-#     in: query
-#     description: A URLEncoded comment for the Task
 #   - name: actionId
 #     in: query
 #     description: An optional action ID that may be associated with the comment
+# requestBody:
+#   description: The JSON structure for the Comments body, include the key "comment" to create or update Task comment objects.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
 ###
-POST    /taskBundle/:id/comment                     @org.maproulette.framework.controller.CommentController.addToBundleTasks(id:Long, comment:String, actionId:Option[Long])
+POST    /taskBundle/:id/comment                     @org.maproulette.framework.controller.CommentController.addToBundleTasks(id:Long, actionId:Option[Long])
 ###
 # tags: [ Comment ]
 # summary: Update comment on Task
@@ -189,11 +197,15 @@ DELETE  /task/:id/comment/:commentId                @org.maproulette.framework.c
 #   - name: id
 #     in: path
 #     description: The ID for the Challenge
-#   - name: comment
-#     in: query
-#     description: A URLEncoded comment for the Challenge
+# requestBody:
+#   description: The JSON structure for the Comments body, include the key "comment" to create or update Task comment objects.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
 ###
-POST    /challenge/:id/comment                           @org.maproulette.framework.controller.CommentController.addChallengeComment(id:Long, comment:String)
+POST    /challenge/:id/comment                           @org.maproulette.framework.controller.CommentController.addChallengeComment(id:Long)
 ###
 # tags: [ Comment ]
 # summary: Retrieves comments for a Challenge
