@@ -5,8 +5,6 @@
 
 package org.maproulette.framework.controller
 
-import java.net.URLDecoder
-
 import javax.inject.Inject
 import org.maproulette.data.ActionManager
 import org.maproulette.framework.service.{CommentService, ServiceManager}

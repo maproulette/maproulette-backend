@@ -5,8 +5,6 @@
 
 package org.maproulette.framework.service
 
-import java.net.URLDecoder
-
 import javax.inject.{Inject, Singleton}
 import org.apache.commons.lang3.StringUtils
 import org.maproulette.exception.{InvalidException, NotFoundException}
