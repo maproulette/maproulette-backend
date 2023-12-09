@@ -117,7 +117,7 @@ class CommentService @Inject() (
 
     var notify = true
     for (task <- tasks) {
-      this.create(user, task.id, URLDecoder.decode(comment, "UTF-8"), actionId, notify)
+      this.create(user, task.id, comment, actionId, notify)
       notify = false
     }
     bundle

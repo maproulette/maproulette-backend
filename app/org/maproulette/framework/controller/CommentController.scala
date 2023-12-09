@@ -127,7 +127,7 @@ class CommentController @Inject() (
             Created(
               Json.toJson(
                 this.commentService
-                  .create(user, taskId, URLDecoder.decode(comment, "UTF-8"), actionId)
+                  .create(user, taskId, comment, actionId)
               )
             )
         }
@@ -149,7 +149,7 @@ class CommentController @Inject() (
             Created(
               Json.toJson(
                 this.commentService
-                  .createChallengeComment(user, challengeId, URLDecoder.decode(comment, "UTF-8"))
+                  .createChallengeComment(user, challengeId, comment)
               )
             )
         }
@@ -189,7 +189,7 @@ class CommentController @Inject() (
       this.sessionManager.authenticatedRequest { implicit user =>
         Ok(
           Json.toJson(
-            this.commentService.update(commentId, URLDecoder.decode(comment, "UTF-8"), user)
+            this.commentService.update(commentId, comment, user)
           )
         )
       }
