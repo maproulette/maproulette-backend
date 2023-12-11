@@ -119,7 +119,7 @@ class CommentController @Inject() (
   def add(taskId: Long, actionId: Option[Long]): Action[JsValue] =
     Action.async(parse.json) { implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
-        val commentResult = (request.body \ "comment").asOpt[String]
+        val commentResult = (request.body \ "comment").asOpt[String].map(_.trim)
         commentResult match {
           case Some(comment) =>
             Created(
@@ -141,7 +141,7 @@ class CommentController @Inject() (
   def addChallengeComment(challengeId: Long): Action[JsValue] =
     Action.async(parse.json) { implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
-        val commentResult = (request.body \ "comment").asOpt[String]
+        val commentResult = (request.body \ "comment").asOpt[String].map(_.trim)
         commentResult match {
           case Some(comment) =>
             Created(
@@ -166,7 +166,7 @@ class CommentController @Inject() (
       actionId: Option[Long]
   ): Action[JsValue] = Action.async(parse.json) { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
-      val commentResult = (request.body \ "comment").asOpt[String]
+      val commentResult = (request.body \ "comment").asOpt[String].map(_.trim)
       commentResult match {
         case Some(comment) =>
           this.commentService.addToBundle(user, bundleId, comment, actionId)
@@ -183,7 +183,7 @@ class CommentController @Inject() (
     */
   def update(commentId: Long): Action[JsValue] = Action.async(parse.json) { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
-      val commentResult = (request.body \ "comment").asOpt[String]
+      val commentResult = (request.body \ "comment").asOpt[String].map(_.trim)
       commentResult match {
         case Some(comment) =>
           Ok(
