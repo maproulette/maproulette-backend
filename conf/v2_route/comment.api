@@ -101,12 +101,19 @@ GET     /challengeComments/user/:id                          @org.maproulette.fr
 #     in: query
 #     description: An optional action ID that may be associated with the comment
 # requestBody:
-#   description: The JSON structure for the Comments body, include the key "comment" to create or update Task comment objects.
+#   description: The JSON structure for the Comments body
 #   required: true
 #   content:
 #     application/json:
 #       schema:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
+#         type: object
+#         properties:
+#           comment:
+#             type: string
+#             description: User's comment.
+#             example: "This is an example comment."
+#         required:
+#           - comment
 ###
 POST    /task/:id/comment                           @org.maproulette.framework.controller.CommentController.add(id:Long, actionId:Option[Long])
 ###
@@ -130,12 +137,19 @@ POST    /task/:id/comment                           @org.maproulette.framework.c
 #     in: query
 #     description: An optional action ID that may be associated with the comment
 # requestBody:
-#   description: The JSON structure for the Comments body, include the key "comment" to create or update Task comment objects.
+#   description: The JSON structure for the Comments body
 #   required: true
 #   content:
 #     application/json:
 #       schema:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
+#         type: object
+#         properties:
+#           comment:
+#             type: string
+#             description: User's comment.
+#             example: "This is an example comment."
+#         required:
+#           - comment
 ###
 POST    /taskBundle/:id/comment                     @org.maproulette.framework.controller.CommentController.addToBundleTasks(id:Long, actionId:Option[Long])
 ###
@@ -157,11 +171,22 @@ POST    /taskBundle/:id/comment                     @org.maproulette.framework.c
 #   - name: commentId
 #     in: path
 #     description: The ID of the original comment
-#   - name: comment
-#     in: query
-#     description: A URLEncoded comment for the Task
+# requestBody:
+#   description: The JSON structure for the Comments body
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: object
+#         properties:
+#           comment:
+#             type: string
+#             description: User's comment.
+#             example: "This is an example comment."
+#         required:
+#           - comment
 ###
-PUT    /comment/:commentId                          @org.maproulette.framework.controller.CommentController.update(commentId:Long, comment:String)
+PUT    /comment/:commentId                          @org.maproulette.framework.controller.CommentController.update(commentId:Long)
 ###
 # tags: [ Comment ]
 # summary: Deletes comment from Task
@@ -198,12 +223,19 @@ DELETE  /task/:id/comment/:commentId                @org.maproulette.framework.c
 #     in: path
 #     description: The ID for the Challenge
 # requestBody:
-#   description: The JSON structure for the Comments body, include the key "comment" to create or update Task comment objects.
+#   description: The JSON structure for the Comments body
 #   required: true
 #   content:
 #     application/json:
 #       schema:
-#         $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
+#         type: object
+#         properties:
+#           comment:
+#             type: string
+#             description: User's comment.
+#             example: "This is an example comment."
+#         required:
+#           - comment
 ###
 POST    /challenge/:id/comment                           @org.maproulette.framework.controller.CommentController.addChallengeComment(id:Long)
 ###
