@@ -179,18 +179,21 @@ class CommentController @Inject() (
     * Updates the original comment
     *
     * @param commentId The ID of the comment to update
-    * @param comment   The comment to update
     * @return
     */
-  def update(commentId: Long, comment: String): Action[AnyContent] = Action.async {
-    implicit request =>
-      this.sessionManager.authenticatedRequest { implicit user =>
-        Ok(
-          Json.toJson(
-            this.commentService.update(commentId, comment, user)
+  def update(commentId: Long): Action[JsValue] = Action.async(parse.json) { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      val commentResult = (request.body \ "comment").asOpt[String]
+      commentResult match {
+        case Some(comment) =>
+          Ok(
+            Json.toJson(
+              this.commentService
+                .update(commentId, comment, user)
+            )
           )
-        )
       }
+    }
   }
 
   /**
