@@ -18,6 +18,7 @@ import org.maproulette.framework.mixins.{ParentMixin, TagsControllerMixin}
 import org.maproulette.framework.repository.TaskRepository
 import org.maproulette.session.{SearchLocation, SearchParameters, SessionManager}
 import org.maproulette.utils.Utils
+import play.api.libs.json.{JsValue, Json}
 import play.api.mvc._
 import play.api.libs.json._
 import play.api.http.HttpEntity
@@ -450,7 +451,6 @@ class TaskReviewController @Inject() (
     *
     * @param id The id of the task
     * @param reviewStatus The review status id to set the task's review status to
-    * @param comment An optional comment to add to the task
     * @param tags Optional tags to add to the task
     * @param newTaskStatus Optional new taskStatus to change the task's status
     * @param errorTags Optional string for error tags
@@ -460,11 +460,10 @@ class TaskReviewController @Inject() (
   def setTaskReviewStatus(
       id: Long,
       reviewStatus: Int,
-      comment: String = "",
       tags: String = "",
       newTaskStatus: String = "",
       errorTags: String = ""
-  ): Action[AnyContent] = Action.async { implicit request =>
+  ): Action[JsValue] = Action.async(parse.json) { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
       val task = this.taskRepository.retrieve(id) match {
         case Some(t) => {
@@ -494,6 +493,8 @@ class TaskReviewController @Inject() (
         case None    => None
       }
 
+      val comment = (request.body \ "comment").asOpt[String].map(_.trim).getOrElse("")
+
       this.service.setTaskReviewStatus(task, reviewStatus, user, actionId, comment, errorTags)
 
       val tagList = tags.split(",").toList
@@ -511,7 +512,6 @@ class TaskReviewController @Inject() (
     *
     * @param id The id of the task
     * @param reviewStatus The review status id to set the task's meta review status to
-    * @param comment An optional comment to add to the task
     * @param tags Optional tags to add to the task
     * @return 400 BadRequest if task with supplied id not found.
     *         If successful then 200 NoContent
@@ -521,7 +521,7 @@ class TaskReviewController @Inject() (
       reviewStatus: Int,
       tags: String = "",
       errorTags: String = ""
-  ): Action[JsValue] = Action.async { implicit request =>
+  ): Action[JsValue] = Action.async(parse.json) { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
       val task = this.taskRepository.retrieve(id) match {
         case Some(t) => t
@@ -536,15 +536,9 @@ class TaskReviewController @Inject() (
         case None    => None
       }
 
-      val commentResult = (request.body \ "comment").asOpt[String].map(_.trim)
-              commentResult match {
-                case Some(comment) =>
-                  Created(
-                    Json.toJson(
-                    this.service.setMetaReviewStatus(task, reviewStatus, user, actionId, comment, errorTags)
-            )
-          )
-      }
+      val comment = (request.body \ "comment").asOpt[String].map(_.trim).getOrElse("")
+
+      this.service.setMetaReviewStatus(task, reviewStatus, user, actionId, comment, errorTags)
 
       val tagList = tags.split(",").toList
       if (tagList.nonEmpty) {

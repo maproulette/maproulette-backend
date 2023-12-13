@@ -67,9 +67,6 @@ POST    /change/test                        @org.maproulette.controllers.OSMChan
 #   - name: taskId
 #     in: query
 #     description: The task id that should be marked as fixed after this tag change has been applied.
-#   - name: comment
-#     in: query
-#     description: A task comment to be stored in map roulette with this change.
 #   - name: requestReview
 #     in: query
 #     description: Boolean indicating if a review is requested on this task. (Will override user settings if provided)
@@ -83,5 +80,18 @@ POST    /change/test                        @org.maproulette.controllers.OSMChan
 #     application/json:
 #       schema:
 #         $ref: '#/components/schemas/TagChangeSubmission'
+# requestBody:
+#   description: The JSON structure for the Comments body
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: object
+#         $ref: '#/components/schemas/TagChangeSubmission'
+#         properties:
+#           comment:
+#             type: string
+#             description: User's comment.
+#             example: "This is an example comment."
 ###
-POST    /task/:taskId/fix/apply                     @org.maproulette.controllers.api.TaskController.applyTagFix(taskId:Long, comment:String ?= "", tags:String ?= "")
+POST    /task/:taskId/fix/apply                     @org.maproulette.controllers.api.TaskController.applyTagFix(taskId:Long, tags:String ?= "")

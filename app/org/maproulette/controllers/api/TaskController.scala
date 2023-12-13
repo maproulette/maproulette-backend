@@ -487,7 +487,6 @@ class TaskController @Inject() (
   def setTaskStatus(
       id: Long,
       status: Int,
-      comment: String = "",
       tags: String = ""
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
@@ -501,7 +500,7 @@ class TaskController @Inject() (
         id,
         TaskStatusSet(status),
         user,
-        comment,
+        "",
         tags,
         requestReview,
         completionResponses

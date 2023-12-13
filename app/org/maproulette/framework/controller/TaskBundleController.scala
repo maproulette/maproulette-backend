@@ -48,7 +48,6 @@ class TaskBundleController @Inject() (
     * @param bundleId  The id of the task bundle
     * @param primaryId The id of the primary task for this bundle
     * @param status    The status id to set the task's status to
-    * @param comment   An optional comment to add to the task
     * @param tags      Optional tags to add to the task
     * @return 400 BadRequest if status id is invalid or task with supplied id not found.
     *         If successful then 200 NoContent
@@ -57,7 +56,6 @@ class TaskBundleController @Inject() (
       bundleId: Long,
       primaryId: Long,
       status: Int,
-      comment: String = "",
       tags: String = ""
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
@@ -86,13 +84,6 @@ class TaskBundleController @Inject() (
         val action = this.actionManager
           .setAction(Some(user), new TaskItem(task.id), TaskStatusSet(status), task.name)
         // add comment to each task if any provided
-        if (comment.nonEmpty) {
-          val actionId = action match {
-            case Some(a) => Some(a.id)
-            case None    => None
-          }
-          this.serviceManager.comment.create(user, task.id, comment, actionId)
-        }
 
         // Add tags to each task
         val tagList = tags.split(",").toList
@@ -112,7 +103,6 @@ class TaskBundleController @Inject() (
     *
     * @param id           The id of the task
     * @param reviewStatus The review status id to set the task's review status to
-    * @param comment      An optional comment to add to the task
     * @param tags         Optional tags to add to the task
     * @param newTaskStatus  Optional new taskStatus to change on all tasks in bundle
     * @return 400 BadRequest if task with supplied id not found.
@@ -121,11 +111,10 @@ class TaskBundleController @Inject() (
   def setBundleTaskReviewStatus(
       id: Long,
       reviewStatus: Int,
-      comment: String = "",
       tags: String = "",
       newTaskStatus: String = "",
       errorTags: String = ""
-  ): Action[AnyContent] = Action.async { implicit request =>
+  ): Action[JsValue] = Action.async(parse.json) { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
       val tasks = this.serviceManager.taskBundle.getTaskBundle(user, id).tasks match {
         case Some(t) => {
@@ -168,6 +157,8 @@ class TaskBundleController @Inject() (
           case None    => None
         }
 
+        val comment = (request.body \ "comment").asOpt[String].map(_.trim).getOrElse("")
+
         this.serviceManager.taskReview
           .setTaskReviewStatus(task, reviewStatus, user, actionId, comment, errorTags, notify)
 
@@ -193,7 +184,6 @@ class TaskBundleController @Inject() (
     *
     * @param id           The id of the task
     * @param reviewStatus The review status id to set the task's review status to
-    * @param comment      An optional comment to add to the task
     * @param tags         Optional tags to add to the task
     * @return 400 BadRequest if task with supplied id not found.
     *         If successful then 200 NoContent
@@ -201,10 +191,9 @@ class TaskBundleController @Inject() (
   def setBundleMetaReviewStatus(
       id: Long,
       reviewStatus: Int,
-      comment: String = "",
       tags: String = "",
       errorTags: String = ""
-  ): Action[AnyContent] = Action.async { implicit request =>
+  ): Action[JsValue] = Action.async(parse.json) { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
       val tasks = this.serviceManager.taskBundle.getTaskBundle(user, id).tasks match {
         case Some(t) => t
@@ -222,6 +211,8 @@ class TaskBundleController @Inject() (
           case Some(a) => Some(a.id)
           case None    => None
         }
+
+        val comment = (request.body \ "comment").asOpt[String].map(_.trim).getOrElse("")
 
         this.serviceManager.taskReview
           .setMetaReviewStatus(task, reviewStatus, user, actionId, comment, errorTags)

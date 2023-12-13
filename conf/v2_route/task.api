@@ -597,9 +597,6 @@ PUT     /task/:id/responses                           @org.maproulette.framework
 #   - name: status
 #     in: path
 #     description: The status to update the Task too. Following status Integers can be used. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Can't Complete
-#   - name: comment
-#     in: query
-#     description: Any comment that is provided by the user when setting the status
 #   - name: requestReview
 #     in: query
 #     description: Boolean indicating if a review is requested on this task. (Will override user settings if provided)
@@ -607,14 +604,19 @@ PUT     /task/:id/responses                           @org.maproulette.framework
 #     in: query
 #     description: Optional tags to associate with this task
 # requestBody:
-#   description: Optional key/value json to be stored with this task.
-#   required: false
+#   description: The JSON structure for the Comments body
+#   required: true
 #   content:
 #     application/json:
 #       schema:
 #         type: object
+#         properties:
+#           comment:
+#             type: string
+#             description: User's comment.
+#             example: "This is an example comment."
 ###
-PUT     /task/:id/:status                           @org.maproulette.controllers.api.TaskController.setTaskStatus(id:Long, status:Int, comment:String ?= "", tags:String ?="")
+PUT     /task/:id/:status                           @org.maproulette.controllers.api.TaskController.setTaskStatus(id:Long, status:Int, tags:String ?="")
 ###
 # tags: [ Task ]
 # summary: Update Bundle Task Status
@@ -636,16 +638,25 @@ PUT     /task/:id/:status                           @org.maproulette.controllers
 #   - name: status
 #     in: path
 #     description: The status to update the Task too. Following status Integers can be used. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Can't Complete
-#   - name: comment
-#     in: query
-#     description: Any comment that is provided by the user when setting the status
 #   - name: requestReview
 #     in: query
 #     description: Boolean indicating if a review is requested on this task. (Will override user settings if provided)
 #   - name: tags
 #     description: Optional tags to associate with this task
+# requestBody:
+#   description: The JSON structure for the Comments body
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: object
+#         properties:
+#           comment:
+#             type: string
+#             description: User's comment.
+#             example: "This is an example comment."
 ###
-PUT     /taskBundle/:bundleId/:status                           @org.maproulette.framework.controller.TaskBundleController.setBundleTaskStatus(bundleId:Long, primaryId:Long, status:Int, comment:String ?= "", tags:String ?="")
+PUT     /taskBundle/:bundleId/:status                           @org.maproulette.framework.controller.TaskBundleController.setBundleTaskStatus(bundleId:Long, primaryId:Long, status:Int, tags:String ?="")
 ###
 # tags: [ Task ]
 # summary: Update Task Review Status
@@ -664,9 +675,6 @@ PUT     /taskBundle/:bundleId/:status                           @org.maproulette
 #   - name: status
 #     in: path
 #     description: Will update a Tasks review status to one of the following. 0 - Requested, 1 - Approved, 2 - Rejected, 3 - Assisted, 4 - Disputed, 5 - Unnecessary, 6 - Approved With Revisions
-#   - name: comment
-#     in: query
-#     description: Any comment that is provided by the user when setting the review status
 #   - name: tags
 #     description: Optional tags to associate with this task
 #   - name: newTaskStatus
@@ -678,8 +686,20 @@ PUT     /taskBundle/:bundleId/:status                           @org.maproulette
 #   - name: errorTags
 #     in: query
 #     description: Optional string to provide error tags in the review history
+# requestBody:
+#   description: The JSON structure for the Comments body
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: object
+#         properties:
+#           comment:
+#             type: string
+#             description: User's comment.
+#             example: "This is an example comment."
 ###
-PUT     /task/:id/review/:status                           @org.maproulette.framework.controller.TaskReviewController.setTaskReviewStatus(id:Long, status:Int, comment:String ?= "", tags:String ?="", newTaskStatus:String ?= "", errorTags:String ?= "")
+PUT     /task/:id/review/:status                           @org.maproulette.framework.controller.TaskReviewController.setTaskReviewStatus(id:Long, status:Int, tags:String ?="", newTaskStatus:String ?= "", errorTags:String ?= "")
 ###
 # tags: [ Task ]
 # summary: Changes review status to "Unnecessary" on tasks matching criteria
@@ -714,9 +734,6 @@ PUT     /tasks/review/remove                               @org.maproulette.fram
 #   - name: status
 #     in: path
 #     description: The status to update the Task to. Following status Integers can be used. 0 - Requested, 1 - Approved, 2 - Rejected, 3 - Assisted
-#   - name: comment
-#     in: query
-#     description: Any comment that is provided by the user when setting the review status
 #   - name: tags
 #     description: Optional tags to associate with this task
 #   - name: newTaskStatus
@@ -725,8 +742,20 @@ PUT     /tasks/review/remove                               @org.maproulette.fram
 #   - name: errorTags
 #     in: query
 #     description: Optional string to provide error tags in the review history
+# requestBody:
+#   description: The JSON structure for the Comments body
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: object
+#         properties:
+#           comment:
+#             type: string
+#             description: User's comment.
+#             example: "This is an example comment."
 ###
-PUT     /taskBundle/:id/review/:status                     @org.maproulette.framework.controller.TaskBundleController.setBundleTaskReviewStatus(id:Long, status:Int, comment:String ?= "", tags:String ?="", newTaskStatus:String ?= "", errorTags:String ?= "")
+PUT     /taskBundle/:id/review/:status                     @org.maproulette.framework.controller.TaskBundleController.setBundleTaskReviewStatus(id:Long, status:Int, tags:String ?="", newTaskStatus:String ?= "", errorTags:String ?= "")
 ###
 # tags: [ Task ]
 # summary: Update Task Meta Review Status
@@ -784,16 +813,25 @@ PUT     /task/:id/metareview/:status                           @org.maproulette.
 #   - name: status
 #     in: path
 #     description: The review status to update the meta review status to. Following status Integers can be used. 0 - Requested, 1 - Approved, 2 - Rejected, 3 - Assisted
-#   - name: comment
-#     in: query
-#     description: Any comment that is provided by the user when setting the review status
 #   - name: tags
 #     description: Optional tags to associate with this task
 #   - name: errorTags
 #     in: query
 #     description: Optional string to provide error tags in the review history
+# requestBody:
+#   description: The JSON structure for the Comments body
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: object
+#         properties:
+#           comment:
+#             type: string
+#             description: User's comment.
+#             example: "This is an example comment."
 ###
-PUT     /taskBundle/:id/metareview/:status                     @org.maproulette.framework.controller.TaskBundleController.setBundleMetaReviewStatus(id:Long, status:Int, comment:String ?= "", tags:String ?="", errorTags:String ?= "")
+PUT     /taskBundle/:id/metareview/:status                     @org.maproulette.framework.controller.TaskBundleController.setBundleMetaReviewStatus(id:Long, status:Int, tags:String ?="", errorTags:String ?= "")
 ###
 # tags: [ Task ]
 # summary: Retrieves task clusters.
