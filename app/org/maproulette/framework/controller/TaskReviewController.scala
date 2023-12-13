@@ -519,10 +519,9 @@ class TaskReviewController @Inject() (
   def setMetaReviewStatus(
       id: Long,
       reviewStatus: Int,
-      comment: String = "",
       tags: String = "",
       errorTags: String = ""
-  ): Action[AnyContent] = Action.async { implicit request =>
+  ): Action[JsValue] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
       val task = this.taskRepository.retrieve(id) match {
         case Some(t) => t
@@ -537,7 +536,15 @@ class TaskReviewController @Inject() (
         case None    => None
       }
 
-      this.service.setMetaReviewStatus(task, reviewStatus, user, actionId, comment, errorTags)
+      val commentResult = (request.body \ "comment").asOpt[String].map(_.trim)
+              commentResult match {
+                case Some(comment) =>
+                  Created(
+                    Json.toJson(
+                    this.service.setMetaReviewStatus(task, reviewStatus, user, actionId, comment, errorTags)
+            )
+          )
+      }
 
       val tagList = tags.split(",").toList
       if (tagList.nonEmpty) {

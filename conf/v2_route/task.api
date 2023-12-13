@@ -745,16 +745,27 @@ PUT     /taskBundle/:id/review/:status                     @org.maproulette.fram
 #   - name: status
 #     in: path
 #     description: Will update a Tasks meta review status to one of the following. 0 - (re)Requested, 1 - Approved, 2 - Rejected, 3 - Assisted, 4 - Disputed, 5 - Unnecessary
-#   - name: comment
-#     in: query
-#     description: Any comment that is provided by the user when setting the meta review status
 #   - name: tags
 #     description: Optional tags to associate with this task
 #   - name: errorTags
 #     in: query
 #     description: Optional string to provide reject tags in the review history
+# requestBody:
+#   description: The JSON structure for the Comments body
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: object
+#         properties:
+#           comment:
+#             type: string
+#             description: User's comment.
+#             example: "This is an example comment."
+#         required:
+#           - comment
 ###
-PUT     /task/:id/metareview/:status                           @org.maproulette.framework.controller.TaskReviewController.setMetaReviewStatus(id:Long, status:Int, comment:String ?= "", tags:String ?="", errorTags:String ?= "")
+PUT     /task/:id/metareview/:status                           @org.maproulette.framework.controller.TaskReviewController.setMetaReviewStatus(id:Long, status:Int, tags:String ?="", errorTags:String ?= "")
 ###
 # tags: [ Task ]
 # summary: Update Meta Review Status for a Bundle
