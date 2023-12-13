@@ -82,7 +82,7 @@ POST    /change/test                        @org.maproulette.controllers.OSMChan
 #         $ref: '#/components/schemas/TagChangeSubmission'
 # requestBody:
 #   description: The JSON structure for the Comments body
-#   required: true
+#   required: false
 #   content:
 #     application/json:
 #       schema:

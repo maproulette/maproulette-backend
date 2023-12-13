@@ -605,7 +605,7 @@ PUT     /task/:id/responses                           @org.maproulette.framework
 #     description: Optional tags to associate with this task
 # requestBody:
 #   description: The JSON structure for the Comments body
-#   required: true
+#   required: false
 #   content:
 #     application/json:
 #       schema:
@@ -645,7 +645,7 @@ PUT     /task/:id/:status                           @org.maproulette.controllers
 #     description: Optional tags to associate with this task
 # requestBody:
 #   description: The JSON structure for the Comments body
-#   required: true
+#   required: false
 #   content:
 #     application/json:
 #       schema:
@@ -688,7 +688,7 @@ PUT     /taskBundle/:bundleId/:status                           @org.maproulette
 #     description: Optional string to provide error tags in the review history
 # requestBody:
 #   description: The JSON structure for the Comments body
-#   required: true
+#   required: false
 #   content:
 #     application/json:
 #       schema:
@@ -743,8 +743,8 @@ PUT     /tasks/review/remove                               @org.maproulette.fram
 #     in: query
 #     description: Optional string to provide error tags in the review history
 # requestBody:
-#   description: The JSON structure for the Comments body
-#   required: true
+#   description: The JSON structure for the Comments body & Optional key/value to be stored with this task.
+#   required: false
 #   content:
 #     application/json:
 #       schema:
@@ -781,7 +781,7 @@ PUT     /taskBundle/:id/review/:status                     @org.maproulette.fram
 #     description: Optional string to provide reject tags in the review history
 # requestBody:
 #   description: The JSON structure for the Comments body
-#   required: true
+#   required: false
 #   content:
 #     application/json:
 #       schema:
@@ -820,7 +820,7 @@ PUT     /task/:id/metareview/:status                           @org.maproulette.
 #     description: Optional string to provide error tags in the review history
 # requestBody:
 #   description: The JSON structure for the Comments body
-#   required: true
+#   required: false
 #   content:
 #     application/json:
 #       schema:
