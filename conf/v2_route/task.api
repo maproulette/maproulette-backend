@@ -603,18 +603,6 @@ PUT     /task/:id/responses                           @org.maproulette.framework
 #   - name: tags
 #     in: query
 #     description: Optional tags to associate with this task
-# requestBody:
-#   description: The JSON structure for the Comments body
-#   required: false
-#   content:
-#     application/json:
-#       schema:
-#         type: object
-#         properties:
-#           comment:
-#             type: string
-#             description: User's comment.
-#             example: "This is an example comment."
 ###
 PUT     /task/:id/:status                           @org.maproulette.controllers.api.TaskController.setTaskStatus(id:Long, status:Int, tags:String ?="")
 ###
@@ -643,18 +631,6 @@ PUT     /task/:id/:status                           @org.maproulette.controllers
 #     description: Boolean indicating if a review is requested on this task. (Will override user settings if provided)
 #   - name: tags
 #     description: Optional tags to associate with this task
-# requestBody:
-#   description: The JSON structure for the Comments body
-#   required: false
-#   content:
-#     application/json:
-#       schema:
-#         type: object
-#         properties:
-#           comment:
-#             type: string
-#             description: User's comment.
-#             example: "This is an example comment."
 ###
 PUT     /taskBundle/:bundleId/:status                           @org.maproulette.framework.controller.TaskBundleController.setBundleTaskStatus(bundleId:Long, primaryId:Long, status:Int, tags:String ?="")
 ###

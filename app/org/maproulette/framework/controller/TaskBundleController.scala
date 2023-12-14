@@ -83,7 +83,6 @@ class TaskBundleController @Inject() (
       for (task <- tasks) {
         val action = this.actionManager
           .setAction(Some(user), new TaskItem(task.id), TaskStatusSet(status), task.name)
-        // add comment to each task if any provided
 
         // Add tags to each task
         val tagList = tags.split(",").toList
