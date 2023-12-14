@@ -801,18 +801,6 @@ PUT     /task/:id/metareview/:status                           @org.maproulette.
 #   - name: errorTags
 #     in: query
 #     description: Optional string to provide error tags in the review history
-# requestBody:
-#   description: The JSON structure for the Comments body
-#   required: false
-#   content:
-#     application/json:
-#       schema:
-#         type: object
-#         properties:
-#           comment:
-#             type: string
-#             description: User's comment.
-#             example: "This is an example comment."
 ###
 PUT     /taskBundle/:id/metareview/:status                     @org.maproulette.framework.controller.TaskBundleController.setBundleMetaReviewStatus(id:Long, status:Int, tags:String ?="", errorTags:String ?= "")
 ###

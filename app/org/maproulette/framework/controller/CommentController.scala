@@ -6,10 +6,11 @@
 package org.maproulette.framework.controller
 
 import javax.inject.Inject
+import org.maproulette.exception.{StatusMessage}
 import org.maproulette.data.ActionManager
 import org.maproulette.framework.service.{CommentService, ServiceManager}
 import org.maproulette.session.SessionManager
-import play.api.libs.json.{JsValue, Json}
+import play.api.libs.json.{JsValue, JsString, Json}
 import play.api.mvc._
 
 /**
@@ -120,12 +121,27 @@ class CommentController @Inject() (
     Action.async(parse.json) { implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
         val commentResult = (request.body \ "comment").asOpt[String].map(_.trim)
+
         commentResult match {
+          case Some(comment) if comment.nonEmpty =>
+            try {
+              val createdComment = this.commentService.create(user, taskId, comment, actionId)
+              Created(Json.toJson(createdComment))
+            } catch {
+              case _: Throwable =>
+                // Handle other unexpected errors
+                BadRequest(Json.toJson(StatusMessage("KO", JsString("Comment couldn't be saved"))))
+            }
+
           case Some(comment) =>
-            Created(
+            // Empty comment is not allowed
+            BadRequest(Json.toJson(StatusMessage("KO", JsString("Comment cannot be empty"))))
+
+          case None =>
+            // "comment" field is missing in the request body
+            BadRequest(
               Json.toJson(
-                this.commentService
-                  .create(user, taskId, comment, actionId)
+                StatusMessage("KO", JsString("Required comment object in request body no found."))
               )
             )
         }
@@ -142,12 +158,28 @@ class CommentController @Inject() (
     Action.async(parse.json) { implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
         val commentResult = (request.body \ "comment").asOpt[String].map(_.trim)
+
         commentResult match {
+          case Some(comment) if comment.nonEmpty =>
+            try {
+              Created(
+                Json.toJson(this.commentService.createChallengeComment(user, challengeId, comment))
+              )
+            } catch {
+              case _: Throwable =>
+                // Handle other unexpected errors
+                BadRequest(Json.toJson(StatusMessage("KO", JsString("Comment couldn't be saved"))))
+            }
+
           case Some(comment) =>
-            Created(
+            // Empty comment is not allowed
+            BadRequest(Json.toJson(StatusMessage("KO", JsString("Comment cannot be empty"))))
+
+          case None =>
+            // "comment" field is missing in the request body
+            BadRequest(
               Json.toJson(
-                this.commentService
-                  .createChallengeComment(user, challengeId, comment)
+                StatusMessage("KO", JsString("Required comment object in request body no found."))
               )
             )
         }
@@ -167,11 +199,30 @@ class CommentController @Inject() (
   ): Action[JsValue] = Action.async(parse.json) { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
       val commentResult = (request.body \ "comment").asOpt[String].map(_.trim)
+
       commentResult match {
+        case Some(comment) if comment.nonEmpty =>
+          try {
+            this.commentService.addToBundle(user, bundleId, comment, actionId)
+            Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, bundleId)))
+          } catch {
+            case _: Throwable =>
+              // Handle other unexpected errors
+              BadRequest(Json.toJson(StatusMessage("KO", JsString("Comment couldn't be saved"))))
+          }
+
         case Some(comment) =>
-          this.commentService.addToBundle(user, bundleId, comment, actionId)
+          // Empty comment is not allowed
+          BadRequest(Json.toJson(StatusMessage("KO", JsString("Comment cannot be empty"))))
+
+        case None =>
+          // "comment" field is missing in the request body
+          BadRequest(
+            Json.toJson(
+              StatusMessage("KO", JsString("Required comment object in request body no found"))
+            )
+          )
       }
-      Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, bundleId)))
     }
   }
 
@@ -184,12 +235,26 @@ class CommentController @Inject() (
   def update(commentId: Long): Action[JsValue] = Action.async(parse.json) { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
       val commentResult = (request.body \ "comment").asOpt[String].map(_.trim)
+
       commentResult match {
+        case Some(comment) if comment.nonEmpty =>
+          try {
+            Ok(Json.toJson(this.commentService.update(commentId, comment, user)))
+          } catch {
+            case _: Throwable =>
+              // Handle other unexpected errors
+              BadRequest(Json.toJson(StatusMessage("KO", JsString("Comment couldn't be saved"))))
+          }
+
         case Some(comment) =>
-          Ok(
+          // Empty comment is not allowed
+          BadRequest(Json.toJson(StatusMessage("KO", JsString("Comment cannot be empty"))))
+
+        case None =>
+          // "comment" field is missing in the request body
+          BadRequest(
             Json.toJson(
-              this.commentService
-                .update(commentId, comment, user)
+              StatusMessage("KO", JsString("Required comment object in request body no found."))
             )
           )
       }
