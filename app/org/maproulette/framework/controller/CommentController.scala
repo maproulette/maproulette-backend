@@ -6,7 +6,7 @@
 package org.maproulette.framework.controller
 
 import javax.inject.Inject
-import org.maproulette.exception.{StatusMessage}
+import org.maproulette.exception.StatusMessage
 import org.maproulette.data.ActionManager
 import org.maproulette.framework.service.{CommentService, ServiceManager}
 import org.maproulette.session.SessionManager
@@ -118,7 +118,7 @@ class CommentController @Inject() (
     * @return Ok if successful.
     */
   def add(taskId: Long, actionId: Option[Long]): Action[JsValue] =
-    Action.async(parse.json) { implicit request =>
+    Action.async(bodyParsers.json) { implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
         val commentResult = (request.body \ "comment").asOpt[String].map(_.trim)
 
@@ -155,7 +155,7 @@ class CommentController @Inject() (
     * @return Ok if successful.
     */
   def addChallengeComment(challengeId: Long): Action[JsValue] =
-    Action.async(parse.json) { implicit request =>
+    Action.async(bodyParsers.json) { implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
         val commentResult = (request.body \ "comment").asOpt[String].map(_.trim)
 
@@ -196,7 +196,7 @@ class CommentController @Inject() (
   def addToBundleTasks(
       bundleId: Long,
       actionId: Option[Long]
-  ): Action[JsValue] = Action.async(parse.json) { implicit request =>
+  ): Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
       val commentResult = (request.body \ "comment").asOpt[String].map(_.trim)
 
@@ -232,33 +232,34 @@ class CommentController @Inject() (
     * @param commentId The ID of the comment to update
     * @return
     */
-  def update(commentId: Long): Action[JsValue] = Action.async(parse.json) { implicit request =>
-    this.sessionManager.authenticatedRequest { implicit user =>
-      val commentResult = (request.body \ "comment").asOpt[String].map(_.trim)
+  def update(commentId: Long): Action[JsValue] = Action.async(bodyParsers.json) {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        val commentResult = (request.body \ "comment").asOpt[String].map(_.trim)
 
-      commentResult match {
-        case Some(comment) if comment.nonEmpty =>
-          try {
-            Ok(Json.toJson(this.commentService.update(commentId, comment, user)))
-          } catch {
-            case _: Throwable =>
-              // Handle other unexpected errors
-              BadRequest(Json.toJson(StatusMessage("KO", JsString("Comment couldn't be saved"))))
-          }
+        commentResult match {
+          case Some(comment) if comment.nonEmpty =>
+            try {
+              Ok(Json.toJson(this.commentService.update(commentId, comment, user)))
+            } catch {
+              case _: Throwable =>
+                // Handle other unexpected errors
+                BadRequest(Json.toJson(StatusMessage("KO", JsString("Comment couldn't be saved"))))
+            }
 
-        case Some(comment) =>
-          // Empty comment is not allowed
-          BadRequest(Json.toJson(StatusMessage("KO", JsString("Comment cannot be empty"))))
+          case Some(comment) =>
+            // Empty comment is not allowed
+            BadRequest(Json.toJson(StatusMessage("KO", JsString("Comment cannot be empty"))))
 
-        case None =>
-          // "comment" field is missing in the request body
-          BadRequest(
-            Json.toJson(
-              StatusMessage("KO", JsString("Required comment object in request body no found."))
+          case None =>
+            // "comment" field is missing in the request body
+            BadRequest(
+              Json.toJson(
+                StatusMessage("KO", JsString("Required comment object in request body no found."))
+              )
             )
-          )
+        }
       }
-    }
   }
 
   /**

@@ -113,7 +113,7 @@ class TaskBundleController @Inject() (
       tags: String = "",
       newTaskStatus: String = "",
       errorTags: String = ""
-  ): Action[JsValue] = Action.async(parse.json) { implicit request =>
+  ): Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
       val tasks = this.serviceManager.taskBundle.getTaskBundle(user, id).tasks match {
         case Some(t) => {
@@ -192,7 +192,7 @@ class TaskBundleController @Inject() (
       reviewStatus: Int,
       tags: String = "",
       errorTags: String = ""
-  ): Action[JsValue] = Action.async(parse.json) { implicit request =>
+  ): Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
       val tasks = this.serviceManager.taskBundle.getTaskBundle(user, id).tasks match {
         case Some(t) => t

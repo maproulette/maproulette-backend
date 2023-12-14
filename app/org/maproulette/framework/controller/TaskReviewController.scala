@@ -463,7 +463,7 @@ class TaskReviewController @Inject() (
       tags: String = "",
       newTaskStatus: String = "",
       errorTags: String = ""
-  ): Action[JsValue] = Action.async(parse.json) { implicit request =>
+  ): Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
       val task = this.taskRepository.retrieve(id) match {
         case Some(t) => {
@@ -521,7 +521,7 @@ class TaskReviewController @Inject() (
       reviewStatus: Int,
       tags: String = "",
       errorTags: String = ""
-  ): Action[JsValue] = Action.async(parse.json) { implicit request =>
+  ): Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
       val task = this.taskRepository.retrieve(id) match {
         case Some(t) => t
