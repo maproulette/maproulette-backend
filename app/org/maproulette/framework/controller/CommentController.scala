@@ -141,7 +141,7 @@ class CommentController @Inject() (
             // "comment" field is missing in the request body
             BadRequest(
               Json.toJson(
-                StatusMessage("KO", JsString("Required comment object in request body no found."))
+                StatusMessage("KO", JsString("Required comment object in request body not found."))
               )
             )
         }
@@ -179,7 +179,7 @@ class CommentController @Inject() (
             // "comment" field is missing in the request body
             BadRequest(
               Json.toJson(
-                StatusMessage("KO", JsString("Required comment object in request body no found."))
+                StatusMessage("KO", JsString("Required comment object in request body not found."))
               )
             )
         }
@@ -255,7 +255,7 @@ class CommentController @Inject() (
             // "comment" field is missing in the request body
             BadRequest(
               Json.toJson(
-                StatusMessage("KO", JsString("Required comment object in request body no found."))
+                StatusMessage("KO", JsString("Required comment object in request body not found."))
               )
             )
         }

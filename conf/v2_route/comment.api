@@ -91,6 +91,8 @@ GET     /challengeComments/user/:id                          @org.maproulette.fr
 #       application/json:
 #         schema:
 #           $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
+#   '400':
+#     description: If the request lacks the comment or the comment is empty
 #   '404':
 #     description: If the Task is not found
 # parameters:
@@ -127,6 +129,8 @@ POST    /task/:id/comment                           @org.maproulette.framework.c
 #       application/json:
 #         schema:
 #           $ref: '#/components/schemas/TaskBundle'
+#   '400':
+#     description: If the request lacks the comment or the comment is empty
 #   '404':
 #     description: If the bundle is not found
 # parameters:
@@ -163,6 +167,8 @@ POST    /taskBundle/:id/comment                     @org.maproulette.framework.c
 #       application/json:
 #         schema:
 #           $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
+#   '400':
+#     description: If the request lacks the comment or the comment is empty
 #   '401':
 #     description: If the user is not the original user who made the comment or a super user
 #   '404':
@@ -216,6 +222,8 @@ DELETE  /task/:id/comment/:commentId                @org.maproulette.framework.c
 #       application/json:
 #         schema:
 #           $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeComment'
+#   '400':
+#     description: If the request lacks the comment or the comment is empty
 #   '404':
 #     description: If the Challenge is not found
 # parameters:
