@@ -89,7 +89,7 @@ class TaskController @Inject() (
   // json reads for automatically reading Tags from a posted json body
   implicit val commentReads: Reads[Comment]   = Comment.reads
   implicit val commentWrites: Writes[Comment] = Comment.writes
-  implicit val tagReads: Reads[Tag] = Tag.tagReads
+  implicit val tagReads: Reads[Tag]           = Tag.tagReads
 
   implicit val tagChangeReads           = ChangeObjects.tagChangeReads
   implicit val tagChangeResultWrites    = ChangeObjects.tagChangeResultWrites
