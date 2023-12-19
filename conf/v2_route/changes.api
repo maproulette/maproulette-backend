@@ -65,7 +65,7 @@ POST    /change/test                        @org.maproulette.controllers.OSMChan
 #     description: The user is not authorized to make this request
 # parameters:
 #   - name: taskId
-#     in: query
+#     in: path
 #     description: The task id that should be marked as fixed after this tag change has been applied.
 #   - name: requestReview
 #     in: query
