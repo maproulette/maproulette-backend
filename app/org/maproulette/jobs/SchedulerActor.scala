@@ -5,7 +5,6 @@
 package org.maproulette.jobs
 
 import akka.actor.{Actor, Props}
-import anorm.JodaParameterMetaData._
 import anorm.SqlParser._
 import anorm._
 
@@ -152,46 +151,43 @@ class SchedulerActor @Inject() (
   def updateLocations(action: String): Unit = {
     logger.info(s"Scheduled Task '$action': Starting run")
     val start           = System.currentTimeMillis
-    val currentTime     = DateTime.now()
     val challengeFilter = "deleted = false AND is_archived = false AND enabled = true";
-    val staleChallengeIds = db.withTransaction { implicit c =>
+    val staleChallengeIds = db.withConnection { implicit c =>
       SQL(
         s"SELECT id FROM challenges WHERE ${challengeFilter} AND (modified > last_updated OR last_updated IS NULL)"
       ).as(SqlParser.long("id").*)
     }
+    logger.info(s"Updating locations and bounding boxes for ${staleChallengeIds.length} challenges")
 
+    // For each "stale" challenge, update the fields: location, bounding box, and last_updated time.
+    // Previously the below code was written as a single database transaction, which is much faster, but when a single
+    // challenge had bad data for the location/box columns it would fail the entire transaction, reverting any changes.
+    // See https://github.com/maproulette/maproulette3/issues/567 for more details.
     staleChallengeIds.foreach(id => {
-      db.withTransaction { implicit c =>
-        try {
-          val query =
-            s"""UPDATE challenges SET
-                          location = (SELECT ST_Centroid(ST_Collect(ST_Makevalid(location)))
-                                      FROM tasks
-                                      WHERE parent_id = ${id}),
-                          bounding = (SELECT ST_Envelope(ST_Buffer((ST_SetSRID(ST_Extent(location), 4326))::geography,2)::geometry)
-                                      FROM tasks
-                                      WHERE parent_id = ${id}),
-                          last_updated = NOW()
-                      WHERE id = ${id};"""
-          SQL(query).executeUpdate()
-          c.commit()
-        } catch {
-          case e: Exception => {
-            logger.error("Unable to update location on challenge " + id, e)
-          }
+      try {
+        db.withTransaction {
+          implicit c =>
+            val query =
+              s"""UPDATE challenges SET
+                        location = (SELECT ST_Centroid(ST_Collect(ST_Makevalid(location)))
+                                    FROM tasks
+                                    WHERE parent_id = ${id}),
+                        bounding = (SELECT ST_Envelope(ST_Buffer((ST_SetSRID(ST_Extent(location), 4326))::geography,2)::geometry)
+                                    FROM tasks
+                                    WHERE parent_id = ${id}),
+                        last_updated = NOW()
+                    WHERE id = ${id};"""
+            SQL(query).executeUpdate()
+        }
+        // The above query will not update the cache, so remove the id from the cache in case it is there
+        logger.debug(s"Flushing challenge cache of challenge with id $id")
+        this.dALManager.challenge.cacheManager.cache.remove(id)
+      } catch {
+        case e: Exception => {
+          logger.error("Unable to update location on challenge " + id, e)
         }
       }
     })
-
-    db.withTransaction { implicit c =>
-      SQL(s"SELECT id FROM challenges WHERE ${challengeFilter} AND (last_updated > {currentTime})")
-        .on(Symbol("currentTime") -> ToParameterValue.apply[DateTime].apply(currentTime))
-        .as(SqlParser.long("id").*)
-        .foreach(id => {
-          logger.debug(s"Flushing challenge cache of challenge with id $id")
-          this.dALManager.challenge.cacheManager.cache.remove(id)
-        })
-    }
 
     val totalTime = System.currentTimeMillis - start
     logger.info(
