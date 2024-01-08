@@ -8,9 +8,10 @@ package org.maproulette.framework.service
 import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
 import org.maproulette.Config
-import org.maproulette.framework.model.{User, LeaderboardUser, LeaderboardChallenge, Task}
+import org.maproulette.exception.NotFoundException
+import org.maproulette.framework.model.{LeaderboardChallenge, LeaderboardUser, Task, User}
 import org.maproulette.framework.mixins.LeaderboardMixin
-import org.maproulette.framework.repository.{LeaderboardRepository, ChallengeRepository}
+import org.maproulette.framework.repository.{ChallengeRepository, LeaderboardRepository}
 import org.maproulette.framework.psql._
 import org.maproulette.framework.psql.filter._
 import org.maproulette.session.SearchLeaderboardParameters
@@ -26,7 +27,8 @@ class LeaderboardService @Inject() (
     repository: LeaderboardRepository,
     challengeRepository: ChallengeRepository,
     config: Config,
-    boundingBoxFinder: BoundingBoxFinder
+    boundingBoxFinder: BoundingBoxFinder,
+    userService: UserService
 ) extends LeaderboardMixin {
 
   /**
@@ -192,6 +194,11 @@ class LeaderboardService @Inject() (
       params: SearchLeaderboardParameters,
       bracket: Int = 0
   ): List[LeaderboardUser] = {
+    // The userId must exist and must not be a system user, otherwise return NotFound (http 404).
+    if (userId <= 0 || this.userService.retrieve(userId).isEmpty) {
+      throw new NotFoundException(s"No user found with id $userId")
+    }
+
     // We can attempt to use the pre-built user_leaderboard table if we have no user,
     // no project and no challenge filters (and have a specified monthDuration).
     if (params.projectFilter == None && params.challengeFilter == None && params.onlyEnabled && params.monthDuration != None &&
@@ -259,6 +266,11 @@ class LeaderboardService @Inject() (
       limit: Int = Config.DEFAULT_LIST_SIZE,
       offset: Int = 0
   ): List[LeaderboardChallenge] = {
+    // The userId must exist and must not be a system user, otherwise return NotFound (http 404).
+    if (userId <= 0 || this.userService.retrieve(userId).isEmpty) {
+      throw new NotFoundException(s"No user found with id $userId")
+    }
+
     // We can attempt to use the pre-built top challenges table if we have no user,
     // no project and no challenge filters (and have a specified monthDuration).
     if (params.projectFilter == None && params.challengeFilter == None && params.onlyEnabled && params.monthDuration != None &&

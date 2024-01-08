@@ -73,9 +73,15 @@ GET     /data/user/leaderboard                      @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: List of leaderboard stats
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.LeaderboardUser'
+#   '404':
+#     description: User not found
 # parameters:
 #   - name: userId
-#     in: query
+#     in: path
 #     description: User id to fetch ranking for.
 #     schema:
 #       type: integer
@@ -134,9 +140,15 @@ GET     /data/user/:userId/leaderboard              @org.maproulette.framework.c
 # responses:
 #   '200':
 #     description: Brief list of challenges
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.LeaderboardChallenge'
+#   '404':
+#     description: User not found
 # parameters:
 #   - name: userId
-#     in: query
+#     in: path
 #     description: User id to fetch challenges for.
 #     schema:
 #       type: integer
