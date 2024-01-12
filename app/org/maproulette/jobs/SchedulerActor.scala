@@ -486,76 +486,116 @@ class SchedulerActor @Inject() (
     val start = System.currentTimeMillis
     logger.info(s"Scheduled Task '$action': Starting run")
 
-    db.withConnection { implicit c =>
-      // Clear TABLEs
-      SQL("DELETE FROM user_leaderboard WHERE country_code IS NOT NULL").executeUpdate()
-      SQL("DELETE FROM user_top_challenges WHERE country_code IS NOT NULL").executeUpdate()
-
-      val countryCodeMap = boundingBoxFinder.boundingBoxforAll()
-      for ((countryCode, boundingBox) <- countryCodeMap) {
+    def deleteAndUpdateCountryLeaderboardForTimePeriod(
+        monthDuration: Int,
+        countryCode: String,
+        boundingBox: String
+    ): Unit = {
+      logger.info(
+        s"Scheduled Task '$action': updating user_leaderboard monthDuration=$monthDuration countryCode=$countryCode"
+      )
+      db.withConnection { implicit c =>
+        // Delete the existing entries for the country and time period
         SQL(
-          LeaderboardHelper.rebuildChallengesLeaderboardSQLCountry(
-            SchedulerActor.ONE_MONTH,
-            countryCode,
-            boundingBox,
-            config
-          )
-        ).executeUpdate()
+          s"DELETE FROM user_leaderboard WHERE country_code = {countryCode} AND month_duration = {monthDuration}"
+        ).on(Symbol("countryCode") -> countryCode, Symbol("monthDuration") -> monthDuration)
+          .executeUpdate()
+        // Insert the new entries for the country and time period
         SQL(
-          LeaderboardHelper.rebuildChallengesLeaderboardSQLCountry(
-            SchedulerActor.THREE_MONTHS,
-            countryCode,
-            boundingBox,
-            config
-          )
-        ).executeUpdate()
-        SQL(
-          LeaderboardHelper.rebuildChallengesLeaderboardSQLCountry(
-            SchedulerActor.SIX_MONTHS,
-            countryCode,
-            boundingBox,
-            config
-          )
-        ).executeUpdate()
-        SQL(
-          LeaderboardHelper.rebuildChallengesLeaderboardSQLCountry(
-            SchedulerActor.TWELVE_MONTHS,
-            countryCode,
-            boundingBox,
-            config
-          )
-        ).executeUpdate()
-        SQL(
-          LeaderboardHelper.rebuildChallengesLeaderboardSQLCountry(
-            SchedulerActor.ALL_TIME,
-            countryCode,
-            boundingBox,
-            config
-          )
-        ).executeUpdate()
-        SQL(
-          LeaderboardHelper.rebuildTopChallengesSQLCountry(
-            SchedulerActor.TWELVE_MONTHS,
-            countryCode,
-            boundingBox,
-            config
-          )
-        ).executeUpdate()
-        SQL(
-          LeaderboardHelper.rebuildTopChallengesSQLCountry(
-            SchedulerActor.ALL_TIME,
-            countryCode,
-            boundingBox,
-            config
-          )
+          LeaderboardHelper
+            .rebuildChallengesLeaderboardSQLCountry(monthDuration, countryCode, boundingBox, config)
         ).executeUpdate()
       }
-
-      val totalTime = System.currentTimeMillis - start
       logger.info(
-        s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
+        s"Scheduled Task '$action': finished updating user_leaderboard monthDuration=$monthDuration countryCode=$countryCode"
       )
     }
+
+    // TODO(ljdelight): If the loop order is inverted where each country loops over the monthDuration, will this be faster?
+    //                  The database may be able to more effectively cache the per-country results vs the time-based outer loop.
+    SchedulerActor.MONTH_DURATIONS.foreach(monthDuration => {
+      val countryCodeMap = boundingBoxFinder.boundingBoxforAll()
+      for ((countryCode, boundingBox) <- countryCodeMap) {
+        try {
+          deleteAndUpdateCountryLeaderboardForTimePeriod(monthDuration, countryCode, boundingBox)
+        } catch {
+          // If an exception occurs, log it and continue to the next country
+          case e: Exception =>
+            logger.error(
+              s"Scheduled Task '$action': Failed to update user_leaderboard monthDuration=$monthDuration countryCode=$countryCode",
+              e
+            )
+        }
+      }
+    })
+
+    db.withConnection { implicit c =>
+      val countryCodeMap = boundingBoxFinder.boundingBoxforAll()
+      for ((countryCode, boundingBox) <- countryCodeMap) {
+        try {
+          logger.info(
+            s"Scheduled Task '$action': updating user_top_challenges monthDuration=12 countryCode=$countryCode"
+          )
+          // Delete the existing entries for the country and time period
+          SQL(
+            "DELETE FROM user_top_challenges WHERE country_code = {countryCode} AND month_duration = {monthDuration}"
+          ).on(
+              Symbol("countryCode")   -> countryCode,
+              Symbol("monthDuration") -> 12
+            )
+            .executeUpdate()
+
+          SQL(
+            LeaderboardHelper.rebuildTopChallengesSQLCountry(
+              SchedulerActor.TWELVE_MONTHS,
+              countryCode,
+              boundingBox,
+              config
+            )
+          ).executeUpdate()
+        } catch {
+          case e: Exception =>
+            logger.error(
+              s"Scheduled Task '$action': Error updating user_top_challenges for monthDuration=12 countryCode=$countryCode",
+              e
+            )
+        }
+
+        try {
+          logger.info(
+            s"Scheduled Task '$action': updating user_top_challenges monthDuration=-1 countryCode=$countryCode"
+          )
+          // Delete the existing entries for the country and time period
+          SQL(
+            "DELETE FROM user_top_challenges WHERE country_code = {countryCode} AND month_duration = {monthDuration}"
+          ).on(
+              Symbol("countryCode")   -> countryCode,
+              Symbol("monthDuration") -> -1
+            )
+            .executeUpdate()
+
+          SQL(
+            LeaderboardHelper.rebuildTopChallengesSQLCountry(
+              SchedulerActor.ALL_TIME,
+              countryCode,
+              boundingBox,
+              config
+            )
+          ).executeUpdate()
+        } catch {
+          case e: Exception =>
+            logger.error(
+              s"Scheduled Task '$action': Error updating user_top_challenges for monthDuration=12 countryCode=$countryCode",
+              e
+            )
+        }
+      }
+    }
+
+    val totalTime = System.currentTimeMillis - start
+    logger.info(
+      s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
+    )
   }
 
   def sendImmediateNotificationEmails(action: String) = {
@@ -845,6 +885,14 @@ object SchedulerActor {
   private val SIX_MONTHS    = 6
   private val TWELVE_MONTHS = 12
   private val ALL_TIME      = -1
+
+  private val MONTH_DURATIONS = List(
+    SchedulerActor.ONE_MONTH,
+    SchedulerActor.THREE_MONTHS,
+    SchedulerActor.SIX_MONTHS,
+    SchedulerActor.TWELVE_MONTHS,
+    SchedulerActor.ALL_TIME
+  ).sorted
 
   def props = Props[SchedulerActor]()
 
