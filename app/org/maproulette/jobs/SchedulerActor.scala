@@ -425,7 +425,7 @@ class SchedulerActor @Inject() (
     val start = System.currentTimeMillis
     logger.info(s"Scheduled Task '$action': Starting run")
 
-    def deleteAndUpdateUserLeaderboardForTimePeriod(monthDuration: Int): Unit = {
+    def deleteAndUpdateLeaderboardForTimePeriod(monthDuration: Int): Unit = {
       logger.info(
         s"Scheduled Task '$action': updating user_leaderboard monthDuration=$monthDuration"
       )
@@ -434,48 +434,28 @@ class SchedulerActor @Inject() (
           s"DELETE FROM user_leaderboard WHERE country_code = NULL AND month_duration = {monthDuration}"
         ).on(Symbol("monthDuration") -> monthDuration)
           .executeUpdate()
+        SQL(
+          s"DELETE FROM user_top_challenges WHERE country_code = NULL AND month_duration = {monthDuration}"
+        ).on(Symbol("monthDuration") -> monthDuration).executeUpdate()
+
         SQL(LeaderboardHelper.rebuildChallengesLeaderboardSQL(monthDuration, config))
           .executeUpdate()
+        SQL(
+          LeaderboardHelper.rebuildTopChallengesSQL(monthDuration, config)
+        ).executeUpdate()
       }
       logger.info(
         s"Scheduled Task '$action': finished updating user_leaderboard monthDuration=$monthDuration"
       )
     }
 
-    def deleteAndUpdateUserTopChallengesForTimePeriod(monthDuration: Int): Unit = {
-      logger.info(
-        s"Scheduled Task '$action': updating user_top_challenges monthDuration=$monthDuration"
-      )
-      db.withConnection { implicit c =>
-        SQL(
-          s"DELETE FROM user_top_challenges WHERE country_code = NULL AND month_duration = {monthDuration}"
-        ).on(Symbol("monthDuration") -> monthDuration).executeUpdate()
-        SQL(
-          LeaderboardHelper.rebuildTopChallengesSQL(monthDuration, config)
-        ).executeUpdate()
-      }
-      logger.info(
-        s"Scheduled Task '$action': finished updating user_top_challenges monthDuration=$monthDuration"
-      )
-    }
-
     SchedulerActor.MONTH_DURATIONS.foreach(monthDuration => {
       try {
-        deleteAndUpdateUserLeaderboardForTimePeriod(monthDuration)
+        deleteAndUpdateLeaderboardForTimePeriod(monthDuration)
       } catch {
         case e: Exception =>
           logger.error(
             s"Scheduled Task '$action': Failed to update user_leaderboard monthDuration=$monthDuration",
-            e
-          )
-      }
-
-      try {
-        deleteAndUpdateUserTopChallengesForTimePeriod(monthDuration)
-      } catch {
-        case e: Exception =>
-          logger.error(
-            s"Scheduled Task '$action': Failed to update user_top_challenges monthDuration=$monthDuration",
             e
           )
       }
