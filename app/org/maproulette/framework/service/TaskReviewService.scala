@@ -863,7 +863,7 @@ class TaskReviewService @Inject() (
       Some(
         task.copy(review = task.review.copy(
           metaReviewStatus = Some(reviewStatus),
-          metaReviewedBy = Some(user.id),
+          metaReviewedBy = Some(metaReviewer),
           reviewedAt = Some(new DateTime()),
           reviewClaimedAt = None,
           reviewClaimedBy = None
