@@ -425,56 +425,66 @@ class SchedulerActor @Inject() (
     val start = System.currentTimeMillis
     logger.info(s"Scheduled Task '$action': Starting run")
 
-    db.withConnection { implicit c =>
-      // Clear TABLEs
-      SQL("DELETE FROM user_leaderboard WHERE country_code IS NULL").executeUpdate()
-      SQL("DELETE FROM user_top_challenges WHERE country_code IS NULL").executeUpdate()
-
-      // Past Month
-      logger.info(s"Scheduled Task '$action': updating user_leaderboard for the last month")
-      SQL(LeaderboardHelper.rebuildChallengesLeaderboardSQL(SchedulerActor.ONE_MONTH, config))
-        .executeUpdate()
-      logger.info(s"Scheduled Task '$action': updating user_top_challenges for the last month")
-      SQL(LeaderboardHelper.rebuildTopChallengesSQL(SchedulerActor.ONE_MONTH, config))
-        .executeUpdate()
-
-      // Past 3 Months
-      logger.info(s"Scheduled Task '$action': updating user_leaderboard for the last 3 months")
-      SQL(LeaderboardHelper.rebuildChallengesLeaderboardSQL(SchedulerActor.THREE_MONTHS, config))
-        .executeUpdate()
-      logger.info(s"Scheduled Task '$action': updating user_top_challenges for the last 3 months")
-      SQL(LeaderboardHelper.rebuildTopChallengesSQL(SchedulerActor.THREE_MONTHS, config))
-        .executeUpdate()
-
-      // Past 6 Months
-      logger.info(s"Scheduled Task '$action': updating user_leaderboard for the last 6 months")
-      SQL(LeaderboardHelper.rebuildChallengesLeaderboardSQL(SchedulerActor.SIX_MONTHS, config))
-        .executeUpdate()
-      logger.info(s"Scheduled Task '$action': updating user_top_challenges for the last 6 months")
-      SQL(LeaderboardHelper.rebuildTopChallengesSQL(SchedulerActor.SIX_MONTHS, config))
-        .executeUpdate()
-
-      // Past Year
-      logger.info(s"Scheduled Task '$action': updating user_leaderboard for the last 12 months")
-      SQL(LeaderboardHelper.rebuildChallengesLeaderboardSQL(SchedulerActor.TWELVE_MONTHS, config))
-        .executeUpdate()
-      logger.info(s"Scheduled Task '$action': updating user_top_challenges for the last 12 months")
-      SQL(LeaderboardHelper.rebuildTopChallengesSQL(SchedulerActor.TWELVE_MONTHS, config))
-        .executeUpdate()
-
-      // All Time
-      logger.info(s"Scheduled Task '$action': updating user_leaderboard for ALL TIME")
-      SQL(LeaderboardHelper.rebuildChallengesLeaderboardSQL(SchedulerActor.ALL_TIME, config))
-        .executeUpdate()
-      logger.info(s"Scheduled Task '$action': updating user_top_challenges for ALL TIME")
-      SQL(LeaderboardHelper.rebuildTopChallengesSQL(SchedulerActor.ALL_TIME, config))
-        .executeUpdate()
-
-      val totalTime = System.currentTimeMillis - start
+    def deleteAndUpdateUserLeaderboardForTimePeriod(monthDuration: Int): Unit = {
       logger.info(
-        s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
+        s"Scheduled Task '$action': updating user_leaderboard monthDuration=$monthDuration"
+      )
+      db.withConnection { implicit c =>
+        SQL(
+          s"DELETE FROM user_leaderboard WHERE country_code = NULL AND month_duration = {monthDuration}"
+        ).on(Symbol("monthDuration") -> monthDuration)
+          .executeUpdate()
+        SQL(LeaderboardHelper.rebuildChallengesLeaderboardSQL(monthDuration, config))
+          .executeUpdate()
+      }
+      logger.info(
+        s"Scheduled Task '$action': finished updating user_leaderboard monthDuration=$monthDuration"
       )
     }
+
+    def deleteAndUpdateUserTopChallengesForTimePeriod(monthDuration: Int): Unit = {
+      logger.info(
+        s"Scheduled Task '$action': updating user_top_challenges monthDuration=$monthDuration"
+      )
+      db.withConnection { implicit c =>
+        SQL(
+          s"DELETE FROM user_top_challenges WHERE country_code = NULL AND month_duration = {monthDuration}"
+        ).on(Symbol("monthDuration") -> monthDuration).executeUpdate()
+        SQL(
+          LeaderboardHelper.rebuildTopChallengesSQL(monthDuration, config)
+        ).executeUpdate()
+      }
+      logger.info(
+        s"Scheduled Task '$action': finished updating user_top_challenges monthDuration=$monthDuration"
+      )
+    }
+
+    SchedulerActor.MONTH_DURATIONS.foreach(monthDuration => {
+      try {
+        deleteAndUpdateUserLeaderboardForTimePeriod(monthDuration)
+      } catch {
+        case e: Exception =>
+          logger.error(
+            s"Scheduled Task '$action': Failed to update user_leaderboard monthDuration=$monthDuration",
+            e
+          )
+      }
+
+      try {
+        deleteAndUpdateUserTopChallengesForTimePeriod(monthDuration)
+      } catch {
+        case e: Exception =>
+          logger.error(
+            s"Scheduled Task '$action': Failed to update user_top_challenges monthDuration=$monthDuration",
+            e
+          )
+      }
+    })
+
+    val totalTime = System.currentTimeMillis - start
+    logger.info(
+      s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
+    )
   }
 
   /**
@@ -892,7 +902,7 @@ object SchedulerActor {
     SchedulerActor.SIX_MONTHS,
     SchedulerActor.TWELVE_MONTHS,
     SchedulerActor.ALL_TIME
-  ).sorted
+  )
 
   def props = Props[SchedulerActor]()
 
