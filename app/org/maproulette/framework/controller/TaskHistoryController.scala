@@ -68,6 +68,13 @@ class TaskHistoryController @Inject() (
           .toMap
       )
 
+      val metaReviewers = Some(
+        this.serviceManager.user
+          .retrieveListById(entries.map(t => t.metaReviewRequestedBy.getOrElse(0).toLong))
+          .map(u => u.id -> Json.obj("username" -> u.name, "id" -> u.id))
+          .toMap
+      )
+
       val jsonList = entries.map { entry =>
         var updated = Json.toJson(entry)
         if (entry.user.getOrElse(0) != 0) {
@@ -81,6 +88,11 @@ class TaskHistoryController @Inject() (
         if (entry.reviewedBy.getOrElse(0) != 0) {
           val reviewerJson = Json.toJson(reviewers.get(entry.reviewedBy.get.toLong)).as[JsObject]
           updated = Utils.insertIntoJson(updated, "reviewedBy", reviewerJson, true)
+        }
+        if (entry.metaReviewRequestedBy.getOrElse(0) != 0) {
+          val reviewerJson =
+            Json.toJson(reviewers.get(entry.metaReviewRequestedBy.get.toLong)).as[JsObject]
+          updated = Utils.insertIntoJson(updated, "metaReviewRequestedBy", reviewerJson, true)
         }
 
         updated

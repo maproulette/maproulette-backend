@@ -789,13 +789,31 @@ class TaskReviewService @Inject() (
       }
     }
 
-    // Make sure we have an updated claimed at time.
-    val reviewClaimedAt = this.getTaskWithReview(task.id).task.review.reviewClaimedAt
+    val metaReviewer = user.id
 
-    val metaReviewer = task.review.metaReviewedBy match {
-      case Some(m) => m
-      case None    => user.id
-    }
+    var fetchBy = "meta_reviewed_by"
+
+    val isDisputed = task.review.reviewStatus.getOrElse(-1) != Task.REVIEW_STATUS_DISPUTED &&
+      reviewStatus == Task.REVIEW_STATUS_DISPUTED
+    val needsReReview = (task.review.reviewStatus.getOrElse(-1) != Task.REVIEW_STATUS_REQUESTED &&
+      reviewStatus == Task.REVIEW_STATUS_REQUESTED) || isDisputed
+
+    var reviewedBy          = task.review.reviewedBy
+    var reviewRequestedBy   = task.review.reviewRequestedBy
+    var additionalReviewers = task.review.additionalReviewers
+
+    val currentTask     = this.getTaskWithReview(task.id).task
+    val reviewClaimedAt = currentTask.review.reviewClaimedAt
+
+    val fetchByUser =
+      if (needsReReview) {
+        fetchBy = "meta_reviewed_by"
+        reviewRequestedBy = Some(user.id)
+        user.id
+      } else {
+        reviewedBy = Some(user.id)
+        user.id
+      }
 
     // Update the meta_review_by and meta_review_status column on the task_review
     // if error tags are currently on the review, and if this meta review provides no error tags, retain the existing tags
@@ -803,9 +821,9 @@ class TaskReviewService @Inject() (
       user,
       task,
       task.review.reviewStatus.get,
-      "meta_reviewed_by",
-      metaReviewer,
-      task.review.additionalReviewers,
+      fetchBy,
+      fetchByUser,
+      additionalReviewers,
       Some(reviewStatus),
       errorTags = if (errorTags.isEmpty) task.errorTags else errorTags
     )

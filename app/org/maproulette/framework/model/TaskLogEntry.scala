@@ -23,6 +23,7 @@ case class TaskLogEntry(
     status: Option[Int],
     startedAt: Option[DateTime],
     reviewStatus: Option[Int],
+    metaReviewRequestedBy: Option[Int],
     reviewRequestedBy: Option[Int],
     reviewedBy: Option[Int],
     comment: Option[String],

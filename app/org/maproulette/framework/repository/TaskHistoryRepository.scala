@@ -37,6 +37,7 @@ class TaskHistoryRepository @Inject() (override val db: Database) extends Reposi
           None,
           None,
           None,
+          None,
           Some(comment),
           None
         )
@@ -108,6 +109,7 @@ class TaskHistoryRepository @Inject() (override val db: Database) extends Reposi
               None,
               reviewStartedAt,
               metaReviewStatus,
+              metaReviewedBy,
               Some(requestedBy),
               metaReviewedBy,
               None,
@@ -123,6 +125,7 @@ class TaskHistoryRepository @Inject() (override val db: Database) extends Reposi
               None,
               reviewStartedAt,
               reviewStatus,
+              metaReviewedBy,
               Some(requestedBy),
               reviewedBy,
               None,
@@ -154,6 +157,7 @@ class TaskHistoryRepository @Inject() (override val db: Database) extends Reposi
           None,
           None,
           None,
+          None,
           None
         )
     }
@@ -169,6 +173,7 @@ class TaskHistoryRepository @Inject() (override val db: Database) extends Reposi
           created,
           TaskLogEntry.ACTION_UPDATE,
           userId,
+          None,
           None,
           None,
           None,
