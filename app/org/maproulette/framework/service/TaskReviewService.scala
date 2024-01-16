@@ -791,7 +791,10 @@ class TaskReviewService @Inject() (
 
     // Make sure we have an updated claimed at time.
     val reviewClaimedAt = this.getTaskWithReview(task.id).task.review.reviewClaimedAt
-    val metaReviewer    = user.id
+    val metaReviewer = task.review.metaReviewedBy match {
+      case Some(m) => m
+      case None    => user.id
+    }
 
     // Update the meta_review_by and meta_review_status column on the task_review
     // if error tags are currently on the review, and if this meta review provides no error tags, retain the existing tags
@@ -836,7 +839,7 @@ class TaskReviewService @Inject() (
         // Let the meta reviewer know that they need to meta review this task again
         this.serviceManager.notification.createReviewRevisedNotification(
           user,
-          metaReviewer,
+          user.id,
           reviewStatus,
           task,
           comment,
@@ -860,7 +863,7 @@ class TaskReviewService @Inject() (
       Some(
         task.copy(review = task.review.copy(
           metaReviewStatus = Some(reviewStatus),
-          metaReviewedBy = Some(metaReviewer),
+          metaReviewedBy = Some(user.id),
           reviewedAt = Some(new DateTime()),
           reviewClaimedAt = None,
           reviewClaimedBy = None
