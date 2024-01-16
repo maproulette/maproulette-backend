@@ -431,11 +431,11 @@ class SchedulerActor @Inject() (
       )
       db.withConnection { implicit c =>
         SQL(
-          s"DELETE FROM user_leaderboard WHERE country_code = NULL AND month_duration = {monthDuration}"
+          s"DELETE FROM user_leaderboard WHERE country_code IS NULL AND month_duration = {monthDuration}"
         ).on(Symbol("monthDuration") -> monthDuration)
           .executeUpdate()
         SQL(
-          s"DELETE FROM user_top_challenges WHERE country_code = NULL AND month_duration = {monthDuration}"
+          s"DELETE FROM user_top_challenges WHERE country_code IS NULL AND month_duration = {monthDuration}"
         ).on(Symbol("monthDuration") -> monthDuration).executeUpdate()
 
         SQL(LeaderboardHelper.rebuildChallengesLeaderboardSQL(monthDuration, config))
