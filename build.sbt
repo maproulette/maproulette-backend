@@ -91,7 +91,7 @@ libraryDependencies ++= Seq(
   // NOTE: The swagger-ui package is used to obtain the static distribution of swagger-ui, the files included at runtime
   // and are served by the webserver at route '/assets/lib/swagger-ui/'. We have a few customized swagger files in dir
   // 'public/swagger'.
-  "org.webjars"             % "swagger-ui"      % "4.14.3",
+  "org.webjars"             % "swagger-ui"      % "5.10.3",
   "org.playframework.anorm" %% "anorm"          % "2.6.10",
   "org.playframework.anorm" %% "anorm-postgres" % "2.6.10",
   "org.postgresql"          % "postgresql"      % "42.5.0",
