@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory
 import anorm.ToParameterValue
 import anorm._, postgresql._
 import javax.inject.{Inject, Singleton}
-import org.maproulette.exception.{InvalidException, NotFoundException}
+import org.maproulette.exception.InvalidException
 import org.maproulette.Config
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.BaseParameter
