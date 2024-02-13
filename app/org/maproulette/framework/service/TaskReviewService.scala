@@ -791,6 +791,7 @@ class TaskReviewService @Inject() (
 
     // Make sure we have an updated claimed at time.
     val reviewClaimedAt = this.getTaskWithReview(task.id).task.review.reviewClaimedAt
+
     val metaReviewer = task.review.metaReviewedBy match {
       case Some(m) => m
       case None    => user.id
@@ -839,7 +840,7 @@ class TaskReviewService @Inject() (
         // Let the meta reviewer know that they need to meta review this task again
         this.serviceManager.notification.createReviewRevisedNotification(
           user,
-          user.id,
+          metaReviewer,
           reviewStatus,
           task,
           comment,
