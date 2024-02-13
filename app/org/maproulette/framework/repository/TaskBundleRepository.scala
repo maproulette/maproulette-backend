@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory
 import anorm.ToParameterValue
 import anorm._, postgresql._
 import javax.inject.{Inject, Singleton}
+import org.maproulette.exception.{InvalidException}
 import org.maproulette.Config
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.BaseParameter
@@ -41,38 +42,52 @@ class TaskBundleRepository @Inject() (
     * @param name    The name of the task bundle
     * @param lockedTasks The tasks to be added to the bundle
     */
-  def insert(
-      user: User,
-      name: String,
-      taskIds: List[Long],
-      verifyTasks: (List[Task]) => Unit
-  ): TaskBundle = {
-    this.withMRTransaction { implicit c =>
-      val lockedTasks = this.withListLocking(user, Some(TaskType())) { () =>
-        this.taskDAL.retrieveListById(-1, 0)(taskIds)
-      }
+def insert(
+  user: User,
+  name: String,
+  taskIds: List[Long],
+  verifyTasks: (List[Task]) => Unit
+): TaskBundle = {
+  this.withMRTransaction { implicit c =>
+    val lockedTasks = this.withListLocking(user, Some(TaskType())) { () =>
+      this.taskDAL.retrieveListById(-1, 0)(taskIds)
+    }
 
-      verifyTasks(lockedTasks)
+ 
+    val failedTaskIds = taskIds.diff(lockedTasks.map(_.id))
+    if (failedTaskIds.nonEmpty) {
+      throw new InvalidException(s"Bundle creation failed because the following task IDs were locked: ${failedTaskIds.mkString(", ")}")
+    }
 
-      val rowId =
-        SQL"""INSERT INTO bundles (owner_id, name) VALUES (${user.id}, ${name})""".executeInsert()
-      rowId match {
-        case Some(bundleId) =>
-          val sqlQuery =
-            s"""INSERT INTO task_bundles (task_id, bundle_id) VALUES ({taskId}, $bundleId)"""
-          val parameters = lockedTasks.map(task => {
-            Seq[NamedParameter]("taskId" -> task.id)
-          })
-          BatchSql(sqlQuery, parameters.head, parameters.tail: _*).execute()
-          TaskBundle(bundleId, user.id, lockedTasks.map(task => {
-            task.id
-          }), Some(lockedTasks))
+    verifyTasks(lockedTasks)
 
-        case None =>
-          throw new Exception("Bundle creation failed")
+    for (task <- lockedTasks) {
+      try {
+        this.lockItem(user, task)
+      } catch {
+        case e: Exception => this.logger.warn(e.getMessage)
       }
     }
+
+    val rowId =
+      SQL"""INSERT INTO bundles (owner_id, name) VALUES (${user.id}, ${name})""".executeInsert()
+    rowId match {
+      case Some(bundleId) =>
+        val sqlQuery =
+          s"""INSERT INTO task_bundles (task_id, bundle_id) VALUES ({taskId}, $bundleId)"""
+        val parameters = lockedTasks.map(task => {
+          Seq[NamedParameter]("taskId" -> task.id)
+        })
+        BatchSql(sqlQuery, parameters.head, parameters.tail: _*).execute()
+        TaskBundle(bundleId, user.id, lockedTasks.map(task => {
+          task.id
+        }), Some(lockedTasks))
+
+      case None =>
+        throw new Exception("Bundle creation failed")
+    }
   }
+}
 
   /**
     * Removes tasks from a bundle.
