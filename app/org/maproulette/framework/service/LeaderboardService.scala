@@ -8,7 +8,7 @@ package org.maproulette.framework.service
 import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
 import org.maproulette.Config
-import org.maproulette.exception.NotFoundException
+import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.framework.model.{LeaderboardChallenge, LeaderboardUser, Task, User}
 import org.maproulette.framework.mixins.LeaderboardMixin
 import org.maproulette.framework.repository.{ChallengeRepository, LeaderboardRepository}
@@ -151,10 +151,19 @@ class LeaderboardService @Inject() (
         fetchedUserId => this.getUserTopChallenges(fetchedUserId, params)
       )
 
-      if (result.length > 0) {
-        return result
-      }
+      // NOTE: The result may be an empty list for users who are not in the leaderboard.
+      return result
     }
+
+    // The provided arguments are invalid because the combination cannot query from the pre-built table, throw an error (http 400).
+    throw new InvalidException(
+      "Dynamic queries are disabled. Adjust query parameters for static results."
+    )
+
+    //
+    // TODO(ljdelight): The below needs to be moved to a new endpoint because it CAN CRASH THE SERVER. We MUST always
+    //                  know whether the leaderboard is coming from a pre-built table or not. THUS SEPARATE ENDPOINTS.
+    //
 
     val (startDate, endDate) = this.setupDates(params.monthDuration, params.start, params.end)
 
@@ -220,10 +229,19 @@ class LeaderboardService @Inject() (
         fetchedUserId => this.getUserTopChallenges(fetchedUserId, params)
       )
 
-      if (result.length > 0) {
-        return result
-      }
+      // NOTE: The result may be an empty list for users who are not in the leaderboard.
+      return result
     }
+
+    // The provided arguments are invalid because the combination cannot query from the pre-built table, throw an error (http 400).
+    throw new InvalidException(
+      "Dynamic queries are disabled. Adjust query parameters for static results."
+    )
+
+    //
+    // TODO(ljdelight): The below needs to be moved to a new endpoint because it CAN CRASH THE SERVER. We MUST always
+    //                  know whether the leaderboard is coming from a pre-built table or not. THUS SEPARATE ENDPOINTS.
+    //
 
     val (startDate, endDate) = this.setupDates(params.monthDuration, params.start, params.end)
 
@@ -294,10 +312,19 @@ class LeaderboardService @Inject() (
         )
       )
 
-      if (result.length > 0) {
-        return result
-      }
+      // NOTE: The result may be an empty list for users who are not in the leaderboard.
+      return result
     }
+
+    // The provided arguments are invalid because the combination cannot query from the pre-built table, throw an error (http 400).
+    throw new InvalidException(
+      "Dynamic queries are disabled. Adjust query parameters for static results."
+    )
+
+    //
+    // TODO(ljdelight): The below needs to be moved to a new endpoint because it CAN CRASH THE SERVER. We MUST always
+    //                  know whether the leaderboard is coming from a pre-built table or not. THUS SEPARATE ENDPOINTS.
+    //
 
     val (startDate, endDate)                = setupDates(params.monthDuration, params.start, params.end)
     val (boundingSearch, taskTableIfNeeded) = setupBoundingSearch(params.countryCodeFilter)

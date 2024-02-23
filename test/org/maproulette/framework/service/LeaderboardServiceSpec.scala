@@ -30,8 +30,10 @@ class LeaderboardServiceSpec(implicit val application: Application) extends Fram
   var challenge: Challenge        = null
 
   "LeaderboardService" should {
-    "get mapper leaderboard" taggedAs (LeaderboardTag) in {
-      val params  = SearchLeaderboardParameters(onlyEnabled = false)
+    // TODO(ljdelight): Temporarily ignored due to the disabling of dynamic leaderboard queries to improve system stability.
+    //                  This test will be revisited once an alternative approach or solution is implemented.
+    "get mapper leaderboard" taggedAs (LeaderboardTag) ignore {
+      val params  = SearchLeaderboardParameters(onlyEnabled = true)
       val results = this.service.getMapperLeaderboard(params)
       results.size mustEqual 2
 
@@ -85,13 +87,17 @@ class LeaderboardServiceSpec(implicit val application: Application) extends Fram
       ccResults.size mustEqual 2
     }
 
-    "get leaderboard for user" taggedAs (LeaderboardTag) in {
+    // TODO(ljdelight): Temporarily ignored due to the disabling of dynamic leaderboard queries to improve system stability.
+    //                  This test will be revisited once an alternative approach or solution is implemented.
+    "get leaderboard for user" taggedAs (LeaderboardTag) ignore {
       val results = this.service.getLeaderboardForUser(randomUser.id, SearchLeaderboardParameters())
       results.size mustEqual 1
       results.head.userId mustEqual randomUser.id
     }
 
-    "get leaderboard for user with bracketing" taggedAs (LeaderboardTag) in {
+    // TODO(ljdelight): Temporarily ignored due to the disabling of dynamic leaderboard queries to improve system stability.
+    //                  This test will be revisited once an alternative approach or solution is implemented.
+    "get leaderboard for user with bracketing" taggedAs (LeaderboardTag) ignore {
       val results = this.service
         .getLeaderboardForUser(randomUser.id, SearchLeaderboardParameters(), bracket = 1)
       results.size mustEqual 2
