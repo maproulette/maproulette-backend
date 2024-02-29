@@ -32,9 +32,9 @@ class ChallengeListingServiceSpec(implicit val application: Application) extends
     }
 
     "fetch challenges with reviews" taggedAs (ChallengeListingTag) in {
-      val challenges = this.service.withReviewList(1, User.superUser)
-      challenges.size mustEqual 1
-    }
+    val challenges = this.service.withReviewList(1, User.superUser)
+    challenges.size mustEqual 1
+}
   }
 
   override implicit val projectTestName: String = "ChallengeListingSpecProject"

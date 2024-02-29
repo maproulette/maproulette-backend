@@ -604,15 +604,21 @@ class TaskReviewController @Inject() (
   /**
     * Returns a list of challenges that have reviews/review requests.
     *
-    * @param reviewTasksType  The type of reviews (1: To Be Reviewed,  2: User's reviewed Tasks, 3: All reviewed by users 4: meta review tasks)
-    * @param tStatus The task statuses to include
-    * @param excludeOtherReviewers Whether tasks completed by other reviewers should be included
+    * @param reviewTasksType         The type of reviews (1: To Be Reviewed,  2: User's reviewed Tasks, 3: All reviewed by users 4: meta review tasks)
+    * @param tStatus                 The task statuses to include
+    * @param excludeOtherReviewers   Whether tasks completed by other reviewers should be included
+    * @param challengeSearchQuery    Query string for filtering challenges
+    * @param projectSearchQuery      Query string for filtering projects
+    * @param limit                   Number of items per page
+    * @param page                    Page number
     * @return JSON challenge list
     */
   def listChallenges(
       reviewTasksType: Int,
       tStatus: String,
       excludeOtherReviewers: Boolean = false,
+      challengeSearchQuery: String = "",
+      projectSearchQuery: String = "",
       limit: Int,
       page: Int
   ): Action[AnyContent] =
@@ -623,11 +629,14 @@ class TaskReviewController @Inject() (
           case _               => None
         }
 
+        // Filter challenges based on search query
         val challenges = this.serviceManager.challengeListing.withReviewList(
           reviewTasksType,
           user,
           taskStatus,
           excludeOtherReviewers,
+          challengeSearchQuery,
+          projectSearchQuery,
           Paging(limit, page)
         )
 

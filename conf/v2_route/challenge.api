@@ -539,6 +539,12 @@ POST     /challenges/bulkArchive                    @org.maproulette.controllers
 #   - name: excludeOtherReviewers
 #     in: query
 #     description: Exclude reviews by completed by other reviewers (default true)
+#   - name: challengeSearchQuery
+#     in: query
+#     description: Filter for challenge names that include this value
+#   - name: projectSearchQuery
+#     in: query
+#     description: Filter for project names that include this value
 #   - name: limit
 #     in: query
 #     description: Limit the number of results returned in the response. Default value is 10.
@@ -546,7 +552,7 @@ POST     /challenges/bulkArchive                    @org.maproulette.controllers
 #     in: query
 #     description: Used in conjunction with the limit parameter to page through X number of responses. Default value is 0, ie. first page.
 ###
-GET     /review/challenges                                 @org.maproulette.framework.controller.TaskReviewController.listChallenges(reviewTasksType:Int, tStatus:String ?= "", excludeOtherReviewers:Boolean ?= false, limit:Int ?= 10, page:Int ?= 0)
+GET     /review/challenges                                 @org.maproulette.framework.controller.TaskReviewController.listChallenges(reviewTasksType:Int, tStatus:String ?= "", excludeOtherReviewers:Boolean ?= false, challengeSearchQuery ?= "", projectSearchQuery ?= "", limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ Challenge ]
 # summary: List all the Challenges Tasks.
