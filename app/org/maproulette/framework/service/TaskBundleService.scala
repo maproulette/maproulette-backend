@@ -84,11 +84,33 @@ class TaskBundleService @Inject() (
   }
 
   /**
+    *  Resets the bundle to the tasks provided, and unlock all tasks removed from current bundle
+    *
+    * @param bundleId The id of the bundle
+    * @param taskIds The task ids the bundle will reset to
+    * @param primaryTaskId The primary task id of the bundle
+    */
+  def resetTaskBundle(
+      user: User,
+      bundleId: Long,
+      primaryTaskId: Long,
+      taskIds: List[Long]
+  ): TaskBundle = {
+    this.repository.resetTaskBundle(user, bundleId, primaryTaskId, taskIds)
+    this.getTaskBundle(user, bundleId)
+  }
+
+  /**
     * Removes tasks from a bundle.
     *
     * @param bundleId The id of the bundle
     */
-  def unbundleTasks(user: User, bundleId: Long, taskIds: List[Long])(): TaskBundle = {
+  def unbundleTasks(
+      user: User,
+      bundleId: Long,
+      taskIds: List[Long],
+      preventTaskIdUnlocks: List[Long]
+  )(): TaskBundle = {
     val bundle = this.getTaskBundle(user, bundleId)
 
     // Verify permissions to modify this bundle
@@ -98,7 +120,7 @@ class TaskBundleService @Inject() (
       )
     }
 
-    this.repository.unbundleTasks(user, bundleId, taskIds)
+    this.repository.unbundleTasks(user, bundleId, taskIds, preventTaskIdUnlocks)
     this.getTaskBundle(user, bundleId)
   }
 
