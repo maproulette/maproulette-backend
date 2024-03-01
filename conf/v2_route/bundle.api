@@ -44,6 +44,29 @@ POST    /taskBundle                                 @org.maproulette.framework.c
 GET     /taskBundle/:id                             @org.maproulette.framework.controller.TaskBundleController.getTaskBundle(id:Long)
 ###
 # tags: [ Bundle ]
+# summary: Resets a Task Bundle
+# description: Resets the bundle to the tasks provided, and unlock all tasks removed from current bundle
+# responses:
+#   '200':
+#     description: Ok with empty body
+#   '401':
+#     description: The user is not authorized to make this request
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the Task Bundle
+#     required: true
+#   - name: primaryId
+#     in: query
+#     description: The task ids the bundle will reset to
+#   - name: taskIds
+#     in: query
+#     description: The primary task id of the bundle
+
+###
+POST     /taskBundle/:id/reset                          @org.maproulette.framework.controller.TaskBundleController.resetTaskBundle(id: Long, primaryId: Long, taskIds: List[Long])
+###
+# tags: [ Bundle ]
 # summary: Deletes a Task Bundle
 # description: Deletes a task bundle based on the supplied id
 # responses:
@@ -84,5 +107,9 @@ DELETE     /taskBundle/:id                          @org.maproulette.framework.c
 #     in: query
 #     description: The list of task ids to remove from the bundle
 #     required: true
+#   - name: preventTaskIdUnlocks
+#     in: query
+#     description: The list of task ids to keep locked when removed from bundle
+#     required: true
 ###
-POST       /taskBundle/:id/unbundle                 @org.maproulette.framework.controller.TaskBundleController.unbundleTasks(id:Long, taskIds:List[Long])
+POST       /taskBundle/:id/unbundle                 @org.maproulette.framework.controller.TaskBundleController.unbundleTasks(id:Long, taskIds:List[Long], preventTaskIdUnlocks:List[Long])

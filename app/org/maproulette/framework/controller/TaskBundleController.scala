@@ -260,18 +260,39 @@ class TaskBundleController @Inject() (
   }
 
   /**
+    *  Resets the bundle to the tasks provided, and unlock all tasks removed from current bundle
+    *
+    * @param bundleId The id of the bundle
+    * @param taskIds The task ids the bundle will reset to
+    * @param primaryTaskId The primary task id of the bundle
+    */
+  def resetTaskBundle(
+      id: Long,
+      primaryTaskId: Long,
+      taskIds: List[Long]
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      this.serviceManager.taskBundle.resetTaskBundle(user, id, primaryTaskId, taskIds)
+      Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id)))
+    }
+  }
+
+  /**
     * Remove tasks from a bundle.
     *
     * @param id      The id for the bundle
     * @param taskIds List of task ids to remove
     * @return Task Bundle
     */
-  def unbundleTasks(id: Long, taskIds: List[Long]): Action[AnyContent] = Action.async {
-    implicit request =>
-      this.sessionManager.authenticatedRequest { implicit user =>
-        this.serviceManager.taskBundle.unbundleTasks(user, id, taskIds)
-        Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id)))
-      }
+  def unbundleTasks(
+      id: Long,
+      taskIds: List[Long],
+      preventTaskIdUnlocks: List[Long]
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      this.serviceManager.taskBundle.unbundleTasks(user, id, taskIds, preventTaskIdUnlocks)
+      Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id)))
+    }
   }
 
   /**
