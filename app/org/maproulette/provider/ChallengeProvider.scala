@@ -485,6 +485,13 @@ class ChallengeProvider @Inject() (
                                 "Element type 'way' does not match target type of '" + targetType + "'"
                               )
                             }
+                          case Some("relation") =>
+                            if (targetType != "relation") {
+                              targetTypeFailed = true
+                              throw new InvalidException(
+                                "Element type 'relation' does not match target type of '" + targetType + "'"
+                              )
+                            }
                           case Some("node") =>
                             if (targetType != "node") {
                               targetTypeFailed = true
@@ -520,6 +527,18 @@ class ChallengeProvider @Inject() (
                               // referencing other elements in the array. So this code does not do the job.
                               val points = (element \ "geometry").as[List[JsValue]].map { geom =>
                                 List((geom \ "lon").as[Double], (geom \ "lat").as[Double])
+                              }
+                              Some(Json.obj("type" -> "LineString", "coordinates" -> points))
+                            case Some("relation") =>
+                              // Relations can contain multiple geometries. Here, we're handling them similarly to ways.
+                              val geometries = (element \ "members").as[List[JsValue]].flatMap {
+                                member =>
+                                  (member \ "geometry").asOpt[List[JsValue]]
+                              }
+                              val points = geometries.flatMap { geom =>
+                                geom.map { point =>
+                                  ((point \ "lon").as[Double], (point \ "lat").as[Double])
+                                }
                               }
                               Some(Json.obj("type" -> "LineString", "coordinates" -> points))
                             case Some("node") =>
