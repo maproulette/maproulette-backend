@@ -237,12 +237,13 @@ class TaskBundleController @Inject() (
     */
   def createTaskBundle(): Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
-      val name = (request.body \ "name").asOpt[String].getOrElse("")
+      val name      = (request.body \ "name").asOpt[String].getOrElse("")
+      val primaryId = (request.body \ "primaryId").asOpt[Long]
       val taskIds = (request.body \ "taskIds").asOpt[List[Long]] match {
         case Some(tasks) => tasks
         case None        => throw new InvalidException("No task ids provided for task bundle")
       }
-      val bundle = this.serviceManager.taskBundle.createTaskBundle(user, name, taskIds)
+      val bundle = this.serviceManager.taskBundle.createTaskBundle(user, name, primaryId, taskIds)
       Created(Json.toJson(bundle))
     }
   }
@@ -253,10 +254,11 @@ class TaskBundleController @Inject() (
     * @param id The id for the bundle
     * @return Task Bundle
     */
-  def getTaskBundle(id: Long): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.authenticatedRequest { implicit user =>
-      Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id)))
-    }
+  def getTaskBundle(id: Long, lockTasks: Boolean): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id, lockTasks)))
+      }
   }
 
   /**
@@ -293,6 +295,21 @@ class TaskBundleController @Inject() (
       this.serviceManager.taskBundle.unbundleTasks(user, id, taskIds, preventTaskIdUnlocks)
       Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id)))
     }
+  }
+
+  /**
+    * Adds tasks to a bundle.
+    *
+    * @param id      The id for the bundle
+    * @param taskIds List of task ids to remove
+    * @return Task Bundle
+    */
+  def bundleTasks(id: Long, taskIds: List[Long]): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        this.serviceManager.taskBundle.bundleTasks(user, id, taskIds)
+        Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id)))
+      }
   }
 
   /**
