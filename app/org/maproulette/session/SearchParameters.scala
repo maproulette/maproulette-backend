@@ -50,6 +50,7 @@ case class SearchTaskParameters(
     taskStatus: Option[List[Int]] = None,
     taskId: Option[Long] = None,
     taskFeatureId: Option[String] = None,
+    bundleId: Option[Long] = None,
     taskReviewStatus: Option[List[Int]] = None,
     taskProperties: Option[Map[String, String]] = None,
     taskPropertySearchType: Option[String] = None,
@@ -248,6 +249,10 @@ object SearchParameters {
       }
       updated = o.taskParams.taskFeatureId match {
         case Some(c) => Utils.insertIntoJson(updated, "taskFeatureId", c, true)
+        case None    => updated
+      }
+      updated = o.taskParams.bundleId match {
+        case Some(c) => Utils.insertIntoJson(updated, "bundleId", c, true)
         case None    => updated
       }
       updated = o.taskParams.taskReviewStatus match {
@@ -455,6 +460,8 @@ object SearchParameters {
         this.getLongParameter(request.getQueryString("tid"), params.taskParams.taskId),
         //taskFeatureId
         this.getStringParameter(request.getQueryString("fid"), params.taskParams.taskFeatureId),
+        //bundleId
+        this.getLongParameter(request.getQueryString("bid"), params.taskParams.bundleId),
         //taskReviewStatus
         request.getQueryString("trStatus") match {
           case Some(v) => Utils.toIntList(v)

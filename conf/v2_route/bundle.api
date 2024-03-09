@@ -40,8 +40,11 @@ POST    /taskBundle                                 @org.maproulette.framework.c
 #     in: path
 #     description: The id of the Task Bundle
 #     required: true
+#   - name: lockTasks
+#     in: query
+#     description: The tasks in the bundle will be locked by the user.
 ###
-GET     /taskBundle/:id                             @org.maproulette.framework.controller.TaskBundleController.getTaskBundle(id:Long)
+GET     /taskBundle/:id                             @org.maproulette.framework.controller.TaskBundleController.getTaskBundle(id:Long, lockTasks:Boolean ?= false)
 ###
 # tags: [ Bundle ]
 # summary: Resets a Task Bundle
@@ -113,3 +116,29 @@ DELETE     /taskBundle/:id                          @org.maproulette.framework.c
 #     required: true
 ###
 POST       /taskBundle/:id/unbundle                 @org.maproulette.framework.controller.TaskBundleController.unbundleTasks(id:Long, taskIds:List[Long], preventTaskIdUnlocks:List[Long])
+###
+# tags: [ Bundle ]
+# summary: Bundles extra tasks to Task Bundle
+# description: Adds a list of tasks to a bundle of tasks
+# responses:
+#   '200':
+#     description: The task bundle with the new increased set of tasks
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/TaskBundle'
+#   '401':
+#     description: The user is not authorized to make this request
+#   '404':
+#     description: No Task Bundle with provided ID found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the Task Bundle
+#     required: true
+#   - name: taskIds
+#     in: query
+#     description: The list of task ids to add from to bundle
+#     required: true
+###
+POST       /taskBundle/:id/bundle                 @org.maproulette.framework.controller.TaskBundleController.bundleTasks(id:Long, taskIds:List[Long])
