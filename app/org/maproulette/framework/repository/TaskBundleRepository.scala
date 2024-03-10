@@ -82,10 +82,13 @@ class TaskBundleRepository @Inject() (
               "inList" -> taskIds
             )
             .executeUpdate()
-
-          primaryId.foreach { id =>
-            SQL"""UPDATE tasks SET is_bundle_primary = true, bundle_id = $bundleId WHERE id = $id"""
-              .executeUpdate()
+          primaryId match {
+            case Some(id) =>
+              val sqlQuery = s"""UPDATE tasks SET is_bundle_primary = true WHERE id = $id"""
+              SQL(sqlQuery).executeUpdate()
+            case None =>
+              // Handle the case where primaryId is None
+              println("primaryId is not defined")
           }
 
           val parameters = lockedTasks.map(task => Seq[NamedParameter]("taskId" -> task.id))
@@ -198,6 +201,14 @@ class TaskBundleRepository @Inject() (
           )
           .executeUpdate()
 
+        // Retrieve the status of the primary task
+        val primaryTaskStatus = SQL(
+          """SELECT status FROM tasks WHERE id = {primaryTaskId}"""
+        ).on(
+            "primaryTaskId" -> primaryTaskId
+          )
+          .as(SqlParser.scalar[Int].single)
+
         val lockedTasks = this.withListLocking(user, Some(TaskType())) { () =>
           this.taskDAL.retrieveListById(-1, 0)(tasksToAdd)
         }
@@ -207,33 +218,29 @@ class TaskBundleRepository @Inject() (
           } catch {
             case e: Exception => this.logger.warn(e.getMessage)
           }
+          // Update the status of all tasks in the bundle to match the status of the primary task
+          SQL(
+            """UPDATE tasks 
+             SET status = {primaryTaskStatus} 
+             WHERE bundle_id = {bundleId}
+          """
+          ).on(
+              "primaryTaskStatus" -> primaryTaskStatus,
+              "bundleId"          -> bundleId
+            )
+            .executeUpdate()
+
           this.cacheManager.withOptionCaching { () =>
             Some(
-              task.copy(bundleId = Some(bundleId), isBundlePrimary = Some(primaryTaskId == task.id))
+              task.copy(
+                bundleId = Some(bundleId),
+                status = Some(primaryTaskStatus),
+                isBundlePrimary = Some(primaryTaskId == task.id)
+              )
             )
           }
         }
       }
-
-      // Retrieve the status of the primary task
-      val primaryTaskStatus = SQL(
-        """SELECT status FROM tasks WHERE id = {primaryTaskId}"""
-      ).on(
-          "primaryTaskId" -> primaryTaskId
-        )
-        .as(SqlParser.scalar[Int].single)
-
-      // Update the status of all tasks in the bundle to match the status of the primary task
-      SQL(
-        """UPDATE tasks 
-             SET status = {primaryTaskStatus} 
-             WHERE bundle_id = {bundleId}
-          """
-      ).on(
-          "primaryTaskStatus" -> primaryTaskStatus,
-          "bundleId"          -> bundleId
-        )
-        .executeUpdate()
     }
   }
 
@@ -275,80 +282,34 @@ class TaskBundleRepository @Inject() (
             case Some(_) =>
               SQL(s"""DELETE FROM task_bundles
                       WHERE bundle_id = $bundleId AND task_id = ${task.id}""").executeUpdate()
-
+              this.cacheManager.withOptionCaching { () =>
+                Some(
+                  task.copy(bundleId = None, status = Some(STATUS_CREATED))
+                )
+              }
               if (!preventTaskIdUnlocks.contains(task.id)) {
                 try {
                   this.unlockItem(user, task)
                 } catch {
                   case e: Exception => this.logger.warn(e.getMessage)
                 }
-              } else {
-                SQL(
-                  """UPDATE tasks 
+              }
+              // This is in order to pass the filters so the task is displayed as "available" in task searching and maps.
+              SQL(s"DELETE FROM task_review tr WHERE tr.task_id = ${task.id}").executeUpdate()
+
+              SQL(
+                """UPDATE tasks 
                       SET status = {status} 
                       WHERE id = {taskId}
                   """
-                ).on(
-                    "taskId" -> task.id,
-                    "status" -> STATUS_CREATED
-                  )
-                  .executeUpdate()
-              }
+              ).on(
+                  "taskId" -> task.id,
+                  "status" -> STATUS_CREATED
+                )
+                .executeUpdate()
+
             case None => // do nothing
           }
-        }
-      }
-    }
-  }
-
-  /**
-    * Adds tasks to a bundle.
-    *
-    * @param bundleId The id of the bundle
-    */
-  def bundleTasks(user: User, bundleId: Long, taskIds: List[Long]): Unit = {
-    this.withMRConnection { implicit c =>
-      // Update tasks to set their bundle_id to the provided bundleId
-      SQL(s"""UPDATE tasks SET bundle_id = {bundleId}
-            WHERE bundle_id IS NULL
-            AND id IN ({inList})""")
-        .on(
-          "bundleId" -> bundleId,
-          "inList"   -> taskIds
-        )
-        .executeUpdate()
-
-      // Construct the SQL query to insert task-bundle associations
-      val sqlQuery =
-        s"""INSERT INTO task_bundles (bundle_id, task_id) VALUES ($bundleId, {taskId})"""
-
-      // Construct parameters for the BatchSql operation
-      val parameters = taskIds.map(taskId => Seq[NamedParameter]("taskId" -> taskId))
-
-      // Execute the BatchSql operation to insert task-bundle associations
-      BatchSql(sqlQuery, parameters.head, parameters.tail: _*).execute()
-
-      // Retrieve the tasks associated with the given bundleId
-      val tasks = this.retrieveTasks(
-        Query.simple(
-          List(
-            BaseParameter("bundle_id", bundleId, table = Some("tb"))
-          )
-        )
-      )
-      // Lock each of the new tasks to indicate they are part of the bundle
-      for (task <- tasks) {
-        try {
-          this.lockItem(user, task)
-        } catch {
-          case e: Exception => this.logger.warn(e.getMessage)
-        }
-        this.cacheManager.withOptionCaching { () =>
-          Some(
-            task.copy(
-              bundleId = Some(bundleId)
-            )
-          )
         }
       }
     }

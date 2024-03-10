@@ -111,18 +111,6 @@ class TaskBundleService @Inject() (
     *
     * @param bundleId The id of the bundle
     */
-  def bundleTasks(user: User, bundleId: Long, taskIds: List[Long])(): TaskBundle = {
-    val bundle = this.getTaskBundle(user, bundleId)
-
-    this.repository.bundleTasks(user, bundleId, taskIds)
-    this.getTaskBundle(user, bundleId)
-  }
-
-  /**
-    * Removes tasks from a bundle.
-    *
-    * @param bundleId The id of the bundle
-    */
   def unbundleTasks(
       user: User,
       bundleId: Long,
