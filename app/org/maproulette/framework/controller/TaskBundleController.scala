@@ -298,21 +298,6 @@ class TaskBundleController @Inject() (
   }
 
   /**
-    * Adds tasks to a bundle.
-    *
-    * @param id      The id for the bundle
-    * @param taskIds List of task ids to remove
-    * @return Task Bundle
-    */
-  def bundleTasks(id: Long, taskIds: List[Long]): Action[AnyContent] = Action.async {
-    implicit request =>
-      this.sessionManager.authenticatedRequest { implicit user =>
-        this.serviceManager.taskBundle.bundleTasks(user, id, taskIds)
-        Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id)))
-      }
-  }
-
-  /**
     * Delete bundle.
     *
     * @param id        The id for the bundle

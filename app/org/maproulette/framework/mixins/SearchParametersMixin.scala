@@ -334,7 +334,7 @@ trait SearchParametersMixin {
       case Some(bid) =>
         FilterGroup(
           List(
-            CustomParameter(s"CAST(${Task.TABLE}.${Task.FIELD_BUNDLE_ID} AS TEXT) LIKE '${bid}%'")
+            CustomParameter(s"${Task.TABLE}.${Task.FIELD_BUNDLE_ID} = $bid")
           )
         )
       case _ => FilterGroup(List())
