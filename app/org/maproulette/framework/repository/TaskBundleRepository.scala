@@ -418,21 +418,4 @@ class TaskBundleRepository @Inject() (
          """).as(this.getTaskParser(this.taskRepository.updateAndRetrieve).*)
     }
   }
-
-  /**
-    * Fetches a list of tasks associated with the given bundle id.
-    *
-    * @param bundleId The id of the bundle
-    */
-  def lockBundledTasks(user: User, tasks: List[Task]) = {
-    this.withMRConnection { implicit c =>
-      for (task <- tasks) {
-        try {
-          this.lockItem(user, task)
-        } catch {
-          case e: Exception => this.logger.warn(e.getMessage)
-        }
-      }
-    }
-  }
 }
