@@ -161,7 +161,7 @@ class TaskBundleService @Inject() (
       throw new NotFoundException(s"Task Bundle not found with id ${bundleId}.")
     }
 
-     TaskBundle(bundleId, ownerId.get, tasks.map(task => {
+    TaskBundle(bundleId, ownerId.get, tasks.map(task => {
       task.id
     }), Some(tasks))
   }
