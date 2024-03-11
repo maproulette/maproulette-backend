@@ -8,6 +8,9 @@ package org.maproulette.framework.repository
 import org.slf4j.LoggerFactory
 
 import anorm.ToParameterValue
+import anorm._
+import anorm.SqlParser.scalar
+
 import org.maproulette.cache.CacheManager
 import anorm._, postgresql._
 import javax.inject.{Inject, Singleton}
@@ -201,13 +204,29 @@ class TaskBundleRepository @Inject() (
           )
           .executeUpdate()
 
+        // Define the fallback value
+        val fallbackStatus: Int = 0
+
         // Retrieve the status of the primary task
-        val primaryTaskStatus = SQL(
+        val primaryTaskStatus: Int = SQL(
           """SELECT status FROM tasks WHERE id = {primaryTaskId}"""
         ).on(
             "primaryTaskId" -> primaryTaskId
           )
-          .as(SqlParser.scalar[Int].single)
+          .as(scalar[Int].singleOpt)
+          .getOrElse(fallbackStatus)
+
+        // Define the fallback value for review status
+        val fallbackReviewStatus: Int = 0
+
+        // Retrieve the review status of the primary task
+        val primaryTaskReviewStatus: Int = SQL(
+          """SELECT review_status FROM task_review WHERE id = {primaryTaskId}"""
+        ).on(
+            "primaryTaskId" -> primaryTaskId
+          )
+          .as(scalar[Int].singleOpt)
+          .getOrElse(fallbackReviewStatus)
 
         val lockedTasks = this.withListLocking(user, Some(TaskType())) { () =>
           this.taskDAL.retrieveListById(-1, 0)(tasksToAdd)
@@ -222,13 +241,16 @@ class TaskBundleRepository @Inject() (
           SQL(
             """UPDATE tasks 
              SET status = {primaryTaskStatus} 
-             WHERE bundle_id = {bundleId}
+             WHERE id = {taskId}
           """
           ).on(
               "primaryTaskStatus" -> primaryTaskStatus,
-              "bundleId"          -> bundleId
+              "taskId"            -> task.id
             )
             .executeUpdate()
+
+          SQL"""INSERT INTO task_review (task_id, review_status) 
+                VALUES (${task.id}, ${primaryTaskReviewStatus})""".executeUpdate()
 
           this.cacheManager.withOptionCaching { () =>
             Some(
