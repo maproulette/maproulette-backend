@@ -8,7 +8,6 @@ package org.maproulette.framework.repository
 import org.slf4j.LoggerFactory
 
 import anorm.ToParameterValue
-import anorm._
 import anorm.SqlParser.scalar
 
 import org.maproulette.cache.CacheManager
