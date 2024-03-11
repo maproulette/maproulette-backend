@@ -418,4 +418,21 @@ class TaskBundleRepository @Inject() (
          """).as(this.getTaskParser(this.taskRepository.updateAndRetrieve).*)
     }
   }
+
+  /**
+    * Locks tasks on bundle fetch if task is in an editable status
+    *
+    * @param bundleId The id of the bundle
+    */
+  def lockBundledTasks(user: User, tasks: List[Task]) = {
+    this.withMRConnection { implicit c =>
+      for (task <- tasks) {
+        try {
+          this.lockItem(user, task)
+        } catch {
+          case e: Exception => this.logger.warn(e.getMessage)
+        }
+      }
+    }
+  }
 }

@@ -146,7 +146,7 @@ class TaskBundleService @Inject() (
     *
     * @param bundleId The id of the bundle
     */
-  def getTaskBundle(user: User, bundleId: Long): TaskBundle = {
+  def getTaskBundle(user: User, bundleId: Long, lockTasks: Boolean = false): TaskBundle = {
     val filterQuery =
       Query.simple(
         List(
@@ -157,12 +157,13 @@ class TaskBundleService @Inject() (
     val ownerId = this.repository.retrieveOwner(filterQuery)
     val tasks   = this.repository.retrieveTasks(filterQuery)
 
-    if (ownerId == None) {
-      throw new NotFoundException(s"Task Bundle not found with id ${bundleId}.")
+    if (ownerId.isEmpty) {
+      throw new NotFoundException(s"Task Bundle not found with id $bundleId.")
+    }
+    if (lockTasks) {
+      this.repository.lockBundledTasks(user, tasks)
     }
 
-    TaskBundle(bundleId, ownerId.get, tasks.map(task => {
-      task.id
-    }), Some(tasks))
+    TaskBundle(bundleId, ownerId.get, tasks.map(_.id), Some(tasks))
   }
 }
