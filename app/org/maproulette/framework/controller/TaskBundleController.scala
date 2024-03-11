@@ -254,10 +254,10 @@ class TaskBundleController @Inject() (
     * @param id The id for the bundle
     * @return Task Bundle
     */
-  def getTaskBundle(id: Long, lockTasks: Boolean): Action[AnyContent] = Action.async {
+  def getTaskBundle(id: Long): Action[AnyContent] = Action.async {
     implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
-        Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id, lockTasks)))
+        Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id)))
       }
   }
 
