@@ -60,6 +60,7 @@ class TaskBundleRepository @Inject() (
       }
 
       val failedTaskIds = taskIds.diff(lockedTasks.map(_.id))
+      // Checks to see if there where any tasks that were locked when the user tried to bundle them.
       if (failedTaskIds.nonEmpty) {
         throw new InvalidException(
           s"Bundle creation failed because the following task IDs were locked: ${failedTaskIds.mkString(", ")}"
@@ -73,17 +74,17 @@ class TaskBundleRepository @Inject() (
 
       rowId match {
         case Some(bundleId: Long) =>
-          // Insert tasks into the task_bundles table
           val sqlInsertTaskBundles =
             s"""INSERT INTO task_bundles (task_id, bundle_id) VALUES ({taskId}, $bundleId)"""
 
-          // Update tasks in the tasks table
+          // Update the task object to bind it to the bundle
           SQL(s"""UPDATE tasks SET bundle_id = $bundleId
-        WHERE id IN ({inList})""")
+               WHERE id IN ({inList})""")
             .on(
               "inList" -> taskIds
             )
             .executeUpdate()
+
           primaryId match {
             case Some(id) =>
               val sqlQuery = s"""UPDATE tasks SET is_bundle_primary = true WHERE id = $id"""
@@ -173,7 +174,7 @@ class TaskBundleRepository @Inject() (
         }
       }
 
-      // Add tasks to the bundle and lock them
+      // Add tasks we are resetting to to the bundle, and lock them.
       val existingTasks = SQL(
         """SELECT task_id FROM task_bundles WHERE bundle_id = {bundleId}"""
       ).on(
@@ -181,17 +182,14 @@ class TaskBundleRepository @Inject() (
         )
         .as(SqlParser.long("task_id").*)
 
-      // Construct the SQL query to insert task-bundle associations
       val sqlQuery =
         s"""INSERT INTO task_bundles (bundle_id, task_id) VALUES ($bundleId, {taskId})"""
 
       val tasksToAdd = taskIds.filterNot(existingTasks.contains)
 
       if (tasksToAdd.nonEmpty) {
-        // Construct parameters for the BatchSql operation
         val parameters = tasksToAdd.map(taskId => Seq[NamedParameter]("taskId" -> taskId))
 
-        // Execute the BatchSql operation to insert task-bundle associations
         BatchSql(sqlQuery, parameters.head, parameters.tail: _*).execute()
 
         SQL(s"""UPDATE tasks SET bundle_id = {bundleId}
@@ -203,10 +201,8 @@ class TaskBundleRepository @Inject() (
           )
           .executeUpdate()
 
-        // Define the fallback value
+        // This is the fallback if the primary task status isnt found
         val fallbackStatus: Int = 0
-
-        // Retrieve the status of the primary task
         val primaryTaskStatus: Int = SQL(
           """SELECT status FROM tasks WHERE id = {primaryTaskId}"""
         ).on(
@@ -215,10 +211,8 @@ class TaskBundleRepository @Inject() (
           .as(scalar[Int].singleOpt)
           .getOrElse(fallbackStatus)
 
-        // Define the fallback value for review status
+        // This is the fallback if the primary task review status isnt found
         val fallbackReviewStatus: Int = 0
-
-        // Retrieve the review status of the primary task
         val primaryTaskReviewStatus: Int = SQL(
           """SELECT review_status FROM task_review WHERE id = {primaryTaskId}"""
         ).on(
