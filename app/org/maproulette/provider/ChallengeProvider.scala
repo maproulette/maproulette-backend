@@ -531,17 +531,18 @@ class ChallengeProvider @Inject() (
                               Some(Json.obj("type" -> "LineString", "coordinates" -> points))
                             case Some("relation") =>
                               // Relations can contain a list of both nodes and ways.
-                             val geometries = (element \ "members").as[List[JsValue]].flatMap { member =>
-                                (member \ "type").asOpt[String] match {
-                                  case Some("way") =>
-                                    (member \ "geometry").asOpt[List[JsValue]]
+                              val geometries = (element \ "members").as[List[JsValue]].flatMap {
+                                member =>
+                                  (member \ "type").asOpt[String] match {
+                                    case Some("way") =>
+                                      (member \ "geometry").asOpt[List[JsValue]]
 
-                                  case Some("node") =>
-                                    Some(List(member)) // Wrap single node in a list
+                                    case Some("node") =>
+                                      Some(List(member)) // Wrap single node in a list
 
-                                  case _ =>
-                                    None 
-                                }
+                                    case _ =>
+                                      None
+                                  }
                               }
                               val points = geometries.flatMap { geom =>
                                 geom.map { point =>
