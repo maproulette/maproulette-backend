@@ -201,25 +201,31 @@ class TaskBundleRepository @Inject() (
           )
           .executeUpdate()
 
-        // This is the fallback if the primary task status isnt found
-        val fallbackStatus: Int = 0
+        // Fallback for missing integer values
+        val fallbackInteger: Int = 0
         val primaryTaskStatus: Int = SQL(
           """SELECT status FROM tasks WHERE id = {primaryTaskId}"""
         ).on(
             "primaryTaskId" -> primaryTaskId
           )
           .as(scalar[Int].singleOpt)
-          .getOrElse(fallbackStatus)
+          .getOrElse(fallbackInteger)
 
-        // This is the fallback if the primary task review status isnt found
-        val fallbackReviewStatus: Int = 0
         val primaryTaskReviewStatus: Int = SQL(
           """SELECT review_status FROM task_review WHERE id = {primaryTaskId}"""
         ).on(
             "primaryTaskId" -> primaryTaskId
           )
           .as(scalar[Int].singleOpt)
-          .getOrElse(fallbackReviewStatus)
+          .getOrElse(fallbackInteger)
+
+        val primaryTaskReviewRequestedBy: Int = SQL(
+          """SELECT review_requested_by FROM task_review WHERE id = {primaryTaskId}"""
+        ).on(
+            "primaryTaskId" -> primaryTaskId
+          )
+          .as(scalar[Int].singleOpt)
+          .getOrElse(fallbackInteger)
 
         val lockedTasks = this.withListLocking(user, Some(TaskType())) { () =>
           this.taskDAL.retrieveListById(-1, 0)(tasksToAdd)
@@ -242,8 +248,9 @@ class TaskBundleRepository @Inject() (
             )
             .executeUpdate()
 
-          SQL"""INSERT INTO task_review (task_id, review_status) 
-                VALUES (${task.id}, ${primaryTaskReviewStatus})""".executeUpdate()
+          SQL"""INSERT INTO task_review (task_id, review_status, review_requested_by) 
+                VALUES (${task.id}, ${primaryTaskReviewStatus}, ${primaryTaskReviewRequestedBy})"""
+            .executeUpdate()
 
           this.cacheManager.withOptionCaching { () =>
             Some(
