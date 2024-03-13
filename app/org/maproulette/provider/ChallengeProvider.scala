@@ -545,7 +545,7 @@ class ChallengeProvider @Inject() (
                                       }
                                     }
 
-                                  case Some("node") =>\
+                                  case Some("node") =>
                                     Some(
                                       List(
                                         for {
