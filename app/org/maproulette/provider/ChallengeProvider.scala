@@ -531,36 +531,38 @@ class ChallengeProvider @Inject() (
                               Some(Json.obj("type" -> "LineString", "coordinates" -> points))
                             case Some("relation") =>
                               // Function to recursively extract geometries from relations
-                              def extractGeometries(
-                                  member: JsValue
-                              ): Option[List[(Double, Double)]] = {
+                              def extractGeometries(member: JsValue): Option[JsObject] = {
                                 (member \ "type").asOpt[String] match {
                                   case Some("way") =>
-                                    (member \ "geometry").asOpt[List[JsValue]].map { geom =>
-                                      geom.flatMap { point =>
-                                        for {
-                                          lon <- (point \ "lon").asOpt[Double]
-                                          lat <- (point \ "lat").asOpt[Double]
-                                        } yield (lon, lat)
-                                      }
-                                    }
+                                       val points = (member \ "geometry").as[List[JsValue]].map { geom =>
+                                List((geom \ "lon").as[Double], (geom \ "lat").as[Double])
+                              }
+                              Some(Json.obj("type" -> "LineString", "coordinates" -> points))
 
                                   case Some("node") =>
                                     Some(
-                                      List(
-                                        for {
-                                          lon <- (member \ "lon").asOpt[Double]
-                                          lat <- (member \ "lat").asOpt[Double]
-                                        } yield (lon, lat)
-                                      ).flatten
+                                Json.obj(
+                                  "type" -> "Point",
+                                  "coordinates" -> List(
+                                    (member \ "lon").as[Double],
+                                    (member \ "lat").as[Double]
+                                  )
+                                )
+                              
                                     )
 
                                   case Some("relation") =>
                                     // If it's another relation, recursively extract geometries from it
-                                    (member \ "members").asOpt[List[JsValue]].flatMap { members =>
-                                      val geometries = members.flatMap(extractGeometries)
-                                      if (geometries.isEmpty) None else Some(geometries.flatten)
-                                    }
+                                    val geometries = (element \ "members").as[List[JsValue]].map {
+                                member =>
+                                  extractGeometries(member)
+                              }
+                                 val geometryCollection = Json.obj(
+                                "type"       -> "GeometryCollection",
+                                "geometries" -> geometries
+                              )
+
+                              Some(geometryCollection)
 
                                   case _ =>
                                     None
@@ -568,14 +570,19 @@ class ChallengeProvider @Inject() (
                               }
 
                               // Extract geometries from each member of the relation
-                              val geometries = (element \ "members").as[List[JsValue]].flatMap {
+                              val geometries = (element \ "members").as[List[JsValue]].map {
                                 member =>
                                   extractGeometries(member)
                               }
 
-                              // Convert geometries into LineString format
-                              val points = geometries.flatten
-                              Some(Json.obj("type" -> "LineString", "coordinates" -> points))
+                              // Create a GeometryCollection
+                              val geometryCollection = Json.obj(
+                                "type"       -> "GeometryCollection",
+                                "geometries" -> geometries
+                              )
+
+                              Some(geometryCollection)
+
                             case Some("node") =>
                               Some(
                                 Json.obj(
