@@ -534,35 +534,35 @@ class ChallengeProvider @Inject() (
                               def extractGeometries(member: JsValue): Option[JsObject] = {
                                 (member \ "type").asOpt[String] match {
                                   case Some("way") =>
-                                       val points = (member \ "geometry").as[List[JsValue]].map { geom =>
-                                List((geom \ "lon").as[Double], (geom \ "lat").as[Double])
-                              }
-                              Some(Json.obj("type" -> "LineString", "coordinates" -> points))
+                                    val points = (member \ "geometry").as[List[JsValue]].map {
+                                      geom =>
+                                        List((geom \ "lon").as[Double], (geom \ "lat").as[Double])
+                                    }
+                                    Some(Json.obj("type" -> "LineString", "coordinates" -> points))
 
                                   case Some("node") =>
                                     Some(
-                                Json.obj(
-                                  "type" -> "Point",
-                                  "coordinates" -> List(
-                                    (member \ "lon").as[Double],
-                                    (member \ "lat").as[Double]
-                                  )
-                                )
-                              
+                                      Json.obj(
+                                        "type" -> "Point",
+                                        "coordinates" -> List(
+                                          (member \ "lon").as[Double],
+                                          (member \ "lat").as[Double]
+                                        )
+                                      )
                                     )
 
                                   case Some("relation") =>
                                     // If it's another relation, recursively extract geometries from it
                                     val geometries = (element \ "members").as[List[JsValue]].map {
-                                member =>
-                                  extractGeometries(member)
-                              }
-                                 val geometryCollection = Json.obj(
-                                "type"       -> "GeometryCollection",
-                                "geometries" -> geometries
-                              )
+                                      member =>
+                                        extractGeometries(member)
+                                    }
+                                    val geometryCollection = Json.obj(
+                                      "type"       -> "GeometryCollection",
+                                      "geometries" -> geometries
+                                    )
 
-                              Some(geometryCollection)
+                                    Some(geometryCollection)
 
                                   case _ =>
                                     None
