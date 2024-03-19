@@ -553,7 +553,7 @@ class ChallengeProvider @Inject() (
 
                                   case Some("relation") =>
                                     // If it's another relation, recursively extract geometries from it
-                                    val geometries = (element \ "members").as[List[JsValue]].map {
+                                    val geometries = (member \ "members").as[List[JsValue]].map {
                                       member =>
                                         extractGeometries(member)
                                     }
