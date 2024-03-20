@@ -192,6 +192,7 @@ trait ReviewSearchMixin extends SearchParametersMixin {
       .addFilterGroup(this.filterLocation(searchParameters))
       .addFilterGroup(this.filterProjectSearch(searchParameters))
       .addFilterGroup(this.filterTaskId(searchParameters))
+      .addFilterGroup(this.filterTaskFeatureId(searchParameters))
       .addFilterGroup(this.filterPriority(searchParameters))
       .addFilterGroup(this.filterTaskTags(searchParameters))
       .addFilterGroup(this.filterReviewDate(searchParameters))

@@ -33,6 +33,7 @@ trait SearchParametersMixin
     this.paramsBounding(params, whereClause)
     this.paramsTaskStatus(params, whereClause)
     this.paramsTaskId(params, whereClause)
+    this.paramsTaskFeatureId(params, whereClause)
     this.paramsProjectSearch(params, whereClause)
     this.paramsTaskReviewStatus(params, whereClause)
     this.paramsMetaReviewStatus(params, whereClause)
@@ -103,6 +104,10 @@ trait SearchParametersMixin
 
   def paramsTaskId(params: SearchParameters, whereClause: StringBuilder): Unit = {
     this.appendInWhereClause(whereClause, this.filterTaskId(params).sql())
+  }
+
+  def paramsTaskFeatureId(params: SearchParameters, whereClause: StringBuilder): Unit = {
+    this.appendInWhereClause(whereClause, this.filterTaskFeatureId(params).sql())
   }
 
   def paramsTaskPriorities(params: SearchParameters, whereClause: StringBuilder): Unit = {
