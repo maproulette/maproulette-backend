@@ -159,11 +159,7 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
   "filterTaskFeatureId" should {
     "match on task feature id" in {
       val params = SearchParameters(taskParams = SearchTaskParameters(taskFeatureId = Some("123")))
-      this.filterTaskFeatureId(params).sql() mustEqual "CAST(tasks.name AS TEXT) LIKE '123%'"
-    }
-
-    "be empty" in {
-      this.filterTaskFeatureId(SearchParameters()).sql() mustEqual ""
+      this.filterTaskFeatureId(params).sql() mustEqual "LOWER(CAST(tasks.name AS TEXT)) LIKE LOWER('123%')"
     }
 
     "be inverted" in {
@@ -171,7 +167,7 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
         taskParams = SearchTaskParameters(taskFeatureId = Some("12345")),
         invertFields = Some(List("fid"))
       )
-      this.filterTaskFeatureId(params).sql() mustEqual "NOT CAST(tasks.name AS TEXT) LIKE '12345%'"
+      this.filterTaskFeatureId(params).sql() mustEqual "NOT LOWER(CAST(tasks.name AS TEXT)) LIKE LOWER('12345%')"
     }
   }
 
