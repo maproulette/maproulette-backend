@@ -272,6 +272,7 @@ class TaskReviewController @Inject() (
     */
   def extractReviewTableData(
       taskId: String,
+      featureId: String,
       reviewStatus: String,
       mapper: String,
       challengeId: String,
@@ -303,6 +304,7 @@ class TaskReviewController @Inject() (
         val projectIdFilter        = parseParameterLong(projectId)
         val challengeIdsFilter     = parseParameterLong(challengeId)
         val taskIdFilter           = parseParameterLong(taskId).map(_.head)
+        val taskFeatureIdFilter    = parseParameterString(featureId).map(_.head)
         val mappedOnFilter         = parseParameterString(mappedOn).map(_.head)
         val mapperFilter           = parseParameterString(mapper).map(_.head)
         val metaReviewedByFilter   = parseParameterString(metaReviewedBy).map(_.head)
@@ -318,6 +320,7 @@ class TaskReviewController @Inject() (
             ),
             taskParams = params.taskParams.copy(
               taskId = taskIdFilter,
+              taskFeatureId = taskFeatureIdFilter,
               taskStatus = statusFilter,
               taskReviewStatus = reviewStatusFilter,
               taskPriorities = priorityFilter,
