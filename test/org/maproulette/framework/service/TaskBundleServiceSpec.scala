@@ -35,7 +35,12 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
         )
 
       val response =
-        this.service.createTaskBundle(User.superUser, "my bundle", Some(task1.id), List(task1.id, task2.id))
+        this.service.createTaskBundle(
+          User.superUser,
+          "my bundle",
+          Some(task1.id),
+          List(task1.id, task2.id)
+        )
       response.taskIds.length mustEqual 2
 
       // tasks.bundle_id is NOT set until setTaskStatus is called!!!
@@ -51,7 +56,12 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
 
       // Cannot create a bundle with tasks already assigned
       intercept[InvalidException] {
-        this.service.createTaskBundle(User.superUser, "my bundle again", Some(task1.id), List(task1.id, task2.id))
+        this.service.createTaskBundle(
+          User.superUser,
+          "my bundle again",
+          Some(task1.id),
+          List(task1.id, task2.id)
+        )
       }
     }
 
@@ -93,7 +103,12 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
 
       // Cannot create a bundle with tasks from different challenges
       intercept[InvalidException] {
-        this.service.createTaskBundle(User.superUser, "bad bundle", Some(task1.id), List(task1.id, task2.id))
+        this.service.createTaskBundle(
+          User.superUser,
+          "bad bundle",
+          Some(task1.id),
+          List(task1.id, task2.id)
+        )
       }
     }
 
@@ -110,7 +125,12 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
         )
 
       val bundle =
-        this.service.createTaskBundle(User.superUser, "my bundle for get", Some(task1.id), List(task1.id, task2.id))
+        this.service.createTaskBundle(
+          User.superUser,
+          "my bundle for get",
+          Some(task1.id),
+          List(task1.id, task2.id)
+        )
 
       val response = this.service.getTaskBundle(User.superUser, bundle.bundleId)
       response.bundleId mustEqual bundle.bundleId
@@ -130,7 +150,12 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
         )
 
       val bundle = this.service
-        .createTaskBundle(User.superUser, "my bundle for delete", Some(task1.id), List(task1.id, task2.id))
+        .createTaskBundle(
+          User.superUser,
+          "my bundle for delete",
+          Some(task1.id),
+          List(task1.id, task2.id)
+        )
 
       // tasks.bundle_id is NOT set until setTaskStatus is called
       taskDAL.setTaskStatus(
@@ -159,7 +184,12 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
         )
 
       val bundle = this.service
-        .createTaskBundle(User.superUser, "my bundle for delete", Some(task1.id), List(task1.id, task2.id))
+        .createTaskBundle(
+          User.superUser,
+          "my bundle for delete",
+          Some(task1.id),
+          List(task1.id, task2.id)
+        )
 
       // tasks.bundle_id is NOT set until setTaskStatus is called
       taskDAL.setTaskStatus(
@@ -193,7 +223,12 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
         )
 
       val bundle = this.service
-        .createTaskBundle(User.superUser, "my bundle for unbundle", Some(task1.id), List(task1.id, task2.id))
+        .createTaskBundle(
+          User.superUser,
+          "my bundle for unbundle",
+          Some(task1.id),
+          List(task1.id, task2.id)
+        )
 
       // tasks.bundle_id is NOT set until setTaskStatus is called
       taskDAL.setTaskStatus(
