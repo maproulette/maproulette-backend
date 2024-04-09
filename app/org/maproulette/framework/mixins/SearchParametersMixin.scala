@@ -311,18 +311,16 @@ trait SearchParametersMixin {
     * @param params with inverting on 'fid'
     */
   def filterTaskFeatureId(params: SearchParameters): FilterGroup = {
-    val invert = if (params.invertFields.getOrElse(List()).contains("fid")) "NOT " else ""
-
     params.taskParams.taskFeatureId match {
       case Some(fid) =>
         FilterGroup(
           List(
             CustomParameter(
-              s"${invert}LOWER(CAST(${Task.TABLE}.${Task.FIELD_NAME} AS TEXT)) LIKE LOWER('${fid}%')"
+              s"LOWER(TRIM(${Task.TABLE}.${Task.FIELD_NAME}::TEXT)) LIKE LOWER('%${fid.trim}%')"
             )
           )
         )
-      case _ => FilterGroup(List())
+      case None => FilterGroup(List())
     }
   }
 
