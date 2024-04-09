@@ -1144,7 +1144,7 @@ class TaskDAL @Inject() (
           s"""NOT (tasks.status != ${Task.STATUS_CREATED} AND tasks.id IN (
              |SELECT task_id FROM status_actions
              |WHERE osm_user_id IN (${user.osmProfile.id})
-             |  AND created >= NOW() - '1 hour'::INTERVAL))""".stripMargin
+             |  AND modified >= NOW() - '1 hour'::INTERVAL))""".stripMargin
         )
 
         priority match {
@@ -1273,7 +1273,7 @@ class TaskDAL @Inject() (
             tasks.status IN (0, 3, 6) AND
             NOT tasks.id IN (
                 SELECT task_id FROM status_actions
-                WHERE osm_user_id = ${user.osmProfile.id} AND created >= NOW() - '1 hour'::INTERVAL)
+                WHERE osm_user_id = ${user.osmProfile.id} AND modified >= NOW() - '1 hour'::INTERVAL)
       ORDER BY ST_Distance(tasks.location, (SELECT location FROM tasks WHERE id = $proximityId)), tasks.status, RANDOM()
       LIMIT ${this.sqlLimit(limit)}"""
 
