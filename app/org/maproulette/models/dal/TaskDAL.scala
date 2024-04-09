@@ -1170,8 +1170,16 @@ class TaskDAL @Inject() (
           case None => ""
         }
 
-        val query = s"$select ${queryBuilder.toString} ${whereClause.toString} " +
-          s"ORDER BY $proximityOrdering tasks.status, RANDOM() LIMIT ${this.sqlLimit(limit)}"
+        val query =
+          s"""$select ${queryBuilder.toString} ${whereClause.toString} 
+               |ORDER BY 
+               |  (CASE
+               |    WHEN tasks.status = ${Task.STATUS_TOO_HARD} AND tasks.completed_by = ${user.id} THEN 0
+               |    WHEN tasks.status = ${Task.STATUS_SKIPPED} AND tasks.completed_by = ${user.id} THEN 1
+               |    ELSE 2
+               |  END) DESC,
+               |  $proximityOrdering tasks.status, RANDOM() LIMIT ${this
+               .sqlLimit(limit)}""".stripMargin
 
         implicit val ids = List[Long]()
         this.cacheManager.withIDListCaching { implicit cachedItems =>
