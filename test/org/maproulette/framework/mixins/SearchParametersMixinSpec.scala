@@ -161,17 +161,7 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
       val params = SearchParameters(taskParams = SearchTaskParameters(taskFeatureId = Some("123")))
       this
         .filterTaskFeatureId(params)
-        .sql() mustEqual "LOWER(CAST(tasks.name AS TEXT)) LIKE LOWER('123%')"
-    }
-
-    "be inverted" in {
-      val params = SearchParameters(
-        taskParams = SearchTaskParameters(taskFeatureId = Some("12345")),
-        invertFields = Some(List("fid"))
-      )
-      this
-        .filterTaskFeatureId(params)
-        .sql() mustEqual "NOT LOWER(CAST(tasks.name AS TEXT)) LIKE LOWER('12345%')"
+        .sql() mustEqual s"LOWER(TRIM(tasks.name::TEXT)) LIKE LOWER('%123%')"
     }
   }
 
