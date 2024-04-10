@@ -1063,7 +1063,17 @@ class TaskDAL @Inject() (
         case Failure(f)   => List.empty
       }
       if (mediumPriorityTasks.isEmpty) {
-        this.getRandomTasks(user, params, limit, Some(Challenge.PRIORITY_LOW), proximityId)
+        val lowPriorityTasks = Try(
+          this.getRandomTasks(user, params, limit, Some(Challenge.PRIORITY_LOW), proximityId)
+        ) match {
+          case Success(res) => res
+          case Failure(f)   => List.empty
+        }
+        if (lowPriorityTasks.isEmpty) {
+          this.getRandomTasks(user, params, limit, None, proximityId)
+        } else {
+          lowPriorityTasks
+        }
       } else {
         mediumPriorityTasks
       }
@@ -1144,12 +1154,16 @@ class TaskDAL @Inject() (
           s"""NOT (tasks.status != ${Task.STATUS_CREATED} AND tasks.id IN (
              |SELECT task_id FROM status_actions
              |WHERE osm_user_id IN (${user.osmProfile.id})
-             |  AND modified >= NOW() - '1 hour'::INTERVAL))""".stripMargin
+             |  AND created >= NOW() - '1 hour'::INTERVAL))""".stripMargin
         )
 
         priority match {
-          case Some(p) => appendInWhereClause(whereClause, s"tasks.priority = $p")
-          case None    => //Ignore
+          case Some(p) =>
+            appendInWhereClause(
+              whereClause,
+              s"tasks.priority = $p AND tasks.status != ${Task.STATUS_SKIPPED} AND tasks.status != ${Task.STATUS_TOO_HARD} AND (tasks.completed_by != ${user.id} OR tasks.completed_by IS NULL)"
+            )
+          case None => // Ignore
         }
 
         if (taskTagIds.nonEmpty) {
@@ -1170,16 +1184,8 @@ class TaskDAL @Inject() (
           case None => ""
         }
 
-        val query =
-          s"""$select ${queryBuilder.toString} ${whereClause.toString} 
-               |ORDER BY 
-               |  (CASE
-               |    WHEN tasks.status = ${Task.STATUS_TOO_HARD} AND tasks.completed_by = ${user.id} THEN 0
-               |    WHEN tasks.status = ${Task.STATUS_SKIPPED} AND tasks.completed_by = ${user.id} THEN 1
-               |    ELSE 2
-               |  END) DESC,
-               |  $proximityOrdering tasks.status, RANDOM() LIMIT ${this
-               .sqlLimit(limit)}""".stripMargin
+        val query = s"$select ${queryBuilder.toString} ${whereClause.toString} " +
+          s"ORDER BY $proximityOrdering tasks.status, RANDOM() LIMIT ${this.sqlLimit(limit)}"
 
         implicit val ids = List[Long]()
         this.cacheManager.withIDListCaching { implicit cachedItems =>
@@ -1273,7 +1279,7 @@ class TaskDAL @Inject() (
             tasks.status IN (0, 3, 6) AND
             NOT tasks.id IN (
                 SELECT task_id FROM status_actions
-                WHERE osm_user_id = ${user.osmProfile.id} AND modified >= NOW() - '1 hour'::INTERVAL)
+                WHERE osm_user_id = ${user.osmProfile.id} AND created >= NOW() - '1 hour'::INTERVAL)
       ORDER BY ST_Distance(tasks.location, (SELECT location FROM tasks WHERE id = $proximityId)), tasks.status, RANDOM()
       LIMIT ${this.sqlLimit(limit)}"""
 
