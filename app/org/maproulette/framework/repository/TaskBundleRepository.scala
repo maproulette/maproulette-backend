@@ -89,9 +89,7 @@ class TaskBundleRepository @Inject() (
             case Some(id) =>
               val sqlQuery = s"""UPDATE tasks SET is_bundle_primary = true WHERE id = $id"""
               SQL(sqlQuery).executeUpdate()
-            case None =>
-              // Handle the case where primaryId is None
-              println("primaryId is not defined")
+            case None => // Handle the case where primaryId is None
           }
 
           val parameters = lockedTasks.map(task => Seq[NamedParameter]("taskId" -> task.id))
@@ -138,13 +136,7 @@ class TaskBundleRepository @Inject() (
       taskIds: List[Long]
   ): Unit = {
     withMRTransaction { implicit c =>
-      // Remove tasks from the bundle join table and unlock them if necessary
-      val tasks =
-        this.retrieveTasks(
-          Query.simple(List(BaseParameter("bundle_id", bundleId, table = Some("tb"))))
-        )
-
-      // Unset bundle_id for tasks not in the taskids param(this param is the task ids that the bundle will be "resetting" to)
+      // Unset bundle_id for tasks not in the taskids param
       SQL(
         """UPDATE tasks 
              SET bundle_id = NULL
@@ -155,6 +147,11 @@ class TaskBundleRepository @Inject() (
           "taskIds"  -> taskIds
         )
         .executeUpdate()
+
+      // Remove previous tasks from the bundle join table and unlock them if necessary
+      val tasks = this.retrieveTasks(
+        Query.simple(List(BaseParameter("bundle_id", bundleId, table = Some("tb"))))
+      )
 
       for (task <- tasks) {
         if (!task.isBundlePrimary.getOrElse(false) && !taskIds.contains(task.id)) {
@@ -167,14 +164,12 @@ class TaskBundleRepository @Inject() (
             case e: Exception => logger.warn(e.getMessage)
           }
           this.cacheManager.withOptionCaching { () =>
-            Some(
-              task.copy(bundleId = None, isBundlePrimary = None)
-            )
+            Some(task.copy(bundleId = None, isBundlePrimary = None))
           }
         }
       }
 
-      // Add tasks we are resetting to to the bundle, and lock them.
+      // Add tasks we are resetting to the bundle, and lock them
       val existingTasks = SQL(
         """SELECT task_id FROM task_bundles WHERE bundle_id = {bundleId}"""
       ).on(
@@ -182,20 +177,18 @@ class TaskBundleRepository @Inject() (
         )
         .as(SqlParser.long("task_id").*)
 
-      val sqlQuery =
-        s"""INSERT INTO task_bundles (bundle_id, task_id) VALUES ($bundleId, {taskId})"""
-
       val tasksToAdd = taskIds.filterNot(existingTasks.contains)
 
       if (tasksToAdd.nonEmpty) {
+        val sqlQuery =
+          s"""INSERT INTO task_bundles (bundle_id, task_id) VALUES ($bundleId, {taskId})"""
         val parameters = tasksToAdd.map(taskId => Seq[NamedParameter]("taskId" -> taskId))
 
         BatchSql(sqlQuery, parameters.head, parameters.tail: _*).execute()
 
-        SQL(s"""UPDATE tasks SET bundle_id = {bundleId}
-            WHERE bundle_id IS NULL
-            AND id IN ({inList})""")
-          .on(
+        SQL(
+          s"""UPDATE tasks SET bundle_id = {bundleId} WHERE bundle_id IS NULL AND id IN ({inList})"""
+        ).on(
             "bundleId" -> bundleId,
             "inList"   -> tasksToAdd
           )
@@ -211,21 +204,13 @@ class TaskBundleRepository @Inject() (
           .as(scalar[Int].singleOpt)
           .getOrElse(fallbackInteger)
 
-        val primaryTaskReviewStatus: Int = SQL(
-          """SELECT review_status FROM task_review WHERE id = {primaryTaskId}"""
+        val (primaryTaskReviewStatus: Int, primaryTaskReviewRequestedBy: Int) = SQL(
+          """SELECT review_status, review_requested_by FROM task_review WHERE id = {primaryTaskId}"""
         ).on(
             "primaryTaskId" -> primaryTaskId
           )
-          .as(scalar[Int].singleOpt)
-          .getOrElse(fallbackInteger)
-
-        val primaryTaskReviewRequestedBy: Int = SQL(
-          """SELECT review_requested_by FROM task_review WHERE id = {primaryTaskId}"""
-        ).on(
-            "primaryTaskId" -> primaryTaskId
-          )
-          .as(scalar[Int].singleOpt)
-          .getOrElse(fallbackInteger)
+          .as((scalar[Int] ~ scalar[Int]).singleOpt)
+          .getOrElse((fallbackInteger, fallbackInteger))
 
         val lockedTasks = this.withListLocking(user, Some(TaskType())) { () =>
           this.taskDAL.retrieveListById(-1, 0)(tasksToAdd)
@@ -236,12 +221,10 @@ class TaskBundleRepository @Inject() (
           } catch {
             case e: Exception => this.logger.warn(e.getMessage)
           }
+
           // Update the status of all tasks in the bundle to match the status of the primary task
           SQL(
-            """UPDATE tasks 
-             SET status = {primaryTaskStatus} 
-             WHERE id = {taskId}
-          """
+            """UPDATE tasks SET status = {primaryTaskStatus} WHERE id = {taskId}"""
           ).on(
               "primaryTaskStatus" -> primaryTaskStatus,
               "taskId"            -> task.id
@@ -249,7 +232,7 @@ class TaskBundleRepository @Inject() (
             .executeUpdate()
 
           SQL"""INSERT INTO task_review (task_id, review_status, review_requested_by) 
-                VALUES (${task.id}, ${primaryTaskReviewStatus}, ${primaryTaskReviewRequestedBy})"""
+                      VALUES (${task.id}, ${primaryTaskReviewStatus}, ${primaryTaskReviewRequestedBy})"""
             .executeUpdate()
 
           this.cacheManager.withOptionCaching { () =>
