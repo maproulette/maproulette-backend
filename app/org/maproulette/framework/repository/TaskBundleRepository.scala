@@ -136,48 +136,17 @@ class TaskBundleRepository @Inject() (
       taskIds: List[Long]
   ): Unit = {
     withMRTransaction { implicit c =>
-      // Unset bundle_id for tasks not in the taskids param
-      SQL(
-        """UPDATE tasks 
-             SET bundle_id = NULL
-             WHERE bundle_id = {bundleId} AND id NOT IN ({taskIds})
-          """
-      ).on(
-          "bundleId" -> bundleId,
-          "taskIds"  -> taskIds
-        )
-        .executeUpdate()
-
       // Remove previous tasks from the bundle join table and unlock them if necessary
-      val tasks = this.retrieveTasks(
+      val currentTaskIds = this.retrieveTasks(
         Query.simple(List(BaseParameter("bundle_id", bundleId, table = Some("tb"))))
-      )
+      ).map(_.id)
 
-      for (task <- tasks) {
-        if (!task.isBundlePrimary.getOrElse(false) && !taskIds.contains(task.id)) {
-          SQL(
-            s"""DELETE FROM task_bundles WHERE bundle_id = $bundleId AND task_id = ${task.id}"""
-          ).executeUpdate()
-          try {
-            this.unlockItem(user, task)
-          } catch {
-            case e: Exception => logger.warn(e.getMessage)
-          }
-          this.cacheManager.withOptionCaching { () =>
-            Some(task.copy(bundleId = None, isBundlePrimary = None))
-          }
-        }
+      val removeTaskIds = currentTaskIds.filter(taskId => !taskIds.contains(taskId))
+      if(removeTaskIds.nonEmpty) {
+        this.unbundleTasks(user, bundleId, removeTaskIds, List.empty)
       }
 
-      // Add tasks we are resetting to the bundle, and lock them
-      val existingTasks = SQL(
-        """SELECT task_id FROM task_bundles WHERE bundle_id = {bundleId}"""
-      ).on(
-          "bundleId" -> bundleId
-        )
-        .as(SqlParser.long("task_id").*)
-
-      val tasksToAdd = taskIds.filterNot(existingTasks.contains)
+      val tasksToAdd = taskIds.filterNot(currentTaskIds.contains)
 
       if (tasksToAdd.nonEmpty) {
         val sqlQuery =
