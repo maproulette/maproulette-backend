@@ -61,11 +61,10 @@ POST     /taskBundle/:id                             @org.maproulette.framework.
 #     required: true
 #   - name: primaryId
 #     in: query
-#     description: The task ids the bundle will reset to
+#     description: The primary task id of the bundle
 #   - name: taskIds
 #     in: query
-#     description: The primary task id of the bundle
-
+#     description: The task ids the bundle will reset to
 ###
 POST     /taskBundle/:id/reset                          @org.maproulette.framework.controller.TaskBundleController.resetTaskBundle(id: Long, primaryId: Long, taskIds: List[Long])
 ###
