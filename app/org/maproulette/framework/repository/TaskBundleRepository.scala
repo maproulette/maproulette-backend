@@ -297,7 +297,7 @@ class TaskBundleRepository @Inject() (
   def deleteTaskBundle(user: User, bundleId: Long): Unit = {
     this.withMRConnection { implicit c =>
       val primaryTaskId = SQL(
-        """SELECT task_id FROM tasks WHERE bundle_id = {bundleId} AND is_bundle_primary = true"""
+        """SELECT id FROM tasks WHERE bundle_id = {bundleId} AND is_bundle_primary = true"""
       ).on("bundleId" -> bundleId)
         .as(scalar[Long].singleOpt)
         .getOrElse(0L)
