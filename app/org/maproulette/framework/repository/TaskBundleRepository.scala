@@ -142,77 +142,95 @@ class TaskBundleRepository @Inject() (
         .map(_.id)
 
       // Remove previous tasks from the bundle join table and unlock them if necessary
-      val removeTaskIds = currentTaskIds.filter(taskId => !taskIds.contains(taskId))
+      val tasksToRemove = currentTaskIds.filter(taskId => !taskIds.contains(taskId))
 
-      if (removeTaskIds.nonEmpty) {
-        this.unbundleTasks(user, bundleId, removeTaskIds, List.empty)
+      if (tasksToRemove.nonEmpty) {
+        this.unbundleTasks(user, bundleId, tasksToRemove, List.empty)
       }
 
       // Filter for tasks that need to be added back to the bundle.
       val tasksToAdd = taskIds.filterNot(currentTaskIds.contains)
 
       if (tasksToAdd.nonEmpty) {
-        val sqlQuery =
-          s"""INSERT INTO task_bundles (bundle_id, task_id) VALUES ($bundleId, {taskId})"""
-        val parameters = tasksToAdd.map(taskId => Seq[NamedParameter]("taskId" -> taskId))
+        this.bundleTasks(user, bundleId, tasksToAdd)
+      }
+    }
+  }
 
-        BatchSql(sqlQuery, parameters.head, parameters.tail: _*).execute()
-        val primaryTaskId = SQL(
-          """SELECT id FROM tasks WHERE bundle_id = {bundleId} AND is_bundle_primary = true"""
-        ).on("bundleId" -> bundleId)
-          .as(scalar[Int].singleOpt)
-          .getOrElse(0)
+  /**
+    * Adds tasks to a bundle.
+    *
+    * @param bundleId The id of the bundle
+    */
+  def bundleTasks(
+      user: User,
+      bundleId: Long,
+      taskIds: List[Long]
+  ): Unit = {
+    this.withMRConnection { implicit c =>
+      val sqlQuery =
+        s"""INSERT INTO task_bundles (bundle_id, task_id) VALUES ($bundleId, {taskId})"""
+      val parameters = taskIds.map(taskId => Seq[NamedParameter]("taskId" -> taskId))
 
-        val primaryTaskStatus: Int = SQL("""SELECT status FROM tasks WHERE id = {primaryTaskId}""")
-          .on("primaryTaskId" -> primaryTaskId)
-          .as(scalar[Int].singleOpt)
-          .getOrElse(0)
+      BatchSql(sqlQuery, parameters.head, parameters.tail: _*).execute()
+      val primaryTaskId = SQL(
+        """SELECT id FROM tasks WHERE bundle_id = {bundleId} AND is_bundle_primary = true"""
+      ).on("bundleId" -> bundleId)
+        .as(scalar[Int].singleOpt)
+        .getOrElse(0)
 
-        val (primaryTaskReviewStatus: Int, primaryTaskReviewRequestedBy: Int) = SQL(
-          """SELECT review_status, review_requested_by FROM task_review WHERE id = {primaryTaskId}"""
-        ).on("primaryTaskId" -> primaryTaskId)
-          .as((scalar[Int] ~ scalar[Int]).singleOpt)
-          .getOrElse((0, 0))
+      val primaryTaskStatus: Int = SQL("""SELECT status FROM tasks WHERE id = {primaryTaskId}""")
+        .on("primaryTaskId" -> primaryTaskId)
+        .as(scalar[Int].singleOpt)
+        .getOrElse(0)
 
-        SQL(
-          s"""UPDATE tasks SET bundle_id = {bundleId}, status = $primaryTaskStatus
+      SQL(
+        s"""UPDATE tasks SET bundle_id = {bundleId}, status = $primaryTaskStatus
               WHERE bundle_id IS NULL AND id IN ({inList})"""
-        ).on(
-            "bundleId" -> bundleId,
-            "inList"   -> tasksToAdd
-          )
-          .executeUpdate()
+      ).on(
+          "bundleId" -> bundleId,
+          "inList"   -> taskIds
+        )
+        .executeUpdate()
 
-        SQL(
-          """INSERT INTO task_review (task_id, review_status, review_requested_by) 
-              SELECT id, {reviewStatus}, {reviewRequestedBy}
-              FROM tasks WHERE id IN ({inList})"""
-        ).on(
-            "reviewStatus"      -> primaryTaskReviewStatus,
-            "reviewRequestedBy" -> primaryTaskReviewRequestedBy,
-            "inList"            -> tasksToAdd
-          )
-          .executeUpdate()
+      val taskReviewQuery = SQL(
+        """SELECT review_status, review_requested_by FROM task_review WHERE task_id = {primaryTaskId}"""
+      ).on("primaryTaskId" -> primaryTaskId)
+        .as((scalar[Int] ~ scalar[Int]).singleOpt)
 
-        val lockedTasks = this.withListLocking(user, Some(TaskType())) { () =>
-          this.taskDAL.retrieveListById(-1, 0)(tasksToAdd)
-        }
-        lockedTasks.foreach { task =>
-          try {
-            this.lockItem(user, task)
-          } catch {
-            case e: Exception =>
-              this.logger.warn(e.getMessage)
-          }
-          this.cacheManager.withOptionCaching { () =>
-            Some(
-              task.copy(
-                bundleId = Some(bundleId),
-                status = Some(primaryTaskStatus),
-                isBundlePrimary = Some(primaryTaskId == task.id)
-              )
+      taskReviewQuery match {
+        case Some((primaryTaskReviewStatus ~ primaryTaskReviewRequestedBy)) =>
+          SQL(
+            """INSERT INTO task_review (task_id, review_status, review_requested_by) 
+            SELECT id, {reviewStatus}, {reviewRequestedBy}
+            FROM tasks WHERE id IN ({inList})"""
+          ).on(
+              "reviewStatus"      -> primaryTaskReviewStatus,
+              "reviewRequestedBy" -> primaryTaskReviewRequestedBy,
+              "inList"            -> taskIds
             )
-          }
+            .executeUpdate()
+        case None =>
+      }
+
+      val lockedTasks = this.withListLocking(user, Some(TaskType())) { () =>
+        this.taskDAL.retrieveListById(-1, 0)(taskIds)
+      }
+      lockedTasks.foreach { task =>
+        try {
+          this.lockItem(user, task)
+        } catch {
+          case e: Exception =>
+            this.logger.warn(e.getMessage)
+        }
+        this.cacheManager.withOptionCaching { () =>
+          Some(
+            task.copy(
+              bundleId = Some(bundleId),
+              status = Some(primaryTaskStatus),
+              isBundlePrimary = Some(primaryTaskId == task.id)
+            )
+          )
         }
       }
     }
