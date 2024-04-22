@@ -127,7 +127,6 @@ class TaskBundleRepository @Inject() (
     *
     * @param bundleId The id of the bundle
     * @param taskIds The task ids the bundle will reset to
-    * @param primaryTaskId The primary task id of the bundle
     */
   def resetTaskBundle(
       user: User,
