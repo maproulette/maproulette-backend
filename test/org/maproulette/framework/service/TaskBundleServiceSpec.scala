@@ -38,7 +38,6 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
         this.service.createTaskBundle(
           User.superUser,
           "my bundle",
-          Some(task1.id),
           List(task1.id, task2.id)
         )
       response.taskIds.length mustEqual 2
@@ -59,7 +58,6 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
         this.service.createTaskBundle(
           User.superUser,
           "my bundle again",
-          Some(task1.id),
           List(task1.id, task2.id)
         )
       }
@@ -68,7 +66,7 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
     "not create a task Bundle with no tasks" taggedAs (TaskTag) in {
       // Cannot create a bundle with no tasks
       intercept[InvalidException] {
-        this.service.createTaskBundle(User.superUser, "my bundle again", Some(0), List())
+        this.service.createTaskBundle(User.superUser, "my bundle again", List())
       }
     }
 
@@ -106,7 +104,6 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
         this.service.createTaskBundle(
           User.superUser,
           "bad bundle",
-          Some(task1.id),
           List(task1.id, task2.id)
         )
       }
@@ -128,7 +125,6 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
         this.service.createTaskBundle(
           User.superUser,
           "my bundle for get",
-          Some(task1.id),
           List(task1.id, task2.id)
         )
 
@@ -153,7 +149,6 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
         .createTaskBundle(
           User.superUser,
           "my bundle for delete",
-          Some(task1.id),
           List(task1.id, task2.id)
         )
 
@@ -187,7 +182,6 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
         .createTaskBundle(
           User.superUser,
           "my bundle for delete",
-          Some(task1.id),
           List(task1.id, task2.id)
         )
 
@@ -226,7 +220,6 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
         .createTaskBundle(
           User.superUser,
           "my bundle for unbundle",
-          Some(task1.id),
           List(task1.id, task2.id)
         )
 
