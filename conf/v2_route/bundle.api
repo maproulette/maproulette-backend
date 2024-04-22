@@ -44,7 +44,7 @@ POST    /taskBundle                                 @org.maproulette.framework.c
 #     in: query
 #     description: The tasks in the bundle will be locked by the user.
 ###
-GET     /taskBundle/:id                             @org.maproulette.framework.controller.TaskBundleController.getTaskBundle(id:Long, lockTasks:Boolean ?= false)
+POST     /taskBundle/:id                             @org.maproulette.framework.controller.TaskBundleController.getTaskBundle(id:Long, lockTasks:Boolean ?= false)
 ###
 # tags: [ Bundle ]
 # summary: Resets a Task Bundle
