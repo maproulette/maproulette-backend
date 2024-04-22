@@ -270,11 +270,10 @@ class TaskBundleController @Inject() (
     */
   def resetTaskBundle(
       id: Long,
-      primaryTaskId: Long,
       taskIds: List[Long]
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
-      this.serviceManager.taskBundle.resetTaskBundle(user, id, primaryTaskId, taskIds)
+      this.serviceManager.taskBundle.resetTaskBundle(user, id, taskIds)
       Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id)))
     }
   }
@@ -301,12 +300,11 @@ class TaskBundleController @Inject() (
     * Delete bundle.
     *
     * @param id        The id for the bundle
-    * @param primaryId optional task id to no unlock after deleting this bundle
     */
-  def deleteTaskBundle(id: Long, primaryId: Option[Long] = None): Action[AnyContent] =
+  def deleteTaskBundle(id: Long): Action[AnyContent] =
     Action.async { implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
-        this.serviceManager.taskBundle.deleteTaskBundle(user, id, primaryId)
+        this.serviceManager.taskBundle.deleteTaskBundle(user, id)
         Ok
       }
     }

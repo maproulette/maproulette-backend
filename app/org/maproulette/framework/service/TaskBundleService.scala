@@ -99,10 +99,9 @@ class TaskBundleService @Inject() (
   def resetTaskBundle(
       user: User,
       bundleId: Long,
-      primaryTaskId: Long,
       taskIds: List[Long]
   ): TaskBundle = {
-    this.repository.resetTaskBundle(user, bundleId, primaryTaskId, taskIds)
+    this.repository.resetTaskBundle(user, bundleId, taskIds)
     this.getTaskBundle(user, bundleId)
   }
 
@@ -128,7 +127,7 @@ class TaskBundleService @Inject() (
     *
     * @param bundleId The id of the bundle
     */
-  def deleteTaskBundle(user: User, bundleId: Long, primaryTaskId: Option[Long] = None): Unit = {
+  def deleteTaskBundle(user: User, bundleId: Long): Unit = {
     val bundle = this.getTaskBundle(user, bundleId)
 
     // Verify permissions to delete this bundle
@@ -138,7 +137,7 @@ class TaskBundleService @Inject() (
       this.permission.hasObjectWriteAccess(challenge.get, user)
     }
 
-    this.repository.deleteTaskBundle(user, bundle, primaryTaskId)
+    this.repository.deleteTaskBundle(user, bundle.bundleId)
   }
 
   /**

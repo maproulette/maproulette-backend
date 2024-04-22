@@ -59,14 +59,11 @@ POST     /taskBundle/:id                             @org.maproulette.framework.
 #     in: path
 #     description: The id of the Task Bundle
 #     required: true
-#   - name: primaryId
-#     in: query
-#     description: The primary task id of the bundle
 #   - name: taskIds
 #     in: query
 #     description: The task ids the bundle will reset to
 ###
-POST     /taskBundle/:id/reset                          @org.maproulette.framework.controller.TaskBundleController.resetTaskBundle(id: Long, primaryId: Long, taskIds: List[Long])
+POST     /taskBundle/:id/reset                          @org.maproulette.framework.controller.TaskBundleController.resetTaskBundle(id: Long, taskIds: List[Long])
 ###
 # tags: [ Bundle ]
 # summary: Deletes a Task Bundle
@@ -81,10 +78,8 @@ POST     /taskBundle/:id/reset                          @org.maproulette.framewo
 #     in: path
 #     description: The id of the Task Bundle
 #     required: true
-#   - name: primaryId
-#     in: query
 ###
-DELETE     /taskBundle/:id                          @org.maproulette.framework.controller.TaskBundleController.deleteTaskBundle(id:Long, primaryId:Option[Long])
+DELETE     /taskBundle/:id                          @org.maproulette.framework.controller.TaskBundleController.deleteTaskBundle(id:Long)
 ###
 # tags: [ Bundle ]
 # summary: Unbundles tasks from Task Bundle
