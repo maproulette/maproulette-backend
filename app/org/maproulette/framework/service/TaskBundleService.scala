@@ -100,6 +100,14 @@ class TaskBundleService @Inject() (
       bundleId: Long,
       taskIds: List[Long]
   ): TaskBundle = {
+    val bundle = this.getTaskBundle(user, bundleId)
+
+    if (!permission.isSuperUser(user) && bundle.ownerId != user.id) {
+      throw new IllegalAccessException(
+        "Only a super user or the original user can reset this bundle."
+      )
+    }
+
     this.repository.resetTaskBundle(user, bundleId, taskIds)
     this.getTaskBundle(user, bundleId)
   }
@@ -116,6 +124,13 @@ class TaskBundleService @Inject() (
       preventTaskIdUnlocks: List[Long]
   )(): TaskBundle = {
     val bundle = this.getTaskBundle(user, bundleId)
+
+    // Verify permissions to modify this bundle
+    if (!permission.isSuperUser(user) && bundle.ownerId != user.id) {
+      throw new IllegalAccessException(
+        "Only a super user or the original user can delete this bundle."
+      )
+    }
 
     this.repository.unbundleTasks(user, bundleId, taskIds, preventTaskIdUnlocks)
     this.getTaskBundle(user, bundleId)
