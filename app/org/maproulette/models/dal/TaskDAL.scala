@@ -1161,7 +1161,7 @@ class TaskDAL @Inject() (
           case Some(p) =>
             appendInWhereClause(
               whereClause,
-              s"tasks.priority = $p AND tasks.status != ${Task.STATUS_SKIPPED} AND tasks.status != ${Task.STATUS_TOO_HARD} AND (tasks.completed_by != ${user.id} OR tasks.completed_by IS NULL)"
+              s"tasks.priority = $p AND (tasks.completed_by != ${user.id} OR tasks.completed_by IS NULL)"
             )
           case None => // Ignore
         }
