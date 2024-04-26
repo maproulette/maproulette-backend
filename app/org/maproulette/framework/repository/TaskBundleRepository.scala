@@ -9,8 +9,6 @@ import org.slf4j.LoggerFactory
 
 import anorm.ToParameterValue
 import anorm.SqlParser.scalar
-
-import org.maproulette.cache.CacheManager
 import anorm._, postgresql._
 import javax.inject.{Inject, Singleton}
 import org.maproulette.exception.InvalidException
@@ -35,9 +33,8 @@ class TaskBundleRepository @Inject() (
 ) extends RepositoryMixin
     with TaskParserMixin
     with Locking[Task] {
-  protected val logger                       = LoggerFactory.getLogger(this.getClass)
-  implicit val baseTable: String             = Task.TABLE
-  val cacheManager: CacheManager[Long, Task] = this.taskRepository.cacheManager
+  protected val logger           = LoggerFactory.getLogger(this.getClass)
+  implicit val baseTable: String = Task.TABLE
 
   /**
     * Inserts a new task bundle with the given tasks, assigning ownership of
@@ -74,9 +71,6 @@ class TaskBundleRepository @Inject() (
 
       rowId match {
         case Some(bundleId: Long) =>
-          val sqlInsertTaskBundles =
-            s"""INSERT INTO task_bundles (task_id, bundle_id) VALUES ({taskId}, $bundleId)"""
-
           // Update the task object to bind it to the bundle
           SQL(s"""UPDATE tasks SET bundle_id = $bundleId
                WHERE id IN ({inList})""")
@@ -92,6 +86,8 @@ class TaskBundleRepository @Inject() (
             case None => // Handle the case where primaryId is None
           }
 
+          val sqlInsertTaskBundles =
+            s"""INSERT INTO task_bundles (task_id, bundle_id) VALUES ({taskId}, $bundleId)"""
           val parameters = lockedTasks.map(task => Seq[NamedParameter]("taskId" -> task.id))
           BatchSql(sqlInsertTaskBundles, parameters.head, parameters.tail: _*).execute()
 
@@ -101,14 +97,6 @@ class TaskBundleRepository @Inject() (
               this.lockItem(user, task)
             } catch {
               case e: Exception => this.logger.warn(e.getMessage)
-            }
-            this.cacheManager.withOptionCaching { () =>
-              Some(
-                task.copy(
-                  bundleId = Some(bundleId),
-                  isBundlePrimary = Some(primaryId == task.id)
-                )
-              )
             }
           }
 
@@ -223,15 +211,6 @@ class TaskBundleRepository @Inject() (
           case e: Exception =>
             this.logger.warn(e.getMessage)
         }
-        this.cacheManager.withOptionCaching { () =>
-          Some(
-            task.copy(
-              bundleId = Some(bundleId),
-              status = Some(primaryTaskStatus),
-              isBundlePrimary = Some(primaryTaskId == task.id)
-            )
-          )
-        }
       }
     }
   }
@@ -274,11 +253,6 @@ class TaskBundleRepository @Inject() (
             case Some(_) =>
               SQL(s"""DELETE FROM task_bundles
                       WHERE bundle_id = $bundleId AND task_id = ${task.id}""").executeUpdate()
-              this.cacheManager.withOptionCaching { () =>
-                Some(
-                  task.copy(bundleId = None, status = Some(STATUS_CREATED))
-                )
-              }
               if (!preventTaskIdUnlocks.contains(task.id)) {
                 try {
                   this.unlockItem(user, task)
@@ -314,56 +288,41 @@ class TaskBundleRepository @Inject() (
     */
   def deleteTaskBundle(user: User, bundleId: Long): Unit = {
     this.withMRConnection { implicit c =>
-      val primaryTaskId = SQL(
-        """SELECT id FROM tasks WHERE bundle_id = {bundleId} AND is_bundle_primary = true"""
-      ).on("bundleId" -> bundleId)
-        .as(scalar[Long].singleOpt)
-        .getOrElse(0L)
-
+      // Update tasks to set bundle_id and is_bundle_primary to NULL
       SQL(
         """UPDATE tasks 
-         SET bundle_id = NULL, 
-             is_bundle_primary = NULL 
-         WHERE bundle_id = {bundleId} OR id = {primaryTaskId}"""
-      ).on(
-          Symbol("bundleId")      -> bundleId,
-          Symbol("primaryTaskId") -> primaryTaskId
-        )
+          SET bundle_id = NULL, 
+              is_bundle_primary = NULL 
+          WHERE bundle_id = {bundleId}"""
+      ).on("bundleId" -> bundleId)
         .executeUpdate()
-
-      val tasks = this.retrieveTasks(
-        Query.simple(List(BaseParameter("bundle_id", bundleId, table = Some("tb"))))
-      )
-      val inList = tasks.map(_.id).mkString(",")
-
-      SQL(s"UPDATE tasks SET bundle_id = NULL WHERE id IN ($inList)").executeUpdate()
-
-      if (primaryTaskId != 0) {
-        // Unlock tasks (everything but the primary task id)
-        tasks.foreach { task =>
-          if (task.id != primaryTaskId) {
-            try {
-              this.unlockItem(user, task)
-            } catch {
-              case e: Exception => this.logger.warn(e.getMessage)
-            }
-          }
-          this.cacheManager.withOptionCaching { () =>
-            Some(
-              task.copy(
-                bundleId = None,
-                isBundlePrimary = None
-              )
-            )
-
-          }
-        }
-      }
 
       // Delete from task_bundles which will also cascade delete from bundles
       SQL("DELETE FROM task_bundles WHERE bundle_id = {bundleId}")
-        .on(Symbol("bundleId") -> bundleId)
+        .on("bundleId" -> bundleId)
         .executeUpdate()
+
+      // Get the primary task ID
+      val primaryTaskId = SQL(
+        """SELECT id FROM tasks WHERE bundle_id = {bundleId} AND is_bundle_primary = true"""
+      ).on("bundleId" -> bundleId)
+        .as(scalar[Option[Long]].singleOpt)
+        .getOrElse(0)
+
+      // Retrieve tasks
+      val tasks = this.retrieveTasks(
+        Query.simple(List(BaseParameter("bundle_id", bundleId, table = Some("tb"))))
+      )
+
+      tasks.foreach { task =>
+        if (task.id != primaryTaskId) {
+          try {
+            this.unlockItem(user, task)
+          } catch {
+            case e: Exception => this.logger.warn(e.getMessage)
+          }
+        }
+      }
     }
   }
 
