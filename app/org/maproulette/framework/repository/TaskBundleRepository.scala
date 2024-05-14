@@ -204,6 +204,7 @@ class TaskBundleRepository @Inject() (
       val lockedTasks = this.withListLocking(user, Some(TaskType())) { () =>
         this.taskDAL.retrieveListById(-1, 0)(taskIds)
       }
+
       lockedTasks.foreach { task =>
         try {
           this.lockItem(user, task)
@@ -227,6 +228,10 @@ class TaskBundleRepository @Inject() (
       preventTaskIdUnlocks: List[Long]
   ): Unit = {
     this.withMRConnection { implicit c =>
+      val tasks = this.retrieveTasks(
+        Query.simple(List(BaseParameter("bundle_id", bundleId, table = Some("tb"))))
+      )
+
       // Unset any bundle_id on individual tasks (this is set when task is completed)
       SQL(s"""UPDATE tasks SET bundle_id = NULL
               WHERE bundle_id = {bundleId}
@@ -238,28 +243,12 @@ class TaskBundleRepository @Inject() (
         )
         .executeUpdate()
 
-      // Remove task from bundle join table.
-      val tasks = this.retrieveTasks(
-        Query.simple(
-          List(
-            BaseParameter("bundle_id", bundleId, table = Some("tb"))
-          )
-        )
-      )
-
       for (task <- tasks) {
         if (!task.isBundlePrimary.getOrElse(false)) {
-          taskIds.find(id => id == task.id) match {
+          taskIds.find(_ == task.id) match {
             case Some(_) =>
               SQL(s"""DELETE FROM task_bundles
                       WHERE bundle_id = $bundleId AND task_id = ${task.id}""").executeUpdate()
-              if (!preventTaskIdUnlocks.contains(task.id)) {
-                try {
-                  this.unlockItem(user, task)
-                } catch {
-                  case e: Exception => this.logger.warn(e.getMessage)
-                }
-              }
               // This is in order to pass the filters so the task is displayed as "available" in task searching and maps.
               SQL(s"DELETE FROM task_review tr WHERE tr.task_id = ${task.id}").executeUpdate()
 
@@ -274,6 +263,13 @@ class TaskBundleRepository @Inject() (
                 )
                 .executeUpdate()
 
+              if (!preventTaskIdUnlocks.contains(task.id)) {
+                try {
+                  this.unlockItem(user, task)
+                } catch {
+                  case e: Exception => this.logger.warn(e.getMessage)
+                }
+              }
             case None => // do nothing
           }
         }
@@ -288,6 +284,11 @@ class TaskBundleRepository @Inject() (
     */
   def deleteTaskBundle(user: User, bundleId: Long): Unit = {
     this.withMRConnection { implicit c =>
+      // Retrieve tasks
+      val tasks = this.retrieveTasks(
+        Query.simple(List(BaseParameter("bundle_id", bundleId, table = Some("tb"))))
+      )
+
       // Update tasks to set bundle_id and is_bundle_primary to NULL
       SQL(
         """UPDATE tasks 
@@ -302,20 +303,8 @@ class TaskBundleRepository @Inject() (
         .on("bundleId" -> bundleId)
         .executeUpdate()
 
-      // Get the primary task ID
-      val primaryTaskId = SQL(
-        """SELECT id FROM tasks WHERE bundle_id = {bundleId} AND is_bundle_primary = true"""
-      ).on("bundleId" -> bundleId)
-        .as(scalar[Option[Long]].singleOpt)
-        .getOrElse(0)
-
-      // Retrieve tasks
-      val tasks = this.retrieveTasks(
-        Query.simple(List(BaseParameter("bundle_id", bundleId, table = Some("tb"))))
-      )
-
       tasks.foreach { task =>
-        if (task.id != primaryTaskId) {
+        if (!task.isBundlePrimary.getOrElse(false)) {
           try {
             this.unlockItem(user, task)
           } catch {
