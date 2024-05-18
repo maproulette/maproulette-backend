@@ -92,11 +92,14 @@ libraryDependencies ++= Seq(
   // and are served by the webserver at route '/assets/lib/swagger-ui/'. We have a few customized swagger files in dir
   // 'public/swagger'.
   "org.webjars"             % "swagger-ui"      % "5.10.3",
-  "org.playframework.anorm" %% "anorm"          % "2.6.10",
-  "org.playframework.anorm" %% "anorm-postgres" % "2.6.10",
-  "org.postgresql"          % "postgresql"      % "42.5.0",
-  "net.postgis"             % "postgis-jdbc"    % "2021.1.0",
-  "joda-time"               % "joda-time"       % "2.12.0",
+  "org.playframework.anorm" %% "anorm"          % "2.7.0",
+  "org.playframework.anorm" %% "anorm-postgres" % "2.7.0",
+  "org.postgresql"          % "postgresql"      % "42.7.3", // https://github.com/pgjdbc/pgjdbc/releases
+  // slf4j-api version 2.0.x and later use the ServiceLoader mechanism, so exclude the slf4j-api from the postgis-jdbc.
+  // At some point other libraries will need to be updated to use the ServiceLoader mechanism and we can remove this.
+  // See https://www.slf4j.org/codes.html#ignoredBindings
+  "net.postgis" % "postgis-jdbc" % "2023.1.0" exclude ("org.slf4j", "slf4j-api"), // https://github.com/postgis/postgis-java/releases
+  "joda-time"   % "joda-time"    % "2.12.0",
   // TODO(ljdelight): The vividsolutions package was moved to the Eclipse Foundation as LocationTech.
   //                  See the upgrade guide https://github.com/locationtech/jts/blob/master/MIGRATION.md
   "com.vividsolutions"   % "jts"                 % "1.13",
