@@ -100,10 +100,9 @@ libraryDependencies ++= Seq(
   // See https://www.slf4j.org/codes.html#ignoredBindings
   "net.postgis" % "postgis-jdbc" % "2023.1.0" exclude ("org.slf4j", "slf4j-api"), // https://github.com/postgis/postgis-java/releases
   "joda-time"   % "joda-time"    % "2.12.0",
-  // TODO(ljdelight): The vividsolutions package was moved to the Eclipse Foundation as LocationTech.
-  //                  See the upgrade guide https://github.com/locationtech/jts/blob/master/MIGRATION.md
-  "com.vividsolutions"   % "jts"                 % "1.13",
-  "org.wololo"           % "jts2geojson"         % "0.14.3",
+  // https://github.com/locationtech/jts/releases
+  "org.locationtech.jts" % "jts-core"            % "1.19.0",
+  "org.wololo"           % "jts2geojson"         % "0.18.1", // https://github.com/bjornharrtell/jts2geojson/releases
   "org.apache.commons"   % "commons-lang3"       % "3.12.0",
   "commons-codec"        % "commons-codec"       % "1.14",
   "com.typesafe.play"    %% "play-mailer"        % "8.0.1",
