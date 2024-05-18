@@ -107,9 +107,9 @@ libraryDependencies ++= Seq(
   "commons-codec"        % "commons-codec"       % "1.14",
   "com.typesafe.play"    %% "play-mailer"        % "8.0.1",
   "com.typesafe.play"    %% "play-mailer-guice"  % "8.0.1",
-  "com.typesafe.akka"    %% "akka-cluster-tools" % "2.6.20",
-  "com.typesafe.akka"    %% "akka-cluster-typed" % "2.6.20",
-  "com.typesafe.akka"    %% "akka-slf4j"         % "2.6.20",
+  "com.typesafe.akka"    %% "akka-cluster-tools" % "2.6.21",
+  "com.typesafe.akka"    %% "akka-cluster-typed" % "2.6.21",
+  "com.typesafe.akka"    %% "akka-slf4j"         % "2.6.21",
   "net.debasishg"        %% "redisclient"        % "3.42",
   "com.github.blemale"   %% "scaffeine"          % "5.2.1",
   "com.github.tototoshi" %% "scala-csv"          % "1.3.10"
