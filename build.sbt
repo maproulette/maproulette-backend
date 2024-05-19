@@ -82,12 +82,12 @@ libraryDependencies ++= Seq(
   guice,
   // NOTE: Be careful upgrading sangria and play-json as binary incompatibilities can break graphql and the entire UI.
   //       See the compatibility matrix here https://github.com/sangria-graphql/sangria-play-json
-  "org.sangria-graphql"    %% "sangria-play-json"  % "2.0.1",
-  "org.sangria-graphql"    %% "sangria"            % "2.0.1",
-  "com.typesafe.play"      %% "play-json-joda"     % "2.8.2",
-  "com.typesafe.play"      %% "play-json"          % "2.8.2",
-  "org.scalatestplus.play" %% "scalatestplus-play" % "5.1.0" % Test,
-  "org.scalatestplus"      %% "mockito-4-5"        % "3.2.12.0" % Test,
+  "org.sangria-graphql"    %% "sangria-play-json-play29" % "2.0.3",
+  "org.sangria-graphql"    %% "sangria"                  % "4.0.2",
+  "com.typesafe.play"      %% "play-json-joda"           % "2.10.5",
+  "com.typesafe.play"      %% "play-json"                % "2.10.5",
+  "org.scalatestplus.play" %% "scalatestplus-play"       % "5.1.0" % Test,
+  "org.scalatestplus"      %% "mockito-4-5"              % "3.2.12.0" % Test,
   // NOTE: The swagger-ui package is used to obtain the static distribution of swagger-ui, the files included at runtime
   // and are served by the webserver at route '/assets/lib/swagger-ui/'. We have a few customized swagger files in dir
   // 'public/swagger'.
@@ -99,14 +99,14 @@ libraryDependencies ++= Seq(
   // At some point other libraries will need to be updated to use the ServiceLoader mechanism and we can remove this.
   // See https://www.slf4j.org/codes.html#ignoredBindings
   "net.postgis" % "postgis-jdbc" % "2023.1.0" exclude ("org.slf4j", "slf4j-api"), // https://github.com/postgis/postgis-java/releases
-  "joda-time"   % "joda-time"    % "2.12.0",
+  "joda-time"   % "joda-time"    % "2.12.7",
   // https://github.com/locationtech/jts/releases
   "org.locationtech.jts" % "jts-core"            % "1.19.0",
   "org.wololo"           % "jts2geojson"         % "0.18.1", // https://github.com/bjornharrtell/jts2geojson/releases
   "org.apache.commons"   % "commons-lang3"       % "3.12.0",
   "commons-codec"        % "commons-codec"       % "1.14",
-  "com.typesafe.play"    %% "play-mailer"        % "8.0.1",
-  "com.typesafe.play"    %% "play-mailer-guice"  % "8.0.1",
+  "com.typesafe.play"    %% "play-mailer"        % "9.0.0",
+  "com.typesafe.play"    %% "play-mailer-guice"  % "9.0.0",
   "com.typesafe.akka"    %% "akka-cluster-tools" % "2.6.21",
   "com.typesafe.akka"    %% "akka-cluster-typed" % "2.6.21",
   "com.typesafe.akka"    %% "akka-slf4j"         % "2.6.21",

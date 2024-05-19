@@ -5,6 +5,15 @@ on:
   pull_request:
 
 jobs:
+  generate_app_secret:
+    runs-on: ubuntu-latest
+    outputs:
+      application_secret: ${{ steps.generate_app_secret.outputs.application_app_secret }}
+    steps:
+      - name: Generate Playframework APPLICATION_SECRET
+        id: generate_app_secret
+        run: echo "application_app_secret=$(openssl rand -base64 32)" >> "$GITHUB_OUTPUT"
+
   sbt_formatChecks_dependencyTree:
     runs-on: ubuntu-latest
     steps:
@@ -27,6 +36,7 @@ jobs:
 
   sbt_tests_jacoco:
     runs-on: ubuntu-latest
+    needs: generate_app_secret
     services:
       postgis11:
         image: postgis/postgis:13-3.3
@@ -48,6 +58,7 @@ jobs:
           distribution: 'temurin'
       - name: Run sbt tests with jacoco analysis
         env:
+          APPLICATION_SECRET: ${{ needs.generate_app_secret.outputs.application_secret }}
           CI: true
           MR_TEST_DB_NAME: "mr_test"
           MR_TEST_DB_USER: "osm"
@@ -57,6 +68,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+    needs: generate_app_secret
     services:
       postgis11:
         image: postgis/postgis:13-3.3
@@ -95,6 +107,7 @@ jobs:
     - name: Run maproulette and the maproulette-java-client integration tests
       env:
         # maproulette overrides
+        APPLICATION_SECRET: ${{ needs.generate_app_secret.outputs.application_secret }}
         CI: true
         SBT_OPTS: "-Xms512M -Xmx1024M -Xss2M -XX:MaxMetaspaceSize=1024M"
         MR_SUPER_KEY: 1234
