@@ -164,7 +164,7 @@ case class VersionedRelation(
 ) extends VersionedObject {
 
   override def toChangeElement(changesetId: Int): Elem = {
-    <way>
+    <relation>
       {
       for (member <- members)
         yield <member/> % Attribute(
@@ -176,7 +176,7 @@ case class VersionedRelation(
       for (tagKV <- tags)
         yield <tag/> % Attribute("k", Text(tagKV._1), Attribute("v", Text(tagKV._2), Null))
     }
-    </way> % Attribute(
+    </relation> % Attribute(
       "visible",
       Text(visible.toString),
       Attribute(
