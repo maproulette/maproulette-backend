@@ -6,7 +6,7 @@
 package org.maproulette.framework.repository
 
 import org.slf4j.LoggerFactory
-
+import org.maproulette.cache.CacheManager
 import anorm.ToParameterValue
 import anorm.SqlParser.scalar
 import anorm._, postgresql._
@@ -33,8 +33,9 @@ class TaskBundleRepository @Inject() (
 ) extends RepositoryMixin
     with TaskParserMixin
     with Locking[Task] {
-  protected val logger           = LoggerFactory.getLogger(this.getClass)
-  implicit val baseTable: String = Task.TABLE
+  protected val logger                       = LoggerFactory.getLogger(this.getClass)
+  implicit val baseTable: String             = Task.TABLE
+  val cacheManager: CacheManager[Long, Task] = this.taskRepository.cacheManager
 
   /**
     * Inserts a new task bundle with the given tasks, assigning ownership of
@@ -97,6 +98,14 @@ class TaskBundleRepository @Inject() (
               this.lockItem(user, task)
             } catch {
               case e: Exception => this.logger.warn(e.getMessage)
+            }
+            this.cacheManager.withOptionCaching { () =>
+              Some(
+                task.copy(
+                  bundleId = Some(bundleId),
+                  isBundlePrimary = Some(primaryId == task.id)
+                )
+              )
             }
           }
 
@@ -212,6 +221,14 @@ class TaskBundleRepository @Inject() (
           case e: Exception =>
             this.logger.warn(e.getMessage)
         }
+        this.cacheManager.withOptionCaching { () =>
+          Some(
+            task.copy(
+              bundleId = Some(bundleId),
+              status = Some(primaryTaskStatus)
+            )
+          )
+        }
       }
     }
   }
@@ -269,6 +286,14 @@ class TaskBundleRepository @Inject() (
                 } catch {
                   case e: Exception => this.logger.warn(e.getMessage)
                 }
+                this.cacheManager.withOptionCaching { () =>
+                  Some(
+                    task.copy(
+                      bundleId = None,
+                      status = Some(STATUS_CREATED)
+                    )
+                  )
+                }
               }
             case None => // do nothing
           }
@@ -310,6 +335,14 @@ class TaskBundleRepository @Inject() (
           } catch {
             case e: Exception => this.logger.warn(e.getMessage)
           }
+        }
+        this.cacheManager.withOptionCaching { () =>
+          Some(
+            task.copy(
+              bundleId = None,
+              isBundlePrimary = None
+            )
+          )
         }
       }
     }
