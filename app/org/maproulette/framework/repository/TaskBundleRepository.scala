@@ -9,14 +9,16 @@ import org.slf4j.LoggerFactory
 import org.maproulette.cache.CacheManager
 import anorm.ToParameterValue
 import anorm.SqlParser.scalar
-import anorm._, postgresql._
+import anorm._
+import postgresql._
+
 import javax.inject.{Inject, Singleton}
 import org.maproulette.exception.InvalidException
 import org.maproulette.Config
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.BaseParameter
-import org.maproulette.framework.model.{Task, TaskBundle, User}
-import org.maproulette.framework.mixins.{TaskParserMixin, Locking}
+import org.maproulette.framework.model.{Task, TaskBundle, TaskReviewFields, User}
+import org.maproulette.framework.mixins.{Locking, TaskParserMixin}
 import org.maproulette.framework.model.Task.STATUS_CREATED
 import org.maproulette.data.TaskType
 import play.api.db.Database
@@ -286,15 +288,17 @@ class TaskBundleRepository @Inject() (
                 } catch {
                   case e: Exception => this.logger.warn(e.getMessage)
                 }
-                this.cacheManager.withOptionCaching { () =>
-                  Some(
-                    task.copy(
-                      bundleId = None,
-                      status = Some(STATUS_CREATED)
-                    )
-                  )
-                }
               }
+              this.cacheManager.withOptionCaching { () =>
+                Some(
+                  task.copy(
+                    bundleId = Option.empty[Long],
+                    status = Some(STATUS_CREATED),
+                    review = TaskReviewFields(),
+                  ),
+                )
+              }
+
             case None => // do nothing
           }
         }
@@ -339,8 +343,8 @@ class TaskBundleRepository @Inject() (
         this.cacheManager.withOptionCaching { () =>
           Some(
             task.copy(
-              bundleId = None,
-              isBundlePrimary = None
+              bundleId = Option.empty[Long],
+              isBundlePrimary = Some(false)
             )
           )
         }
