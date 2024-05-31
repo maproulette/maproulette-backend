@@ -294,8 +294,8 @@ class TaskBundleRepository @Inject() (
                   task.copy(
                     bundleId = Option.empty[Long],
                     status = Some(STATUS_CREATED),
-                    review = TaskReviewFields(),
-                  ),
+                    review = TaskReviewFields()
+                  )
                 )
               }
 
