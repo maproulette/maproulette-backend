@@ -6,7 +6,6 @@
 package org.maproulette.framework.repository
 
 import org.slf4j.LoggerFactory
-import org.maproulette.cache.CacheManager
 import anorm.ToParameterValue
 import anorm.SqlParser.scalar
 import anorm._
@@ -17,8 +16,8 @@ import org.maproulette.exception.InvalidException
 import org.maproulette.Config
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.BaseParameter
-import org.maproulette.framework.model.{Task, TaskBundle, TaskReviewFields, User}
 import org.maproulette.framework.mixins.{Locking, TaskParserMixin}
+import org.maproulette.framework.model.{Task, TaskBundle, User}
 import org.maproulette.framework.model.Task.STATUS_CREATED
 import org.maproulette.data.TaskType
 import play.api.db.Database
@@ -35,9 +34,8 @@ class TaskBundleRepository @Inject() (
 ) extends RepositoryMixin
     with TaskParserMixin
     with Locking[Task] {
-  protected val logger                       = LoggerFactory.getLogger(this.getClass)
-  implicit val baseTable: String             = Task.TABLE
-  val cacheManager: CacheManager[Long, Task] = this.taskRepository.cacheManager
+  protected val logger           = LoggerFactory.getLogger(this.getClass)
+  implicit val baseTable: String = Task.TABLE
 
   /**
     * Inserts a new task bundle with the given tasks, assigning ownership of
@@ -101,14 +99,7 @@ class TaskBundleRepository @Inject() (
             } catch {
               case e: Exception => this.logger.warn(e.getMessage)
             }
-            this.cacheManager.withOptionCaching { () =>
-              Some(
-                task.copy(
-                  bundleId = Some(bundleId),
-                  isBundlePrimary = Some(primaryId == task.id)
-                )
-              )
-            }
+            taskRepository.cacheManager.cache.remove(task.id)
           }
 
           TaskBundle(bundleId, user.id, lockedTasks.map(task => {
@@ -223,14 +214,7 @@ class TaskBundleRepository @Inject() (
           case e: Exception =>
             this.logger.warn(e.getMessage)
         }
-        this.cacheManager.withOptionCaching { () =>
-          Some(
-            task.copy(
-              bundleId = Some(bundleId),
-              status = Some(primaryTaskStatus)
-            )
-          )
-        }
+        taskRepository.cacheManager.cache.remove(task.id)
       }
     }
   }
@@ -289,16 +273,7 @@ class TaskBundleRepository @Inject() (
                   case e: Exception => this.logger.warn(e.getMessage)
                 }
               }
-              this.cacheManager.withOptionCaching { () =>
-                Some(
-                  task.copy(
-                    bundleId = Option.empty[Long],
-                    status = Some(STATUS_CREATED),
-                    review = TaskReviewFields()
-                  )
-                )
-              }
-
+              taskRepository.cacheManager.cache.remove(task.id)
             case None => // do nothing
           }
         }
@@ -340,14 +315,7 @@ class TaskBundleRepository @Inject() (
             case e: Exception => this.logger.warn(e.getMessage)
           }
         }
-        this.cacheManager.withOptionCaching { () =>
-          Some(
-            task.copy(
-              bundleId = Option.empty[Long],
-              isBundlePrimary = Some(false)
-            )
-          )
-        }
+        taskRepository.cacheManager.cache.remove(task.id)
       }
     }
   }
