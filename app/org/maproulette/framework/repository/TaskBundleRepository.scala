@@ -10,14 +10,13 @@ import org.slf4j.LoggerFactory
 import anorm.ToParameterValue
 import anorm.SqlParser.scalar
 import anorm._, postgresql._
-
 import javax.inject.{Inject, Singleton}
 import org.maproulette.exception.InvalidException
 import org.maproulette.Config
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.BaseParameter
-import org.maproulette.framework.mixins.{Locking, TaskParserMixin}
 import org.maproulette.framework.model.{Task, TaskBundle, User}
+import org.maproulette.framework.mixins.{TaskParserMixin, Locking}
 import org.maproulette.framework.model.Task.STATUS_CREATED
 import org.maproulette.data.TaskType
 import play.api.db.Database
