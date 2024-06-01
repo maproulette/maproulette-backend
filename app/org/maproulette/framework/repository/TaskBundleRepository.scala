@@ -6,10 +6,10 @@
 package org.maproulette.framework.repository
 
 import org.slf4j.LoggerFactory
+
 import anorm.ToParameterValue
 import anorm.SqlParser.scalar
-import anorm._
-import postgresql._
+import anorm._, postgresql._
 
 import javax.inject.{Inject, Singleton}
 import org.maproulette.exception.InvalidException
