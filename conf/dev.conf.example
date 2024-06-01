@@ -1,5 +1,11 @@
 include "application.conf"
 
+# The Play application secret key. It's okay for localhost dev conf to be public, but not for any public environment.
+# A secure way to get a distinct key is to run 'openssl rand -base64 32' and set the output as the secret key.
+# Play 2.9 requires a key of at least 32 characters https://github.com/maproulette/maproulette-backend/issues/1117
+play.http.secret.key = "DEVLOCAL_1z8rvducX6AaMTXQl4olw71YHj3MCFpRXXTB73TNnTc="
+play.http.secret.key = "${?APPLICATION_SECRET}"
+
 db.default {
   url="jdbc:postgresql://localhost:5432/mp_dev"
   url=${?MR_DATABASE_URL}
@@ -15,6 +21,12 @@ db.default {
 maproulette {
   debug=true
   bootstrap=true
+
+  # The MapRoulette API secret key used to encrypt/decrypt sensitive things from the database, like user API Keys.
+  # Do not use the default value in production, generate a new key and set it via conf or 'MAPROULETTE_SECRET_KEY' env.
+  # A secure way to get a distinct key is to run 'openssl rand -base64 32' and set the output as the secret key.
+  secret.key = "DEVLOCAL_Jw8W2PMl434eL85+IRvoT7DA+eNR9a9N3ZK2Gfx4ecs="
+  secret.key = "${?MAPROULETTE_SECRET_KEY}"
 
   scheduler {
     startTimeJitterForMinuteTasks = "15 seconds"
