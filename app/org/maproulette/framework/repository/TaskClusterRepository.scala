@@ -170,6 +170,53 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
     }
   }
 
+  /**
+    * Querys task markers in a bounding box
+    *
+    * @param query         Query to execute
+    * @param c             An available connection
+    * @return The list of Tasks found within the bounding box and the total count of tasks if not bounding
+    */
+  def queryTaskMarkerDataInBoundingBox(
+      query: Query,
+      limit: Int
+  ): (Int, Option[List[ClusteredPoint]]) = {
+    this.withMRTransaction { implicit c =>
+      val count =
+        query.build(s"""
+                  SELECT count(*) FROM tasks
+                  ${joinClause.toString()}
+              """).as(SqlParser.int("count").single)
+
+      if (count < limit) {
+        val results =
+          query
+            .build(
+              s"""
+                      SELECT tasks.id, tasks.name, tasks.parent_id, c.name, tasks.instruction, tasks.status, tasks.mapped_on,
+                            tasks.completed_time_spent, tasks.completed_by,
+                            tasks.bundle_id, tasks.is_bundle_primary, tasks.cooperative_work_json::TEXT as cooperative_work,
+                            task_review.review_status, task_review.review_requested_by, task_review.reviewed_by, task_review.reviewed_at,
+                            task_review.review_started_at, task_review.meta_review_status, task_review.meta_reviewed_by,
+                            task_review.meta_reviewed_at, task_review.additional_reviewers,
+                            ST_AsGeoJSON(tasks.location) AS location, priority,
+                            CASE WHEN task_review.review_started_at IS NULL
+                                  THEN 0
+                                  ELSE EXTRACT(epoch FROM (task_review.reviewed_at - task_review.review_started_at)) END
+                            AS reviewDuration
+                      FROM tasks
+                      ${joinClause.toString()}
+                      """
+            )
+            .as(this.pointParser.*)
+
+        (count, Some(results))
+      } else {
+        (count, Option.empty[List[ClusteredPoint]])
+      }
+    }
+  }
+
   private def getTaskClusterParser(params: SearchParameters): anorm.RowParser[Serializable] = {
     int("kmeans") ~ int("numberOfPoints") ~ get[Option[Long]]("taskId") ~
       get[Option[Int]]("taskStatus") ~ get[Option[Int]]("taskPriority") ~ get[Option[String]](

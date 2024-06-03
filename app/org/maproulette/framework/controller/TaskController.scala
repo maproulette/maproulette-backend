@@ -123,6 +123,46 @@ class TaskController @Inject() (
   }
 
   /**
+    * Gets all the task markers within a bounding box
+    *
+    * @param left   The minimum latitude for the bounding box
+    * @param bottom The minimum longitude for the bounding box
+    * @param right  The maximum latitude for the bounding box
+    * @param top    The maximum longitude for the bounding box
+    * @param limit  Limit for the number of returned tasks
+    * @return
+    */
+  def getTaskMarkerDataInBoundingBox(
+      left: Double,
+      bottom: Double,
+      right: Double,
+      top: Double,
+      limit: Int,
+      excludeLocked: Boolean,
+      includeGeometries: Boolean
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      SearchParameters.withSearch { p =>
+        val params = p.copy(location = Some(SearchLocation(left, bottom, right, top)))
+        val (count, result) = this.taskClusterService.getTaskMarkerDataInBoundingBox(
+          User.userOrMocked(user),
+          params,
+          limit,
+          excludeLocked
+        )
+
+        result match {
+          case Some(points) =>
+            val resultJson = this.insertExtraTaskJSON(points)
+            Ok(Json.obj("total" -> count, "tasks" -> resultJson))
+          case None =>
+            Ok(Json.obj("total" -> count))
+        }
+      }
+    }
+  }
+
+  /**
     * Updates the completion responses asked in the task instructions. Request
     * body should include the reponse JSON.
     *

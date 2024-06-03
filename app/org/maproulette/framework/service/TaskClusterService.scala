@@ -122,4 +122,78 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       paging
     )
   }
+
+  /**
+    * This function will retrieve all the task marker data in a given bounded area. You can use various search
+    * parameters to limit the tasks retrieved in the bounding box area.
+    *
+    * @param params        The search parameters from the cookie or the query string parameters.
+    * @param ignoreLocked  Whether to include locked tasks (by other users) or not
+    * @return The list of Tasks found within the bounding box and the total count of tasks if not bounding
+    */
+  def getTaskMarkerDataInBoundingBox(
+      user: User,
+      params: SearchParameters,
+      limit: Int,
+      ignoreLocked: Boolean = false
+  ): (Int, Option[List[ClusteredPoint]]) = {
+    params.location match {
+      case Some(sl) => // params has location
+      case None =>
+        params.boundingGeometries match {
+          case Some(bp) => // params has bounding polygons
+          case None =>
+            throw new InvalidException(
+              "Bounding Box (or Bounding Polygons) required to retrieve tasks within a bounding box"
+            )
+        }
+    }
+
+    var query =
+      this.filterOutLocked(
+        user,
+        this.filterOutDeletedParents(this.filterOnSearchParameters(params)(false)),
+        ignoreLocked
+      )
+
+    if (params.projectEnabled.getOrElse(false))
+      query = query.addFilterGroup(
+        FilterGroup(
+          List(
+            BaseParameter(
+              Project.FIELD_ENABLED,
+              true,
+              Operator.BOOL,
+              useValueDirectly = true,
+              table = Some("p")
+            )
+          )
+        )
+      )
+
+    query = params.taskParams.excludeTaskIds match {
+      case Some(excludedIds) if !excludedIds.isEmpty =>
+        //this.appendInWhereClause(whereClause, s"(tasks.id NOT IN (${excludedIds.mkString(",")}))")
+        query.addFilterGroup(
+          FilterGroup(
+            List(
+              BaseParameter(
+                Task.FIELD_ID,
+                excludedIds.mkString(","),
+                Operator.IN,
+                negate = true,
+                useValueDirectly = true,
+                table = Some("tasks")
+              )
+            )
+          )
+        )
+      case _ => query
+    }
+
+    this.repository.queryTaskMarkerDataInBoundingBox(
+      query,
+      limit
+    )
+  }
 }
