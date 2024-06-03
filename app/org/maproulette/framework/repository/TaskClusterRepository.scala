@@ -26,7 +26,8 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
 
   val DEFAULT_NUMBER_OF_POINTS = 100
 
-  val pointParser = this.challengeDAL.pointParser
+  val pointParser  = this.challengeDAL.pointParser
+  val markerParser = this.challengeDAL.markerParser
 
   private val joinClause =
     new StringBuilder(
@@ -193,22 +194,15 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
           query
             .build(
               s"""
-                      SELECT tasks.id, tasks.name, tasks.parent_id, c.name, tasks.instruction, tasks.status, tasks.mapped_on,
-                            tasks.completed_time_spent, tasks.completed_by,
-                            tasks.bundle_id, tasks.is_bundle_primary, tasks.cooperative_work_json::TEXT as cooperative_work,
-                            task_review.review_status, task_review.review_requested_by, task_review.reviewed_by, task_review.reviewed_at,
-                            task_review.review_started_at, task_review.meta_review_status, task_review.meta_reviewed_by,
-                            task_review.meta_reviewed_at, task_review.additional_reviewers,
-                            ST_AsGeoJSON(tasks.location) AS location, priority,
-                            CASE WHEN task_review.review_started_at IS NULL
-                                  THEN 0
-                                  ELSE EXTRACT(epoch FROM (task_review.reviewed_at - task_review.review_started_at)) END
-                            AS reviewDuration
-                      FROM tasks
-                      ${joinClause.toString()}
-                      """
+                SELECT tasks.id, tasks.name, tasks.parent_id, c.name, tasks.status, 
+                      tasks.bundle_id, tasks.is_bundle_primary, 
+                      task_review.review_status, task_review.meta_review_status, 
+                      ST_AsGeoJSON(tasks.location) AS location, priority
+                FROM tasks
+                ${joinClause.toString()}
+                """
             )
-            .as(this.pointParser.*)
+            .as(this.markerParser.*)
 
         (count, Some(results))
       } else {
