@@ -245,6 +245,7 @@ object ChallengeRepository {
       get[Int]("challenges.max_zoom") ~
       get[Option[Int]]("challenges.default_basemap") ~
       get[Option[String]]("challenges.default_basemap_id") ~
+      get[Option[String]]("challenges.default_overlay") ~
       get[Option[String]]("challenges.custom_basemap") ~
       get[Boolean]("challenges.updatetasks") ~
       get[Option[String]]("challenges.exportable_properties") ~
@@ -269,7 +270,7 @@ object ChallengeRepository {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
             checkin_source ~ overpassql ~ overpassTargetType ~ remoteGeoJson ~ status ~ statusMessage ~ defaultPriority ~ highPriorityRule ~
-            mediumPriorityRule ~ lowPriorityRule ~ defaultZoom ~ minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~
+            mediumPriorityRule ~ lowPriorityRule ~ defaultZoom ~ minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~ defaultOverlay ~
             customBasemap ~ updateTasks ~ exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ requiresLocal ~ location ~ bounding ~
             deleted ~ virtualParents ~ isArchived ~ reviewSetting ~ taskWidgetLayout ~ systemArchivedAt =>
@@ -317,6 +318,7 @@ object ChallengeRepository {
             maxZoom,
             defaultBasemap,
             defaultBasemapId,
+            defaultOverlay,
             customBasemap,
             updateTasks,
             exportableProperties,

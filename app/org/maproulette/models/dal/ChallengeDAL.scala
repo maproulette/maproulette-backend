@@ -104,6 +104,7 @@ class ChallengeDAL @Inject() (
       get[Int]("challenges.max_zoom") ~
       get[Option[Int]]("challenges.default_basemap") ~
       get[Option[String]]("challenges.default_basemap_id") ~
+      get[Option[String]]("challenges.default_overlay") ~
       get[Option[String]]("challenges.custom_basemap") ~
       get[Boolean]("challenges.updatetasks") ~
       get[Option[String]]("challenges.exportable_properties") ~
@@ -129,7 +130,7 @@ class ChallengeDAL @Inject() (
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
             checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~ status ~ statusMessage ~
             defaultPriority ~ highPriorityRule ~ mediumPriorityRule ~ lowPriorityRule ~ defaultZoom ~
-            minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~ customBasemap ~ updateTasks ~
+            minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~ defaultOverlay ~ customBasemap ~ updateTasks ~
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
             requiresLocal ~ deleted ~ isArchived ~ reviewSetting ~ taskWidgetLayout ~ completionPercentage ~ tasksRemaining =>
@@ -177,6 +178,7 @@ class ChallengeDAL @Inject() (
             maxZoom,
             defaultBasemap,
             defaultBasemapId,
+            defaultOverlay,
             customBasemap,
             updateTasks,
             exportableProperties,
@@ -239,6 +241,7 @@ class ChallengeDAL @Inject() (
       get[Int]("challenges.max_zoom") ~
       get[Option[Int]]("challenges.default_basemap") ~
       get[Option[String]]("challenges.default_basemap_id") ~
+      get[Option[String]]("challenges.default_overlay") ~
       get[Option[String]]("challenges.custom_basemap") ~
       get[Boolean]("challenges.updatetasks") ~
       get[Option[String]]("challenges.exportable_properties") ~
@@ -267,7 +270,7 @@ class ChallengeDAL @Inject() (
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~
             checkin_comment ~ checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~
             status ~ statusMessage ~ defaultPriority ~ highPriorityRule ~ mediumPriorityRule ~
-            lowPriorityRule ~ defaultZoom ~ minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~
+            lowPriorityRule ~ defaultZoom ~ minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~ defaultOverlay ~
             customBasemap ~ updateTasks ~ exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~
             preferredReviewTags ~ limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~
             dataOriginDate ~ location ~ bounding ~ requiresLocal ~ deleted ~ virtualParents ~
@@ -316,6 +319,7 @@ class ChallengeDAL @Inject() (
             maxZoom,
             defaultBasemap,
             defaultBasemapId,
+            defaultOverlay,
             customBasemap,
             updateTasks,
             exportableProperties,
@@ -479,7 +483,7 @@ class ChallengeDAL @Inject() (
                                       instruction, enabled, featured, checkin_comment, checkin_source,
                                       overpass_ql, remote_geo_json, overpass_target_type, status, status_message, default_priority, high_priority_rule,
                                       medium_priority_rule, low_priority_rule, default_zoom, min_zoom, max_zoom,
-                                      default_basemap, default_basemap_id, custom_basemap, updatetasks, exportable_properties,
+                                      default_basemap, default_basemap_id, default_overlay, custom_basemap, updatetasks, exportable_properties,
                                       osm_id_property, task_bundle_id_property, last_task_refresh, data_origin_date, preferred_tags, preferred_review_tags,
                                       limit_tags, limit_review_tags, task_styles, requires_local, is_archived, review_setting, task_widget_layout)
               VALUES (${challenge.name}, ${challenge.general.owner}, ${challenge.general.parent}, ${challenge.general.difficulty},
@@ -489,7 +493,7 @@ class ChallengeDAL @Inject() (
                       ${challenge.creation.overpassTargetType}, ${challenge.status},
                       ${challenge.statusMessage}, ${challenge.priority.defaultPriority}, ${challenge.priority.highPriorityRule},
                       ${challenge.priority.mediumPriorityRule}, ${challenge.priority.lowPriorityRule}, ${challenge.extra.defaultZoom}, ${challenge.extra.minZoom},
-                      ${challenge.extra.maxZoom}, ${challenge.extra.defaultBasemap}, ${challenge.extra.defaultBasemapId}, ${challenge.extra.customBasemap}, ${challenge.extra.updateTasks},
+                      ${challenge.extra.maxZoom}, ${challenge.extra.defaultBasemap}, ${challenge.extra.defaultBasemapId}, ${challenge.extra.defaultOverlay}, ${challenge.extra.customBasemap}, ${challenge.extra.updateTasks},
                       ${challenge.extra.exportableProperties}, ${challenge.extra.osmIdProperty}, ${challenge.extra.taskBundleIdProperty},
                       ${challenge.lastTaskRefresh.getOrElse(DateTime.now()).toString}::timestamptz,
                       ${challenge.dataOriginDate.getOrElse(DateTime.now()).toString}::timestamptz,
@@ -641,6 +645,9 @@ class ChallengeDAL @Inject() (
           val defaultBasemapId = (updates \ "defaultBasemapId")
             .asOpt[String]
             .getOrElse(cachedItem.extra.defaultBasemapId.getOrElse(""))
+          val defaultOverlay = (updates \ "defaultOverlay")
+            .asOpt[String]
+            .getOrElse(cachedItem.extra.defaultOverlay.getOrElse(""))
           val customBasemap = (updates \ "customBasemap")
             .asOpt[String]
             .getOrElse(cachedItem.extra.customBasemap.getOrElse(""))
@@ -712,7 +719,7 @@ class ChallengeDAL @Inject() (
             } else {
               Some(lowPriorityRule)
             }},
-                  default_zoom = $defaultZoom, min_zoom = $minZoom, max_zoom = $maxZoom, default_basemap = $defaultBasemap, default_basemap_id = $defaultBasemapId,
+                  default_zoom = $defaultZoom, min_zoom = $minZoom, max_zoom = $maxZoom, default_basemap = $defaultBasemap, default_basemap_id = $defaultBasemapId, default_overlay = $defaultOverlay,
                   custom_basemap = $customBasemap, updatetasks = $updateTasks, exportable_properties = $exportableProperties,
                   osm_id_property = $osmIdProperty, task_bundle_id_property = $taskBundleIdProperty, preferred_tags = $preferredTags, preferred_review_tags = $preferredReviewTags,
                   limit_tags = $limitTags, limit_review_tags = $limitReviewTags, task_styles = $taskStyles,

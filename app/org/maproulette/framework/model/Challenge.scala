@@ -123,6 +123,7 @@ case class ChallengeExtra(
     maxZoom: Int = Challenge.MAX_ZOOM,
     defaultBasemap: Option[Int] = None,
     defaultBasemapId: Option[String] = None,
+    defaultOverlay: Option[String] = None,
     customBasemap: Option[String] = None,
     updateTasks: Boolean = false,
     exportableProperties: Option[String] = None,
