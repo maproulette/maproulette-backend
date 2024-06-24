@@ -414,6 +414,64 @@ class ChallengeDAL @Inject() (
     }
   }
 
+  val markerParser: RowParser[ClusteredPoint] = {
+    get[Long]("tasks.id") ~
+      get[String]("tasks.name") ~
+      get[Long]("tasks.parent_id") ~
+      get[String]("challenges.name").? ~
+      get[String]("challengeName").? ~
+      get[String]("location") ~
+      get[Int]("tasks.status") ~
+      get[Int]("tasks.priority") ~
+      get[Option[Long]]("tasks.bundle_id") ~
+      get[Option[Boolean]]("tasks.is_bundle_primary") ~
+      get[Option[Int]]("task_review.review_status") ~
+      get[Option[Int]]("task_review.meta_review_status") map {
+      case id ~ name ~ parentId ~ parentName ~ orParentName ~ location ~ status ~
+            priority ~ bundleId ~
+            isBundlePrimary ~ reviewStatus ~
+            metaReviewStatus =>
+        val locationJSON = Json.parse(location)
+        val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
+        val point        = Point(coordinates(1), coordinates.head)
+        val pointReview =
+          PointReview(
+            reviewStatus,
+            None,
+            None,
+            None,
+            metaReviewStatus,
+            None,
+            None,
+            None,
+            None
+          )
+        ClusteredPoint(
+          id,
+          -1,
+          "",
+          name,
+          parentId,
+          parentName.getOrElse(orParentName.get),
+          point,
+          JsString(""),
+          "",
+          DateTime.now(),
+          -1,
+          Actions.ITEM_TYPE_TASK,
+          status,
+          None,
+          None,
+          None,
+          None,
+          pointReview,
+          priority,
+          bundleId,
+          isBundlePrimary
+        )
+    }
+  }
+
   private val DEFAULT_NUM_CHILDREN_LIST = 1000
 
   /**

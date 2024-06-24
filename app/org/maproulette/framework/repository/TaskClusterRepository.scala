@@ -26,7 +26,8 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
 
   val DEFAULT_NUMBER_OF_POINTS = 100
 
-  val pointParser = this.challengeDAL.pointParser
+  val pointParser  = this.challengeDAL.pointParser
+  val markerParser = this.challengeDAL.markerParser
 
   private val joinClause =
     new StringBuilder(
@@ -169,6 +170,46 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
           .as(this.pointParser.*)
 
       (count, results)
+    }
+  }
+
+  /**
+    * Querys task markers in a bounding box
+    *
+    * @param query         Query to execute
+    * @param c             An available connection
+    * @return The list of Tasks found within the bounding box and the total count of tasks if not bounding
+    */
+  def queryTaskMarkerDataInBoundingBox(
+      query: Query,
+      limit: Int
+  ): (Int, Option[List[ClusteredPoint]]) = {
+    this.withMRTransaction { implicit c =>
+      val count =
+        query.build(s"""
+                  SELECT count(*) FROM tasks
+                  ${joinClause.toString()}
+              """).as(SqlParser.int("count").single)
+
+      if (count < limit) {
+        val results =
+          query
+            .build(
+              s"""
+                SELECT tasks.id, tasks.name, tasks.parent_id, c.name, tasks.status, 
+                      tasks.bundle_id, tasks.is_bundle_primary, 
+                      task_review.review_status, task_review.meta_review_status, 
+                      ST_AsGeoJSON(tasks.location) AS location, priority
+                FROM tasks
+                ${joinClause.toString()}
+                """
+            )
+            .as(this.markerParser.*)
+
+        (count, Some(results))
+      } else {
+        (count, Option.empty[List[ClusteredPoint]])
+      }
     }
   }
 

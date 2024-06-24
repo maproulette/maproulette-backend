@@ -537,6 +537,43 @@ GET     /tasks/random                               @org.maproulette.controllers
 PUT     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.controller.TaskController.getTasksInBoundingBox(left:Double, bottom:Double, right:Double, top:Double, limit:Int ?= 10000, page:Int ?= 0, excludeLocked:Boolean ?= false, sort:String ?= "", order:String ?= "ASC", includeTotal:Boolean ?= false, includeGeometries:Boolean ?=false, includeTags:Boolean ?= false)
 ###
 # tags: [ Task ]
+# summary: Retrieves Task Marker Data within a bounding box
+# description: Retrieves task marker data within a given bounding box.
+# responses:
+#   '200':
+#     description: The list of markers representing Tasks that match the search criteria within the bounding box.
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.ClusteredPoint'
+# parameters:
+#   - name: left
+#     in: path
+#     description: The minimum latitude for the bounding box.
+#   - name: bottom
+#     in: path
+#     description: The minimum longitude for the bounding box.
+#   - name: right
+#     in: path
+#     description: The maximum latitude for the bounding box.
+#   - name: top
+#     in: path
+#     description: The maximum longitude for the bounding box.
+#   - name: limit
+#     in: query
+#     description: Limit the number of results returned in the response. Default value is 1.
+#   - name: excludeLocked
+#     in: query
+#     description: Ignore the lock status of the task. So true will include all tasks, including ones locked by another user.
+#   - name: includeGeometries
+#     in: query
+#     description: Optional flag to have geometries data returned for each task.
+###
+PUT     /markers/box/:left/:bottom/:right/:top        @org.maproulette.framework.controller.TaskController.getTaskMarkerDataInBoundingBox(left:Double, bottom:Double, right:Double, top:Double, limit:Int ?= 500, excludeLocked:Boolean ?= false, includeGeometries:Boolean ?= false)
+###
+# tags: [ Task ]
 # summary: Update Task Changeset
 # description: Will update the changeset of the task. It will do this by attempting to match the OSM changeset to the Task based on the geometry and the time that the changeset was executed.
 # responses:
