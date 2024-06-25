@@ -173,11 +173,12 @@ class ChallengeRepository @Inject() (override val db: Database) extends Reposito
       SQL(
         s"""
            |UPDATE challenges
-           |SET completion_percentage = new_completion_percentage
+           |SET completion_percentage = new_completion_percentage, tasks_remaining = new_tasks_remaining
            |FROM (
            |    SELECT
            |        challenges.id AS challenge_id,
-           |        completed_task_counts.completed_tasks * 100 / total_task_counts.total_tasks AS new_completion_percentage
+           |        completed_task_counts.completed_tasks * 100 / total_task_counts.total_tasks AS new_completion_percentage,
+           |        total_task_counts.total_tasks - completed_task_counts.completed_tasks AS new_tasks_remaining
            |    FROM
            |        challenges
            |    JOIN (

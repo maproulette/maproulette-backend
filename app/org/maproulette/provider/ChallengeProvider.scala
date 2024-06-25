@@ -485,6 +485,13 @@ class ChallengeProvider @Inject() (
                                 "Element type 'way' does not match target type of '" + targetType + "'"
                               )
                             }
+                          case Some("relation") =>
+                            if (targetType != "relation") {
+                              targetTypeFailed = true
+                              throw new InvalidException(
+                                "Element type 'relation' does not match target type of '" + targetType + "'"
+                              )
+                            }
                           case Some("node") =>
                             if (targetType != "node") {
                               targetTypeFailed = true
@@ -522,6 +529,60 @@ class ChallengeProvider @Inject() (
                                 List((geom \ "lon").as[Double], (geom \ "lat").as[Double])
                               }
                               Some(Json.obj("type" -> "LineString", "coordinates" -> points))
+                            case Some("relation") =>
+                              // Function to recursively extract geometries from relations
+                              def extractGeometries(member: JsValue): Option[JsObject] = {
+                                (member \ "type").asOpt[String] match {
+                                  case Some("way") =>
+                                    val points = (member \ "geometry").as[List[JsValue]].map {
+                                      geom =>
+                                        List((geom \ "lon").as[Double], (geom \ "lat").as[Double])
+                                    }
+                                    Some(Json.obj("type" -> "LineString", "coordinates" -> points))
+
+                                  case Some("node") =>
+                                    Some(
+                                      Json.obj(
+                                        "type" -> "Point",
+                                        "coordinates" -> List(
+                                          (member \ "lon").as[Double],
+                                          (member \ "lat").as[Double]
+                                        )
+                                      )
+                                    )
+
+                                  case Some("relation") =>
+                                    // If it's another relation, recursively extract geometries from it
+                                    val geometries = (member \ "members").as[List[JsValue]].map {
+                                      member =>
+                                        extractGeometries(member)
+                                    }
+                                    val geometryCollection = Json.obj(
+                                      "type"       -> "GeometryCollection",
+                                      "geometries" -> geometries
+                                    )
+
+                                    Some(geometryCollection)
+
+                                  case _ =>
+                                    None
+                                }
+                              }
+
+                              // Extract geometries from each member of the relation
+                              val geometries = (element \ "members").as[List[JsValue]].map {
+                                member =>
+                                  extractGeometries(member)
+                              }
+
+                              // Create a GeometryCollection
+                              val geometryCollection = Json.obj(
+                                "type"       -> "GeometryCollection",
+                                "geometries" -> geometries
+                              )
+
+                              Some(geometryCollection)
+
                             case Some("node") =>
                               Some(
                                 Json.obj(

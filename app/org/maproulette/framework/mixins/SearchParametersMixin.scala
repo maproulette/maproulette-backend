@@ -25,6 +25,7 @@ trait SearchParametersMixin {
       this.filterBounding(params),
       this.filterTaskStatus(params),
       this.filterTaskId(params),
+      this.filterTaskFeatureId(params),
       this.filterProjectSearch(params),
       this.filterTaskReviewStatus(params),
       this.filterMetaReviewStatus(params),
@@ -39,6 +40,7 @@ trait SearchParametersMixin {
       this.filterChallengeStatus(params),
       this.filterChallengeRequiresLocal(params),
       this.filterBoundingGeometries(params),
+      this.filterBundleId(params),
       // For efficiency can only query on task properties with a parent challenge id
       this.filterTaskProps(params),
       this.filterChallenges(params),
@@ -299,6 +301,40 @@ trait SearchParametersMixin {
         FilterGroup(
           List(
             CustomParameter(s"${invert}CAST(${Task.TABLE}.${Task.FIELD_ID} AS TEXT) LIKE '${tid}%'")
+          )
+        )
+      case _ => FilterGroup(List())
+    }
+  }
+
+  /**
+    * Filters by tasks.name
+    * @param params with inverting on 'fid'
+    */
+  def filterTaskFeatureId(params: SearchParameters): FilterGroup = {
+    params.taskParams.taskFeatureId match {
+      case Some(fid) =>
+        FilterGroup(
+          List(
+            CustomParameter(
+              s"LOWER(TRIM(${Task.TABLE}.${Task.FIELD_NAME}::TEXT)) LIKE LOWER('%${fid.trim}%')"
+            )
+          )
+        )
+      case None => FilterGroup(List())
+    }
+  }
+
+  /**
+    * Filters by bundle id
+    * @param params with inverting on 'bid'
+    */
+  def filterBundleId(params: SearchParameters): FilterGroup = {
+    params.taskParams.bundleId match {
+      case Some(bid) =>
+        FilterGroup(
+          List(
+            CustomParameter(s"${Task.TABLE}.${Task.FIELD_BUNDLE_ID} = $bid")
           )
         )
       case _ => FilterGroup(List())

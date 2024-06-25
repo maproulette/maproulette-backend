@@ -18,7 +18,7 @@ import org.maproulette.Config
   */
 @Singleton
 class Crypto @Inject() (config: Config) {
-  val key = config.config.get[String]("play.http.secret.key")
+  val key: String = config.config.get[String]("maproulette.secret.key")
 
   def encrypt(value: String): String = {
     val cipher: Cipher = Cipher.getInstance("AES/ECB/PKCS5Padding")

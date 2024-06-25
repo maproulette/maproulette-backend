@@ -156,6 +156,15 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
     }
   }
 
+  "filterTaskFeatureId" should {
+    "match on task feature id" in {
+      val params = SearchParameters(taskParams = SearchTaskParameters(taskFeatureId = Some("123")))
+      this
+        .filterTaskFeatureId(params)
+        .sql() mustEqual s"LOWER(TRIM(tasks.name::TEXT)) LIKE LOWER('%123%')"
+    }
+  }
+
   "filterTaskPriorities" should {
     "match on task priority" in {
       val params =

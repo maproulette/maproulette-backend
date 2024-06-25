@@ -306,7 +306,7 @@ class AuthController @Inject() (
         case Some(updated) =>
           updated.apiKey match {
             case Some(api) => {
-              Future(storeAPIKeyInOSM(user))
+              Future(storeAPIKeyInOSM(updated))
               Ok(api)
             }
             case None => NoContent

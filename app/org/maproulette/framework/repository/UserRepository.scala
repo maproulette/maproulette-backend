@@ -5,22 +5,22 @@
 
 package org.maproulette.framework.repository
 
-import java.sql.Connection
-
 import anorm.SqlParser._
 import anorm._
-import com.vividsolutions.jts.geom.{Coordinate, GeometryFactory, Point}
-import com.vividsolutions.jts.io.WKTReader
-import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
+import org.locationtech.jts.geom.{Coordinate, GeometryFactory, Point}
+import org.locationtech.jts.io.WKTReader
 import org.maproulette.Config
 import org.maproulette.framework.model._
-import org.maproulette.framework.service.{ServiceManager, GrantService}
 import org.maproulette.framework.psql.filter._
 import org.maproulette.framework.psql.{Query, SQLUtils}
+import org.maproulette.framework.service.{GrantService, ServiceManager}
 import org.maproulette.models.dal.ChallengeDAL
 import play.api.db.Database
 import play.api.libs.json.{JsResultException, Json}
+
+import java.sql.Connection
+import javax.inject.{Inject, Singleton}
 
 /**
   * The User repository handles all the sql queries that are executed against the database for the

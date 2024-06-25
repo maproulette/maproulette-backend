@@ -283,6 +283,7 @@ object User extends CommonField {
   implicit val osmReads: Reads[OSMProfile]                  = Json.reads[OSMProfile]
   implicit val searchResultWrites: Writes[UserSearchResult] = Json.writes[UserSearchResult]
   implicit val projectManagerWrites: Writes[ProjectManager] = Json.writes[ProjectManager]
+  val logger                                                = LoggerFactory.getLogger(this.getClass)
 
   val TABLE                     = "users"
   val FIELD_OSM_ID              = "osm_id"
@@ -416,9 +417,9 @@ object User extends CommonField {
           user.copy(apiKey = decryptedAPIKey)
         } catch {
           case _: BadPaddingException | _: IllegalBlockSizeException =>
-            LoggerFactory
-              .getLogger(this.getClass)
-              .debug("Invalid key found, could be that the application secret on server changed.")
+            logger.debug(
+              "Invalid key found, could be that the application secret on server changed."
+            )
             user
           case e: Throwable => throw e
         }

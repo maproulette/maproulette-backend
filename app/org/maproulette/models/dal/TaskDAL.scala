@@ -1063,7 +1063,17 @@ class TaskDAL @Inject() (
         case Failure(f)   => List.empty
       }
       if (mediumPriorityTasks.isEmpty) {
-        this.getRandomTasks(user, params, limit, Some(Challenge.PRIORITY_LOW), proximityId)
+        val lowPriorityTasks = Try(
+          this.getRandomTasks(user, params, limit, Some(Challenge.PRIORITY_LOW), proximityId)
+        ) match {
+          case Success(res) => res
+          case Failure(f)   => List.empty
+        }
+        if (lowPriorityTasks.isEmpty) {
+          this.getRandomTasks(user, params, limit, None, proximityId)
+        } else {
+          lowPriorityTasks
+        }
       } else {
         mediumPriorityTasks
       }
@@ -1148,8 +1158,12 @@ class TaskDAL @Inject() (
         )
 
         priority match {
-          case Some(p) => appendInWhereClause(whereClause, s"tasks.priority = $p")
-          case None    => //Ignore
+          case Some(p) =>
+            appendInWhereClause(
+              whereClause,
+              s"tasks.priority = $p AND (tasks.completed_by != ${user.id} OR tasks.completed_by IS NULL)"
+            )
+          case None => // Ignore
         }
 
         if (taskTagIds.nonEmpty) {
