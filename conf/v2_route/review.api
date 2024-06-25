@@ -281,7 +281,7 @@ GET     /tasks/review/metrics                          @org.maproulette.framewor
 #     in: query
 #     description: exclude tasks that have been reviewed by someone else
 ###
-GET     /taskCluster/review                                @org.maproulette.framework.controller.TaskReviewController.getReviewTaskClusters(reviewTasksType:Int, points:Int ?= 100, onlySaved:Boolean ?= false, excludeOtherReviewers:Boolean ?= false)
+PUT     /taskCluster/review                                @org.maproulette.framework.controller.TaskReviewController.getReviewTaskClusters(reviewTasksType:Int, points:Int ?= 100, onlySaved:Boolean ?= false, excludeOtherReviewers:Boolean ?= false)
 ###
 # tags: [ Review ]
 # summary: Retrieve a summary of review coverage for mappers
