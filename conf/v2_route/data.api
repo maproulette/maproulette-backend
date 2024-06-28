@@ -25,6 +25,6 @@ GET     /data/status/summary                        @org.maproulette.controllers
 ### NoDocs ###
 GET     /data/challenge/:challengeId/propertyKeys   @org.maproulette.controllers.api.DataController.getPropertyKeys(challengeId:Long)
 ### NoDocs ###
-GET     /data/challenge/:challengeId                @org.maproulette.controllers.api.DataController.getChallengeSummary(challengeId:Long, priority:String ?= "", includeByPriority:Boolean ?= false)
+GET     /data/challenge/:challengeId                @org.maproulette.controllers.api.DataController.getChallengeSummary(challengeId:Long, priority:String ?= "", includeByPriority:Boolean ?= false, virtualChallengeId:Long ?= 0)
 ### NoDocs ###
 GET     /data/tag/metrics                           @org.maproulette.framework.controller.DataController.getTagMetrics()

@@ -5,9 +5,9 @@
 package org.maproulette.data
 
 import java.sql.Connection
-
 import anorm.SqlParser._
 import anorm._
+
 import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
 import org.maproulette.Config
@@ -19,6 +19,7 @@ import org.maproulette.session.SearchParameters
 import org.maproulette.utils.BoundingBoxFinder
 import play.api.Application
 import play.api.db.Database
+import play.api.libs.json.{JsObject, Json}
 
 case class ActionSummary(
     total: Int,
@@ -317,6 +318,7 @@ class DataManager @Inject() (
   def getChallengeSummary(
       projectList: Option[List[Long]] = None,
       challengeId: Option[Long] = None,
+      virtualChallengeId: Option[Long] = None,
       limit: Int = (-1),
       offset: Int = 0,
       orderColumn: Option[String] = None,
@@ -327,6 +329,18 @@ class DataManager @Inject() (
       params: Option[SearchParameters] = None
   ): List[ChallengeSummary] = {
     this.db.withConnection { implicit c =>
+      val virtualParams = virtualChallengeId.flatMap { id =>
+        if (id != 0) {
+          val result =
+            SQL("SELECT search_parameters FROM virtual_challenges WHERE id = {virtualChallengeId}")
+              .on("virtualChallengeId" -> id)
+              .as(SqlParser.str("search_parameters").singleOpt)
+          result.map(Json.parse).flatMap(_.validate[SearchParameters].asOpt)
+        } else {
+          None
+        }
+      }
+
       val parser = for {
         id             <- int("tasks.parent_id")
         name           <- str("challenges.name")
@@ -363,16 +377,32 @@ class DataManager @Inject() (
         )
       )
       val searchParams = SearchParameters.withDefaultAllTaskStatuses(
-        params match {
-          case Some(p) => p
-          case None    => new SearchParameters()
+        if (virtualParams.isDefined) {
+          virtualParams match {
+            case Some(p) => p
+            case None    => new SearchParameters()
+          }
+        } else {
+          params match {
+            case Some(p) => p
+            case None    => new SearchParameters()
+          }
         }
       )
 
-      val challengeFilter = challengeId match {
-        case Some(id) if id != -1 => s"AND tasks.parent_id = $id"
-        case _                    => buildProjectSearch(projectList, "c.parent_id", "c.id")
+      val challengeFilter = virtualParams match {
+        case Some(vp) =>
+          vp.challengeParams.challengeIds match {
+            case Some(idList) => s"AND tasks.parent_id IN (${idList.mkString(", ")})"
+            case _            => ""
+          }
+        case None =>
+          challengeId match {
+            case Some(id) if id != -1 => s"AND tasks.parent_id = $id"
+            case _                    => buildProjectSearch(projectList, "c.parent_id", "c.id")
+          }
       }
+
       val priorityFilter = priority match {
         case Some(p) =>
           val invert =
@@ -392,6 +422,7 @@ class DataManager @Inject() (
       this.paramsOwner(searchParams, searchFilters)
       this.paramsReviewer(searchParams, searchFilters)
       this.paramsMapper(searchParams, searchFilters)
+      this.paramsBoundingGeometries(searchParams, searchFilters)
 
       // The percentage columns are a bit of a hack simply so that we can order by the percentages.
       // It won't decrease performance as this is simple basic math calculations, but it certainly
