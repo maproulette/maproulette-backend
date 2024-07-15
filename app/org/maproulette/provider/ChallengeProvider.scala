@@ -98,6 +98,7 @@ class ChallengeProvider @Inject() (
                   user
                 )(challenge.id)
               } else {
+                this.challengeDAL.updateSpatialFields(user)(challenge.id)
                 this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(
                   challenge.id
                 )
@@ -242,6 +243,9 @@ class ChallengeProvider @Inject() (
                   jsonData
                 )
               }
+              this.challengeDAL.updateSpatialFields(user)(
+                challenge.id
+              )
               this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(
                 challenge.id
               )
@@ -261,6 +265,7 @@ class ChallengeProvider @Inject() (
         if (seqJSON) {
           this.buildTasksFromRemoteJson(filePrefix, fileNumber + 1, challenge, user, false)
         } else {
+          this.challengeDAL.updateSpatialFields(user)(challenge.id)
           this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(challenge.id)
           this.challengeDAL.markTasksRefreshed()(challenge.id)
 
@@ -272,6 +277,7 @@ class ChallengeProvider @Inject() (
       case Failure(f) =>
         if (fileNumber > 1) {
           // todo need to figure out if actual failure or if not finding the next file
+          this.challengeDAL.updateSpatialFields(user)(challenge.id)
           this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(challenge.id)
         } else {
           this.challengeDAL.update(
@@ -423,6 +429,7 @@ class ChallengeProvider @Inject() (
           }
         }
 
+        this.challengeDAL.updateSpatialFields(user)(parent.id)
         this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(parent.id)
         this.challengeDAL.markTasksRefreshed()(parent.id)
         if (single) {
@@ -650,6 +657,7 @@ class ChallengeProvider @Inject() (
                         user
                       )(challenge.id)
                     case false =>
+                      this.challengeDAL.updateSpatialFields(user)(challenge.id)
                       this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(
                         challenge.id
                       )
