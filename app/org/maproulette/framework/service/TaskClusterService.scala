@@ -156,21 +156,6 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
         ignoreLocked
       )
 
-    if (params.projectEnabled.getOrElse(false))
-      query = query.addFilterGroup(
-        FilterGroup(
-          List(
-            BaseParameter(
-              Project.FIELD_ENABLED,
-              true,
-              Operator.BOOL,
-              useValueDirectly = true,
-              table = Some("p")
-            )
-          )
-        )
-      )
-
     query = params.taskParams.excludeTaskIds match {
       case Some(excludedIds) if !excludedIds.isEmpty =>
         //this.appendInWhereClause(whereClause, s"(tasks.id NOT IN (${excludedIds.mkString(",")}))")
