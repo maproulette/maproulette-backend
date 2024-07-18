@@ -27,7 +27,6 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
   val DEFAULT_NUMBER_OF_POINTS = 100
 
   val pointParser  = this.challengeDAL.pointParser
-  val markerParser = this.challengeDAL.markerParser
 
   private val joinClause =
     new StringBuilder(
