@@ -136,7 +136,7 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       params: SearchParameters,
       limit: Int,
       ignoreLocked: Boolean = false
-  ): (Int, Option[List[ClusteredPoint]]) = {
+  ): (List[ClusteredPoint]) = {
     params.location match {
       case Some(sl) => // params has location
       case None =>

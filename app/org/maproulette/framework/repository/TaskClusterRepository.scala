@@ -26,7 +26,7 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
 
   val DEFAULT_NUMBER_OF_POINTS = 100
 
-  val pointParser  = this.challengeDAL.pointParser
+  val pointParser = this.challengeDAL.pointParser
 
   private val joinClause =
     new StringBuilder(
@@ -180,40 +180,28 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
   def queryTaskMarkerDataInBoundingBox(
       query: Query,
       limit: Int
-  ): (Int, Option[List[ClusteredPoint]]) = {
+  ): List[ClusteredPoint] = {
     this.withMRTransaction { implicit c =>
-      val count =
-        query.build(s"""
-                  SELECT count(*) FROM tasks
-                  ${joinClause.toString()}
-              """).as(SqlParser.int("count").single)
+      val finalQuery = query.copy(finalClause = s"""LIMIT $limit""")
+      val results = finalQuery
+        .build(s"""
+        SELECT tasks.id, tasks.name, tasks.parent_id, c.name, tasks.instruction, tasks.status, tasks.mapped_on,
+              tasks.completed_time_spent, tasks.completed_by,
+              tasks.bundle_id, tasks.is_bundle_primary, tasks.cooperative_work_json::TEXT as cooperative_work,
+              task_review.review_status, task_review.review_requested_by, task_review.reviewed_by, task_review.reviewed_at,
+              task_review.review_started_at, task_review.meta_review_status, task_review.meta_reviewed_by,
+              task_review.meta_reviewed_at, task_review.additional_reviewers,
+              ST_AsGeoJSON(tasks.location) AS location, priority,
+              CASE WHEN task_review.review_started_at IS NULL
+                    THEN 0
+                    ELSE EXTRACT(epoch FROM (task_review.reviewed_at - task_review.review_started_at)) END
+              AS reviewDuration
+        FROM tasks
+        ${joinClause.toString()}
+        """)
+        .as(this.pointParser.*)
 
-      if (count < limit) {
-        val results =
-          query
-            .build(
-              s"""
-                SELECT tasks.id, tasks.name, tasks.parent_id, c.name, tasks.instruction, tasks.status, tasks.mapped_on,
-                      tasks.completed_time_spent, tasks.completed_by,
-                      tasks.bundle_id, tasks.is_bundle_primary, tasks.cooperative_work_json::TEXT as cooperative_work,
-                      task_review.review_status, task_review.review_requested_by, task_review.reviewed_by, task_review.reviewed_at,
-                      task_review.review_started_at, task_review.meta_review_status, task_review.meta_reviewed_by,
-                      task_review.meta_reviewed_at, task_review.additional_reviewers,
-                      ST_AsGeoJSON(tasks.location) AS location, priority,
-                      CASE WHEN task_review.review_started_at IS NULL
-                            THEN 0
-                            ELSE EXTRACT(epoch FROM (task_review.reviewed_at - task_review.review_started_at)) END
-                      AS reviewDuration
-                FROM tasks
-                ${joinClause.toString()}
-                """
-            )
-            .as(this.pointParser.*)
-
-        (count, Some(results))
-      } else {
-        (count, Option.empty[List[ClusteredPoint]])
-      }
+      results
     }
   }
 

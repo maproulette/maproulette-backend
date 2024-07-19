@@ -571,7 +571,7 @@ PUT     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.c
 #     in: query
 #     description: Optional flag to have geometries data returned for each task.
 ###
-PUT     /markers/box/:left/:bottom/:right/:top        @org.maproulette.framework.controller.TaskController.getTaskMarkerDataInBoundingBox(left:Double, bottom:Double, right:Double, top:Double, limit:Int ?= 500, excludeLocked:Boolean ?= false, includeGeometries:Boolean ?= false)
+PUT     /markers/box/:left/:bottom/:right/:top        @org.maproulette.framework.controller.TaskController.getTaskMarkerDataInBoundingBox(left:Double, bottom:Double, right:Double, top:Double, limit:Int ?= 500, excludeLocked:Boolean ?= false, includeGeometries:Boolean ?= false, includeTags:Boolean ?= false)
 ###
 # tags: [ Task ]
 # summary: Update Task Changeset
