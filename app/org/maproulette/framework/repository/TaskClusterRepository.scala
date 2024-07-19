@@ -76,8 +76,6 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
       query: Query,
       numberOfPoints: Int
   ): (StringBuilder, List[NamedParameter]) = {
-    val whereClause = query.filter.sql() + " AND c.deleted = false AND p.deleted = false"
-
     val queryString = s"""FROM (
             SELECT tasks.*, tasks.id as taskId, tasks.status as taskStatus,
                    tasks.priority as taskPriority, tasks.geojson::TEXT as taskGeojson,
@@ -87,12 +85,12 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
                           CASE WHEN COUNT(*) < $numberOfPoints THEN COUNT(*) ELSE $numberOfPoints END
                         FROM tasks
                         $joinClause
-                        WHERE ${whereClause}
+                        WHERE ${query.filter.sql()}
                       )::Integer
                     ) OVER () AS kmeans, tasks.location as taskLocation, tasks.parent_id as challengeIds
             FROM tasks
             $joinClause
-            WHERE ${whereClause}
+            WHERE ${query.filter.sql()}
           ) AS ksub
           WHERE location IS NOT NULL
       """
