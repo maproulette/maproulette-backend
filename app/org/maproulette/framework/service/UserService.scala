@@ -842,6 +842,23 @@ class UserService @Inject() (
   }
 
   /**
+    * Retrieve all the tasks that have been locked by the provided user
+    *
+    * @param userId The id of the user
+    * @param user The user making the actual request
+    * @param limit
+    * @return A list of Tasks that have been locked by the user
+    */
+  def getLockedTasks(
+      userId: Long,
+      user: User,
+      limit: Long
+  ): List[LockedTaskData] = {
+    this.permission.hasReadAccess(UserType(), user)(userId)
+    this.savedObjectsRepository.getLockedTasks(userId, limit)
+  }
+
+  /**
     * Saves the task for the user, will validate that the task actually exists first based on the
     * provided id
     *
