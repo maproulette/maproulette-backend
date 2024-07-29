@@ -12,7 +12,12 @@ import org.joda.time.DateTime
 
 import javax.inject.{Inject, Singleton}
 import org.maproulette.framework.model.{Challenge, LockedTaskData, SavedChallenge, SavedTasks, Task}
-import org.maproulette.framework.psql.filter.{BaseParameter, FilterParameter, Operator, SubQueryFilter}
+import org.maproulette.framework.psql.filter.{
+  BaseParameter,
+  FilterParameter,
+  Operator,
+  SubQueryFilter
+}
 import org.maproulette.framework.psql._
 import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}
 import play.api.db.Database
