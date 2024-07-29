@@ -86,7 +86,7 @@ class TaskReviewRepository @Inject() (
         Query
           .simple(List())
           .build(
-             """UPDATE task_review SET review_claimed_by = {userId}, review_claimed_at = NOW(), review_started_at = NOW()
+            """UPDATE task_review SET review_claimed_by = {userId}, review_claimed_at = NOW(), review_started_at = NOW()
                     WHERE task_id = {taskId} AND review_claimed_at IS NULL"""
           )
           .on(Symbol("taskId") -> task.id, Symbol("userId") -> user.id)
