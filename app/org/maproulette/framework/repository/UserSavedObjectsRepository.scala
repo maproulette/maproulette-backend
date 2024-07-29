@@ -6,7 +6,7 @@
 package org.maproulette.framework.repository
 
 import java.sql.Connection
-import anorm.{SQL, SqlParser}
+import anorm.SQL
 import anorm.SqlParser._
 import org.joda.time.DateTime
 
