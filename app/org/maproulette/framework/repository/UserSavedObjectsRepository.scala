@@ -165,13 +165,14 @@ class UserSavedObjectsRepository @Inject() (
   )(implicit c: Option[Connection] = None): List[LockedTaskData] = {
     this.withMRTransaction { implicit c =>
       val parser = for {
-        id            <- get[Long]("id")
-        challengeName <- get[Option[String]]("challenges.challenge_name")
-        lockedTime    <- get[DateTime]("locked.locked_time")
-      } yield (LockedTaskData(id, challengeName, lockedTime))
+        id         <- get[Long]("id")
+        parent     <- get[Option[Long]]("tasks.parent_id")
+        parentName <- get[Option[String]]("challenges.challenge_name")
+        lockedTime <- get[DateTime]("locked.locked_time")
+      } yield (LockedTaskData(id, parent, parentName, lockedTime))
 
       val query = """
-                    SELECT t.id, l.locked_time, c.name AS challenge_name
+                    SELECT t.id, t.parent_id, l.locked_time, c.name AS challenge_name
                     FROM tasks t
                     INNER JOIN locked l ON t.id = l.item_id
                     LEFT JOIN challenges c ON t.parent_id = c.id
