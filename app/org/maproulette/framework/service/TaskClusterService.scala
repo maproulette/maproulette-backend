@@ -129,7 +129,7 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
     *
     * @param params        The search parameters from the cookie or the query string parameters.
     * @param ignoreLocked  Whether to include locked tasks (by other users) or not
-    * @return The list of Tasks found within the bounding box and the total count of tasks if not bounding
+    * @return The list of Tasks found within the bounding box
     */
   def getTaskMarkerDataInBoundingBox(
       user: User,

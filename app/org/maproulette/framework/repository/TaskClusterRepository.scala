@@ -175,7 +175,7 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
     *
     * @param query         Query to execute
     * @param c             An available connection
-    * @return The list of Tasks found within the bounding box and the total count of tasks if not bounding
+    * @return The list of Tasks found within the bounding box
     */
   def queryTaskMarkerDataInBoundingBox(
       query: Query,
