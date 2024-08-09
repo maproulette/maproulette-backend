@@ -120,6 +120,22 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
       SQL(sql.toString).as(this.pointParser.*)
     }
   }
+  // sql query use to select list of ClusteredPoint data
+  private val selectTaskMarkersSQL = s"""
+    SELECT tasks.id, tasks.name, tasks.parent_id, c.name, tasks.instruction, tasks.status, tasks.mapped_on,
+          tasks.completed_time_spent, tasks.completed_by,
+          tasks.bundle_id, tasks.is_bundle_primary, tasks.cooperative_work_json::TEXT as cooperative_work,
+          task_review.review_status, task_review.review_requested_by, task_review.reviewed_by, task_review.reviewed_at,
+          task_review.review_started_at, task_review.meta_review_status, task_review.meta_reviewed_by,
+          task_review.meta_reviewed_at, task_review.additional_reviewers,
+          ST_AsGeoJSON(tasks.location) AS location, priority,
+          CASE WHEN task_review.review_started_at IS NULL
+                THEN 0
+                ELSE EXTRACT(epoch FROM (task_review.reviewed_at - task_review.review_started_at)) END
+          AS reviewDuration
+    FROM tasks
+    ${joinClause.toString()}
+  """
 
   /**
     * Querys tasks in a bounding box
@@ -141,30 +157,8 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
             ${joinClause.toString()}
           """).as(SqlParser.int("count").single)
 
-      val results =
-        query
-          .copy(
-            order = order,
-            paging = paging
-          )
-          .build(
-            s"""
-              SELECT tasks.id, tasks.name, tasks.parent_id, c.name, tasks.instruction, tasks.status, tasks.mapped_on,
-                     tasks.completed_time_spent, tasks.completed_by,
-                     tasks.bundle_id, tasks.is_bundle_primary, tasks.cooperative_work_json::TEXT as cooperative_work,
-                     task_review.review_status, task_review.review_requested_by, task_review.reviewed_by, task_review.reviewed_at,
-                     task_review.review_started_at, task_review.meta_review_status, task_review.meta_reviewed_by,
-                     task_review.meta_reviewed_at, task_review.additional_reviewers,
-                     ST_AsGeoJSON(tasks.location) AS location, priority,
-                     CASE WHEN task_review.review_started_at IS NULL
-                           THEN 0
-                           ELSE EXTRACT(epoch FROM (task_review.reviewed_at - task_review.review_started_at)) END
-                     AS reviewDuration
-              FROM tasks
-              ${joinClause.toString()}
-            """
-          )
-          .as(this.pointParser.*)
+      val resultsQuery = query.copy(order = order, paging = paging).build(selectTaskMarkersSQL)
+      val results      = resultsQuery.as(this.pointParser.*)
 
       (count, results)
     }
@@ -174,6 +168,7 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
     * Querys task markers in a bounding box
     *
     * @param query         Query to execute
+    * @param limit         Maximum number of results to return
     * @param c             An available connection
     * @return The list of Tasks found within the bounding box
     */
@@ -182,26 +177,8 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
       limit: Int
   ): List[ClusteredPoint] = {
     this.withMRTransaction { implicit c =>
-      val finalQuery = query.copy(finalClause = s"""LIMIT $limit""")
-      val results = finalQuery
-        .build(s"""
-        SELECT tasks.id, tasks.name, tasks.parent_id, c.name, tasks.instruction, tasks.status, tasks.mapped_on,
-              tasks.completed_time_spent, tasks.completed_by,
-              tasks.bundle_id, tasks.is_bundle_primary, tasks.cooperative_work_json::TEXT as cooperative_work,
-              task_review.review_status, task_review.review_requested_by, task_review.reviewed_by, task_review.reviewed_at,
-              task_review.review_started_at, task_review.meta_review_status, task_review.meta_reviewed_by,
-              task_review.meta_reviewed_at, task_review.additional_reviewers,
-              ST_AsGeoJSON(tasks.location) AS location, priority,
-              CASE WHEN task_review.review_started_at IS NULL
-                    THEN 0
-                    ELSE EXTRACT(epoch FROM (task_review.reviewed_at - task_review.review_started_at)) END
-              AS reviewDuration
-        FROM tasks
-        ${joinClause.toString()}
-        """)
-        .as(this.pointParser.*)
-
-      results
+      val finalQuery = query.copy(finalClause = s"LIMIT $limit").build(selectTaskMarkersSQL)
+      finalQuery.as(this.pointParser.*)
     }
   }
 

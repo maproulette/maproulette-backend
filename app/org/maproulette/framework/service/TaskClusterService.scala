@@ -77,50 +77,8 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       sort: String = "",
       orderDirection: String = "ASC"
   ): (Int, List[ClusteredPoint]) = {
-    params.location match {
-      case Some(sl) => // params has location
-      case None =>
-        params.boundingGeometries match {
-          case Some(bp) => // params has bounding polygons
-          case None =>
-            throw new InvalidException(
-              "Bounding Box (or Bounding Polygons) required to retrieve tasks within a bounding box"
-            )
-        }
-    }
-
-    var query =
-      this.filterOutLocked(
-        user,
-        this.filterOutDeletedParents(this.filterOnSearchParameters(params)(false)),
-        ignoreLocked
-      )
-
-    query = params.taskParams.excludeTaskIds match {
-      case Some(excludedIds) if !excludedIds.isEmpty =>
-        //this.appendInWhereClause(whereClause, s"(tasks.id NOT IN (${excludedIds.mkString(",")}))")
-        query.addFilterGroup(
-          FilterGroup(
-            List(
-              BaseParameter(
-                Task.FIELD_ID,
-                excludedIds.mkString(","),
-                Operator.IN,
-                negate = true,
-                useValueDirectly = true,
-                table = Some("tasks")
-              )
-            )
-          )
-        )
-      case _ => query
-    }
-
-    this.repository.queryTasksInBoundingBox(
-      query,
-      this.getOrder(sort, orderDirection),
-      paging
-    )
+    val query = buildQueryForBoundingBox(user, params, ignoreLocked)
+    this.repository.queryTasksInBoundingBox(query, this.getOrder(sort, orderDirection), paging)
   }
 
   /**
@@ -136,29 +94,33 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       params: SearchParameters,
       limit: Int,
       ignoreLocked: Boolean = false
-  ): (List[ClusteredPoint]) = {
-    params.location match {
-      case Some(sl) => // params has location
-      case None =>
-        params.boundingGeometries match {
-          case Some(bp) => // params has bounding polygons
-          case None =>
-            throw new InvalidException(
-              "Bounding Box (or Bounding Polygons) required to retrieve tasks within a bounding box"
-            )
-        }
-    }
+  ): List[ClusteredPoint] = {
+    val query = buildQueryForBoundingBox(user, params, ignoreLocked)
+    this.repository.queryTaskMarkerDataInBoundingBox(query, limit)
+  }
 
-    var query =
-      this.filterOutLocked(
-        user,
-        this.filterOutDeletedParents(this.filterOnSearchParameters(params)(false)),
-        ignoreLocked
-      )
+  /**
+    * Builds a query to retrieve tasks within a bounding box, applying search parameters.
+    *
+    * @param user         The user making the request
+    * @param params       Search parameters including location or bounding geometries
+    * @param ignoreLocked Whether to exclude tasks locked by other users
+    * @return The constructed query
+    */
+  private def buildQueryForBoundingBox(
+      user: User,
+      params: SearchParameters,
+      ignoreLocked: Boolean
+  ): Query = {
+    ensureBoundingBox(params)
+    var query = this.filterOutLocked(
+      user,
+      this.filterOutDeletedParents(this.filterOnSearchParameters(params)(false)),
+      ignoreLocked
+    )
 
-    query = params.taskParams.excludeTaskIds match {
-      case Some(excludedIds) if !excludedIds.isEmpty =>
-        //this.appendInWhereClause(whereClause, s"(tasks.id NOT IN (${excludedIds.mkString(",")}))")
+    params.taskParams.excludeTaskIds match {
+      case Some(excludedIds) if excludedIds.nonEmpty =>
         query.addFilterGroup(
           FilterGroup(
             List(
@@ -175,10 +137,19 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
         )
       case _ => query
     }
+  }
 
-    this.repository.queryTaskMarkerDataInBoundingBox(
-      query,
-      limit
-    )
+  /**
+    * Ensures that either a location or bounding geometries are provided in the search parameters.
+    *
+    * @param params Search parameters
+    * @throws InvalidException if neither location nor bounding geometries are provided
+    */
+  private def ensureBoundingBox(params: SearchParameters): Unit = {
+    if (params.location.isEmpty && params.boundingGeometries.isEmpty) {
+      throw new InvalidException(
+        "Bounding Box (or Bounding Polygons) required to retrieve tasks within a bounding box"
+      )
+    }
   }
 }
