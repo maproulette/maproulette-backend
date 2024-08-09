@@ -331,9 +331,11 @@ GET     /user/:userId/savedTasks                    @org.maproulette.framework.c
 #         schema:
 #           type: array
 #           items:
-#             $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#             $ref: '#/components/schemas/org.maproulette.framework.model.LockedTask'
 #   '401':
-#     description: The user is not authorized to make this request
+#     description: The user is not authorized to make this request.
+#   '404':
+#     description: If User or Task for provided ID's is not found.
 # parameters:
 #   - name: userId
 #     in: path
@@ -341,6 +343,10 @@ GET     /user/:userId/savedTasks                    @org.maproulette.framework.c
 #   - name: limit
 #     in: query
 #     description: Limit the number of results returned in the response. Default value is 50.
+#     required: false
+#     schema:
+#       type: integer
+#       default: 50
 ###
 GET     /user/:userId/lockedTasks                    @org.maproulette.framework.controller.UserController.getLockedTasks(userId:Long, limit:Int ?= 50)
 ###

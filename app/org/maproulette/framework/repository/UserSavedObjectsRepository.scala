@@ -167,7 +167,7 @@ class UserSavedObjectsRepository @Inject() (
       val parser = for {
         id         <- get[Long]("id")
         parent     <- get[Long]("tasks.parent_id")
-        parentName <- get[Option[String]]("challenges.challenge_name")
+        parentName <- get[String]("challenges.challenge_name")
         lockedTime <- get[DateTime]("locked.locked_time")
       } yield (LockedTaskData(id, parent, parentName, lockedTime))
 
@@ -175,7 +175,7 @@ class UserSavedObjectsRepository @Inject() (
                     SELECT t.id, t.parent_id, l.locked_time, c.name AS challenge_name
                     FROM tasks t
                     INNER JOIN locked l ON t.id = l.item_id
-                    LEFT JOIN challenges c ON t.parent_id = c.id
+                    INNER JOIN challenges c ON t.parent_id = c.id
                     WHERE l.user_id = {userId}
                     LIMIT {limit}
                   """
