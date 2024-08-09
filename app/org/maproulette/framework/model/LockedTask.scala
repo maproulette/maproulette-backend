@@ -11,16 +11,14 @@ import play.api.libs.json.JodaReads._
 
 /**
   * Mapping of object structure for fetching task lock data
-  *
-  * id - A database assigned id for the Task
-  * parent - The id of the challenge of the locked task
-  * parentName - The name of the challenge of the locked task
-  * startedAt - The time that the task was locked
   */
 case class LockedTaskData(
     id: Long,
     parent: Long,
     parentName: String,
+    /**
+      * The time that the task was locked
+      */
     startedAt: DateTime
 )
 

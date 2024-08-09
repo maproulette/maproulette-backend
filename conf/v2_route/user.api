@@ -335,7 +335,7 @@ GET     /user/:userId/savedTasks                    @org.maproulette.framework.c
 #   '401':
 #     description: The user is not authorized to make this request.
 #   '404':
-#     description: If User or Task for provided ID's is not found.
+#     description: userId is not known.
 # parameters:
 #   - name: userId
 #     in: path
