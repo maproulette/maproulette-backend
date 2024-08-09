@@ -166,7 +166,7 @@ class UserSavedObjectsRepository @Inject() (
     this.withMRTransaction { implicit c =>
       val parser = for {
         id         <- get[Long]("id")
-        parent     <- get[Option[Long]]("tasks.parent_id")
+        parent     <- get[Long]("tasks.parent_id")
         parentName <- get[Option[String]]("challenges.challenge_name")
         lockedTime <- get[DateTime]("locked.locked_time")
       } yield (LockedTaskData(id, parent, parentName, lockedTime))

@@ -14,7 +14,7 @@ import play.api.libs.json.JodaReads._
   */
 case class LockedTaskData(
     id: Long,
-    parent: Option[Long],
+    parent: Long,
     parentName: Option[String],
     startedAt: DateTime
 )
