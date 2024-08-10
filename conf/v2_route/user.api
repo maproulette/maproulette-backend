@@ -331,7 +331,7 @@ GET     /user/:userId/savedTasks                    @org.maproulette.framework.c
 #         schema:
 #           type: array
 #           items:
-#             $ref: '#/components/schemas/org.maproulette.framework.model.LockedTask'
+#             $ref: '#/components/schemas/org.maproulette.framework.model.LockedTaskData'
 #   '401':
 #     description: The user is not authorized to make this request.
 #   '404':
