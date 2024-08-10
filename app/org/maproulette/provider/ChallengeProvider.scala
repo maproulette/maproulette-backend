@@ -460,11 +460,36 @@ class ChallengeProvider @Inject() (
           case None    => osmQLProvider.requestTimeout
         }
 
+        val modifiedQuery = rewriteQuery(ql)
+        logger.info(modifiedQuery)
+
         val jsonFuture =
-          this.ws.url(osmQLProvider.providerURL).withRequestTimeout(timeout).post(parseQuery(ql))
+          this.ws.url(osmQLProvider.providerURL).withRequestTimeout(timeout).post(modifiedQuery)
         jsonFuture onComplete {
           case Success(result) =>
             if (result.status == Status.OK) {
+              val contentType = result.header("Content-Type")
+
+              // check that the Overpass API returned JSON
+              if (contentType.isDefined && contentType != Some("application/json")) {
+                this.challengeDAL.update(
+                  Json.obj(
+                    "status"        -> Challenge.STATUS_FAILED,
+                    "statusMessage" -> s"""
+                    |Overpass API returned response with Content-Type: ${contentType.get}
+                    |
+                    |MapRoulette requires OverpassQL queries to return JSON.
+                    |
+                    |If your query contained [out:xml] or [out:csv], replace it with [out:json] and try again.
+                    """.stripMargin
+                  ),
+                  user
+                )(challenge.id)
+                throw new InvalidException(
+                  s"Overpass API returned unexpected Content-Type: ${contentType.get}"
+                )
+              }
+
               this.db.withTransaction { implicit c =>
                 var partial          = false
                 val payload          = result.json
@@ -730,23 +755,48 @@ class ChallengeProvider @Inject() (
   }
 
   /**
-    * parse the query, replace various extended overpass query parameters see https://wiki.openstreetmap.org/wiki/Overpass_turbo/Extended_Overpass_Queries
-    * Currently do not support {{bbox}} or {{center}}
+    * rewrite the user-provided OverpassQL query, adding output format and timeout settings if they are missing.
     *
-    * @param query The query to parse
-    * @return
+    * @param query the input query as a string
+    * @return a modified query string
     */
-  private def parseQuery(query: String): String = {
+  private def rewriteQuery(query: String): String = {
     val osmQLProvider = config.getOSMQLProvider
-    // User can set their own custom timeout if the want
-    if (query.indexOf("[out:json]") == 0) {
-      query
-    } else if (query.indexOf("[timeout:") == 0) {
-      s"[out:json]$query"
-    } else {
-      s"[out:json][timeout:${osmQLProvider.requestTimeout.toSeconds}];$query"
+    val timeout       = osmQLProvider.requestTimeout.toSeconds
+
+    val split = query.trim.split("\n", 2)
+    var (firstLine, restOfQuery) = {
+      split.length match {
+        case 0 => ("", "")
+        case 1 => (split(0).trim, "")
+        case _ => (split(0).trim, split(1))
+      }
     }
-    // execute regex matching against {{data:string}}, {{geocodeId:name}}, {{geocodeArea:name}}, {{geocodeBbox:name}}, {{geocodeCoords:name}}
+
+    if (firstLine.startsWith("[") && firstLine.endsWith(";")) {
+      // first line looks like OverpassQL settings statement
+      // https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL#Settings
+
+      if (!firstLine.contains("[out:")) {
+        // if no output format was given by the user, add [out:json]
+        firstLine = "[out:json]" + firstLine
+      }
+      if (!firstLine.contains("[timeout:")) {
+        // if no timeout was specified by the user, add one
+        firstLine = s"[timeout:${timeout}]" + firstLine
+      }
+
+      s"${firstLine}\n${restOfQuery}"
+    } else {
+      // first line doesn't look like OverpassQL settings, so assume no settings were provided,
+      // and prepend the required ones.
+      // NOTE: this branch will incorrectly be reached if the query started with a comment,
+      // or if the settings were split across multiple lines (OverpassQL allows both)
+      s"[out:json][timeout:${timeout}];\n$query"
+    }
+
+    // TODO: execute regex matching against {{data:string}}, {{geocodeId:name}}, {{geocodeArea:name}}, {{geocodeBbox:name}}, {{geocodeCoords:name}}
+    // see https://wiki.openstreetmap.org/wiki/Overpass_turbo/Extended_Overpass_Queries
   }
 
   /**
