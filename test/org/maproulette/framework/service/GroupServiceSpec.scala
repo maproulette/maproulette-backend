@@ -163,7 +163,7 @@ class GroupServiceSpec(implicit val application: Application) extends FrameworkH
       -1,
       name,
       Some("A test group"),
-      Some("http://www.gravatar.com/avatar/?d=identicon")
+      "http://www.gravatar.com/avatar/?d=identicon"
     )
   }
 }

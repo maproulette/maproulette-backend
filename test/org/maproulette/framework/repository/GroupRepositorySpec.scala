@@ -33,24 +33,24 @@ class GroupRepositorySpec(implicit val application: Application) extends Framewo
     }
 
     "create a group" taggedAs GroupTag in {
-      val createdGroup   = this.repository.create(Group(-1, "RandomCreateGroup")).get
+      val createdGroup   = this.repository.create(Group(-1, "RandomCreateGroup", Some(""), "")).get
       val retrievedGroup = this.repository.retrieve(createdGroup.id)
       retrievedGroup.get mustEqual createdGroup
     }
 
     "update a group" taggedAs GroupTag in {
-      val randomGroup = this.repository.create(Group(-1, "RandomGroup")).get
+      val randomGroup = this.repository.create(Group(-1, "RandomGroup", Some(""), "")).get
       this.repository.update(
-        Group(randomGroup.id, "UpdatedName", Some("Updated description"), Some("new_avatar_url"))
+        Group(randomGroup.id, "UpdatedName", Some("Updated description"), "new_avatar_url")
       )
       val group = this.service.retrieve(randomGroup.id)
       group.get.name mustEqual "UpdatedName"
       group.get.description.get mustEqual "Updated description"
-      group.get.avatarURL.get mustEqual "new_avatar_url"
+      group.get.avatarURL mustEqual "new_avatar_url"
     }
 
     "delete a group" taggedAs GroupTag in {
-      val group = this.repository.create(Group(-1, "RandomDeleteGroup")).get
+      val group = this.repository.create(Group(-1, "RandomDeleteGroup", Some(""), "")).get
       this.repository.delete(group)
       this.service.retrieve(group.id) mustEqual None
     }
@@ -73,7 +73,7 @@ class GroupRepositorySpec(implicit val application: Application) extends Framewo
       -1,
       name,
       Some("A test group"),
-      Some("http://www.gravatar.com/avatar/?d=identicon")
+      "http://www.gravatar.com/avatar/?d=identicon"
     )
   }
 }

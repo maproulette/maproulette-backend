@@ -170,7 +170,13 @@ class UserRepository @Inject() (
       case None =>
         val group = this.serviceManager.group
           .create(
-            Group(-1, s"User ${follower.id} Following", groupType = Group.GROUP_TYPE_FOLLOWING)
+            Group(
+              -1,
+              s"User ${follower.id} Following",
+              Some(""),
+              "",
+              groupType = Group.GROUP_TYPE_FOLLOWING
+            )
           )
           .get
         this.setupGroup("following_group", group.id, follower.id)
@@ -183,7 +189,13 @@ class UserRepository @Inject() (
       case None =>
         val group = this.serviceManager.group
           .create(
-            Group(-1, s"User ${followed.id} Followers", groupType = Group.GROUP_TYPE_FOLLOWERS)
+            Group(
+              -1,
+              s"User ${followed.id} Followers",
+              Some(""),
+              "",
+              groupType = Group.GROUP_TYPE_FOLLOWERS
+            )
           )
           .get
         this.setupGroup("followers_group", group.id, followed.id)
@@ -466,10 +478,10 @@ object UserRepository {
       get[Long]("users.id") ~
       get[Long]("users.osm_id") ~
       get[String]("users.name") ~
-      get[Option[String]]("users.avatar_url") ~
+      get[String]("users.avatar_url") ~
       get[List[Int]]("roles") map {
       case projectId ~ userId ~ osmId ~ displayName ~ avatarURL ~ roles =>
-        ProjectManager(projectId, userId, osmId, displayName, avatarURL.getOrElse(""), roles)
+        ProjectManager(projectId, userId, osmId, displayName, avatarURL, roles)
     }
   }
 
@@ -493,7 +505,7 @@ object UserRepository {
       get[DateTime]("users.osm_created") ~
       get[String]("users.name") ~
       get[Option[String]]("users.description") ~
-      get[Option[String]]("users.avatar_url") ~
+      get[String]("users.avatar_url") ~
       get[Option[String]]("home") ~
       get[Option[String]]("users.api_key") ~
       get[String]("users.oauth_token") ~
@@ -544,7 +556,7 @@ object UserRepository {
             osmId,
             displayName,
             description.getOrElse(""),
-            avatarURL.getOrElse(""),
+            avatarURL,
             Location(locationWKT.getX, locationWKT.getY),
             osmCreated,
             oauthToken

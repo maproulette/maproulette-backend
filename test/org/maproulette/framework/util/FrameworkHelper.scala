@@ -146,7 +146,7 @@ trait FrameworkHelper extends PlaySpec with BeforeAndAfterAll with MockitoSugar 
       -1,
       name,
       Some("A test team"),
-      Some("http://www.gravatar.com/avatar/?d=identicon")
+      "http://www.gravatar.com/avatar/?d=identicon"
     )
   }
 

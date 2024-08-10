@@ -44,7 +44,7 @@ class LeaderboardRepository @Inject() (override val db: Database) extends Reposi
   ): RowParser[LeaderboardUser] = {
     get[Long]("user_id") ~
       get[String]("user_name") ~
-      get[String]("user_avatar_url").? ~
+      get[String]("user_avatar_url") ~
       get[Int]("user_score") ~
       get[Int]("user_ranking") ~
       get[DateTime]("created").? ~
@@ -61,7 +61,7 @@ class LeaderboardRepository @Inject() (override val db: Database) extends Reposi
         new LeaderboardUser(
           userId,
           name,
-          avatarURL.getOrElse(""),
+          avatarURL,
           score,
           rank,
           completedTasks,
