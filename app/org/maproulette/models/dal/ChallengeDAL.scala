@@ -1862,10 +1862,6 @@ class ChallengeDAL @Inject() (
         case None =>
       }
 
-      if (searchParameters.challengeParams.filterGlobal == true) {
-        this.appendInWhereClause(whereClause, s"c.is_global = false")
-      }
-
       searchParameters.projectEnabled match {
         case Some(true) => this.appendInWhereClause(whereClause, this.enabled(true, "p")(None))
         case _          =>
@@ -1898,10 +1894,8 @@ class ChallengeDAL @Inject() (
         this.appendInWhereClause(whereClause, s"c.is_archived = false")
       }
 
-      searchParameters.challengeParams.filterGlobal match {
-        case Some(v) if v =>
-          this.appendInWhereClause(whereClause, s"c.is_global = false")
-        case _ =>
+      if (searchParameters.challengeParams.filterGlobal == true) {
+        this.appendInWhereClause(whereClause, s"c.is_global = false")
       }
 
       searchParameters.challengeParams.requiresLocal match {
