@@ -102,7 +102,10 @@ class TeamSchema @Inject() (override val service: TeamService)
               case Some(description) => Some(description)
               case None              => team.description
             },
-            avatarURL = context.arg(TeamSchema.avatarUrlArg)
+            avatarURL = context.arg(TeamSchema.avatarUrlArg) match {
+              case Some(avatarURL) => Some(avatarURL)
+              case None            => team.avatarURL
+            }
           ),
           user
         )
@@ -205,10 +208,10 @@ object TeamSchema extends DefaultWrites {
       OptionInputType(StringType),
       "The description of the object"
     )
-  val avatarUrlArg: Argument[String] =
+  val avatarUrlArg: Argument[Option[String]] =
     Argument(
       "avatarURL",
-      StringType,
+      OptionInputType(StringType),
       "An avatar URL representing the object"
     )
 }

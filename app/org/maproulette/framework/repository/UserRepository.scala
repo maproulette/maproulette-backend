@@ -170,13 +170,7 @@ class UserRepository @Inject() (
       case None =>
         val group = this.serviceManager.group
           .create(
-            Group(
-              -1,
-              s"User ${follower.id} Following",
-              Some(""),
-              "",
-              groupType = Group.GROUP_TYPE_FOLLOWING
-            )
+            Group(-1, s"User ${follower.id} Following", groupType = Group.GROUP_TYPE_FOLLOWING)
           )
           .get
         this.setupGroup("following_group", group.id, follower.id)
@@ -189,13 +183,7 @@ class UserRepository @Inject() (
       case None =>
         val group = this.serviceManager.group
           .create(
-            Group(
-              -1,
-              s"User ${followed.id} Followers",
-              Some(""),
-              "",
-              groupType = Group.GROUP_TYPE_FOLLOWERS
-            )
+            Group(-1, s"User ${followed.id} Followers", groupType = Group.GROUP_TYPE_FOLLOWERS)
           )
           .get
         this.setupGroup("followers_group", group.id, followed.id)

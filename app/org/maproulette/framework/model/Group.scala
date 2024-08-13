@@ -22,7 +22,7 @@ case class Group(
     id: Long,
     name: String,
     description: Option[String] = None,
-    avatarURL: String,
+    avatarURL: Option[String] = None,
     groupType: Int = Group.GROUP_TYPE_STANDARD,
     created: DateTime = DateTime.now(),
     modified: DateTime = DateTime.now()
@@ -34,7 +34,7 @@ object Group extends CommonField {
     (JsPath \ "id").read[Long] and
       (JsPath \ "name").read[String] and
       (JsPath \ "description").readNullable[String] and
-      (JsPath \ "avatarURL").read[String] and
+      (JsPath \ "avatarURL").readNullable[String] and
       (JsPath \ "groupType").read[Int] and
       ((JsPath \ "created").read[DateTime] or Reads.pure(DateTime.now())) and
       ((JsPath \ "modified").read[DateTime] or Reads.pure(DateTime.now()))
