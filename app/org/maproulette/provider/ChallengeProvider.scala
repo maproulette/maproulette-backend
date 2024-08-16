@@ -786,13 +786,25 @@ class ChallengeProvider @Inject() (
         firstLine = s"[timeout:${timeout}]" + firstLine
       }
 
-      s"${firstLine}\n${restOfQuery}"
+      return s"${firstLine}\n${restOfQuery}"
     } else {
       // first line doesn't look like OverpassQL settings, so assume no settings were provided,
       // and prepend the required ones.
+
       // NOTE: this branch will incorrectly be reached if the query started with a comment,
-      // or if the settings were split across multiple lines (OverpassQL allows both)
-      s"[out:json][timeout:${timeout}];\n$query"
+      // or if the settings were split across multiple lines (OverpassQL allows both).
+      // In those cases it's better to do nothing (hopefully the query will work without any changes)
+      // than to add redundant settings (which is a syntax error).
+
+      val settings = Array("out", "timeout", "bbox", "date", "diff", "adiff", "maxsize")
+      // Check (crudely) if it looks like settings have already been provided somewhere in the query
+      if (settings.exists(setting => query.contains(s"[${setting}:"))) {
+        // If so, return it unmodified
+        return query
+      } else {
+        // If not, hopefully it's safe to prepend our default settings
+        return s"[out:json][timeout:${timeout}];\n$query"
+      }
     }
 
     // TODO: execute regex matching against {{data:string}}, {{geocodeId:name}}, {{geocodeArea:name}}, {{geocodeBbox:name}}, {{geocodeCoords:name}}
