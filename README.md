@@ -11,7 +11,7 @@ Welcome to the repository for the MapRoulette back-end server code. The MapRoule
 
 MapRoulette depends on several technologies for building and running the project:
 
-* Java 11 JDK
+* Java 17 JDK
 * PostgreSQL with PostGIS
 * [Scala Build Tool](https://www.scala-sbt.org/download.html)
 
@@ -31,7 +31,7 @@ The validation at each step is a helpful sanity check so please, regardless of y
 
 ### Step 1: Installing Tools
 
-To get started you'll need to install Docker, JDK 11, and sbt.
+To get started you'll need to install Docker, JDK 17, and sbt.
 
 #### Docker
 
@@ -40,14 +40,14 @@ Docker is a virtualization tool and feel free to use
 or [Podman](https://podman.io/),
 or even [Rancher Desktop](https://rancherdesktop.io/).
 
-#### JDK 11 and sbt
+#### JDK 17 and sbt
 
 [sdkman](https://sdkman.io/install) is a great tool to install a specific build of the JDK to keep your environment
 as similar to production as possible. It also handles fetching x8664 and aarch64 builds automatically.
 Follow the installation steps and install the JDK and sbt using a command similar to:
 
-* `sdk install java 11.0.21-tem`
-* `sdk install sbt 1.8.2`
+* `sdk install java 17.0.12-tem`
+* `sdk install sbt 1.10.1`
 
 #### Validation
 
@@ -56,7 +56,7 @@ Within a terminal check that docker, javac, and sbt are working.
 * `docker run hello-world`
   * Verify docker works
 * `javac -version`
-  * Verify javac is JDK 11
+  * Verify javac is JDK 17
   * Apple Silicon: Verify that the JDK is an aarch64 build and not x8664.
 * `sbt -version`
 

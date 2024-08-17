@@ -48,7 +48,7 @@ jobs:
           POSTGRES_PASSWORD: osm
     strategy:
       matrix:
-        java: [ 11, 17 ]
+        java: [ 17 ]
     steps:
       - uses: actions/checkout@v4
       - name: Set up JDK ${{ matrix.java }}
