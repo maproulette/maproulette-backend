@@ -112,14 +112,25 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar {
       repository.featureOSMId(json, challengeWithOsmId) mustEqual Some("9999999")
     }
 
-    "return None if OSM ID not found in root or properties" in {
-      val json = Json.obj("otherField" -> "value")
-      repository.featureOSMId(json, challengeWithOsmId) mustEqual None
-    }
-
     "return OSM ID from first feature in list if specified in challenge" in {
       val json = Json.obj("features" -> Json.arr(Json.obj("custom_osm_id" -> "featureId1")))
       repository.featureOSMId(json, challengeWithOsmId) mustEqual Some("featureId1")
+    }
+
+    "return OSM ID from nested features if specified in challenge" in {
+      val json = Json.obj(
+        "features" -> Json.arr(
+          Json.obj(
+            "properties" -> Json.obj("custom_osm_id" -> "nestedFeatureId1")
+          )
+        )
+      )
+      repository.featureOSMId(json, challengeWithOsmId) mustEqual Some("nestedFeatureId1")
+    }
+
+    "return None if OSM ID not found in root or properties" in {
+      val json = Json.obj("otherField" -> "value")
+      repository.featureOSMId(json, challengeWithOsmId) mustEqual None
     }
 
     "return None if features do not contain specified OSM ID field" in {
@@ -147,17 +158,6 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar {
       val json = Json.obj("features" -> Json.arr())
       repository.featureOSMId(json, challengeWithOsmId) mustEqual None
     }
-
-    "return OSM ID from nested features if specified in challenge" in {
-      val json = Json.obj(
-        "features" -> Json.arr(
-          Json.obj(
-            "properties" -> Json.obj("custom_osm_id" -> "nestedFeatureId1")
-          )
-        )
-      )
-      repository.featureOSMId(json, challengeWithOsmId) mustEqual Some("nestedFeatureId1")
-    }
   }
 
   "taskNameFromJsValue" should {
@@ -166,15 +166,35 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar {
       repository.taskNameFromJsValue(json, challengeWithOsmId) mustEqual "12345"
     }
 
+    "return feature id from properties if ID field is null and other fields are valid" in {
+      val json = Json.obj(
+        "id" -> null,
+        "properties" -> Json
+          .obj("name" -> "testName", "id" -> "idstring", "fillerProperty" -> "string")
+      )
+      repository.taskNameFromJsValue(json, challengeWithoutOsmId) mustEqual "idstring"
+    }
+
+    "return feature id from properties if ID field is null and properties contain valid IDs" in {
+      val json = Json.obj(
+        "properties" -> Json.obj("fillerProperty" -> "string", "id" -> null, "name" -> "testName")
+      )
+      repository.taskNameFromJsValue(json, challengeWithoutOsmId) mustEqual "testName"
+    }
+
+    "return feature id from the first feature if the ID field is null and challenge specifies valid feature IDs" in {
+      val json = Json.obj(
+        "features" -> Json.arr(
+          Json.obj("id" -> null, "properties" -> Json.obj("name" -> "featureName")),
+          Json.obj("id" -> null, "properties" -> Json.obj("name" -> "otherFeatureName"))
+        )
+      )
+      repository.taskNameFromJsValue(json, challengeWithoutOsmId) mustEqual "featureName"
+    }
+
     "return random UUID if OSM ID field is specified but not found" in {
       val json   = Json.obj("otherField" -> "value")
       val result = repository.taskNameFromJsValue(json, challengeWithOsmId)
-      assert(UUID.fromString(result).toString == result)
-    }
-
-    "return random UUID if no valid feature ID is found and no challenge-specific ID is available" in {
-      val json   = Json.obj("features" -> Json.arr(Json.obj("otherField" -> "value")))
-      val result = repository.taskNameFromJsValue(json, challengeWithoutOsmId)
       assert(UUID.fromString(result).toString == result)
     }
 
@@ -190,34 +210,7 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar {
       assert(UUID.fromString(result).toString == result)
     }
 
-    "return field from properties if ID field is 'null' and other fields are valid" in {
-      val json = Json.obj(
-        "id" -> null,
-        "properties" -> Json
-          .obj("name" -> "testName", "id" -> "idstring", "fillerProperty" -> "string")
-      )
-      repository.taskNameFromJsValue(json, challengeWithoutOsmId) mustEqual "idstring"
-    }
-
-    "return field from properties if ID field is null and properties contain valid IDs" in {
-      val json = Json.obj(
-        "fillerProperty" -> "string",
-        "properties"     -> Json.obj("fillerProperty" -> "string", "id" -> null, "name" -> "testName")
-      )
-      repository.taskNameFromJsValue(json, challengeWithoutOsmId) mustEqual "testName"
-    }
-
-    "return field from the first feature if the ID field is 'null' and challenge specifies valid feature IDs" in {
-      val json = Json.obj(
-        "features" -> Json.arr(
-          Json.obj("id" -> null, "properties" -> Json.obj("name" -> "featureName")),
-          Json.obj("id" -> null, "properties" -> Json.obj("name" -> "otherFeatureName"))
-        )
-      )
-      repository.taskNameFromJsValue(json, challengeWithoutOsmId) mustEqual "featureName"
-    }
-
-    "return a UUID if JSON features array has objects with null or empty names" in {
+    "return random UUID if JSON features array has objects with null or empty names" in {
       val json   = Json.obj("features" -> Json.arr(Json.obj("name" -> ""), Json.obj("name" -> null)))
       val result = repository.taskNameFromJsValue(json, challengeWithoutOsmId)
       assert(UUID.fromString(result).toString == result)

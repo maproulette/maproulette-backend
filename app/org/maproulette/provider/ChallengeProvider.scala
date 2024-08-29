@@ -281,6 +281,7 @@ class ChallengeProvider @Inject() (
         }
     }
   }
+
   // Helper function to retrieve a non-null, non-empty string from a field
   // Supports both string and numeric IDs.
   def getNonNullString(value: JsValue, fieldName: String): Option[String] = {
