@@ -43,9 +43,19 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar {
       repository.featureOSMId(json, challengeWithOsmId) mustEqual Some("singleFeatureId")
     }
 
+    "return OSM ID from root if present and specified in challenge (numeric)" in {
+      val json = Json.obj("custom_osm_id" -> 9999999)
+      repository.featureOSMId(json, challengeWithOsmId) mustEqual Some("9999999")
+    }
+
     "return OSM ID from properties if specified in challenge" in {
       val json = Json.obj("properties" -> Json.obj("custom_osm_id" -> "propertyId"))
       repository.featureOSMId(json, challengeWithOsmId) mustEqual Some("propertyId")
+    }
+
+    "return OSM ID from properties if specified in challenge (numeric)" in {
+      val json = Json.obj("properties" -> Json.obj("custom_osm_id" -> 9999999))
+      repository.featureOSMId(json, challengeWithOsmId) mustEqual Some("9999999")
     }
 
     "return None if OSM ID not found in root or properties" in {
@@ -69,7 +79,13 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar {
     }
 
     "return None if JSON has no features and challenge does not specify OSM ID property" in {
-      val json = Json.obj()
+      val json = Json.obj("custom_osm_id" -> null, "fillerProperty" -> "string")
+      repository.featureOSMId(json, challengeWithoutOsmId) mustEqual None
+    }
+
+    "return None if properties object is empty and challenge does not specify OSM ID property" in {
+      val json =
+        Json.obj("properties" -> Json.obj("custom_osm_id" -> null, "fillerProperty" -> "string"))
       repository.featureOSMId(json, challengeWithoutOsmId) mustEqual None
     }
   }
@@ -78,11 +94,6 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar {
     "return OSM ID from root object if present and specified in challenge" in {
       val json = Json.obj("custom_osm_id" -> "12345")
       repository.taskNameFromJsValue(json, challengeWithOsmId) mustEqual "12345"
-    }
-
-    "return OSM ID from first feature if available and specified in challenge" in {
-      val json = Json.obj("features" -> Json.arr(Json.obj("custom_osm_id" -> "featureId123")))
-      repository.taskNameFromJsValue(json, challengeWithOsmId) mustEqual "featureId123"
     }
 
     "return random UUID if OSM ID field is specified but not found" in {
@@ -109,37 +120,21 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar {
       assert(UUID.fromString(result).toString == result)
     }
 
-    "return random UUID if properties object is empty and no ID fields are found" in {
-      val json   = Json.obj("properties" -> Json.obj())
-      val result = repository.taskNameFromJsValue(json, challengeWithoutOsmId)
-      assert(UUID.fromString(result).toString == result)
-    }
-
-    "return ID field from root object or properties if available" in {
-      val jsonRoot  = Json.obj("id"         -> "testId")
-      val jsonProps = Json.obj("properties" -> Json.obj("id" -> "testId"))
-      repository.taskNameFromJsValue(jsonRoot, challengeWithoutOsmId) mustEqual "testId"
-      repository.taskNameFromJsValue(jsonProps, challengeWithoutOsmId) mustEqual "testId"
-    }
-
-    "return UUID if ID field is 'null'" in {
-      val json   = Json.obj("id" -> null)
-      val result = repository.taskNameFromJsValue(json, challengeWithoutOsmId)
-      assert(UUID.fromString(result).toString == result)
-    }
-
-    "return field from properties if ID field is null and other fields are valid" in {
-      val json =
-        Json.obj("id" -> null, "properties" -> Json.obj("name" -> "testName", "id" -> "idstring"))
+    "return field from properties if ID field is 'null' and other fields are valid" in {
+      val json = Json.obj(
+        "id" -> null,
+        "properties" -> Json
+          .obj("name" -> "testName", "id" -> "idstring", "fillerProperty" -> "string")
+      )
       repository.taskNameFromJsValue(json, challengeWithoutOsmId) mustEqual "idstring"
     }
 
-    "return field from properties if ID field is 'null' and other fields are valid" in {
+    "return field from properties if ID field is null and properties contain valid IDs" in {
       val json = Json.obj(
-        "name"       -> "string",
-        "properties" -> Json.obj("name" -> "testName", "id" -> "idstring")
+        "fillerProperty" -> "string",
+        "properties"     -> Json.obj("fillerProperty" -> "string", "id" -> null, "name" -> "testName")
       )
-      repository.taskNameFromJsValue(json, challengeWithoutOsmId) mustEqual "string"
+      repository.taskNameFromJsValue(json, challengeWithoutOsmId) mustEqual "testName"
     }
   }
 }

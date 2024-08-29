@@ -281,97 +281,81 @@ class ChallengeProvider @Inject() (
         }
     }
   }
+  // Helper function to retrieve a non-null, non-empty string from a field
+  // Supports both string and numeric IDs.
+  def getNonNullString(value: JsValue, fieldName: String): Option[String] = {
+    (value \ fieldName).asOpt[JsValue].flatMap {
+      case JsString(str) if str.nonEmpty => Some(str)
+      case JsNumber(num)                 => Some(num.toString)
+      case _                             => None
+    }
+  }
 
   /**
-    * Extracts the OSM id from the given JsValue based on the `osmIdProperty`
+    * Checks for the first valid ID in the specified list of field names.
+    */
+  def findName(value: JsValue, fields: List[String]): Option[String] = {
+    fields.iterator.flatMap(fieldName => getNonNullString(value, fieldName)).toList.headOption
+  }
+
+  /**
+    * Extracts the OSM ID from the given JsValue based on the `osmIdProperty`
     * challenge field. Returns None if either the challenge has not specified an
     * osmIdProperty or if the JsValue contains neither a field nor property with
     * the specified name. If the JsValue represents a collection of features,
-    * each feature will be checked and the first OSM id found returned
+    * each feature will be checked and the first OSM ID found will be returned.
     */
   def featureOSMId(value: JsValue, challenge: Challenge): Option[String] = {
-    challenge.extra.osmIdProperty match {
-      case Some(osmIdName) =>
-        // Whether `value` represents multiple features or just one, process as List
-        val features = (value \ "features").asOpt[List[JsValue]].getOrElse(List(value))
-        features
-          .map(feature =>
-            // First look for a matching field on the feature itself. If not found, then
-            // look at the feature's properties
-            (feature \ osmIdName).asOpt[String] match {
-              case Some(matchingIdField) => Some(matchingIdField)
-              case None =>
-                (feature \ "properties").asOpt[JsObject] match {
-                  case Some(properties) =>
-                    (properties \ osmIdName).asOpt[String] match {
-                      case Some(matchingIdProperty) => Some(matchingIdProperty)
-                      case None                     => None // feature doesn't have the id property
-                    }
-                  case None => None // feature doesn't have any properties
-                }
-            }
-          )
-          .find(_.isDefined) match { // first feature that has a match
-          case Some(featureWithId) => featureWithId
-          case None                => None // No features found with matching id field or property
+    challenge.extra.osmIdProperty.flatMap { osmIdName =>
+      // Whether `value` represents multiple features or just one, process as List
+      val features = (value \ "features").asOpt[List[JsValue]].getOrElse(List(value))
+
+      features.flatMap { feature =>
+        // First look for a matching field on the feature itself
+        getNonNullString(feature, osmIdName).orElse {
+          // If not found on the feature, then look at the feature's properties
+          (feature \ "properties").asOpt[JsObject].flatMap { properties =>
+            getNonNullString(properties, osmIdName)
+          }
         }
-      case None => None // No osmIdProperty defined on challenge
+      }.headOption // Get the first non-empty match
     }
   }
 
   /**
     * Extracts an appropriate task name from the given JsValue, looking for any
-    * of multiple suitable id fields, or finally defaulting to a random UUID if
-    * no acceptable field is found
+    * of multiple suitable ID fields, or finally defaulting to a random UUID if
+    * no acceptable field is found.
     */
   def taskNameFromJsValue(value: JsValue, challenge: Challenge): String = {
-
-    // Helper function to retrieve a non-null, non-empty string from a field
-    // Supports both string and numeric ids.
-    def getNonNullString(fieldName: String): Option[String] = {
-      (value \ fieldName).asOpt[JsValue].flatMap {
-        case JsString(str) if str.nonEmpty => Some(str)
-        case JsNumber(num)                 => Some(num.toString)
-        case _                             => None
-      }
-    }
-
-    // Check for the first valid ID in the specified list of field names
-    def findName(fields: List[String]): Option[String] = {
-      fields.iterator.flatMap(fieldName => getNonNullString(fieldName)).toList.headOption
-    }
-
     // Use field/property specified by challenge, if available. Otherwise look
-    // for commonly used id fields/properties
-    challenge.extra.osmIdProperty.flatMap { osmIdProperty =>
-      if (osmIdProperty.nonEmpty) {
-        featureOSMId(value, challenge)
-      } else {
-        None
-      }
-    } getOrElse {
-      (value \ "features").asOpt[List[JsValue]].flatMap(_.headOption).flatMap { firstFeature =>
-        taskNameFromJsValue(firstFeature, challenge) match {
-          case "" => None
-          case id => Some(id)
-        }
-      } getOrElse {
-        val nameKeys = List("id", "@id", "osmid", "osm_id", "name")
-        findName(nameKeys).getOrElse {
-          (value \ "properties").asOpt[JsObject].flatMap { properties =>
-            taskNameFromJsValue(properties, challenge) match {
-              case "" => None
-              case id => Some(id)
-            }
-          } getOrElse {
-            // if we still don't find anything, create a UUID for it. The
-            // caveat to this is that if you upload the same file again, it
-            // will create duplicate tasks
-            UUID.randomUUID().toString
-          }
-        }
-      }
+    // for commonly used ID fields/properties
+    if (challenge.extra.osmIdProperty.exists(_.nonEmpty)) {
+      return featureOSMId(value, challenge).getOrElse(UUID.randomUUID().toString)
     }
+
+    (value \ "features")
+      .asOpt[List[JsValue]]
+      .flatMap(_.headOption)
+      .flatMap { firstFeature =>
+        val name = taskNameFromJsValue(firstFeature, challenge)
+        if (name.nonEmpty) Some(name) else None
+      }
+      .getOrElse {
+        val nameKeys = List("id", "@id", "osmid", "osm_id", "name")
+        findName(value, nameKeys).getOrElse {
+          (value \ "properties")
+            .asOpt[JsObject]
+            .flatMap { properties =>
+              val name = taskNameFromJsValue(properties, challenge)
+              if (name.nonEmpty) Some(name) else None
+            }
+            .getOrElse {
+              // If we still don't find anything, create a UUID for it.
+              UUID.randomUUID().toString
+            }
+        }
+      }
   }
 
   /**
