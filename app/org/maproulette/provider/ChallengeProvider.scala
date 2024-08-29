@@ -295,7 +295,13 @@ class ChallengeProvider @Inject() (
     * Checks for the first valid ID in the specified list of field names.
     */
   def findName(value: JsValue, fields: List[String]): Option[String] = {
-    fields.iterator.flatMap(fieldName => getNonNullString(value, fieldName)).toList.headOption
+    fields.iterator
+      .flatMap { fieldName =>
+        val result = getNonNullString(value, fieldName)
+        result
+      }
+      .toList
+      .headOption
   }
 
   /**
