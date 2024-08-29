@@ -357,7 +357,9 @@ class ChallengeProvider @Inject() (
               if (name.nonEmpty) Some(name) else None
             }
             .getOrElse {
-              // If we still don't find anything, create a UUID for it.
+              // if we still don't find anything, create a UUID for it. The
+              // caveat to this is that if you upload the same file again, it
+              // will create duplicate tasks
               UUID.randomUUID().toString
             }
         }
