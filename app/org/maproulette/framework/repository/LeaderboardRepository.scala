@@ -149,6 +149,63 @@ class LeaderboardRepository @Inject() (override val db: Database) extends Reposi
     }
   }
 
+    /**
+    * Queries the user_leaderboard table
+    *
+    * @param query
+    * @param getTopChallengesBlock - function to return the top challenges for a user id
+    * @return List of LeaderboardUsers
+   **/
+  def queryMainLeaderboard(
+      query: Query,
+      getTopChallengesBlock: Long => List[LeaderboardChallenge]
+  ): List[LeaderboardUser] = {
+    withMRConnection { implicit c =>
+      query
+        .build(
+          """
+        SELECT *,
+              COALESCE(user_leaderboard.completed_tasks, 0) as completed_tasks,
+              COALESCE(user_leaderboard.avg_time_spent, 0) as avg_time_spent
+        FROM user_leaderboard
+        """
+        )
+        .as(this.userLeaderboardParser(getTopChallengesBlock).*)
+    }
+  }
+
+    /**
+    * Queries the user_leaderboard table
+    *
+    * @param query
+    * @param getTopChallengesBlock - function to return the top challenges for a user id
+    * @return List of LeaderboardUsers
+   **/
+  def queryChallengeLeaderboard(
+      query: Query,
+      getTopChallengesBlock: Long => List[LeaderboardChallenge]
+  ): List[LeaderboardUser] = {
+    withMRConnection { implicit c =>
+      query
+        .build(
+          """
+        SELECT * FROM user_top_challengess
+        """
+        )
+        .as(this.leaderboardChallengeParser.*)
+    }
+  }
+
+    def queryLeaderboardChallenges(query: Query): List[LeaderboardChallenge] = {
+    withMRConnection { implicit c =>
+      query
+        .build(
+          "SELECT challenge_id, challenge_name, activity FROM user_top_challenges"
+        )
+        .as(this.leaderboardChallengeParser.*)
+    }
+  }
+
   /**
     * Queries the user_leaderboard table with ranking sql
     *

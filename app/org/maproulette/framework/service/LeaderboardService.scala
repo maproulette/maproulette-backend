@@ -184,6 +184,177 @@ class LeaderboardService @Inject() (
     )
   }
 
+  def getMainLeaderboard(
+      monthDuration: Int = 1,
+      maxChallengesInList: Int = 3,
+      limit: Int = Config.DEFAULT_LIST_SIZE,
+      offset: Int = 1
+  ): List[LeaderboardUser] = {
+    val result = this.repository.queryMainLeaderboard(
+      Query.simple(
+        List(
+          BaseParameter(
+            "month_duration",
+            monthDuration,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("")
+          ),
+          BaseParameter(
+            "country_code",
+            None,
+            Operator.NULL,
+            useValueDirectly = true,
+            table = Some("")
+          )
+        ),
+        paging = Paging(limit, offset),
+        order = Order(List(OrderField("user_ranking", Order.ASC, table = Some(""))))
+      ),
+      fetchedUserId =>
+        this.getMainLeaderboardChallenges(fetchedUserId, monthDuration, maxChallengesInList, offset)
+    )
+
+    return result
+  }
+
+  def getChallengeLeaderboard(
+      challengeId: Int,
+      monthDuration: Int = 1,
+      maxChallengesInList: Int = 3,
+      limit: Int = Config.DEFAULT_LIST_SIZE,
+      offset: Int = 1
+  ): List[LeaderboardUser] = {
+    val result = this.repository.queryChallengeLeaderboard(
+      Query.simple(
+        List(
+          BaseParameter(
+            "challenge_id",
+            challengeId,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("user_top_challenges")
+          ),
+          BaseParameter(
+            "month_duration",
+            monthDuration,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("user_top_challenges")
+          ),
+          BaseParameter(
+            "country_code",
+            None,
+            Operator.NULL,
+            useValueDirectly = true,
+            table = Some("")
+          )
+        ),
+        paging = Paging(limit, offset),
+        order = Order(List(OrderField("activity", Order.DESC, table = Some("user_top_challenges"))))
+      ),
+      fetchedUserId =>
+        this.getChallengeLeaderboardChallenges(
+          fetchedUserId,
+          challengeId,
+          monthDuration,
+          maxChallengesInList,
+          offset
+        )
+    )
+
+    return result
+  }
+
+  def getProjectLeaderboard(
+      projectId: Int,
+      monthDuration: Int = 1,
+      maxChallengesInList: Int = 3,
+      limit: Int = Config.DEFAULT_LIST_SIZE,
+      offset: Int = 1
+  ): List[LeaderboardUser] = {
+    val result = this.repository.queryUserLeaderboard(
+      Query.simple(
+        List(
+          BaseParameter(
+            "project_id",
+            projectId,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("")
+          ),
+          BaseParameter(
+            "month_duration",
+            monthDuration,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("")
+          ),
+          BaseParameter(
+            "country_code",
+            None,
+            Operator.NULL,
+            useValueDirectly = true,
+            table = Some("")
+          )
+        ),
+        paging = Paging(limit, offset),
+        order = Order(List(OrderField("user_ranking", Order.ASC, table = Some("projects"))))
+      ),
+      fetchedUserId =>
+        this.getProjectLeaderboardChallenges(
+          fetchedUserId,
+          projectId,
+          monthDuration,
+          maxChallengesInList,
+          offset
+        )
+    )
+
+    return result
+  }
+
+  def getCountryLeaderboard(
+      country: String,
+      monthDuration: Int = 1,
+      maxChallengesInList: Int = 3,
+      limit: Int = Config.DEFAULT_LIST_SIZE,
+      offset: Int = 1
+  ): List[LeaderboardUser] = {
+    val result = this.repository.queryUserLeaderboard(
+      Query.simple(
+        List(
+          BaseParameter(
+            "country_code",
+            country,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("")
+          ),
+          BaseParameter(
+            "month_duration",
+            monthDuration,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("")
+          )
+        ),
+        paging = Paging(limit, offset),
+        order = Order(List(OrderField("user_ranking", Order.DESC, table = Some("countries"))))
+      ),
+      fetchedUserId =>
+        this.getCountryLeaderboardChallenges(
+          fetchedUserId,
+          country,
+          monthDuration,
+          maxChallengesInList,
+          offset
+        )
+    )
+
+    return result
+  }
+
   /**
     * Gets leaderboard rank for a user based on task completion activity
     * over the given period. Scoring for each completed task is based on status
@@ -264,6 +435,165 @@ class LeaderboardService @Inject() (
       rankQuery,
       fetchedUserId => this.getUserTopChallenges(fetchedUserId, params)
     )
+  }
+
+  def getMainLeaderboardChallenges(
+      userId: Long,
+      monthDuration: Int = 1,
+      limit: Int = Config.DEFAULT_LIST_SIZE,
+      offset: Int = 0
+  ): List[LeaderboardChallenge] = {
+    // The userId must exist and must not be a system user, otherwise return NotFound (http 404).
+    if (userId <= 0 || this.userService.retrieve(userId).isEmpty) {
+      throw new NotFoundException(s"No user found with id $userId")
+    }
+
+    val result = this.repository.queryLeaderboardChallenges(
+      Query.simple(
+        BaseParameter(
+          "user_id",
+          userId,
+          Operator.EQ,
+          useValueDirectly = true,
+          table = Some("")
+        ) :: this.lessBasicFilters(monthDuration),
+        paging = Paging(limit, offset),
+        order = Order(
+          List(
+            OrderField("activity", Order.DESC, table = Some("")),
+            OrderField("challenge_id", Order.ASC, table = Some(""))
+          )
+        )
+      )
+    )
+
+    return result
+  }
+
+  def getChallengeLeaderboardChallenges(
+      userId: Long,
+      challengeId: Int,
+      monthDuration: Int = 1,
+      limit: Int = Config.DEFAULT_LIST_SIZE,
+      offset: Int = 0
+  ): List[LeaderboardChallenge] = {
+    // Validate the userId and ensure the user exists
+    if (userId <= 0 || this.userService.retrieve(userId).isEmpty) {
+      throw new NotFoundException(s"No user found with id $userId")
+    }
+
+    // Filter by userId and challengeId, and apply the same ordering and paging
+    val result = this.repository.queryLeaderboardChallenges(
+      Query.simple(
+        BaseParameter(
+          "user_id",
+          userId,
+          Operator.EQ,
+          useValueDirectly = true,
+          table = Some("")
+        ) ::
+          BaseParameter(
+            "challenge_id",
+            challengeId,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("")
+          ) :: this.lessBasicFilters(monthDuration),
+        paging = Paging(limit, offset),
+        order = Order(
+          List(
+            OrderField("activity", Order.DESC, table = Some("")),
+            OrderField("challenge_id", Order.ASC, table = Some(""))
+          )
+        )
+      )
+    )
+
+    result
+  }
+
+  def getProjectLeaderboardChallenges(
+      userId: Long,
+      projectId: Int,
+      monthDuration: Int = 1,
+      limit: Int = Config.DEFAULT_LIST_SIZE,
+      offset: Int = 0
+  ): List[LeaderboardChallenge] = {
+    // Validate the userId and ensure the user exists
+    if (userId <= 0 || this.userService.retrieve(userId).isEmpty) {
+      throw new NotFoundException(s"No user found with id $userId")
+    }
+
+    // Filter by userId and projectId, and apply the same ordering and paging
+    val result = this.repository.queryLeaderboardChallenges(
+      Query.simple(
+        BaseParameter(
+          "user_id",
+          userId,
+          Operator.EQ,
+          useValueDirectly = true,
+          table = Some("")
+        ) ::
+          BaseParameter(
+            "project_id",
+            projectId,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("")
+          ) :: this.lessBasicFilters(monthDuration),
+        paging = Paging(limit, offset),
+        order = Order(
+          List(
+            OrderField("activity", Order.DESC, table = Some("")),
+            OrderField("challenge_id", Order.ASC, table = Some(""))
+          )
+        )
+      )
+    )
+
+    result
+  }
+
+  def getCountryLeaderboardChallenges(
+      userId: Long,
+      country: String,
+      monthDuration: Int = 1,
+      limit: Int = Config.DEFAULT_LIST_SIZE,
+      offset: Int = 0
+  ): List[LeaderboardChallenge] = {
+    // Validate the userId and ensure the user exists
+    if (userId <= 0 || this.userService.retrieve(userId).isEmpty) {
+      throw new NotFoundException(s"No user found with id $userId")
+    }
+
+    // Filter by userId and country, and apply the same ordering and paging
+    val result = this.repository.queryLeaderboardChallenges(
+      Query.simple(
+        BaseParameter(
+          "user_id",
+          userId,
+          Operator.EQ,
+          useValueDirectly = true,
+          table = Some("")
+        ) ::
+          BaseParameter(
+            "country",
+            country,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("")
+          ) :: this.lessBasicFilters(monthDuration),
+        paging = Paging(limit, offset),
+        order = Order(
+          List(
+            OrderField("activity", Order.DESC, table = Some("")),
+            OrderField("challenge_id", Order.ASC, table = Some(""))
+          )
+        )
+      )
+    )
+
+    result
   }
 
   /**
@@ -472,6 +802,28 @@ class LeaderboardService @Inject() (
           FROM status_actions sa, users, tasks
           $taskTableIfNeeded
         """
+    )
+  }
+
+  // Returns basic filters for monthDuration and countryCode
+  private def lessBasicFilters(
+      monthDuration: Int
+  ): List[Parameter[_]] = {
+    List(
+      BaseParameter(
+        "month_duration",
+        monthDuration,
+        Operator.EQ,
+        useValueDirectly = true,
+        table = Some("")
+      ),
+      BaseParameter(
+        "country_code",
+        None,
+        Operator.NULL,
+        useValueDirectly = true,
+        table = Some("")
+      )
     )
   }
 

@@ -53,6 +53,118 @@ class LeaderboardController @Inject() (
   }
 
   /**
+    * Gets the top scoring users, based on task completion, over the given
+    * number of months (or using start and end dates). Included with each user is their top challenges
+    * (by amount of activity).
+    *
+    * @param monthDuration       the number of months to consider for the leaderboard
+    * @param maxChallengesInList the maximum number of top challenges to include for each user
+    * @param limit               the limit on the number of users returned
+    * @param offset              the number of users to skip before starting to return results (for pagination)
+    * @return                    Top-ranked users with scores based on task completion activity
+    */
+  def getMainLeaderboard(
+      monthDuration: Int,
+      maxChallengesInList: Int,
+      limit: Int,
+      offset: Int
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      Ok(
+        Json.toJson(
+          this.service.getMainLeaderboard(monthDuration, maxChallengesInList, limit, offset)
+        )
+      )
+    }
+  }
+
+  /**
+    * Gets the top scoring users, based on task completion, over the given
+    * number of months (or using start and end dates). Included with each user is their top challenges
+    * (by amount of activity).
+    *
+    * @param id                  the ID of the challenge
+    * @param monthDuration       the number of months to consider for the leaderboard
+    * @param maxChallengesInList the maximum number of top challenges to include for each user
+    * @param limit               the limit on the number of users returned
+    * @param offset              the number of users to skip before starting to return results (for pagination)
+    * @return                    Top-ranked users with scores based on task completion activity
+    */
+  def getChallengeLeaderboard(
+      id: Int,
+      monthDuration: Int,
+      maxChallengesInList: Int,
+      limit: Int,
+      offset: Int
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      Ok(
+        Json.toJson(
+          this.service
+            .getChallengeLeaderboard(id, monthDuration, maxChallengesInList, limit, offset)
+        )
+      )
+    }
+  }
+
+  /**
+    * Gets the top scoring users, based on task completion, over the given
+    * number of months (or using start and end dates). Included with each user is their top challenges
+    * (by amount of activity).
+    *
+    * @param id                  the ID of the project
+    * @param monthDuration       the number of months to consider for the leaderboard
+    * @param maxChallengesInList the maximum number of top challenges to include for each user
+    * @param limit               the limit on the number of users returned
+    * @param offset              the number of users to skip before starting to return results (for pagination)
+    * @return                    Top-ranked users with scores based on task completion activity
+    */
+  def getProjectLeaderboard(
+      id: Int,
+      monthDuration: Int,
+      maxChallengesInList: Int,
+      limit: Int,
+      offset: Int
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      Ok(
+        Json.toJson(
+          this.service.getProjectLeaderboard(id, monthDuration, maxChallengesInList, limit, offset)
+        )
+      )
+    }
+  }
+
+  /**
+    * Gets the top scoring users, based on task completion, over the given
+    * number of months (or using start and end dates). Included with each user is their top challenges
+    * (by amount of activity).
+    *
+    * @param country             the country to filter the leaderboard by
+    * @param monthDuration       the number of months to consider for the leaderboard
+    * @param maxChallengesInList the maximum number of top challenges to include for each user
+    * @param limit               the limit on the number of users returned
+    * @param offset              the number of users to skip before starting to return results (for pagination)
+    * @return                    Top-ranked users with scores based on task completion activity
+    */
+  def getCountryLeaderboard(
+      country: String,
+      monthDuration: Int,
+      maxChallengesInList: Int,
+      limit: Int,
+      offset: Int
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      Ok(
+        Json.toJson(
+          this.service
+            .getCountryLeaderboard(country, monthDuration, maxChallengesInList, limit, offset)
+        )
+      )
+    }
+  }
+
+  /**
     * Gets the leaderboard ranking for a user, based on task completion, over
     * the given number of months (or start and end dates). Included with the user is their top challenges
     * (by amount of activity). Also a bracketing number of users above and below
