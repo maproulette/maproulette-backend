@@ -181,7 +181,7 @@ class SchedulerActor @Inject() (
 
             // Update is_global based on bounding box
             val updateGlobalQuery =
-              """UPDATE challenges
+              s"""UPDATE challenges
                   SET is_global = (
                     CASE
                       WHEN (ST_XMax(bounding)::numeric - ST_XMin(bounding)::numeric) > 180 THEN TRUE
