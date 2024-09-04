@@ -528,44 +528,6 @@ class ChallengeDAL @Inject() (
     }
   }
 
-  def updateSpatialFields(user: User)(implicit challengeId: Long, c: Option[Connection] = None) = {
-    this.withMRConnection { implicit c =>
-      // Update location, bounding, and last_updated based on tasks
-      val updateLocationQuery =
-        s"""
-         UPDATE challenges SET
-           location = (
-             SELECT ST_Centroid(ST_Collect(ST_Makevalid(location)))
-             FROM tasks
-             WHERE parent_id = $challengeId
-           ),
-           bounding = (
-             SELECT ST_Envelope(ST_Buffer((ST_SetSRID(ST_Extent(location), 4326))::geography, 2)::geometry)
-             FROM tasks
-             WHERE parent_id = $challengeId
-           ),
-           last_updated = NOW()
-         WHERE id = $challengeId;
-         """.stripMargin
-      SQL(updateLocationQuery).executeUpdate()
-
-      // Update is_global based on bounding box dimensions
-      val updateIsGlobalQuery =
-        s"""
-         UPDATE challenges
-         SET is_global = (
-           CASE
-             WHEN (ST_XMax(bounding)::numeric - ST_XMin(bounding)::numeric) > 180 THEN TRUE
-             WHEN (ST_YMax(bounding)::numeric - ST_YMin(bounding)::numeric) > 90 THEN TRUE
-             ELSE FALSE
-           END
-         )
-         WHERE id = $challengeId;
-         """.stripMargin
-      SQL(updateIsGlobalQuery).executeUpdate()
-    }
-  }
-
   private def insertPresets(challenge: Challenge, presets: List[String])(
       implicit c: Option[Connection] = None
   ): Challenge = {
