@@ -51,6 +51,7 @@ trait TestSpec extends PlaySpec with MockitoSugar {
     DateTime.now(),
     None,
     false,
+    false,
     None,
     ChallengeGeneral(101, 1, ""),
     ChallengeCreation(),
