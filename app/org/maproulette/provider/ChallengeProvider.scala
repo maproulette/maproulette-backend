@@ -242,8 +242,6 @@ class ChallengeProvider @Inject() (
                   jsonData
                 )
               }
-                challenge.id
-              )
               this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(
                 challenge.id
               )

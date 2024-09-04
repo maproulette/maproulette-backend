@@ -180,7 +180,7 @@ class SchedulerActor @Inject() (
             SQL(query).executeUpdate()
 
             // Update is_global based on bounding box
-            val updateGlobalQuery = 
+            val updateGlobalQuery =
               """UPDATE challenges
                   SET is_global = (
                     CASE
@@ -189,7 +189,7 @@ class SchedulerActor @Inject() (
                       ELSE FALSE
                     END
                   );"""
-            
+
             SQL(updateGlobalQuery).executeUpdate()
         }
         // The above query will not update the cache, so remove the id from the cache in case it is there
