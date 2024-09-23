@@ -102,6 +102,40 @@ GET     /data/user/leaderboard                      @org.maproulette.framework.c
 GET     /data/user/challengeLeaderboard                @org.maproulette.framework.controller.LeaderboardController.getChallengeLeaderboard(challengeId:Int, monthDuration:Int ?= 1, limit:Int ?= 20, offset:Int ?= 0)
 ###
 # tags: [ Leaderboard ]
+# summary: Fetches leaderboard for a specific project
+# description: Fetches the top mappers for a specific project within a time period
+# responses:
+#   '200':
+#     description: List of leaderboard stats for the project
+# parameters:
+#   - name: projectId
+#     in: query
+#     description: The ID of the project
+#     required: true
+#     schema:
+#       type: integer
+#   - name: monthDuration
+#     in: query
+#     description: The optional number of past months to search by (with 0 as current month and -1 as all time)
+#     required: false
+#     schema:
+#       type: integer
+#   - name: limit
+#     in: query
+#     description: The number of results
+#     required: false
+#     schema:
+#       type: integer
+#   - name: offset
+#     in: query
+#     description: The number of rows to skip before starting to return the results. Used for pagination.
+#     required: false
+#     schema:
+#       type: integer
+###
+GET     /data/user/projectLeaderboard                @org.maproulette.framework.controller.LeaderboardController.getProjectLeaderboard(projectId:Int, monthDuration:Int ?= 1, limit:Int ?= 20, offset:Int ?= 0)
+###
+# tags: [ Leaderboard ]
 # summary: Fetches leaderboard stats with ranking for the user
 # description: Fetches user's current ranking and stats in the leaderboard along with a number of mappers above and below in the rankings.
 # responses:
