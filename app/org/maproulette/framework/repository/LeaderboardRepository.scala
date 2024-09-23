@@ -150,11 +150,11 @@ class LeaderboardRepository @Inject() (override val db: Database) extends Reposi
   }
 
   /**
-    * Queries the user_leaderboard table
+    * Queries the user_top_challenges table to retrieve leaderboard data for a specific challenge
     *
-    * @param query
-    * @return List of LeaderboardUsers
-   **/
+    * @param query The query object containing parameters for filtering and sorting
+    * @return List of LeaderboardUsers representing the challenge leaderboard
+    */
   def queryChallengeLeaderboard(
       query: Query
   ): List[LeaderboardUser] = {
@@ -173,6 +173,37 @@ class LeaderboardRepository @Inject() (override val db: Database) extends Reposi
             JOIN
               users u ON u.id = utc.user_id
             """
+        )
+        .as(this.userLeaderboardParser(fetchedUserId => List()).*)
+    }
+  }
+
+  /**
+    * Queries the user_top_challenges table to retrieve leaderboard data for a specific project
+    *
+    * @param query The query object containing parameters for filtering and sorting
+    * @return List of LeaderboardUsers representing the project leaderboard
+    */
+  def queryProjectLeaderboard(query: Query): List[LeaderboardUser] = {
+    withMRConnection { implicit c =>
+      query
+        .build(
+          s"""
+          SELECT
+            u.id AS user_id,
+            u.name AS user_name,
+            u.avatar_url AS user_avatar_url,
+            SUM(utc.activity) AS user_score,
+            ROW_NUMBER() OVER (ORDER BY SUM(utc.activity) DESC) AS user_ranking
+          FROM
+            users u
+          JOIN
+            user_top_challenges utc ON u.id = utc.user_id
+          JOIN
+            challenges c ON c.id = utc.challenge_id
+          JOIN
+            projects p ON p.id = c.parent_id
+          """
         )
         .as(this.userLeaderboardParser(fetchedUserId => List()).*)
     }

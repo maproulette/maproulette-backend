@@ -75,6 +75,28 @@ class LeaderboardController @Inject() (
   }
 
   /**
+    * Gets the top scoring users for a specific project, based on task completion,
+    * over the given number of months. Included with each user is their score
+    * and ranking within the project.
+    *
+    * @param id                  the ID of the project
+    * @param monthDuration       the number of months to consider for the leaderboard
+    * @param limit               the maximum number of users to return
+    * @param offset              the number of users to skip before starting to return results (for pagination)
+    * @return                    List of top-ranked users with scores and rankings for the specified project
+    */
+  def getProjectLeaderboard(
+      id: Int,
+      monthDuration: Int,
+      limit: Int,
+      offset: Int
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      Ok(Json.toJson(this.service.getProjectLeaderboard(id, monthDuration, limit, offset)))
+    }
+  }
+
+  /**
     * Gets the leaderboard ranking for a user, based on task completion, over
     * the given number of months (or start and end dates). Included with the user is their top challenges
     * (by amount of activity). Also a bracketing number of users above and below

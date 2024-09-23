@@ -223,6 +223,71 @@ class LeaderboardService @Inject() (
     return result
   }
 
+  def getProjectLeaderboard(
+      projectId: Int,
+      monthDuration: Int = 1,
+      limit: Int = Config.DEFAULT_LIST_SIZE,
+      offset: Int = 1
+  ): List[LeaderboardUser] = {
+    val result = this.repository.queryProjectLeaderboard(
+      Query.simple(
+        List(
+          BaseParameter(
+            "id",
+            projectId,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("p")
+          ),
+          BaseParameter(
+            "month_duration",
+            monthDuration,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("utc")
+          ),
+          BaseParameter(
+            "deleted",
+            false,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("c")
+          ),
+          BaseParameter(
+            "is_archived",
+            false,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("c")
+          ),
+          BaseParameter(
+            "enabled",
+            true,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("c")
+          ),
+          BaseParameter(
+            "country_code",
+            None,
+            Operator.NULL,
+            useValueDirectly = true,
+            table = Some("utc")
+          )
+        ),
+        grouping = Grouping(
+          GroupField("id", Some("u")),
+          GroupField("name", Some("u")),
+          GroupField("avatar_url", Some("u"))
+        ),
+        paging = Paging(limit, offset),
+        order = Order(List(OrderField("user_score", Order.DESC, table = Some(""))))
+      )
+    )
+
+    return result
+  }
+
   /**
     * Gets leaderboard rank for a user based on task completion activity
     * over the given period. Scoring for each completed task is based on status
