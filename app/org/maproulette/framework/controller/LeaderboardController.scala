@@ -70,8 +70,7 @@ class LeaderboardController @Inject() (
       offset: Int
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
-      //Ok(Json.toJson(this.service.getChallengeLeaderboard(id, monthDuration, limit, offset)))
-      Ok(Json.toJson("hey"))
+      Ok(Json.toJson(this.service.getChallengeLeaderboard(id, monthDuration, limit, offset)))
     }
   }
 

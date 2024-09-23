@@ -184,6 +184,45 @@ class LeaderboardService @Inject() (
     )
   }
 
+  def getChallengeLeaderboard(
+      challengeId: Int,
+      monthDuration: Int = 1,
+      limit: Int = Config.DEFAULT_LIST_SIZE,
+      offset: Int = 1
+  ): List[LeaderboardUser] = {
+    val result = this.repository.queryChallengeLeaderboard(
+      Query.simple(
+        List(
+          BaseParameter(
+            "challenge_id",
+            challengeId,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("utc")
+          ),
+          BaseParameter(
+            "month_duration",
+            monthDuration,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("utc")
+          ),
+          BaseParameter(
+            "country_code",
+            None,
+            Operator.NULL,
+            useValueDirectly = true,
+            table = Some("utc")
+          )
+        ),
+        paging = Paging(limit, offset),
+        order = Order(List(OrderField("activity", Order.DESC, table = Some("utc"))))
+      )
+    )
+
+    return result
+  }
+
   /**
     * Gets leaderboard rank for a user based on task completion activity
     * over the given period. Scoring for each completed task is based on status
