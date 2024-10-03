@@ -178,6 +178,40 @@ class LeaderboardRepository @Inject() (override val db: Database) extends Reposi
     }
   }
 
+  def queryUserChallengeLeaderboardWithRank(
+      userId: Int,
+      query: Query,
+      rankQuery: Query
+  )(implicit c: Option[Connection] = None): List[LeaderboardUser] = {
+    withMRConnection { implicit c =>
+      query.build(s"""
+          WITH ranked AS (
+              SELECT
+                  utc.user_id,
+                  u.name AS user_name,
+                  u.avatar_url AS user_avatar_url,
+                  utc.activity AS user_score,
+                  ROW_NUMBER() OVER (ORDER BY utc.activity DESC) AS user_ranking
+              FROM user_top_challenges utc
+              JOIN users u ON u.id = utc.user_id
+            ${rankQuery.sql()}
+          ),
+          user_rank AS (
+              SELECT user_ranking
+              FROM ranked
+              WHERE user_id = ${userId}
+          )
+          SELECT
+              r.user_id as user_id,
+              r.user_name AS user_name,
+              r.user_avatar_url AS user_avatar_url,
+              r.user_score AS user_score,
+              r.user_ranking AS user_ranking
+          FROM ranked r
+      """).as(this.userLeaderboardParser(fetchedUserId => List()).*)
+    }
+  }
+
   /**
     * Queries the user_top_challenges table to retrieve leaderboard data for a specific project
     *

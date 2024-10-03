@@ -223,6 +223,71 @@ class LeaderboardService @Inject() (
     return result
   }
 
+  /**
+    * Gets leaderboard rank for a user based on task completion activity
+    * over the given period in a challenge. Scoring for each completed task is based on status
+    * assigned to the task (status point values are configurable). Also included
+    * is the user's top challenges (by amount of activity).
+    *
+    * @param userId            user id
+    * @param params             SearchLeaderboardParameters
+    * @param onlyEnabled       only enabled in user top challenges (doesn't affect scoring)
+    * @return Returns leaderboard for user with score
+    */
+  def getChallengeLeaderboardForUser(
+      userId: Int,
+      challengeId: Int,
+      monthDuration: Int = 1,
+      bracket: Int = 0
+  ): List[LeaderboardUser] = {
+    // The userId must exist and must not be a system user, otherwise return NotFound (http 404).
+    if (userId <= 0 || this.userService.retrieve(userId).isEmpty) {
+      throw new NotFoundException(s"No user found with id $userId")
+    }
+    val result = this.repository.queryUserChallengeLeaderboardWithRank(
+      userId,
+      Query.simple(
+        List(),
+        finalClause =
+          s"""JOIN user_rank ur ON r.user_ranking BETWEEN (ur.user_ranking - ${bracket}) AND (ur.user_ranking + ${bracket});"""
+      ),
+      Query.simple(
+        List(
+          BaseParameter(
+            "user_id",
+            userId,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("utc")
+          ),
+          BaseParameter(
+            "challenge_id",
+            challengeId,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("utc")
+          ),
+          BaseParameter(
+            "month_duration",
+            monthDuration,
+            Operator.EQ,
+            useValueDirectly = true,
+            table = Some("utc")
+          ),
+          BaseParameter(
+            "country_code",
+            None,
+            Operator.NULL,
+            useValueDirectly = true,
+            table = Some("utc")
+          )
+        )
+      )
+    )
+
+    result
+  }
+
   def getProjectLeaderboard(
       projectId: Int,
       monthDuration: Int = 1,
