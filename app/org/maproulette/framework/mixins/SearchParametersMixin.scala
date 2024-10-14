@@ -23,6 +23,7 @@ trait SearchParametersMixin {
     var filterList = List(
       this.filterLocation(params),
       this.filterBounding(params),
+      this.filterChallengeGlobal(params),
       this.filterTaskStatus(params),
       this.filterTaskId(params),
       this.filterTaskFeatureId(params),
@@ -714,6 +715,29 @@ trait SearchParametersMixin {
       )
     } else {
       FilterGroup(List())
+    }
+  }
+
+  /**
+    * Filters by c.is_global. Will only include if
+    * challengeParams.filterGlobal value is true
+    */
+  def filterChallengeGlobal(params: SearchParameters): FilterGroup = {
+    params.challengeParams.filterGlobal match {
+      case Some(v) if v =>
+        FilterGroup(
+          List(
+            FilterParameter.conditional(
+              "is_global",
+              value = "false",
+              Operator.EQ,
+              useValueDirectly = true,
+              includeOnlyIfTrue = true,
+              table = Some("c")
+            )
+          )
+        )
+      case _ => FilterGroup(List())
     }
   }
 

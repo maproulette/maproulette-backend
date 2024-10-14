@@ -55,6 +55,7 @@ trait ChallengeWrites extends DefaultWrites {
       (JsPath \ "modified").write[DateTime] and
       (JsPath \ "description").writeNullable[String] and
       (JsPath \ "deleted").write[Boolean] and
+      (JsPath \ "isGlobal").write[Boolean] and
       (JsPath \ "infoLink").writeNullable[String] and
       JsPath.write[ChallengeGeneral] and
       JsPath.write[ChallengeCreation] and
@@ -110,6 +111,7 @@ trait ChallengeReads extends DefaultReads {
       ((JsPath \ "modified").read[DateTime] or Reads.pure(DateTime.now())) and
       (JsPath \ "description").readNullable[String] and
       (JsPath \ "deleted").read[Boolean] and
+      (JsPath \ "isGlobal").read[Boolean] and
       (JsPath \ "infoLink").readNullable[String] and
       JsPath.read[ChallengeGeneral] and
       JsPath.read[ChallengeCreation] and
