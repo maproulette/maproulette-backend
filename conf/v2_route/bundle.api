@@ -47,8 +47,8 @@ POST    /taskBundle                                 @org.maproulette.framework.c
 POST     /taskBundle/:id                             @org.maproulette.framework.controller.TaskBundleController.getTaskBundle(id:Long, lockTasks:Boolean ?= false)
 ###
 # tags: [ Bundle ]
-# summary: Resets a Task Bundle
-# description: Resets the bundle to the tasks provided, and unlock all tasks removed from current bundle
+# summary: Updates a Task Bundle
+# description: Sets the bundle to the tasks provided, and unlock all tasks removed from current bundle
 # responses:
 #   '200':
 #     description: Ok with empty body
@@ -63,7 +63,7 @@ POST     /taskBundle/:id                             @org.maproulette.framework.
 #     in: query
 #     description: The task ids the bundle will reset to
 ###
-POST     /taskBundle/:id/reset                          @org.maproulette.framework.controller.TaskBundleController.resetTaskBundle(id: Long, taskIds: List[Long])
+POST     /taskBundle/:id/update                          @org.maproulette.framework.controller.TaskBundleController.updateTaskBundle(id: Long, taskIds: List[Long])
 ###
 # tags: [ Bundle ]
 # summary: Deletes a Task Bundle

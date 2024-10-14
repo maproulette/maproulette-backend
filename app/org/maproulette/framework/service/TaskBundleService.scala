@@ -90,12 +90,12 @@ class TaskBundleService @Inject() (
   }
 
   /**
-    *  Resets the bundle to the tasks provided, and unlock all tasks removed from current bundle
+    *  Sets the bundle to the tasks provided, and unlock all tasks removed from current bundle
     *
     * @param bundleId The id of the bundle
     * @param taskIds The task ids the bundle will reset to
     */
-  def resetTaskBundle(
+  def updateTaskBundle(
       user: User,
       bundleId: Long,
       taskIds: List[Long]
@@ -108,7 +108,7 @@ class TaskBundleService @Inject() (
       )
     }
 
-    this.repository.resetTaskBundle(user, bundleId, taskIds)
+    this.repository.updateTaskBundle(user, bundleId, taskIds)
     this.getTaskBundle(user, bundleId)
   }
 
