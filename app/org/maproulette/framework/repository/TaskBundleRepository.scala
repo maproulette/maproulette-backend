@@ -91,13 +91,7 @@ class TaskBundleRepository @Inject() (
           val parameters = lockedTasks.map(task => Seq[NamedParameter]("taskId" -> task.id))
           BatchSql(sqlInsertTaskBundles, parameters.head, parameters.tail: _*).execute()
 
-          // Lock each of the new tasks to indicate they are part of the bundle
           for (task <- lockedTasks) {
-            try {
-              this.lockItem(user, task)
-            } catch {
-              case e: Exception => this.logger.warn(e.getMessage)
-            }
             taskRepository.cacheManager.cache.remove(task.id)
           }
 
@@ -134,7 +128,7 @@ class TaskBundleRepository @Inject() (
       val tasksToRemove = currentTaskIds.filter(taskId => !taskIds.contains(taskId))
 
       if (tasksToRemove.nonEmpty) {
-        this.unbundleTasks(user, bundleId, tasksToRemove, List.empty)
+        this.unbundleTasks(user, bundleId, tasksToRemove)
       }
 
       // Filter for tasks that need to be added back to the bundle.
@@ -226,8 +220,7 @@ class TaskBundleRepository @Inject() (
   def unbundleTasks(
       user: User,
       bundleId: Long,
-      taskIds: List[Long],
-      preventTaskIdUnlocks: List[Long]
+      taskIds: List[Long]
   ): Unit = {
     this.withMRConnection { implicit c =>
       val tasks = this.retrieveTasks(
@@ -265,12 +258,10 @@ class TaskBundleRepository @Inject() (
                 )
                 .executeUpdate()
 
-              if (!preventTaskIdUnlocks.contains(task.id)) {
-                try {
-                  this.unlockItem(user, task)
-                } catch {
-                  case e: Exception => this.logger.warn(e.getMessage)
-                }
+              try {
+                this.unlockItem(user, task)
+              } catch {
+                case e: Exception => this.logger.warn(e.getMessage)
               }
               taskRepository.cacheManager.cache.remove(task.id)
             case None => // do nothing
@@ -306,8 +297,19 @@ class TaskBundleRepository @Inject() (
         .on("bundleId" -> bundleId)
         .executeUpdate()
 
+      // Update cache for each task
       tasks.foreach { task =>
         if (!task.isBundlePrimary.getOrElse(false)) {
+          SQL(
+            """UPDATE tasks 
+                  SET status = {status} 
+                  WHERE id = {taskId}
+              """
+          ).on(
+              "taskId" -> task.id,
+              "status" -> STATUS_CREATED
+            )
+            .executeUpdate()
           try {
             this.unlockItem(user, task)
           } catch {

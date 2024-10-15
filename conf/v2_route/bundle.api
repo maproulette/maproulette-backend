@@ -104,9 +104,5 @@ DELETE     /taskBundle/:id                          @org.maproulette.framework.c
 #     in: query
 #     description: The list of task ids to remove from the bundle
 #     required: true
-#   - name: preventTaskIdUnlocks
-#     in: query
-#     description: The list of task ids to keep locked when removed from bundle
-#     required: true
 ###
-POST       /taskBundle/:id/unbundle                 @org.maproulette.framework.controller.TaskBundleController.unbundleTasks(id:Long, taskIds:List[Long], preventTaskIdUnlocks:List[Long])
+POST       /taskBundle/:id/unbundle                 @org.maproulette.framework.controller.TaskBundleController.unbundleTasks(id:Long, taskIds:List[Long])

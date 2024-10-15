@@ -120,8 +120,7 @@ class TaskBundleService @Inject() (
   def unbundleTasks(
       user: User,
       bundleId: Long,
-      taskIds: List[Long],
-      preventTaskIdUnlocks: List[Long]
+      taskIds: List[Long]
   )(): TaskBundle = {
     val bundle = this.getTaskBundle(user, bundleId)
 
@@ -132,7 +131,7 @@ class TaskBundleService @Inject() (
       )
     }
 
-    this.repository.unbundleTasks(user, bundleId, taskIds, preventTaskIdUnlocks)
+    this.repository.unbundleTasks(user, bundleId, taskIds)
     this.getTaskBundle(user, bundleId)
   }
 
