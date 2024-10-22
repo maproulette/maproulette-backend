@@ -198,9 +198,10 @@ object TagRepository {
     get[Long]("tags.id") ~
       get[String]("tags.name") ~
       get[Option[String]]("tags.description") ~
-      get[String]("tags.tag_type") map {
-      case id ~ name ~ description ~ tagType =>
-        new Tag(id, name.toLowerCase, description, tagType = tagType)
+      get[String]("tags.tag_type") ~
+      get[Boolean]("tags.active") map {
+      case id ~ name ~ description ~ tagType ~ active =>
+        new Tag(id, name.toLowerCase, description, tagType = tagType, active = active)
     }
   }
 
@@ -209,9 +210,10 @@ object TagRepository {
       get[Long]("tags.id") ~
       get[String]("tags.name") ~
       get[Option[String]]("tags.description") ~
-      get[String]("tags.tag_type") map {
-      case taskId ~ id ~ name ~ description ~ tagType => {
-        new TaskTag(taskId, new Tag(id, name.toLowerCase, description, tagType = tagType))
+      get[String]("tags.tag_type") ~
+      get[Boolean]("tags.active") map {
+      case taskId ~ id ~ name ~ description ~ tagType ~ active => {
+        new TaskTag(taskId, new Tag(id, name.toLowerCase, description, tagType = tagType, active = active))
       }
     }
   }

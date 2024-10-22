@@ -24,7 +24,8 @@ case class Tag(
     description: Option[String] = None,
     created: DateTime = DateTime.now(),
     modified: DateTime = DateTime.now(),
-    tagType: String = "challenges"
+    tagType: String = "challenges",
+    active: Boolean = true
 ) extends CacheObject[Long]
 
 /**
@@ -43,6 +44,7 @@ object Tag extends CommonField {
   val TABLE_TAGS_ON_TASKS      = "tags_on_tasks"
   val TABLE_TAGS_ON_CHALLENGES = "tags_on_challenges"
   val FIELD_TAG_TYPE           = "tag_type"
+  val FIELD_ACTIVE             = "active"
   val FIELD_PARENT_ID          = "parent_id"
   val FIELD_ENABLED            = "enabled"
   val FIELD_TASK_ID            = "task_id"
