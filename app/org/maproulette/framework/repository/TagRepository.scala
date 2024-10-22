@@ -213,7 +213,10 @@ object TagRepository {
       get[String]("tags.tag_type") ~
       get[Boolean]("tags.active") map {
       case taskId ~ id ~ name ~ description ~ tagType ~ active => {
-        new TaskTag(taskId, new Tag(id, name.toLowerCase, description, tagType = tagType, active = active))
+        new TaskTag(
+          taskId,
+          new Tag(id, name.toLowerCase, description, tagType = tagType, active = active)
+        )
       }
     }
   }
