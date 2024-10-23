@@ -24,7 +24,8 @@ case class Tag(
     description: Option[String] = None,
     created: DateTime = DateTime.now(),
     modified: DateTime = DateTime.now(),
-    tagType: String = "challenges"
+    tagType: String = "challenges",
+    active: Boolean = true
 ) extends CacheObject[Long]
 
 /**
