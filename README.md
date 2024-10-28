@@ -91,7 +91,7 @@ docker run \
 * NOTE: It is helpful to see logs with `docker logs -f maproulette-postgis`
 * NOTE: To stop the container, that'd be `docker stop maproulette-postgis`. Then you can start it again using `docker start maproulette-postgis`.
 
-#### MapRoulette Database Configuration
+#### Configuration
 
 Clone the maproulette-backend repository and `cd` to that directory, and create `conf/dev.conf` using the example file:
 
@@ -109,6 +109,13 @@ db.default {
   password="maproulette-db-pass"
 }
 ```
+
+Alternatively, you can configure the backend using environment variables. The
+variables `MR_DATABASE_URL`, `MR_DATABASE_USERNAME` and `MR_DATABASE_PASSWORD`
+control the same values as the config parameters shown above. Look in `conf/
+application.conf` for what else can be overridden via environment variables.
+Any pattern like `${?FOO}` in that file will be replaced with the value of the
+environment variable `FOO` at runtime.
 
 Now start the MapRoulette server! Run this command in a terminal, **not within Intellij/vscode**:
 
