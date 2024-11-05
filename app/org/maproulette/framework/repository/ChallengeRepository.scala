@@ -332,7 +332,7 @@ object ChallengeRepository {
             reviewSetting,
             taskWidgetLayout,
             datasetUrl,
-            systemArchivedAt,
+            systemArchivedAt
           ),
           status,
           statusMessage,

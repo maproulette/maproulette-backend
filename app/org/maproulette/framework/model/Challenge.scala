@@ -138,7 +138,7 @@ case class ChallengeExtra(
     taskWidgetLayout: Option[JsValue] = None,
     datasetUrl: Option[String] = None,
     systemArchivedAt: Option[DateTime] = None,
-    presets: Option[List[String]] = None,
+    presets: Option[List[String]] = None
 ) extends DefaultWrites
 
 case class ChallengeListing(
