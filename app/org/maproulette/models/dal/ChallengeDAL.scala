@@ -477,7 +477,6 @@ class ChallengeDAL @Inject() (
 
     this.permission.hasObjectWriteAccess(challenge, user)
     this.cacheManager.withOptionCaching { () =>
-      var a = "a"
       val insertedChallenge =
         this.withMRTransaction { implicit c =>
           SQL"""INSERT INTO challenges (name, owner_id, parent_id, difficulty, description, info_link, blurb,
