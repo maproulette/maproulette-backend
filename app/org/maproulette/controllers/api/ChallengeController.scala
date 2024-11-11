@@ -830,8 +830,8 @@ class ChallengeController @Inject() (
             case Some(g) =>
               val parsedFeature = Json.parse(g)
               featureType = (parsedFeature \\ "geometry")(0) \ "type" match {
-                case JsDefined("node") => value.as[String]
-                case JsUndefined()     => "Unknown"
+                case JsDefined(value) => value.as[String]
+                case JsUndefined()    => "Unknown"
               }
               val taskProps = (parsedFeature \\ "properties")(0).as[JsObject]
               for (key <- propsToExportHeaders) {
@@ -885,7 +885,7 @@ class ChallengeController @Inject() (
           var taskLink =
             s"[[hyperlink URL link=${urlPrefix}challenge/${task.parent}/task/${task.taskId}]]"
 
-          s"""${task.taskId},${taskLink},${task.parent},${challengeLink},"${task.name},""" +
+          s"""${task.taskId},${taskLink},${task.parent},${challengeLink},"${task.name}",""" +
             s""""${featureType}","${Task.statusMap.get(task.status).get}",""" +
             s""""${Challenge.priorityMap.get(task.priority).get}",${mappedOn},""" +
             s"""${task.completedTimeSpent.getOrElse("")},"${mapper}",""" +
