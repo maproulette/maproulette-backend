@@ -136,6 +136,7 @@ case class ChallengeExtra(
     isArchived: Boolean = false,
     reviewSetting: Int = Challenge.REVIEW_SETTING_NOT_REQUIRED,
     taskWidgetLayout: Option[JsValue] = None,
+    datasetUrl: Option[String] = None,
     systemArchivedAt: Option[DateTime] = None,
     presets: Option[List[String]] = None
 ) extends DefaultWrites
