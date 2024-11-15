@@ -578,7 +578,15 @@ class ChallengeController @Inject() (
               try {
                 this.dal.deleteTasks(user, challengeId, Utils.split(statusFilters).map(_.toInt))
               } finally {
-                dalManager.challenge.update(Json.obj("status" -> originalStatus), user)(challengeId)
+                // Check if original status is defined before reverting
+                originalStatus match {
+                  case Some(status) =>
+                    dalManager.challenge.update(Json.obj("status" -> status), user)(challengeId)
+                  case None =>
+                    throw new InvalidException(
+                      "Original status is not defined, cannot revert status."
+                    )
+                }
               }
             }
             Ok
