@@ -120,6 +120,7 @@ class ChallengeDAL @Inject() (
       get[Option[String]]("boundingJSON") ~
       get[Boolean]("challenges.requires_local") ~
       get[Boolean]("deleted") ~
+      get[Boolean]("is_global") ~
       get[Boolean]("challenges.is_archived") ~
       get[Int]("challenges.review_setting") ~
       get[Option[String]]("challenges.dataset_url") ~
@@ -133,7 +134,7 @@ class ChallengeDAL @Inject() (
             minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~ customBasemap ~ updateTasks ~
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
-            requiresLocal ~ deleted ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ completionPercentage ~ tasksRemaining =>
+            requiresLocal ~ deleted ~ isGlobal ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ completionPercentage ~ tasksRemaining =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -154,6 +155,7 @@ class ChallengeDAL @Inject() (
           modified,
           description,
           deleted,
+          isGlobal,
           infoLink,
           ChallengeGeneral(
             ownerId,
@@ -257,6 +259,7 @@ class ChallengeDAL @Inject() (
       get[Option[String]]("boundingJSON") ~
       get[Boolean]("challenges.requires_local") ~
       get[Boolean]("deleted") ~
+      get[Boolean]("is_global") ~
       get[Option[List[Long]]]("virtual_parent_ids") ~
       get[Option[List[String]]]("presets") ~
       get[Boolean]("challenges.is_archived") ~
@@ -273,7 +276,7 @@ class ChallengeDAL @Inject() (
             lowPriorityRule ~ defaultZoom ~ minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~
             customBasemap ~ updateTasks ~ exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~
             preferredReviewTags ~ limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~
-            dataOriginDate ~ location ~ bounding ~ requiresLocal ~ deleted ~ virtualParents ~
+            dataOriginDate ~ location ~ bounding ~ requiresLocal ~ deleted ~ isGlobal ~ virtualParents ~
             presets ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ systemArchivedAt ~ completionPercentage ~ tasksRemaining =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
@@ -295,6 +298,7 @@ class ChallengeDAL @Inject() (
           modified,
           description,
           deleted,
+          isGlobal,
           infoLink,
           ChallengeGeneral(
             ownerId,
@@ -479,7 +483,7 @@ class ChallengeDAL @Inject() (
     this.cacheManager.withOptionCaching { () =>
       val insertedChallenge =
         this.withMRTransaction { implicit c =>
-          SQL"""INSERT INTO challenges (name, owner_id, parent_id, difficulty, description, info_link, blurb,
+          SQL"""INSERT INTO challenges (name, owner_id, parent_id, difficulty, description, is_global, info_link, blurb,
                                       instruction, enabled, featured, checkin_comment, checkin_source,
                                       overpass_ql, remote_geo_json, overpass_target_type, status, status_message, default_priority, high_priority_rule,
                                       medium_priority_rule, low_priority_rule, default_zoom, min_zoom, max_zoom,
@@ -487,7 +491,7 @@ class ChallengeDAL @Inject() (
                                       osm_id_property, task_bundle_id_property, last_task_refresh, data_origin_date, preferred_tags, preferred_review_tags,
                                       limit_tags, limit_review_tags, task_styles, requires_local, is_archived, review_setting, dataset_url, task_widget_layout)
               VALUES (${challenge.name}, ${challenge.general.owner}, ${challenge.general.parent}, ${challenge.general.difficulty},
-                      ${challenge.description}, ${challenge.infoLink}, ${challenge.general.blurb}, ${challenge.general.instruction},
+                      ${challenge.description}, ${challenge.isGlobal}, ${challenge.infoLink}, ${challenge.general.blurb}, ${challenge.general.instruction},
                       ${challenge.general.enabled}, ${challenge.general.featured},
                       ${challenge.general.checkinComment}, ${challenge.general.checkinSource}, ${challenge.creation.overpassQL}, ${challenge.creation.remoteGeoJson},
                       ${challenge.creation.overpassTargetType}, ${challenge.status},
@@ -584,6 +588,7 @@ class ChallengeDAL @Inject() (
           val parentId = (updates \ "parentId").asOpt[Long].getOrElse(cachedItem.general.parent)
           val difficulty =
             (updates \ "difficulty").asOpt[Int].getOrElse(cachedItem.general.difficulty)
+          val isGlobal = (updates \ "isGlobal").asOpt[Boolean].getOrElse(cachedItem.isGlobal)
           val description =
             (updates \ "description").asOpt[String].getOrElse(cachedItem.description.getOrElse(""))
           val infoLink =
@@ -700,7 +705,7 @@ class ChallengeDAL @Inject() (
             .getOrElse(cachedItem.extra.presets.getOrElse(null))
 
           val updatedChallenge =
-            SQL"""UPDATE challenges SET name = $name, owner_id = $ownerId, parent_id = $parentId, difficulty = $difficulty,
+            SQL"""UPDATE challenges SET name = $name, owner_id = $ownerId, parent_id = $parentId, difficulty = $difficulty, is_global = $isGlobal,
                   description = $description, info_link = $infoLink, blurb = $blurb, instruction = $instruction,
                   enabled = $enabled, featured = $featured, checkin_comment = $checkinComment, checkin_source = $checkinSource, overpass_ql = $overpassQL,
                   remote_geo_json = $remoteGeoJson, overpass_target_type = $overpassTargetType, status = $status, status_message = $statusMessage, default_priority = $defaultPriority,
@@ -1849,6 +1854,10 @@ class ChallengeDAL @Inject() (
 
       if (searchParameters.challengeParams.archived == false) {
         this.appendInWhereClause(whereClause, s"c.is_archived = false")
+      }
+
+      if (searchParameters.challengeParams.filterGlobal == true) {
+        this.appendInWhereClause(whereClause, s"c.is_global = false")
       }
 
       searchParameters.challengeParams.requiresLocal match {

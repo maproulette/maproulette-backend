@@ -261,6 +261,7 @@ object ChallengeRepository {
       get[Option[String]]("locationJSON") ~
       get[Option[String]]("boundingJSON") ~
       get[Boolean]("deleted") ~
+      get[Boolean]("is_global") ~
       get[Option[List[Long]]]("virtual_parent_ids") ~
       get[Boolean]("challenges.is_archived") ~
       get[Int]("challenges.review_setting") ~
@@ -273,7 +274,7 @@ object ChallengeRepository {
             mediumPriorityRule ~ lowPriorityRule ~ defaultZoom ~ minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~
             customBasemap ~ updateTasks ~ exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ requiresLocal ~ location ~ bounding ~
-            deleted ~ virtualParents ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ systemArchivedAt =>
+            deleted ~ isGlobal ~ virtualParents ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ systemArchivedAt =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -294,6 +295,7 @@ object ChallengeRepository {
           modified,
           description,
           deleted,
+          isGlobal,
           infoLink,
           ChallengeGeneral(
             ownerId,
