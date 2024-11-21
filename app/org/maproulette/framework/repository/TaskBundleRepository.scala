@@ -201,12 +201,6 @@ class TaskBundleRepository @Inject() (
       }
 
       lockedTasks.foreach { task =>
-        try {
-          this.lockItem(user, task)
-        } catch {
-          case e: Exception =>
-            this.logger.warn(e.getMessage)
-        }
         taskRepository.cacheManager.cache.remove(task.id)
       }
     }
@@ -258,11 +252,6 @@ class TaskBundleRepository @Inject() (
                 )
                 .executeUpdate()
 
-              try {
-                this.unlockItem(user, task)
-              } catch {
-                case e: Exception => this.logger.warn(e.getMessage)
-              }
               taskRepository.cacheManager.cache.remove(task.id)
             case None => // do nothing
           }
@@ -310,11 +299,6 @@ class TaskBundleRepository @Inject() (
               "status" -> STATUS_CREATED
             )
             .executeUpdate()
-          try {
-            this.unlockItem(user, task)
-          } catch {
-            case e: Exception => this.logger.warn(e.getMessage)
-          }
         }
         taskRepository.cacheManager.cache.remove(task.id)
       }
