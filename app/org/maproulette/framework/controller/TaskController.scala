@@ -77,10 +77,10 @@ class TaskController @Inject() (
   /**
     * Gets all the tasks within a bounding box
     *
-    * @param left   The minimum latitude for the bounding box
-    * @param bottom The minimum longitude for the bounding box
-    * @param right  The maximum latitude for the bounding box
-    * @param top    The maximum longitude for the bounding box
+    * @param left   The minimum longitude for the bounding box
+    * @param bottom The minimum latitude for the bounding box
+    * @param right  The maximum longitude for the bounding box
+    * @param top    The maximum latitude for the bounding box
     * @param limit  Limit for the number of returned tasks
     * @param offset The offset used for paging
     * @return
@@ -118,6 +118,43 @@ class TaskController @Inject() (
         } else {
           Ok(resultJson)
         }
+      }
+    }
+  }
+
+  /**
+    * Gets all the task markers within a bounding box
+    *
+    * @param left   The minimum longitude for the bounding box
+    * @param bottom The minimum latitude for the bounding box
+    * @param right  The maximum longitude for the bounding box
+    * @param top    The maximum latitude for the bounding box
+    * @param limit  Limit for the number of returned tasks
+    * @return
+    */
+  def getTaskMarkerDataInBoundingBox(
+      left: Double,
+      bottom: Double,
+      right: Double,
+      top: Double,
+      limit: Int,
+      excludeLocked: Boolean,
+      includeGeometries: Boolean,
+      includeTags: Boolean
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      SearchParameters.withSearch { p =>
+        val params = p.copy(location = Some(SearchLocation(left, bottom, right, top)))
+        val result = this.taskClusterService.getTaskMarkerDataInBoundingBox(
+          User.userOrMocked(user),
+          params,
+          limit,
+          excludeLocked
+        )
+
+        val resultJson = this.insertExtraTaskJSON(result, includeGeometries, includeTags)
+
+        Ok(resultJson)
       }
     }
   }
