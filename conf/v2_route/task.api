@@ -916,3 +916,66 @@ GET     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.c
 #     description: Success
 ###
 GET     /taskCluster                                @org.maproulette.framework.controller.TaskController.getTaskClusters(points:Int ?= 100)
+
+###
+# tags: [ Task ]
+# summary: Locks a bundle of tasks
+# description: Locks the specified tasks in the bundle.
+# responses:
+#   '200':
+#     description: Success message
+#   '401':
+#     description: The user is not authorized to make this request
+# requestBody:
+#   description: A JSON array of task IDs to lock.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: array
+#         items:
+#           type: integer
+###
+POST    /task/bundle/lock                         @org.maproulette.controllers.api.TaskController.lockTaskBundleByIds(taskIds:List[Long])
+
+###
+# tags: [ Task ]
+# summary: Unlocks a bundle of tasks
+# description: Unlocks the specified tasks in the bundle.
+# responses:
+#   '200':
+#     description: Success message
+#   '401':
+#     description: The user is not authorized to make this request
+# requestBody:
+#   description: A JSON array of task IDs to unlock.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: array
+#         items:
+#           type: integer
+###
+POST    /task/bundle/unlock                        @org.maproulette.controllers.api.TaskController.unlockTaskBundleByIds(taskIds:List[Long])
+
+###
+# tags: [ Task ]
+# summary: Refreshes locks on a bundle of tasks
+# description: Refreshes the locks on the specified tasks in the bundle.
+# responses:
+#   '200':
+#     description: Success message
+#   '401':
+#     description: The user is not authorized to make this request
+# requestBody:
+#   description: A JSON array of task IDs to refresh locks.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: array
+#         items:
+#           type: integer
+###
+POST    /task/bundle/refresh                      @org.maproulette.controllers.api.TaskController.refreshTaskLocksByIds(taskIds:List[Long])
