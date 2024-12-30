@@ -378,20 +378,26 @@ class TaskController @Inject() (
   def lockTaskBundleByIds(taskIds: List[Long]): Action[AnyContent] = Action.async {
     implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
-        val results = taskIds.map { taskId =>
-          this.dal.retrieveById(taskId) match {
-            case Some(task) =>
-              try {
-                this.dal.lockItem(user, task)
-                Some(taskId)
-              } catch {
-                case _: LockedException => None
-              }
-            case None => None
-          }
-        }.flatten
+        val (lockedTasks, failedTasks) = taskIds.foldLeft((List.empty[Task], List.empty[Long])) {
+          case ((locked, failed), taskId) =>
+            this.dal.retrieveById(taskId) match {
+              case Some(task) =>
+                try {
+                  this.dal.lockItem(user, task)
+                  (task :: locked, failed)
+                } catch {
+                  case _: LockedException => (locked, taskId :: failed)
+                }
+              case None => (locked, failed)
+            }
+        }
 
-        Ok(Json.toJson(results))
+        if (failedTasks.nonEmpty) {
+          lockedTasks.foreach(task => this.dal.unlockItem(user, task))
+          Ok(Json.toJson(failedTasks, false))
+        } else {
+          Ok(Json.toJson(lockedTasks, true))
+        }
       }
   }
 
@@ -404,7 +410,7 @@ class TaskController @Inject() (
   def unlockTaskBundleByIds(taskIds: List[Long]): Action[AnyContent] = Action.async {
     implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
-        val results = taskIds.map { taskId =>
+        val tasks = taskIds.flatMap { taskId =>
           this.dal.retrieveById(taskId) match {
             case Some(task) =>
               try {
@@ -415,9 +421,9 @@ class TaskController @Inject() (
               }
             case None => None
           }
-        }.flatten
+        }
 
-        Ok(Json.toJson(results))
+        Ok(Json.toJson(tasks))
       }
   }
 
@@ -430,7 +436,7 @@ class TaskController @Inject() (
   def refreshTaskLocksByIds(taskIds: List[Long]): Action[AnyContent] = Action.async {
     implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
-        val results = taskIds.map { taskId =>
+        val result = taskIds.map { taskId =>
           this.dal.retrieveById(taskId) match {
             case Some(task) =>
               try {
@@ -443,7 +449,7 @@ class TaskController @Inject() (
           }
         }.flatten
 
-        Ok(Json.toJson(results))
+        Ok(Json.toJson(result))
       }
   }
 
