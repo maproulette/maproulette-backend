@@ -916,14 +916,13 @@ GET     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.c
 #     description: Success
 ###
 GET     /taskCluster                                @org.maproulette.framework.controller.TaskController.getTaskClusters(points:Int ?= 100)
-
 ###
 # tags: [ Task ]
 # summary: Locks a bundle of tasks
-# description: Locks the specified tasks in the bundle.
+# description: Attempts to lock a set of tasks. If successful, returns the tasks that were locked. If not successful, returns the tasks that were not locked.
 # responses:
 #   '200':
-#     description: Success message
+#     description: List of tasks that were locked or list of tasks that were not locked. Boolean indicates if the tasks were locked.
 #   '401':
 #     description: The user is not authorized to make this request
 # requestBody:
@@ -937,7 +936,6 @@ GET     /taskCluster                                @org.maproulette.framework.c
 #           type: integer
 ###
 POST    /task/bundle/lock                         @org.maproulette.controllers.api.TaskController.lockTaskBundleByIds(taskIds:List[Long])
-
 ###
 # tags: [ Task ]
 # summary: Unlocks a bundle of tasks
@@ -958,7 +956,6 @@ POST    /task/bundle/lock                         @org.maproulette.controllers.a
 #           type: integer
 ###
 POST    /task/bundle/unlock                        @org.maproulette.controllers.api.TaskController.unlockTaskBundleByIds(taskIds:List[Long])
-
 ###
 # tags: [ Task ]
 # summary: Refreshes locks on a bundle of tasks
