@@ -31,6 +31,7 @@ import org.maproulette.permissions.Permission
 import org.maproulette.provider.ChallengeProvider
 import org.maproulette.session.{SearchParameters, SessionManager}
 import org.maproulette.utils.Utils
+import org.maproulette.utils.CSVEncoder
 import play.api.http.HttpEntity
 import play.api.libs.Files
 import play.api.libs.json._
@@ -824,10 +825,16 @@ class ChallengeController @Inject() (
           }
 
           // Find matching geojson feature properties
-          var propData = ""
+          var propData    = ""
+          var featureType = ""
           task.geojson match {
             case Some(g) =>
-              val taskProps = (Json.parse(g) \\ "properties")(0).as[JsObject]
+              val parsedFeature = Json.parse(g)
+              featureType = (parsedFeature \\ "geometry")(0) \ "type" match {
+                case JsDefined(value) => value.as[String]
+                case JsUndefined()    => "Unknown"
+              }
+              val taskProps = (parsedFeature \\ "properties")(0).as[JsObject]
               for (key <- propsToExportHeaders) {
                 (taskProps \ key) match {
                   case value: JsDefined =>
@@ -879,17 +886,31 @@ class ChallengeController @Inject() (
           var taskLink =
             s"[[hyperlink URL link=${urlPrefix}challenge/${task.parent}/task/${task.taskId}]]"
 
-          s"""${task.taskId},${taskLink},${task.parent},${challengeLink},"${task.name}","${Task.statusMap
-            .get(task.status)
-            .get}",""" +
-            s""""${Challenge.priorityMap.get(task.priority).get}",${mappedOn},""" +
-            s"""${task.completedTimeSpent.getOrElse("")},"${mapper}",""" +
-            s"""${Task.reviewStatusMap.get(task.reviewStatus.getOrElse(-1)).get},""" +
-            s""""${task.reviewedBy.getOrElse("")}",${reviewedAt},"${reviewTimeSeconds}",""" +
-            s""""${task.additionalReviewers.getOrElse(List()).mkString(", ")}",""" +
-            s""""${comments}","${task.bundleId.getOrElse("")}","${task.isBundlePrimary
-              .getOrElse("")}",""" +
-            s""""${task.tags.getOrElse("")}"${propData}${responseData}""".stripMargin
+          // Create a CSV row with more meaningful column names and data
+          val csvRow = List(
+            task.taskId,
+            taskLink,
+            task.parent,
+            challengeLink,
+            task.name,
+            featureType,
+            Task.statusMap.get(task.status).getOrElse(""),
+            Challenge.priorityMap.get(task.priority).getOrElse(""),
+            mappedOn,
+            task.completedTimeSpent.getOrElse(""),
+            mapper,
+            Task.reviewStatusMap.get(task.reviewStatus.getOrElse(-1)).get,
+            task.reviewedBy.getOrElse(""),
+            reviewedAt,
+            reviewTimeSeconds,
+            task.additionalReviewers.getOrElse(List()).mkString(", "),
+            comments,
+            task.bundleId.getOrElse(""),
+            task.isBundlePrimary.getOrElse(""),
+            task.tags.getOrElse("")
+          )
+
+          CSVEncoder.encodeRow(csvRow)
         })
 
         var propsToExportHeaderString = propsToExportHeaders.mkString(",")
@@ -901,7 +922,7 @@ class ChallengeController @Inject() (
             ResponseHeader(OK, Map(CONTENT_DISPOSITION -> s"attachment; filename=${filename}")),
           body = HttpEntity.Strict(
             ByteString(
-              s"""TaskID,TaskLink,ChallengeID,ChallengeLink,TaskName,TaskStatus,TaskPriority,MappedOn,CompletionTime,Mapper,ReviewStatus,Reviewer,ReviewedAt,ReviewTimeSeconds,AdditionalReviewers,Comments,BundleId,IsBundlePrimary,Tags${propsToExportHeaderString}${responseHeaders}\n"""
+              s"""TaskID,TaskLink,ChallengeID,ChallengeLink,TaskName,GeometryType,TaskStatus,TaskPriority,MappedOn,CompletionTime,Mapper,ReviewStatus,Reviewer,ReviewedAt,ReviewTimeSeconds,AdditionalReviewers,Comments,BundleId,IsBundlePrimary,Tags${propsToExportHeaderString}${responseHeaders}\n"""
             ).concat(ByteString(seqString.mkString("\n"))),
             Some("text/csv; header=present")
           )
