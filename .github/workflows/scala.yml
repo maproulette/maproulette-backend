@@ -23,6 +23,7 @@ jobs:
           java-version: 17
           distribution: 'temurin'
           cache: sbt
+      - uses: sbt/setup-sbt@v1
       - name: Create sbt dependencyTree
         env:
           CI: true
@@ -57,6 +58,7 @@ jobs:
           java-version: ${{ matrix.java }}
           distribution: 'temurin'
           cache: sbt
+      - uses: sbt/setup-sbt@v1
       - name: Run sbt tests with jacoco analysis
         env:
           APPLICATION_SECRET: ${{ needs.generate_app_secret.outputs.application_secret }}
@@ -95,6 +97,7 @@ jobs:
         java-version: ${{ matrix.java }}
         distribution: 'temurin'
         cache: sbt
+    - uses: sbt/setup-sbt@v1
     - name: Run sbt compile
       env:
         CI: true
