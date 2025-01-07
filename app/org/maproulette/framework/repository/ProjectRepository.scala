@@ -82,13 +82,13 @@ class ProjectRepository @Inject() (override val db: Database, grantService: Gran
               VALUES ({name}, {ownerId}, {displayName}, {description}, {enabled}, {virtual}, {featured}, {requireComment})
               RETURNING *""")
         .on(
-          Symbol("name")        -> project.name,
-          Symbol("ownerId")     -> project.owner,
-          Symbol("displayName") -> project.displayName,
-          Symbol("description") -> project.description.getOrElse(""),
-          Symbol("enabled")     -> project.enabled,
-          Symbol("virtual")     -> project.isVirtual.getOrElse(false),
-          Symbol("featured")    -> project.featured,
+          Symbol("name")           -> project.name,
+          Symbol("ownerId")        -> project.owner,
+          Symbol("displayName")    -> project.displayName,
+          Symbol("description")    -> project.description.getOrElse(""),
+          Symbol("enabled")        -> project.enabled,
+          Symbol("virtual")        -> project.isVirtual.getOrElse(false),
+          Symbol("featured")       -> project.featured,
           Symbol("requireComment") -> project.requireComment
         )
         .as(this.parser.*)

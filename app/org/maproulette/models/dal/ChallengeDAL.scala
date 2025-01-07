@@ -719,7 +719,8 @@ class ChallengeDAL @Inject() (
                   description = $description, info_link = $infoLink, blurb = $blurb, instruction = $instruction,
                   enabled = $enabled, featured = $featured, checkin_comment = $checkinComment, checkin_source = $checkinSource, overpass_ql = $overpassQL,
                   remote_geo_json = $remoteGeoJson, overpass_target_type = $overpassTargetType, status = $status, status_message = $statusMessage, default_priority = $defaultPriority,
-                  data_origin_date = ${dataOriginDate.toString()}::timestamptz, require_comment = $requireComment,
+                  data_origin_date = ${dataOriginDate
+              .toString()}::timestamptz, require_comment = $requireComment,
                   high_priority_rule = ${if (StringUtils.isEmpty(highPriorityRule)) {
               Option.empty[String]
             } else {
