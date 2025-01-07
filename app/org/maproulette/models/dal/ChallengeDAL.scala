@@ -135,8 +135,8 @@ class ChallengeDAL @Inject() (
             minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~ customBasemap ~ updateTasks ~
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
-            requiresLocal ~ deleted ~ isGlobal ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ completionPercentage ~
-            tasksRemaining ~ requireComment =>
+            requiresLocal ~ deleted ~ isGlobal ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ 
+            completionPercentage ~ tasksRemaining ~ requireComment =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -281,7 +281,7 @@ class ChallengeDAL @Inject() (
             customBasemap ~ updateTasks ~ exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~
             preferredReviewTags ~ limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~
             dataOriginDate ~ location ~ bounding ~ requiresLocal ~ deleted ~ isGlobal ~ virtualParents ~
-            presets ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ systemArchivedAt ~ completionPercentage ~
+            presets ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ systemArchivedAt ~ completionPercentage ~ 
             tasksRemaining ~ requireComment =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
@@ -719,8 +719,7 @@ class ChallengeDAL @Inject() (
                   description = $description, info_link = $infoLink, blurb = $blurb, instruction = $instruction,
                   enabled = $enabled, featured = $featured, checkin_comment = $checkinComment, checkin_source = $checkinSource, overpass_ql = $overpassQL,
                   remote_geo_json = $remoteGeoJson, overpass_target_type = $overpassTargetType, status = $status, status_message = $statusMessage, default_priority = $defaultPriority,
-                  data_origin_date = ${dataOriginDate
-              .toString()}::timestamptz, require_comment = $requireComment,
+                  data_origin_date = ${dataOriginDate.toString()}::timestamptz, require_comment = $requireComment,
                   high_priority_rule = ${if (StringUtils.isEmpty(highPriorityRule)) {
               Option.empty[String]
             } else {
