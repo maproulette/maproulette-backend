@@ -126,7 +126,8 @@ class ChallengeDAL @Inject() (
       get[Option[String]]("challenges.dataset_url") ~
       get[Option[JsValue]]("challenges.task_widget_layout") ~
       get[Option[Int]]("challenges.completion_percentage") ~
-      get[Option[Int]]("challenges.tasks_remaining") map {
+      get[Option[Int]]("challenges.tasks_remaining") ~
+      get[Boolean]("challenges.require_comment") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
             checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~ status ~ statusMessage ~
@@ -134,7 +135,8 @@ class ChallengeDAL @Inject() (
             minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~ customBasemap ~ updateTasks ~
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
-            requiresLocal ~ deleted ~ isGlobal ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ completionPercentage ~ tasksRemaining =>
+            requiresLocal ~ deleted ~ isGlobal ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ completionPercentage ~
+            tasksRemaining ~ requireComment =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -193,7 +195,8 @@ class ChallengeDAL @Inject() (
             isArchived,
             reviewSetting,
             taskWidgetLayout,
-            datasetUrl
+            datasetUrl,
+            requireComment = requireComment
           ),
           status,
           statusMessage,
@@ -268,7 +271,8 @@ class ChallengeDAL @Inject() (
       get[Option[JsValue]]("challenges.task_widget_layout") ~
       get[Option[DateTime]]("challenges.system_archived_at") ~
       get[Option[Int]]("challenges.completion_percentage") ~
-      get[Option[Int]]("challenges.tasks_remaining") map {
+      get[Option[Int]]("challenges.tasks_remaining") ~
+      get[Boolean]("challenges.require_comment") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~
             checkin_comment ~ checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~
@@ -277,7 +281,8 @@ class ChallengeDAL @Inject() (
             customBasemap ~ updateTasks ~ exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~
             preferredReviewTags ~ limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~
             dataOriginDate ~ location ~ bounding ~ requiresLocal ~ deleted ~ isGlobal ~ virtualParents ~
-            presets ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ systemArchivedAt ~ completionPercentage ~ tasksRemaining =>
+            presets ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ systemArchivedAt ~ completionPercentage ~
+            tasksRemaining ~ requireComment =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -338,7 +343,8 @@ class ChallengeDAL @Inject() (
             taskWidgetLayout,
             datasetUrl,
             systemArchivedAt,
-            presets
+            presets,
+            requireComment = requireComment
           ),
           status,
           statusMessage,
@@ -489,7 +495,7 @@ class ChallengeDAL @Inject() (
                                       medium_priority_rule, low_priority_rule, default_zoom, min_zoom, max_zoom,
                                       default_basemap, default_basemap_id, custom_basemap, updatetasks, exportable_properties,
                                       osm_id_property, task_bundle_id_property, last_task_refresh, data_origin_date, preferred_tags, preferred_review_tags,
-                                      limit_tags, limit_review_tags, task_styles, requires_local, is_archived, review_setting, dataset_url, task_widget_layout)
+                                      limit_tags, limit_review_tags, task_styles, requires_local, is_archived, review_setting, dataset_url, require_comment, task_widget_layout)
               VALUES (${challenge.name}, ${challenge.general.owner}, ${challenge.general.parent}, ${challenge.general.difficulty},
                       ${challenge.description}, ${challenge.isGlobal}, ${challenge.infoLink}, ${challenge.general.blurb}, ${challenge.general.instruction},
                       ${challenge.general.enabled}, ${challenge.general.featured},
@@ -503,7 +509,7 @@ class ChallengeDAL @Inject() (
                       ${challenge.dataOriginDate.getOrElse(DateTime.now()).toString}::timestamptz,
                       ${challenge.extra.preferredTags}, ${challenge.extra.preferredReviewTags}, ${challenge.extra.limitTags},
                       ${challenge.extra.limitReviewTags}, ${challenge.extra.taskStyles}, ${challenge.general.requiresLocal}, ${challenge.extra.isArchived},
-                      ${challenge.extra.reviewSetting}, ${challenge.extra.datasetUrl},
+                      ${challenge.extra.reviewSetting}, ${challenge.extra.datasetUrl}, ${challenge.extra.requireComment},
                       ${asJson(challenge.extra.taskWidgetLayout.getOrElse(Json.parse("{}")))}
                       ) ON CONFLICT(parent_id, LOWER(name)) DO NOTHING RETURNING #${this.retrieveColumns}"""
             .as(this.parser.*)
@@ -696,6 +702,10 @@ class ChallengeDAL @Inject() (
             .asOpt[String]
             .getOrElse(cachedItem.extra.datasetUrl)
 
+          val requireComment = (updates \ "requireComment")
+            .asOpt[Boolean]
+            .getOrElse(cachedItem.extra.requireComment)
+
           val taskWidgetLayout = (updates \ "taskWidgetLayout")
             .asOpt[JsValue]
             .getOrElse(cachedItem.extra.taskWidgetLayout.getOrElse(Json.parse("{}")))
@@ -709,7 +719,7 @@ class ChallengeDAL @Inject() (
                   description = $description, info_link = $infoLink, blurb = $blurb, instruction = $instruction,
                   enabled = $enabled, featured = $featured, checkin_comment = $checkinComment, checkin_source = $checkinSource, overpass_ql = $overpassQL,
                   remote_geo_json = $remoteGeoJson, overpass_target_type = $overpassTargetType, status = $status, status_message = $statusMessage, default_priority = $defaultPriority,
-                  data_origin_date = ${dataOriginDate.toString()}::timestamptz,
+                  data_origin_date = ${dataOriginDate.toString()}::timestamptz, require_comment = $requireComment,
                   high_priority_rule = ${if (StringUtils.isEmpty(highPriorityRule)) {
               Option.empty[String]
             } else {
