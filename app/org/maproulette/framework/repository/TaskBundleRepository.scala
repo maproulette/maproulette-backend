@@ -51,7 +51,8 @@ class TaskBundleRepository @Inject() (
       taskIds: List[Long],
       verifyTasks: (List[Task]) => Unit
   ): TaskBundle = {
-    this.withMRTransaction { implicit c =>
+    // First transaction: verify tasks and create bundle
+    val bundleId = this.withMRTransaction { implicit c =>
       val lockedTasks = this.withListLocking(user, Some(TaskType())) { () =>
         this.taskDAL.retrieveListById(-1, 0)(taskIds)
       }
@@ -70,39 +71,26 @@ class TaskBundleRepository @Inject() (
         SQL"""INSERT INTO bundles (owner_id, name) VALUES (${user.id}, ${name})""".executeInsert()
 
       rowId match {
-        case Some(bundleId: Long) =>
-          // Update the task object to bind it to the bundle
-          SQL(s"""UPDATE tasks SET bundle_id = $bundleId
-               WHERE id IN ({inList})""")
-            .on(
-              "inList" -> taskIds
-            )
-            .executeUpdate()
-
-          primaryId match {
-            case Some(id) =>
-              val sqlQuery = s"""UPDATE tasks SET is_bundle_primary = true WHERE id = $id"""
-              SQL(sqlQuery).executeUpdate()
-            case None => // Handle the case where primaryId is None
+        case Some(id: Long) =>
+          // Set primary task if specified
+          primaryId.foreach { pid =>
+            SQL"""UPDATE tasks SET is_bundle_primary = true WHERE id = $pid""".executeUpdate()
           }
-
-          val sqlInsertTaskBundles =
-            s"""INSERT INTO task_bundles (task_id, bundle_id) VALUES ({taskId}, $bundleId)"""
-          val parameters = lockedTasks.map(task => Seq[NamedParameter]("taskId" -> task.id))
-          BatchSql(sqlInsertTaskBundles, parameters.head, parameters.tail: _*).execute()
-
-          for (task <- lockedTasks) {
-            taskRepository.cacheManager.cache.remove(task.id)
-          }
-
-          TaskBundle(bundleId, user.id, lockedTasks.map(task => {
-            task.id
-          }), Some(lockedTasks))
-
+          id
         case None =>
           throw new Exception("Bundle creation failed")
       }
     }
+
+    // Second transaction: add tasks to bundle
+    this.bundleTasks(user, bundleId, taskIds)
+
+    val lockedTasks = this.withListLocking(user, Some(TaskType())) { () =>
+      this.taskDAL.retrieveListById(-1, 0)(taskIds)
+    }
+
+    // Return the created bundle
+    TaskBundle(bundleId, user.id, taskIds, Some(lockedTasks))
   }
 
   /**
