@@ -1864,12 +1864,14 @@ class ChallengeDAL @Inject() (
         case _                      =>
       }
 
-      if (searchParameters.challengeParams.archived == false) {
-        this.appendInWhereClause(whereClause, s"c.is_archived = false")
+      searchParameters.challengeParams.archived match {
+        case Some(false) | None => this.appendInWhereClause(whereClause, s"c.is_archived = false")  
+          case _ =>
       }
 
-      if (searchParameters.challengeParams.filterGlobal == true) {
-        this.appendInWhereClause(whereClause, s"c.is_global = false")
+      searchParameters.challengeParams.filterGlobal match {
+        case Some(true) | None => this.appendInWhereClause(whereClause, s"c.is_global = false")
+          case _ =>
       }
 
       searchParameters.challengeParams.requiresLocal match {
