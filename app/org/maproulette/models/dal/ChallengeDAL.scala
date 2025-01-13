@@ -1853,13 +1853,13 @@ class ChallengeDAL @Inject() (
       }
 
       searchParameters.challengeParams.archived match {
-        case Some(false) | None => this.appendInWhereClause(whereClause, s"c.is_archived = false")  
-          case _ =>
+        case Some(false) | None => this.appendInWhereClause(whereClause, s"c.is_archived = false")
+        case _                  =>
       }
 
       searchParameters.challengeParams.filterGlobal match {
         case Some(true) | None => this.appendInWhereClause(whereClause, s"c.is_global = false")
-          case _ =>
+        case _                 =>
       }
 
       searchParameters.challengeParams.requiresLocal match {
