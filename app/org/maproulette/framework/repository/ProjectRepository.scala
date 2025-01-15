@@ -82,13 +82,13 @@ class ProjectRepository @Inject() (override val db: Database, grantService: Gran
               VALUES ({name}, {ownerId}, {displayName}, {description}, {enabled}, {virtual}, {featured}, {requireConfirmation})
               RETURNING *""")
         .on(
-          Symbol("name")        -> project.name,
-          Symbol("ownerId")     -> project.owner,
-          Symbol("displayName") -> project.displayName,
-          Symbol("description") -> project.description.getOrElse(""),
-          Symbol("enabled")     -> project.enabled,
-          Symbol("virtual")     -> project.isVirtual.getOrElse(false),
-          Symbol("featured")    -> project.featured,
+          Symbol("name")                -> project.name,
+          Symbol("ownerId")             -> project.owner,
+          Symbol("displayName")         -> project.displayName,
+          Symbol("description")         -> project.description.getOrElse(""),
+          Symbol("enabled")             -> project.enabled,
+          Symbol("virtual")             -> project.isVirtual.getOrElse(false),
+          Symbol("featured")            -> project.featured,
           Symbol("requireConfirmation") -> project.requireConfirmation
         )
         .as(this.parser.*)
@@ -119,16 +119,16 @@ class ProjectRepository @Inject() (override val db: Database, grantService: Gran
            RETURNING *
         """)
         .on(
-          Symbol("name")           -> project.name,
-          Symbol("ownerId")        -> project.owner,
-          Symbol("displayName")    -> project.displayName,
-          Symbol("description")    -> project.description,
-          Symbol("enabled")        -> project.enabled,
-          Symbol("virtual")        -> project.isVirtual,
-          Symbol("featured")       -> project.featured,
-          Symbol("isArchived")     -> project.isArchived,
+          Symbol("name")                -> project.name,
+          Symbol("ownerId")             -> project.owner,
+          Symbol("displayName")         -> project.displayName,
+          Symbol("description")         -> project.description,
+          Symbol("enabled")             -> project.enabled,
+          Symbol("virtual")             -> project.isVirtual,
+          Symbol("featured")            -> project.featured,
+          Symbol("isArchived")          -> project.isArchived,
           Symbol("requireConfirmation") -> project.requireConfirmation,
-          Symbol("id")             -> project.id
+          Symbol("id")                  -> project.id
         )
         .as(this.parser.*)
         .headOption
