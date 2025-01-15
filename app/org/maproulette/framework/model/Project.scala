@@ -34,7 +34,7 @@ case class Project(
     isVirtual: Option[Boolean] = Some(false),
     featured: Boolean = false,
     isArchived: Boolean = false,
-    requireComment: Boolean = false
+    requireConfirmation: Boolean = false
 ) extends CacheObject[Long]
     with Identifiable {
   def grantsToType(granteeType: ItemType) =

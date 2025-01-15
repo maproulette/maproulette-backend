@@ -78,18 +78,18 @@ class ProjectRepository @Inject() (override val db: Database, grantService: Gran
     */
   def create(project: Project)(implicit c: Option[Connection] = None): Project = {
     this.withMRTransaction { implicit c =>
-      SQL("""INSERT INTO projects (name, owner_id, display_name, description, enabled, is_virtual, featured, require_comment)
-              VALUES ({name}, {ownerId}, {displayName}, {description}, {enabled}, {virtual}, {featured}, {requireComment})
+      SQL("""INSERT INTO projects (name, owner_id, display_name, description, enabled, is_virtual, featured, require_confirmation)
+              VALUES ({name}, {ownerId}, {displayName}, {description}, {enabled}, {virtual}, {featured}, {requireConfirmation})
               RETURNING *""")
         .on(
-          Symbol("name")           -> project.name,
-          Symbol("ownerId")        -> project.owner,
-          Symbol("displayName")    -> project.displayName,
-          Symbol("description")    -> project.description.getOrElse(""),
-          Symbol("enabled")        -> project.enabled,
-          Symbol("virtual")        -> project.isVirtual.getOrElse(false),
-          Symbol("featured")       -> project.featured,
-          Symbol("requireComment") -> project.requireComment
+          Symbol("name")        -> project.name,
+          Symbol("ownerId")     -> project.owner,
+          Symbol("displayName") -> project.displayName,
+          Symbol("description") -> project.description.getOrElse(""),
+          Symbol("enabled")     -> project.enabled,
+          Symbol("virtual")     -> project.isVirtual.getOrElse(false),
+          Symbol("featured")    -> project.featured,
+          Symbol("requireConfirmation") -> project.requireConfirmation
         )
         .as(this.parser.*)
         .head
@@ -114,7 +114,7 @@ class ProjectRepository @Inject() (override val db: Database, grantService: Gran
            is_virtual = {virtual},
            featured = {featured},
            is_archived = {isArchived},
-           require_comment = {requireComment}
+           require_confirmation = {requireConfirmation}
            WHERE id = {id}
            RETURNING *
         """)
@@ -127,7 +127,7 @@ class ProjectRepository @Inject() (override val db: Database, grantService: Gran
           Symbol("virtual")        -> project.isVirtual,
           Symbol("featured")       -> project.featured,
           Symbol("isArchived")     -> project.isArchived,
-          Symbol("requireComment") -> project.requireComment,
+          Symbol("requireConfirmation") -> project.requireConfirmation,
           Symbol("id")             -> project.id
         )
         .as(this.parser.*)
@@ -404,8 +404,8 @@ object ProjectRepository extends Readers {
       get[Boolean]("projects.is_virtual") ~
       get[Boolean]("projects.featured") ~
       get[Boolean]("projects.is_archived") ~
-      get[Boolean]("projects.require_comment") map {
-      case id ~ ownerId ~ name ~ created ~ modified ~ description ~ enabled ~ displayName ~ deleted ~ isVirtual ~ featured ~ isArchived ~ requireComment =>
+      get[Boolean]("projects.require_confirmation") map {
+      case id ~ ownerId ~ name ~ created ~ modified ~ description ~ enabled ~ displayName ~ deleted ~ isVirtual ~ featured ~ isArchived ~ requireConfirmation =>
         new Project(
           id,
           ownerId,
@@ -420,7 +420,7 @@ object ProjectRepository extends Readers {
           Some(isVirtual),
           featured,
           isArchived,
-          requireComment
+          requireConfirmation
         )
     }
   }

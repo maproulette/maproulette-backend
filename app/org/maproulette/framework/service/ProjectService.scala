@@ -304,8 +304,8 @@ class ProjectService @Inject() (
         }
         val isVirtual  = cachedItem.isVirtual // Don't allow updates to virtual status
         val isArchived = (updates \ "isArchived").asOpt[Boolean].getOrElse(cachedItem.isArchived)
-        val requireComment =
-          (updates \ "requireComment").asOpt[Boolean].getOrElse(cachedItem.requireComment)
+        val requireConfirmation =
+          (updates \ "requireConfirmation").asOpt[Boolean].getOrElse(cachedItem.requireConfirmation)
 
         this.repository.update(
           Project(
@@ -318,7 +318,7 @@ class ProjectService @Inject() (
             isVirtual = isVirtual,
             featured = featured,
             isArchived = isArchived,
-            requireComment = requireComment
+            requireConfirmation = requireConfirmation
           )
         )
       }(id = id)

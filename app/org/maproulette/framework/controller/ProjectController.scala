@@ -69,7 +69,7 @@ class ProjectController @Inject() (
       jsonBody = Utils.insertIntoJson(jsonBody, "featured", false)(BooleanWrites)
       jsonBody = Utils.insertIntoJson(jsonBody, "enabled", true)(BooleanWrites)
       jsonBody = Utils.insertIntoJson(jsonBody, "isArchived", false)(BooleanWrites)
-      jsonBody = Utils.insertIntoJson(jsonBody, "requireComment", false)(BooleanWrites)
+      jsonBody = Utils.insertIntoJson(jsonBody, "requireConfirmation", false)(BooleanWrites)
       jsonBody
         .validate[Project]
         .fold(
