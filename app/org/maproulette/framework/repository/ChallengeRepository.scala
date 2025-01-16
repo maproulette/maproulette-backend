@@ -336,7 +336,8 @@ object ChallengeRepository {
             taskWidgetLayout,
             datasetUrl,
             systemArchivedAt,
-            requireConfirmation = requireConfirmation
+            None,
+            requireConfirmation
           ),
           status,
           statusMessage,

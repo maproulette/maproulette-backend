@@ -196,7 +196,9 @@ class ChallengeDAL @Inject() (
             reviewSetting,
             taskWidgetLayout,
             datasetUrl,
-            requireConfirmation = requireConfirmation
+            None,
+            None,
+            requireConfirmation
           ),
           status,
           statusMessage,
@@ -344,7 +346,7 @@ class ChallengeDAL @Inject() (
             datasetUrl,
             systemArchivedAt,
             presets,
-            requireConfirmation = requireConfirmation
+            requireConfirmation
           ),
           status,
           statusMessage,
