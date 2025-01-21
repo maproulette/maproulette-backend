@@ -242,6 +242,7 @@ class KeepRightProvider @Inject() (
             None,
             false,
             false,
+            false,
             None,
             ChallengeGeneral(User.superUser.id, rootProjectId, ""),
             ChallengeCreation(),

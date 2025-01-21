@@ -158,6 +158,7 @@ class ChallengeDAL @Inject() (
           description,
           deleted,
           isGlobal,
+          requireConfirmation,
           infoLink,
           ChallengeGeneral(
             ownerId,
@@ -195,10 +196,7 @@ class ChallengeDAL @Inject() (
             isArchived,
             reviewSetting,
             taskWidgetLayout,
-            datasetUrl,
-            None,
-            None,
-            requireConfirmation
+            datasetUrl
           ),
           status,
           statusMessage,
@@ -306,6 +304,7 @@ class ChallengeDAL @Inject() (
           description,
           deleted,
           isGlobal,
+          requireConfirmation,
           infoLink,
           ChallengeGeneral(
             ownerId,

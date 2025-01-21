@@ -297,6 +297,7 @@ object ChallengeRepository {
           description,
           deleted,
           isGlobal,
+          requireConfirmation,
           infoLink,
           ChallengeGeneral(
             ownerId,
@@ -335,9 +336,7 @@ object ChallengeRepository {
             reviewSetting,
             taskWidgetLayout,
             datasetUrl,
-            systemArchivedAt,
-            None,
-            requireConfirmation
+            systemArchivedAt
           ),
           status,
           statusMessage,

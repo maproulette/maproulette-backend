@@ -56,6 +56,7 @@ trait ChallengeWrites extends DefaultWrites {
       (JsPath \ "description").writeNullable[String] and
       (JsPath \ "deleted").write[Boolean] and
       (JsPath \ "isGlobal").write[Boolean] and
+      (JsPath \ "requireConfirmation").write[Boolean] and
       (JsPath \ "infoLink").writeNullable[String] and
       JsPath.write[ChallengeGeneral] and
       JsPath.write[ChallengeCreation] and
@@ -112,6 +113,7 @@ trait ChallengeReads extends DefaultReads {
       (JsPath \ "description").readNullable[String] and
       (JsPath \ "deleted").read[Boolean] and
       (JsPath \ "isGlobal").read[Boolean] and
+      (JsPath \ "requireConfirmation").read[Boolean] and
       (JsPath \ "infoLink").readNullable[String] and
       JsPath.read[ChallengeGeneral] and
       JsPath.read[ChallengeCreation] and

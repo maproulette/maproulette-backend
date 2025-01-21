@@ -1192,6 +1192,7 @@ class ChallengeController @Inject() (
     jsonBody = Utils.insertIntoJson(jsonBody, "taskWidgetLayout", JsObject.empty)(jsValueWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "updateTasks", false)(BooleanWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "changesetUrl", false)(BooleanWrites)
+    jsonBody = Utils.insertIntoJson(jsonBody, "requireConfirmation", false)(BooleanWrites)
     // if we can't find the parent ID, just use the user's default project instead
     (jsonBody \ "parent").asOpt[Long] match {
       case Some(v) => jsonBody
