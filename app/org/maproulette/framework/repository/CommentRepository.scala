@@ -139,7 +139,7 @@ class CommentRepository @Inject() (override val db: Database) extends Repository
       implicit c: Option[Connection] = None
   ): Boolean = {
     withMRTransaction { implicit c =>
-      SQL("UPDATE task_comments SET comment = {comment} WHERE id = {id} RETURNING *")
+      SQL("UPDATE task_comments SET comment = {comment}, edited = true WHERE id = {id} RETURNING *")
         .on(Symbol("comment") -> updatedComment, Symbol("id") -> id)
         .execute()
     }
@@ -171,8 +171,8 @@ object CommentRepository {
       long("task_comments.task_id") ~ long("task_comments.challenge_id") ~ long(
       "task_comments.project_id"
     ) ~ get[DateTime]("task_comments.created") ~ get[String]("task_comments.comment") ~
-      get[Option[Long]]("task_comments.action_id") map {
-      case id ~ osmId ~ name ~ avatarUrl ~ taskId ~ challengeId ~ projectId ~ created ~ comment ~ actionId =>
+      get[Option[Long]]("task_comments.action_id") ~ get[Boolean]("task_comments.edited") map {
+      case id ~ osmId ~ name ~ avatarUrl ~ taskId ~ challengeId ~ projectId ~ created ~ comment ~ actionId ~ edited =>
         Comment(
           id,
           osm_id = osmId,
@@ -183,7 +183,8 @@ object CommentRepository {
           projectId = projectId,
           created = created,
           comment = comment,
-          actionId = actionId
+          actionId = actionId,
+          edited = edited
         )
     }
   }

@@ -24,8 +24,10 @@ class TaskHistoryRepository @Inject() (override val db: Database) extends Reposi
     get[Long]("task_comments.task_id") ~
       get[DateTime]("task_comments.created") ~
       get[Int]("users.id") ~
-      get[String]("task_comments.comment") map {
-      case taskId ~ created ~ userId ~ comment =>
+      get[String]("task_comments.comment") ~
+      get[Option[Long]]("task_comments.id") ~
+      get[Boolean]("task_comments.edited") map {
+      case taskId ~ created ~ userId ~ comment ~ id ~ edited =>
         new TaskLogEntry(
           taskId,
           created,
@@ -39,7 +41,9 @@ class TaskHistoryRepository @Inject() (override val db: Database) extends Reposi
           None,
           None,
           Some(comment),
-          None
+          None,
+          entryId = id,
+          edited = edited
         )
     }
   }
@@ -193,7 +197,7 @@ class TaskHistoryRepository @Inject() (override val db: Database) extends Reposi
     */
   def getComments(taskId: Long): List[TaskLogEntry] = {
     this.withMRConnection { implicit c =>
-      SQL(s"""SELECT tc.task_id, tc.created, users.id, tc.comment FROM task_comments tc
+      SQL(s"""SELECT tc.id, tc.task_id, tc.created, users.id, tc.comment, tc.edited FROM task_comments tc
             INNER JOIN users on users.osm_id=tc.osm_id
             WHERE task_id = $taskId""").as(this.commentEntryParser.*)
     }
