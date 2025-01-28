@@ -1,4 +1,3 @@
-# --- !Ups
 ALTER TABLE users ADD COLUMN disable_task_confirm BOOLEAN DEFAULT false;;
 ALTER TABLE challenges ADD COLUMN require_confirmation BOOLEAN DEFAULT false;;
 ALTER TABLE projects ADD COLUMN require_confirmation BOOLEAN DEFAULT false;;
