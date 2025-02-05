@@ -700,31 +700,31 @@ trait SearchParametersMixin {
     * challengeParams.archived value is true
     */
   def filterChallengeArchived(params: SearchParameters): FilterGroup = {
-    if (params.challengeParams.archived.getOrElse("false") == "false") {
-      FilterGroup(
-        List(
-          FilterParameter.conditional(
-            Challenge.FIELD_ARCHIVED,
-            value = "false",
-            Operator.EQ,
-            useValueDirectly = true,
-            includeOnlyIfTrue = true,
-            table = Some("c")
+    params.challengeParams.archived match {
+      case Some(false) =>
+        FilterGroup(
+          List(
+            FilterParameter.conditional(
+              Challenge.FIELD_ARCHIVED,
+              value = "false",
+              Operator.EQ,
+              useValueDirectly = true,
+              includeOnlyIfTrue = true,
+              table = Some("c")
+            )
           )
         )
-      )
-    } else {
-      FilterGroup(List())
+      case _ => FilterGroup(List())
     }
   }
 
   /**
     * Filters by c.is_global. Will only include if
-    * challengeParams.filterGlobal value is true
+    * challengeParams.filterGlobal value is false
     */
   def filterChallengeGlobal(params: SearchParameters): FilterGroup = {
-    params.challengeParams.filterGlobal match {
-      case Some(v) if v =>
+    params.challengeParams.global match {
+      case false =>
         FilterGroup(
           List(
             FilterParameter.conditional(
