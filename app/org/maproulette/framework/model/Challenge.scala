@@ -138,7 +138,8 @@ case class ChallengeExtra(
     taskWidgetLayout: Option[JsValue] = None,
     datasetUrl: Option[String] = None,
     systemArchivedAt: Option[DateTime] = None,
-    presets: Option[List[String]] = None
+    presets: Option[List[String]] = None,
+    requireConfirmation: Boolean = false
 ) extends DefaultWrites
 
 case class ChallengeListing(
@@ -163,6 +164,7 @@ case class Challenge(
     override val description: Option[String] = None,
     deleted: Boolean = false,
     isGlobal: Boolean = false,
+    requireConfirmation: Boolean = false,
     infoLink: Option[String] = None,
     general: ChallengeGeneral,
     creation: ChallengeCreation,
@@ -329,6 +331,7 @@ object Challenge extends CommonField {
     DateTime.now(),
     DateTime.now(),
     None,
+    false,
     false,
     false,
     None,

@@ -458,7 +458,10 @@ class UserService @Inject() (
         .getOrElse(cachedItem.settings.allowFollowing.getOrElse(true))
       val seeTagFixSuggestions = (value \ "settings" \ "seeTagFixSuggestions")
         .asOpt[Boolean]
-        .getOrElse(cachedItem.settings.seeTagFixSuggestions.getOrElse(true))
+        .getOrElse(cachedItem.settings.seeTagFixSuggestions.getOrElse(false))
+      val disableTaskConfirm = (value \ "settings" \ "disableTaskConfirm")
+        .asOpt[Boolean]
+        .getOrElse(cachedItem.settings.disableTaskConfirm.getOrElse(false))
       val theme = (value \ "settings" \ "theme")
         .asOpt[Int]
         .getOrElse(cachedItem.settings.theme.getOrElse(-1))
@@ -502,7 +505,8 @@ class UserService @Inject() (
               Some(allowFollowing),
               Some(theme),
               customBasemaps,
-              Some(seeTagFixSuggestions)
+              Some(seeTagFixSuggestions),
+              Some(disableTaskConfirm)
             ),
             properties = Some(properties)
           ),

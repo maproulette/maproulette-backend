@@ -47,7 +47,8 @@ RESPONSE {
     "groups": [],
     "enabled": true,
     "deleted": false,
-    "isGlobal": false
+    "isGlobal": false,
+    "requireConfirmation": false,
 }
 ```
 ***NOTE:** The owner id will match the ID of the user used based on the APIKey.<br/>
