@@ -1864,8 +1864,8 @@ class ChallengeDAL @Inject() (
       }
 
       searchParameters.challengeParams.archived match {
-        case Some(false) => this.appendInWhereClause(whereClause, s"c.is_archived = false")
-        case _           =>
+        case Some(false) | None => this.appendInWhereClause(whereClause, s"c.is_archived = false")
+        case _                  =>
       }
 
       searchParameters.challengeParams.global match {

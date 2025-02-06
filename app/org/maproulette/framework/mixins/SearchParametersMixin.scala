@@ -701,7 +701,7 @@ trait SearchParametersMixin {
     */
   def filterChallengeArchived(params: SearchParameters): FilterGroup = {
     params.challengeParams.archived match {
-      case Some(false) =>
+      case Some(false) | None =>
         FilterGroup(
           List(
             FilterParameter.conditional(
