@@ -32,7 +32,7 @@ case class SearchChallengeParameters(
     challengeStatus: Option[List[Int]] = None,
     requiresLocal: Option[Int] = Some(SearchParameters.CHALLENGE_REQUIRES_LOCAL_EXCLUDE),
     archived: Option[Boolean] = None,
-    filterGlobal: Option[Boolean] = None
+    global: Option[Boolean] = None
 )
 
 case class SearchReviewParameters(
@@ -441,8 +441,8 @@ object SearchParameters {
         this.getIntParameter(request.getQueryString("cLocal"), Some(params.challengeParams.requiresLocal.getOrElse(SearchParameters.CHALLENGE_REQUIRES_LOCAL_EXCLUDE))),
         //includeArchived
         this.getBooleanParameter(request.getQueryString("ca"), params.challengeParams.archived),
-        //filterGlobal
-        this.getBooleanParameter(request.getQueryString("fg"), params.challengeParams.filterGlobal)
+        //includeGlobal
+        this.getBooleanParameter(request.getQueryString("cg"), params.challengeParams.global)
       ),
       new SearchTaskParameters(
       //taskTags
