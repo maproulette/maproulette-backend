@@ -1867,7 +1867,7 @@ class ChallengeDAL @Inject() (
         this.appendInWhereClause(whereClause, s"c.is_archived = false")
       }
 
-      if (searchParameters.challengeParams.global.getOrElse(false) == false) {
+      if (searchParameters.challengeParams.global.getOrElse(true) == false) {
         this.appendInWhereClause(whereClause, s"c.is_global = false")
       }
 

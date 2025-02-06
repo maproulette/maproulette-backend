@@ -723,7 +723,7 @@ trait SearchParametersMixin {
     * challengeParams.global value is true
     */
   def filterChallengeGlobal(params: SearchParameters): FilterGroup = {
-    if (params.challengeParams.global.getOrElse("false") == "false") {
+    if (params.challengeParams.global.getOrElse("true") == "false") {
       FilterGroup(
         List(
           FilterParameter.conditional(
