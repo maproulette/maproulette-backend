@@ -720,7 +720,7 @@ trait SearchParametersMixin {
 
   /**
     * Filters by c.is_global. Will only include if
-    * challengeParams.gloval value is true
+    * challengeParams.global value is true
     */
   def filterChallengeGlobal(params: SearchParameters): FilterGroup = {
     if (params.challengeParams.global.getOrElse("false") == "false") {
