@@ -50,82 +50,117 @@ class ChallengeProvider @Inject() (
       json: Option[String] = None,
       removeUnmatched: Boolean = false
   ): Boolean = {
-    if (!challenge.creation.overpassQL.getOrElse("").isEmpty) {
-      this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_BUILDING), user)(challenge.id)
-      Future {
-        logger.debug("Creating tasks for overpass query: " + challenge.creation.overpassQL.get)
-        if (removeUnmatched) {
-          this.challengeDAL.removeIncompleteTasks(user)(challenge.id)
-        }
-
-        this.buildOverpassQLTasks(challenge, user)
-      }
-      true
-    } else {
-      val usingLocalJson = json match {
-        case Some(value) if StringUtils.isNotEmpty(value) =>
-          val splitJson = value.split("\n")
-          this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_BUILDING), user)(
-            challenge.id
-          )
-          Future {
-            if (removeUnmatched) {
-              this.challengeDAL.removeIncompleteTasks(user)(challenge.id)
-            }
-
-            if (isLineByLineGeoJson(splitJson)) {
-              val failedLines = splitJson.zipWithIndex.flatMap(line => {
-                try {
-                  val jsonData = Json.parse(normalizeRFC7464Sequence(line._1))
-                  this.createNewTask(
-                    user,
-                    taskNameFromJsValue(jsonData, challenge),
-                    challenge,
-                    jsonData
-                  )
-                  None
-                } catch {
-                  case e: Exception =>
-                    Some(line._2)
-                }
-              })
-              if (failedLines.nonEmpty) {
-                this.challengeDAL.update(
-                  Json.obj(
-                    "status"        -> Challenge.STATUS_PARTIALLY_LOADED,
-                    "statusMessage" -> s"GeoJSON lines [${failedLines.mkString(",")}] failed to parse"
-                  ),
-                  user
-                )(challenge.id)
-              } else {
-                this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(
-                  challenge.id
-                )
-                this.challengeDAL.markTasksRefreshed()(challenge.id)
-              }
-            } else {
-              this.createTasksFromJson(user, challenge, value)
-            }
-
-            //we need to reapply task priority rules since task locations were updated
-            Future {
-              this.challengeDAL.updateTaskPriorities(user)(challenge.id)
-            }
+    try {
+      if (!challenge.creation.overpassQL.getOrElse("").isEmpty) {
+        this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_BUILDING), user)(challenge.id)
+        Future {
+          logger.debug("Creating tasks for overpass query: " + challenge.creation.overpassQL.get)
+          if (removeUnmatched) {
+            this.challengeDAL.removeIncompleteTasks(user)(challenge.id)
           }
-          true
-        case _ => false
-      }
-      if (!usingLocalJson) {
-        // lastly try remote
-        challenge.creation.remoteGeoJson match {
-          case Some(url) if StringUtils.isNotEmpty(url) =>
-            this.buildTasksFromRemoteJson(url, 1, challenge, user, removeUnmatched)
+
+          this.buildOverpassQLTasks(challenge, user)
+        }
+        true
+      } else {
+        val usingLocalJson = json match {
+          case Some(value) if StringUtils.isNotEmpty(value) =>
+            val splitJson = value.split("\n")
+            this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_BUILDING), user)(
+              challenge.id
+            )
+            Future {
+              if (removeUnmatched) {
+                this.challengeDAL.removeIncompleteTasks(user)(challenge.id)
+              }
+
+              if (isLineByLineGeoJson(splitJson)) {
+                val failedLines = splitJson.zipWithIndex.flatMap(line => {
+                  try {
+                    val jsonData = Json.parse(normalizeRFC7464Sequence(line._1))
+                    this.createNewTask(
+                      user,
+                      taskNameFromJsValue(jsonData, challenge),
+                      challenge,
+                      jsonData
+                    )
+                    None
+                  } catch {
+                    case e: Exception =>
+                      Some(line._2)
+                  }
+                })
+                if (failedLines.nonEmpty) {
+                  this.challengeDAL.update(
+                    Json.obj(
+                      "status"        -> Challenge.STATUS_PARTIALLY_LOADED,
+                      "statusMessage" -> s"GeoJSON lines [${failedLines.mkString(",")}] failed to parse"
+                    ),
+                    user
+                  )(challenge.id)
+                } else {
+                  this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(
+                    challenge.id
+                  )
+                  this.challengeDAL.markTasksRefreshed()(challenge.id)
+                }
+              } else {
+                this.createTasksFromJson(user, challenge, value)
+              }
+
+              //we need to reapply task priority rules since task locations were updated
+              Future {
+                this.challengeDAL.updateTaskPriorities(user)(challenge.id)
+              }
+            }
             true
           case _ => false
         }
-      } else {
-        false
+        if (!usingLocalJson) {
+          // lastly try remote
+          challenge.creation.remoteGeoJson match {
+            case Some(url) if StringUtils.isNotEmpty(url) =>
+              if (!isValidUrl(url)) {
+                val message = s"""Invalid remote GeoJSON URL: $url
+                               |
+                               |Please verify:
+                               |1. The URL is properly formatted
+                               |2. The URL uses http:// or https://
+                               |3. The domain name is valid
+                               |
+                               |Technical details:
+                               |Error: Invalid URL format
+                               |Type: ValidationError""".stripMargin
+                this.challengeDAL.update(
+                  Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> message),
+                  user
+                )(challenge.id)
+                false
+              } else {
+                this.buildTasksFromRemoteJson(url, 1, challenge, user, removeUnmatched)
+                true
+              }
+            case _ => false
+          }
+        } else {
+          false
+        }
       }
+    } catch {
+      case e: Exception =>
+        val message = s"""Unexpected error during task creation:
+                        |
+                        |Please try again or contact support if the problem persists.
+                        |
+                        |Technical details:
+                        |Error: ${e.getMessage}
+                        |Type: ${e.getClass.getSimpleName}""".stripMargin
+        this.challengeDAL.update(
+          Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> message),
+          user
+        )(challenge.id)
+        logger.error("Unexpected error in buildTasks", e)
+        false
     }
   }
 
@@ -208,15 +243,78 @@ class ChallengeProvider @Inject() (
     val url     = filePrefix.replace("{x}", fileNumber.toString)
     val seqJSON = filePrefix.contains("{x}")
 
-    def handleFailure(message: String, error: Option[Throwable] = None): Unit = {
+    def handleFailure(message: String, error: Option[Throwable] = None, statusCode: Option[Int] = None): Unit = {
       error match {
         case Some(e) => logger.error(message, e)
         case None    => logger.error(message)
       }
+      
+      val userMessage = error match {
+        case Some(e: com.fasterxml.jackson.core.JsonParseException) =>
+          s"""Invalid response from URL: $url
+             |
+             |The server returned HTML instead of JSON. This usually means:
+             |1. The URL is incorrect or no longer valid
+             |2. The server is redirecting to an error page
+             |3. Authentication is required
+             |
+             |Please verify the URL is correct and accessible.
+             |
+             |Technical details:
+             |Error: ${e.getMessage}
+             |Type: JsonParseException
+             |${statusCode.map(code => s"Status: $code").getOrElse("")}""".stripMargin
+
+        case Some(e: java.net.UnknownHostException) =>
+          s"""Unable to connect to host in URL: $url
+             |
+             |The domain name could not be found. Please verify:
+             |1. The URL is spelled correctly
+             |2. The domain exists and is accessible
+             |3. Your internet connection is working
+             |
+             |Technical details:
+             |Error: ${e.getMessage}
+             |Type: UnknownHostException""".stripMargin
+
+        case Some(e: java.net.ConnectException) =>
+          s"""Connection failed to URL: $url
+             |
+             |Could not establish a connection. Please verify:
+             |1. The URL is accessible
+             |2. The server is running and accepting connections
+             |3. Any required authentication is properly configured
+             |
+             |Technical details:
+             |Error: ${e.getMessage}
+             |Type: ConnectException
+             |${statusCode.map(code => s"Status: $code").getOrElse("")}""".stripMargin
+
+        case Some(e: java.util.concurrent.TimeoutException) =>
+          s"""Request timed out for URL: $url
+             |
+             |The server took too long to respond. Please verify:
+             |1. The server is responsive
+             |2. The data size is not too large
+             |3. Try again when the server is less busy
+             |
+             |Technical details:
+             |Error: Request timeout after ${config.getOSMQLProvider.requestTimeout}
+             |Type: TimeoutException""".stripMargin
+
+        case _ => 
+          s"""$message
+             |
+             |Technical details:
+             |Error: ${error.map(_.getMessage).getOrElse("Unknown error")}
+             |Type: ${error.map(_.getClass.getSimpleName).getOrElse("UnknownError")}
+             |${statusCode.map(code => s"Status: $code").getOrElse("")}""".stripMargin
+      }
+
       this.challengeDAL.update(
         Json.obj(
           "status"        -> Challenge.STATUS_FAILED,
-          "statusMessage" -> message
+          "statusMessage" -> userMessage
         ),
         user
       )(challenge.id)
@@ -225,7 +323,6 @@ class ChallengeProvider @Inject() (
     def handleSuccess(): Unit = {
       this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(challenge.id)
       this.challengeDAL.markTasksRefreshed()(challenge.id)
-      // Update task priorities in the background
       Future {
         this.challengeDAL.updateTaskPriorities(user)(challenge.id)
       }
@@ -233,6 +330,14 @@ class ChallengeProvider @Inject() (
 
     def processGeoJSON(body: String): Unit = {
       try {
+        // Check if response looks like HTML
+        if (body.trim.toLowerCase.startsWith("<")) {
+          throw new InvalidException(
+            s"""Received HTML instead of JSON from URL: $url
+               |Please verify the URL is correct and returns valid GeoJSON data.""".stripMargin
+          )
+        }
+
         val splitJson = body.split("\n")
         if (this.isLineByLineGeoJson(splitJson)) {
           val splitJsonLength = splitJson.length
@@ -278,8 +383,10 @@ class ChallengeProvider @Inject() (
           }
         }
       } catch {
+        case e: InvalidException =>
+          handleFailure(e.getMessage)
         case e: Exception =>
-          handleFailure(s"Error processing GeoJSON: ${e.getMessage}", Some(e))
+          handleFailure(s"Error processing GeoJSON from URL: $url", Some(e))
       }
     }
 
@@ -287,18 +394,45 @@ class ChallengeProvider @Inject() (
       this.ws
         .url(url)
         .withRequestTimeout(this.config.getOSMQLProvider.requestTimeout)
+        .withFollowRedirects(true)
         .get() onComplete {
-        case Success(resp) if resp.status == Status.OK =>
-          logger.debug("Creating tasks from remote GeoJSON file")
-          processGeoJSON(resp.body)
-          if (seqJSON) {
-            this.buildTasksFromRemoteJson(filePrefix, fileNumber + 1, challenge, user, false)
-          }
-
         case Success(resp) =>
-          handleFailure(
-            s"Unexpected response (${resp.status}: ${resp.statusText}) when fetching remote GeoJSON from $url: ${resp.body}"
-          )
+          resp.header("Content-Type") match {
+            case Some(contentType) if contentType.toLowerCase.contains("json") =>
+              if (resp.status == Status.OK) {
+                logger.debug("Creating tasks from remote GeoJSON file")
+                processGeoJSON(resp.body)
+                if (seqJSON) {
+                  this.buildTasksFromRemoteJson(filePrefix, fileNumber + 1, challenge, user, false)
+                }
+              } else {
+                handleFailure(
+                  s"""Server returned error response for URL: $url
+                     |
+                     |Please verify:
+                     |1. The URL is accessible
+                     |2. You have permission to access the resource
+                     |3. The server is functioning correctly""".stripMargin,
+                  None,
+                  Some(resp.status)
+                )
+              }
+            case Some(contentType) =>
+              handleFailure(
+                s"""Unexpected content type from URL: $url
+                   |
+                   |Expected JSON but received: $contentType
+                   |Please verify the URL returns valid GeoJSON data.
+                   |
+                   |Technical details:
+                   |Content-Type: $contentType
+                   |Status: ${resp.status}""".stripMargin
+              )
+            case None =>
+              // Proceed with processing but log a warning
+              logger.warn(s"No content type header received from URL: $url")
+              processGeoJSON(resp.body)
+          }
 
         case Failure(e: java.util.concurrent.TimeoutException) =>
           handleFailure(
@@ -308,15 +442,14 @@ class ChallengeProvider @Inject() (
 
         case Failure(f) =>
           if (fileNumber > 1) {
-            // Assume end of sequence, mark as ready
             handleSuccess()
           } else {
-            handleFailure(s"Failed to fetch remote GeoJSON from $url: ${f.getMessage}", Some(f))
+            handleFailure(s"Failed to fetch remote GeoJSON from URL: $url", Some(f))
           }
       }
     } catch {
       case e: Exception =>
-        handleFailure(s"Error initializing remote GeoJSON processing: ${e.getMessage}", Some(e))
+        handleFailure(s"Error initializing remote GeoJSON processing for URL: $url", Some(e))
     }
   }
 
@@ -890,4 +1023,9 @@ class ChallengeProvider @Inject() (
     */
   private def normalizeRFC7464Sequence(line: String): String =
     line.replaceAll(s"^${RS}+", "")
+
+  private def isValidUrl(url: String): Boolean = {
+    val pattern = "^(http|https)://.*$".r
+    pattern.findAllIn(url).nonEmpty
+  }
 }
