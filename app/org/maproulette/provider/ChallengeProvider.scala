@@ -200,85 +200,131 @@ class ChallengeProvider @Inject() (
       user: User,
       removeUnmatched: Boolean
   ): Unit = {
-    this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_BUILDING), user)(challenge.id)
-    if (removeUnmatched) {
-      this.challengeDAL.removeIncompleteTasks(user)(challenge.id)
-    }
+    try {
+      this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_BUILDING), user)(challenge.id)
+      if (removeUnmatched) {
+        this.challengeDAL.removeIncompleteTasks(user)(challenge.id)
+      }
 
-    val url     = filePrefix.replace("{x}", fileNumber.toString)
-    val seqJSON = filePrefix.contains("{x}")
-    this.ws
-      .url(url)
-      .withRequestTimeout(this.config.getOSMQLProvider.requestTimeout)
-      .get() onComplete {
-      case Success(resp) =>
-        logger.debug("Creating tasks from remote GeoJSON file")
-        try {
-          val splitJson = resp.body.split("\n")
+      val url     = filePrefix.replace("{x}", fileNumber.toString)
+      val seqJSON = filePrefix.contains("{x}")
 
-          if (this.isLineByLineGeoJson(splitJson)) {
-            val splitJsonLength = resp.body.split("\n").length;
-            if (splitJsonLength > config.maxTasksPerChallenge) {
-              logger.warn(
-                "Cannot add {} tasks to challengeId='{}' because it would exceed the maximum tasks per challenge (max={})",
-                splitJsonLength,
-                challenge.id,
-                config.maxTasksPerChallenge
-              )
+      def handleFailure(message: String, error: Option[Throwable] = None): Unit = {
+        logger.error(message, error.orNull)
+        this.challengeDAL.update(
+          Json.obj(
+            "status"        -> Challenge.STATUS_FAILED,
+            "statusMessage" -> message
+          ),
+          user
+        )(challenge.id)
+      }
 
-              val statusMessage =
-                s"Tasks were not accepted. Your feature list size must be under ${config.maxTasksPerChallenge}."
+      def handleSuccess(): Unit = {
+        this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(challenge.id)
+        this.challengeDAL.markTasksRefreshed()(challenge.id)
+        Future {
+          this.challengeDAL.updateTaskPriorities(user)(challenge.id)
+        }
+      }
+
+      this.ws
+        .url(url)
+        .withRequestTimeout(this.config.getOSMQLProvider.requestTimeout)
+        .get() onComplete {
+        case Success(resp) if resp.status == Status.OK =>
+          logger.debug("Creating tasks from remote GeoJSON file")
+          try {
+            val splitJson = resp.body.split("\n")
+
+            if (this.isLineByLineGeoJson(splitJson)) {
+              val splitJsonLength = resp.body.split("\n").length;
+              if (splitJsonLength > config.maxTasksPerChallenge) {
+                logger.warn(
+                  "Cannot add {} tasks to challengeId='{}' because it would exceed the maximum tasks per challenge (max={})",
+                  splitJsonLength,
+                  challenge.id,
+                  config.maxTasksPerChallenge
+                )
+
+                val statusMessage =
+                  s"Tasks were not accepted. Your feature list size must be under ${config.maxTasksPerChallenge}."
+                this.challengeDAL.update(
+                  Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
+                  user
+                )(challenge.id)
+              } else {
+                splitJson.foreach { line =>
+                  val jsonData = Json.parse(normalizeRFC7464Sequence(line))
+                  this.createNewTask(
+                    user,
+                    taskNameFromJsValue(jsonData, challenge),
+                    challenge,
+                    jsonData
+                  )
+                }
+                this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(
+                  challenge.id
+                )
+
+                this.challengeDAL.markTasksRefreshed()(challenge.id)
+              }
+            } else {
+              this.createTasksFromFeatures(user, challenge, Json.parse(resp.body))
+            }
+          } catch {
+            case e: Exception =>
               this.challengeDAL.update(
-                Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
+                Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> e.getMessage),
                 user
               )(challenge.id)
-            } else {
-              splitJson.foreach { line =>
-                val jsonData = Json.parse(normalizeRFC7464Sequence(line))
-                this.createNewTask(
-                  user,
-                  taskNameFromJsValue(jsonData, challenge),
-                  challenge,
-                  jsonData
-                )
-              }
-              this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(
-                challenge.id
-              )
-
-              this.challengeDAL.markTasksRefreshed()(challenge.id)
-            }
+          }
+          if (seqJSON) {
+            this.buildTasksFromRemoteJson(filePrefix, fileNumber + 1, challenge, user, false)
           } else {
-            this.createTasksFromFeatures(user, challenge, Json.parse(resp.body))
-          }
-        } catch {
-          case e: Exception =>
-            this.challengeDAL.update(
-              Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> e.getMessage),
-              user
-            )(challenge.id)
-        }
-        if (seqJSON) {
-          this.buildTasksFromRemoteJson(filePrefix, fileNumber + 1, challenge, user, false)
-        } else {
-          this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(challenge.id)
-          this.challengeDAL.markTasksRefreshed()(challenge.id)
+            this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(
+              challenge.id
+            )
+            this.challengeDAL.markTasksRefreshed()(challenge.id)
 
-          //we need to reapply task priority rules since task locations were updated
-          Future {
-            this.challengeDAL.updateTaskPriorities(user)(challenge.id)
+            //we need to reapply task priority rules since task locations were updated
+            Future {
+              this.challengeDAL.updateTaskPriorities(user)(challenge.id)
+            }
           }
-        }
-      case Failure(f) =>
-        if (fileNumber > 1) {
-          // todo need to figure out if actual failure or if not finding the next file
-          this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(challenge.id)
-        } else {
-          this.challengeDAL.update(
-            Json.obj("status" -> Challenge.STATUS_FAILED, "StatusMessage" -> f.getMessage),
-            user
-          )(challenge.id)
-        }
+        case Success(resp) =>
+          val message = resp.status match {
+            case Status.UNAUTHORIZED =>
+              s"Authentication required (401) for remote GeoJSON at $url. Please verify credentials if required."
+            case Status.CONFLICT =>
+              s"Conflict error (409) when fetching remote GeoJSON from $url."
+            case _ =>
+              s"Unexpected response (${resp.status}: ${resp.statusText}) when fetching remote GeoJSON from $url: ${resp.body}"
+          }
+          handleFailure(message)
+
+        case Failure(e: java.util.concurrent.TimeoutException) =>
+          handleFailure(
+            s"Request timed out after ${this.config.getOSMQLProvider.requestTimeout.toString} when fetching from $url",
+            Some(e)
+          )
+
+        case Failure(f) =>
+          if (fileNumber > 1) {
+            // Assume end of sequence, mark as ready
+            handleSuccess()
+          } else {
+            handleFailure(s"Failed to fetch remote GeoJSON from $url: ${f.getMessage}", Some(f))
+          }
+      }
+    } catch {
+      case e: Exception =>
+        val message = s"Error initializing remote GeoJSON processing: ${e.getMessage}"
+        logger.error(message, e)
+        this.challengeDAL.update(
+          Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> message),
+          user
+        )(challenge.id)
     }
   }
 
