@@ -326,8 +326,15 @@ class SnapshotManager @Inject() (
             COUNT(review_status) FILTER (where review_status = 3) AS assisted,
             COUNT(review_status) FILTER (where review_status = 4) AS disputed,
             SUM(CASE WHEN (task_review.reviewed_at IS NOT NULL AND
-                           task_review.review_started_at IS NOT NULL)
-                     THEN (EXTRACT(EPOCH FROM (reviewed_at - review_started_at)) * 1000)
+                           task_review.review_started_at IS NOT NULL AND
+                           task_review.review_claimed_at IS NULL)
+                      THEN (EXTRACT(EPOCH FROM (reviewed_at - review_started_at)) * 1000)
+                     WHEN (task_review.reviewed_at IS NOT NULL AND
+                           task_review.review_started_at IS NOT NULL AND
+                           task_review.review_claimed_at IS NOT NULL)
+                      THEN (EXTRACT(EPOCH FROM (reviewed_at - review_started_at)) * 1000) /
+                           (SELECT COUNT(*) FROM task_review tr2 
+                            WHERE tr2.review_claimed_at = task_review.review_claimed_at)
                      ELSE 0 END) as totalReviewTime,
       	    SUM(CASE WHEN (task_review.reviewed_at IS NOT NULL AND
                                  task_review.review_started_at IS NOT NULL)

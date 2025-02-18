@@ -778,60 +778,77 @@ class SchedulerActor @Inject() (
     */
   def snapshotUserMetrics(action: String): Unit = {
     val start = System.currentTimeMillis
-    logger.info(s"Scheduled Task '$action': Starting run")
+    logger.info(s"Scheduled Task '$action': Starting run - snapshotUserMetrics")
 
     db.withConnection { implicit c =>
-      SQL(s"""UPDATE user_metrics set score=data.score, total_fixed=data.total_fixed,
-              total_false_positive=data.total_false_positive, total_already_fixed=data.total_already_fixed,
-              total_too_hard=data.total_too_hard, total_skipped=data.total_skipped,
-              total_time_spent=data.total_time_spent, tasks_with_time=data.tasks_with_time
-              FROM (
-              SELECT users.id,
-                       SUM(CASE sa.status
-                           WHEN ${Task.STATUS_FIXED} THEN ${config.taskScoreFixed}
-                           WHEN ${Task.STATUS_FALSE_POSITIVE} THEN ${config.taskScoreFalsePositive}
-                           WHEN ${Task.STATUS_ALREADY_FIXED} THEN ${config.taskScoreAlreadyFixed}
-                           WHEN ${Task.STATUS_TOO_HARD} THEN ${config.taskScoreTooHard}
-                           WHEN ${Task.STATUS_SKIPPED} THEN ${config.taskScoreSkipped}
-                           ELSE 0
-                       END) AS score,
-                       SUM(CASE WHEN sa.status = ${Task.STATUS_FIXED} THEN ${config.taskScoreFixed} else 0 end) total_fixed,
-                       SUM(CASE WHEN sa.status = ${Task.STATUS_FALSE_POSITIVE} THEN ${config.taskScoreFalsePositive} else 0 end) total_false_positive,
-                       SUM(CASE WHEN sa.status = ${Task.STATUS_ALREADY_FIXED} THEN ${config.taskScoreAlreadyFixed} else 0 end) total_already_fixed,
-                       SUM(CASE WHEN sa.status = ${Task.STATUS_TOO_HARD} THEN ${config.taskScoreTooHard} end) total_too_hard,
-                       SUM(CASE WHEN sa.status = ${Task.STATUS_SKIPPED} THEN ${config.taskScoreSkipped} else 0 end) total_skipped,
-                       SUM(CASE WHEN (sa.created IS NOT NULL AND
-                                       sa.started_at IS NOT NULL)
-                                THEN (EXTRACT(EPOCH FROM (sa.created - sa.started_at)) * 1000)
-                                ELSE 0 END) as total_time_spent,
-                       SUM(CASE WHEN (sa.created IS NOT NULL AND
-                                       sa.started_at IS NOT NULL)
-                                THEN 1 ELSE 0 END) as tasks_with_time
-               FROM status_actions sa, users
-               WHERE users.osm_id = sa.osm_user_id AND sa.old_status <> sa.status
-               GROUP BY sa.osm_user_id, users.id) AS data
-              WHERE user_metrics.user_id = data.id
-           """).executeUpdate()
-      logger.info(s"Refreshed user metrics from status actions.")
+      // Update user_metrics with the simplified logic for task bundles.
+      SQL(
+        s"""
+           |UPDATE user_metrics SET 
+           |  score = data.score, 
+           |  total_fixed = data.total_fixed, 
+           |  total_false_positive = data.total_false_positive, 
+           |  total_already_fixed = data.total_already_fixed,
+           |  total_too_hard = data.total_too_hard, 
+           |  total_skipped = data.total_skipped, 
+           |  total_time_spent = data.total_time_spent, 
+           |  tasks_with_time = data.tasks_with_time
+           |FROM (
+           |  SELECT 
+           |    users.id,
+           |    SUM(CASE 
+           |          WHEN sa.created IS NOT NULL AND sa.started_at IS NOT NULL AND sa.bundle_id IS NULL
+           |            THEN (EXTRACT(EPOCH FROM (sa.created - sa.started_at)) * 1000)
+           |          WHEN sa.created IS NOT NULL AND sa.started_at IS NOT NULL AND sa.bundle_id IS NOT NULL
+           |            THEN (EXTRACT(EPOCH FROM (sa.created - sa.started_at)) * 1000) / 
+           |                 (SELECT COUNT(*) FROM status_actions WHERE bundle_id = sa.bundle_id)
+           |          ELSE 0 
+           |        END) AS total_time_spent,
+           |    SUM(CASE WHEN sa.created IS NOT NULL AND sa.started_at IS NOT NULL THEN 1 ELSE 0 END) AS tasks_with_time,
+           |    SUM(CASE sa.status
+           |          WHEN ${Task.STATUS_FIXED} THEN ${config.taskScoreFixed}
+           |          WHEN ${Task.STATUS_FALSE_POSITIVE} THEN ${config.taskScoreFalsePositive}
+           |          WHEN ${Task.STATUS_ALREADY_FIXED} THEN ${config.taskScoreAlreadyFixed}
+           |          WHEN ${Task.STATUS_TOO_HARD} THEN ${config.taskScoreTooHard}
+           |          WHEN ${Task.STATUS_SKIPPED} THEN ${config.taskScoreSkipped}
+           |          ELSE 0 END) AS score,
+           |    SUM(CASE WHEN sa.status = ${Task.STATUS_FIXED} THEN ${config.taskScoreFixed} ELSE 0 END) AS total_fixed,
+           |    SUM(CASE WHEN sa.status = ${Task.STATUS_FALSE_POSITIVE} THEN ${config.taskScoreFalsePositive} ELSE 0 END) AS total_false_positive,
+           |    SUM(CASE WHEN sa.status = ${Task.STATUS_ALREADY_FIXED} THEN ${config.taskScoreAlreadyFixed} ELSE 0 END) AS total_already_fixed,
+           |    SUM(CASE WHEN sa.status = ${Task.STATUS_TOO_HARD} THEN ${config.taskScoreTooHard} ELSE 0 END) AS total_too_hard,
+           |    SUM(CASE WHEN sa.status = ${Task.STATUS_SKIPPED} THEN ${config.taskScoreSkipped} ELSE 0 END) AS total_skipped
+           |  FROM status_actions sa
+           |  JOIN users ON users.osm_id = sa.osm_user_id
+           |  WHERE sa.old_status <> sa.status
+           |  GROUP BY users.id
+           |) AS data
+           |WHERE user_metrics.user_id = data.id
+           |""".stripMargin
+      ).executeUpdate()
+
+      logger.info("Refreshed user metrics from status actions.")
     }
 
+    // Insert a snapshot of the updated user metrics into the history table.
     db.withConnection { implicit c =>
-      SQL(s"""INSERT INTO user_metrics_history
-              SELECT user_id, score, total_fixed, total_false_positive, total_already_fixed,
-                     total_too_hard, total_skipped, now(), initial_rejected, initial_approved,
-                     initial_assisted, total_rejected, total_approved, total_assisted,
-                     total_disputed_as_mapper, total_disputed_as_reviewer,
-                     total_time_spent, tasks_with_time, total_review_time, tasks_with_review_time
-              FROM user_metrics
-           """).executeUpdate()
+      SQL(
+        s"""
+           |INSERT INTO user_metrics_history
+           |SELECT user_id, score, total_fixed, total_false_positive,
+           |       total_already_fixed, total_too_hard, total_skipped, NOW(),
+           |       initial_rejected, initial_approved, initial_assisted, total_rejected,
+           |       total_approved, total_assisted, total_disputed_as_mapper,
+           |       total_disputed_as_reviewer, total_time_spent, tasks_with_time,
+           |       total_review_time, tasks_with_review_time
+           |FROM user_metrics
+           |""".stripMargin
+      ).executeUpdate()
 
-      logger.info(s"Succesfully created snapshot of user metrics.")
+      logger.info("Successfully created snapshot of user metrics.")
     }
 
-    val totalTime = System.currentTimeMillis - start
-    logger.info(
-      s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
-    )
+    val elapsedTime = System.currentTimeMillis - start
+    logger.info(s"Scheduled Task '$action': Finished run. Time spent: ${elapsedTime}ms")
   }
 
   /**
