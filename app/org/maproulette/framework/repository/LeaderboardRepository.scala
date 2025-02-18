@@ -28,9 +28,10 @@ class LeaderboardRepository @Inject() (override val db: Database) extends Reposi
   val leaderboardChallengeParser: RowParser[LeaderboardChallenge] = {
     get[Long]("challenge_id") ~
       get[String]("challenge_name") ~
-      get[Int]("activity") map {
-      case id ~ name ~ activity => {
-        new LeaderboardChallenge(id, name, activity)
+      get[Int]("activity") ~
+      get[Int]("challenges.status") map {
+      case id ~ name ~ activity ~ status => {
+        new LeaderboardChallenge(id, name, activity, status)
       }
     }
   }
@@ -283,7 +284,9 @@ class LeaderboardRepository @Inject() (override val db: Database) extends Reposi
     withMRConnection { implicit c =>
       query
         .build(
-          "SELECT challenge_id, challenge_name, activity FROM user_top_challenges"
+          """SELECT challenge_id, challenge_name, activity, challenges.status 
+             FROM user_top_challenges
+             JOIN challenges ON challenges.id = user_top_challenges.challenge_id"""
         )
         .as(this.leaderboardChallengeParser.*)
     }
