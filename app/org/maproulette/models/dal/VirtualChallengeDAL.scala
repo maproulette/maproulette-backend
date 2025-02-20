@@ -433,11 +433,19 @@ class VirtualChallengeDAL @Inject() (
   /**
     * Retrieve tasks within a bounding box for a virtual challenge, ordered by proximity
     */
-  def getNearbyTasksWithinBoundingBox(user: User, challengeId: Long, left: Double, bottom: Double, right: Double, top: Double, limit: Int = 5)(
+  def getNearbyTasksWithinBoundingBox(
+      user: User,
+      challengeId: Long,
+      left: Double,
+      bottom: Double,
+      right: Double,
+      top: Double,
+      limit: Int = 5
+  )(
       implicit c: Option[Connection] = None
   ): List[Task] = {
     permission.hasReadAccess(VirtualChallengeType(), user)(challengeId)
-    
+
     // Get the center point of the bounding box for proximity calculations
     val centerLat = (top + bottom) / 2
     val centerLon = (left + right) / 2
