@@ -396,6 +396,40 @@ class ChallengeController @Inject() (
   }
 
   /**
+    * Gets tasks near the given task id within the given challenge
+    *
+    * @param challengeId  The challenge id that is the parent of the tasks that you would be searching for
+    * @param left         The left edge of the bounding box
+    * @param bottom       The bottom edge of the bounding box
+    * @param right        The right edge of the bounding box
+    * @param top          The top edge of the bounding box
+    * @param limit        The maximum number of nearby tasks to return
+    * @return
+    */
+  def getNearbyTasksWithinBoundingBox(
+      challengeId: Long,
+      left: Double,
+      bottom: Double,
+      right: Double,
+      top: Double,
+      limit: Int
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      val results = this.dal
+        .getNearbyTasksWithinBoundingBox(
+          User.userOrMocked(user),
+          challengeId,
+          left,
+          bottom,
+          right,
+          top,
+          limit
+        )
+      Ok(Json.toJson(results))
+    }
+  }
+
+  /**
     * Archive or unarchive a list of challenges
     *
     * @body ids  The list of challengeIds

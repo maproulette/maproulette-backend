@@ -239,6 +239,39 @@ class VirtualChallengeController @Inject() (
     }
 
   /**
+    * Gets tasks near the given task id within the given virtual challenge
+    *
+    * @param challengeId  The current virtual challenge id
+    * @param left         The left edge of the bounding box
+    * @param bottom       The bottom edge of the bounding box
+    * @param right        The right edge of the bounding box
+    * @param top          The top edge of the bounding box
+    * @return
+    */
+  def getNearbyTasksWithinBoundingBox(
+      challengeId: Long,
+      left: Double,
+      bottom: Double,
+      right: Double,
+      top: Double,
+      limit: Int
+  ): Action[AnyContent] =
+    Action.async { implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        val results = this.dal.getNearbyTasksWithinBoundingBox(
+          User.userOrMocked(user),
+          challengeId,
+          left,
+          bottom,
+          right,
+          top,
+          limit
+        )
+        Ok(Json.toJson(results))
+      }
+    }
+
+  /**
     * Gets the geo json for all the tasks associated with the challenge
     *
     * @param challengeId  The challenge with the geojson

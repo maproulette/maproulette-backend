@@ -431,6 +431,40 @@ class VirtualChallengeDAL @Inject() (
   }
 
   /**
+    * Retrieve tasks within a bounding box for a virtual challenge, ordered by proximity
+    */
+  def getNearbyTasksWithinBoundingBox(user: User, challengeId: Long, left: Double, bottom: Double, right: Double, top: Double, limit: Int = 5)(
+      implicit c: Option[Connection] = None
+  ): List[Task] = {
+    permission.hasReadAccess(VirtualChallengeType(), user)(challengeId)
+    
+    // Get the center point of the bounding box for proximity calculations
+    val centerLat = (top + bottom) / 2
+    val centerLon = (left + right) / 2
+
+    val query = s"""SELECT tasks.${taskDAL.retrieveColumnsWithReview} FROM tasks
+      LEFT JOIN locked l ON l.item_id = tasks.id
+      LEFT JOIN virtual_challenge_tasks vct on vct.task_id = tasks.id
+      LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
+      WHERE vct.virtual_challenge_id = $challengeId AND
+            tasks.location && ST_MakeEnvelope($left, $bottom, $right, $top, 4326) AND
+            (l.id IS NULL OR l.user_id = ${user.id}) AND
+            tasks.status IN (0, 3, 6) AND
+            NOT tasks.id IN (
+                SELECT task_id FROM status_actions
+                WHERE osm_user_id = ${user.osmProfile.id} AND created >= NOW() - '1 hour'::INTERVAL)
+      ORDER BY ST_Distance(
+        tasks.location, 
+        ST_SetSRID(ST_MakePoint($centerLon, $centerLat), 4326)
+      ), tasks.status, RANDOM()
+      LIMIT ${this.sqlLimit(limit)}"""
+
+    this.withMRTransaction { implicit c =>
+      SQL(query).as(taskDAL.parser.*)
+    }
+  }
+
+  /**
     * Gets the combined geometry of all the tasks that are associated with the virtual challenge
     * NOTE* Due to the way this function finds the geometries, it could be quite slow.
     *
