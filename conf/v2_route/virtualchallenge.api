@@ -292,11 +292,11 @@ GET     /virtualchallenge/clustered/:id             @org.maproulette.controllers
 GET     /virtualchallenge/:id/tasksNearby/:proximityId           @org.maproulette.controllers.api.VirtualChallengeController.getNearbyTasks(id:Long, proximityId:Long, limit:Int ?= 5)
 ###
 # tags: [ Virtual Challenge ]
-# summary: Retrieves nearby Tasks in Virtual Challenge within a bounding box
-# description: Retrieves tasks geographically closest to the specified task within the same Virtual Challenge
+# summary: Retrieves available Tasks in Virtual Challenge within a bounding box
+# description: Retrieves available tasks within a bounding box
 # responses:
 #   '200':
-#     description: The list of geographically closest tasks within the bounding box
+#     description: The list of available tasks within the bounding box
 #     content:
 #       application/json:
 #         schema:

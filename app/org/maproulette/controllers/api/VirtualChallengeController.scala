@@ -239,7 +239,7 @@ class VirtualChallengeController @Inject() (
     }
 
   /**
-    * Gets tasks near the given task id within the given virtual challenge
+    * Gets available tasks within a bounding box
     *
     * @param challengeId  The current virtual challenge id
     * @param left         The left edge of the bounding box

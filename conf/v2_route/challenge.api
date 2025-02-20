@@ -809,11 +809,11 @@ GET     /challenge/:cid/tasks/randomTasks           @org.maproulette.controllers
 GET     /challenge/:cid/tasksNearby/:proximityId           @org.maproulette.controllers.api.ChallengeController.getNearbyTasks(cid:Long, proximityId:Long, excludeSelfLocked:Boolean ?=false, limit:Int ?= 5)
 ###
 # tags: [ Challenge ]
-# summary: Retrieves nearby Tasks within a bounding box
-# description: Retrieves tasks geographically closest to the specified task within the same Challenge
+# summary: Retrieves available Tasks within a bounding box
+# description: Retrieves available tasks within a bounding box
 # responses:
 #   '200':
-#     description: The list of geographically closest tasks within the bounding box
+#     description: The list of available tasks within the bounding box
 #     content:
 #       application/json:
 #         schema:

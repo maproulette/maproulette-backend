@@ -396,7 +396,7 @@ class ChallengeController @Inject() (
   }
 
   /**
-    * Gets tasks near the given task id within the given challenge
+    * Gets available tasks within a bounding box
     *
     * @param challengeId  The challenge id that is the parent of the tasks that you would be searching for
     * @param left         The left edge of the bounding box
