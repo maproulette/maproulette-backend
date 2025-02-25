@@ -119,22 +119,6 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
       SQL(sql.toString).as(this.pointParser.*)
     }
   }
-  // sql query use to select list of ClusteredPoint data
-  private val selectTaskMarkersSQL = s"""
-    SELECT tasks.id, tasks.name, tasks.parent_id, c.name, tasks.instruction, tasks.status, tasks.mapped_on,
-          tasks.completed_time_spent, tasks.completed_by,
-          tasks.bundle_id, tasks.is_bundle_primary, tasks.cooperative_work_json::TEXT as cooperative_work,
-          task_review.review_status, task_review.review_requested_by, task_review.reviewed_by, task_review.reviewed_at,
-          task_review.review_started_at, task_review.meta_review_status, task_review.meta_reviewed_by,
-          task_review.meta_reviewed_at, task_review.additional_reviewers,
-          ST_AsGeoJSON(tasks.location) AS location, priority,
-          CASE WHEN task_review.review_started_at IS NULL
-                THEN 0
-                ELSE EXTRACT(epoch FROM (task_review.reviewed_at - task_review.review_started_at)) END
-          AS reviewDuration
-    FROM tasks
-    ${joinClause.toString()}
-  """
 
   /**
     * Querys tasks in a bounding box
@@ -147,17 +131,80 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
   def queryTasksInBoundingBox(
       query: Query,
       order: Order,
-      paging: Paging
+      paging: Paging,
+      location: Option[SearchLocation]
   ): (Int, List[ClusteredPoint]) = {
     this.withMRTransaction { implicit c =>
-      val count =
-        query.build(s"""
-            SELECT count(*) FROM tasks
-            ${joinClause.toString()}
-          """).as(SqlParser.int("count").single)
+      // Extract the location filter if provided
+      val locationClause = location match {
+        case Some(loc) =>
+          s"tasks.location && ST_MakeEnvelope(${loc.left}, ${loc.bottom}, ${loc.right}, ${loc.top}, 4326)"
+        case None => "TRUE"
+      }
 
-      val resultsQuery = query.copy(order = order, paging = paging).build(selectTaskMarkersSQL)
-      val results      = resultsQuery.as(this.pointParser.*)
+      // Create a modified query that only selects task IDs
+      val filteredTasksCTE = s"""
+        WITH filtered_tasks AS (
+          SELECT tasks.id
+          FROM tasks
+          INNER JOIN challenges c ON c.id = tasks.parent_id
+          INNER JOIN projects p ON p.id = c.parent_id
+          LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
+          WHERE ${query.filter.sql()}
+        )
+      """
+
+      // Count query using the CTE
+      val countQuery = s"""
+        ${filteredTasksCTE}
+        SELECT count(*) FROM filtered_tasks
+      """
+
+      val count = SQL(countQuery).as(SqlParser.int("count").single)
+
+      // Main query using the CTE with ordering and paging
+      val orderClause = order.sql()
+
+      // Explicitly construct the full query with LIMIT and OFFSET
+      val mainQuery = s"""
+        ${filteredTasksCTE}
+        SELECT  tasks.id,
+    tasks.name,
+    tasks.parent_id,
+    c.name,
+    tasks.instruction,
+    tasks.status,
+    tasks.mapped_on,
+    tasks.completed_time_spent,
+    tasks.completed_by,
+    tasks.bundle_id,
+    tasks.is_bundle_primary,
+    tasks.cooperative_work_json::TEXT as cooperative_work,
+    task_review.review_status,
+    task_review.review_requested_by,
+    task_review.reviewed_by,
+    task_review.reviewed_at,
+    task_review.review_started_at,
+    task_review.meta_review_status,
+    task_review.meta_reviewed_by,
+    task_review.meta_reviewed_at,
+    task_review.additional_reviewers,
+    ST_AsGeoJSON(tasks.location) AS location,
+    priority,
+    CASE 
+        WHEN task_review.review_started_at IS NULL THEN 0
+        ELSE EXTRACT(epoch FROM (task_review.reviewed_at - task_review.review_started_at))
+    END AS reviewDuration
+        FROM filtered_tasks
+        INNER JOIN tasks ON tasks.id = filtered_tasks.id
+        INNER JOIN challenges c ON c.id = tasks.parent_id
+        INNER JOIN projects p ON p.id = c.parent_id
+        LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
+        WHERE ${locationClause}
+        ${orderClause} LIMIT ${paging.limit} OFFSET ${paging.page}
+      """
+
+      val results = SQL(mainQuery).as(this.pointParser.*)
 
       (count, results)
     }
@@ -199,6 +246,7 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
 
       // Main query using the CTE
       val mainQuery = s"""
+        ${filteredTasksCTE}
         SELECT  tasks.id,
     tasks.name,
     tasks.parent_id,
@@ -235,9 +283,7 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
         LIMIT ${limit}
       """
 
-      val finalSQL = filteredTasksCTE + mainQuery
-
-      SQL(finalSQL).as(this.pointParser.*)
+      SQL(mainQuery).on(query.parameters(): _*).as(this.pointParser.*)
     }
   }
 

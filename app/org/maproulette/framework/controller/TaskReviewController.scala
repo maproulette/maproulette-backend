@@ -564,18 +564,20 @@ class TaskReviewController @Inject() (
   def removeReviewRequest(ids: String, asMetaReview: Boolean = false): Action[AnyContent] =
     Action.async { implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
-        SearchParameters.withSearch { p =>
+        SearchParameters.withSearch { params =>
           implicit val taskIds = Utils.toLongList(ids) match {
             case Some(l) if !l.isEmpty => l
             case None => {
-              val params = p.location match {
-                case Some(l) => p
-                case None    =>
-                  // No bounding box, so search everything
-                  p.copy(location = Some(SearchLocation(-180, -90, 180, 90)))
-              }
               val (count, tasks) =
-                this.serviceManager.taskCluster.getTasksInBoundingBox(user, params, Paging(-1))
+                this.serviceManager.taskCluster.getTasksInBoundingBox(
+                  user,
+                  params,
+                  Paging(-1),
+                  false,
+                  "",
+                  "",
+                  Some(SearchLocation(-180, -90, 180, 90))
+                )
               tasks.map(task => task.id)
             }
           }

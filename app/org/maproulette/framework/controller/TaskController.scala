@@ -100,15 +100,15 @@ class TaskController @Inject() (
       includeTags: Boolean = false
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
-      SearchParameters.withSearch { p =>
-        val params = p.copy(location = Some(SearchLocation(left, bottom, right, top)))
+      SearchParameters.withSearch { params =>
         val (count, result) = this.taskClusterService.getTasksInBoundingBox(
           User.userOrMocked(user),
           params,
           Paging(limit, page),
           excludeLocked,
           sort,
-          order
+          order,
+          Some(SearchLocation(left, bottom, right, top))
         )
 
         val resultJson = this.insertExtraTaskJSON(result, includeGeometries, includeTags)

@@ -74,10 +74,42 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       paging: Paging = Paging(Config.DEFAULT_LIST_SIZE, 0),
       ignoreLocked: Boolean = false,
       sort: String = "",
-      orderDirection: String = "ASC"
+      orderDirection: String = "ASC",
+      location: Option[SearchLocation] = None
   ): (Int, List[ClusteredPoint]) = {
-    val query = buildQueryForBoundingBox(user, params, ignoreLocked)
-    this.repository.queryTasksInBoundingBox(query, this.getOrder(sort, orderDirection), paging)
+    // Create a pre-filtered query for basic task conditions
+    val baseQuery = this.filterOutDeletedParents(this.filterOnSearchParameters(params)(false))
+
+    // Apply locking filters
+    val lockedFilteredQuery = this.filterOutLocked(user, baseQuery, ignoreLocked)
+
+    // Add exclusion filter if needed
+    val finalQuery = params.taskParams.excludeTaskIds match {
+      case Some(excludedIds) if excludedIds.nonEmpty =>
+        lockedFilteredQuery.addFilterGroup(
+          FilterGroup(
+            List(
+              BaseParameter(
+                Task.FIELD_ID,
+                excludedIds.mkString(","),
+                Operator.IN,
+                negate = true,
+                useValueDirectly = true,
+                table = Some("tasks")
+              )
+            )
+          )
+        )
+      case _ => lockedFilteredQuery
+    }
+
+    // Execute the optimized query
+    this.repository.queryTasksInBoundingBox(
+      finalQuery,
+      this.getOrder(sort, orderDirection),
+      paging,
+      location
+    )
   }
 
   /**
@@ -125,46 +157,6 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
 
     // Execute the optimized query
     this.repository.queryTaskMarkerDataInBoundingBox(finalQuery, location, limit)
-  }
-
-  /**
-    * Builds a query to retrieve tasks within a bounding box, applying search parameters.
-    *
-    * @param user         The user making the request
-    * @param params       Search parameters including location or bounding geometries
-    * @param ignoreLocked Whether to exclude tasks locked by other users
-    * @return The constructed query
-    */
-  private def buildQueryForBoundingBox(
-      user: User,
-      params: SearchParameters,
-      ignoreLocked: Boolean
-  ): Query = {
-    ensureBoundingBox(params)
-    var query = this.filterOutLocked(
-      user,
-      this.filterOutDeletedParents(this.filterOnSearchParameters(params)(false)),
-      ignoreLocked
-    )
-
-    params.taskParams.excludeTaskIds match {
-      case Some(excludedIds) if excludedIds.nonEmpty =>
-        query.addFilterGroup(
-          FilterGroup(
-            List(
-              BaseParameter(
-                Task.FIELD_ID,
-                excludedIds.mkString(","),
-                Operator.IN,
-                negate = true,
-                useValueDirectly = true,
-                table = Some("tasks")
-              )
-            )
-          )
-        )
-      case _ => query
-    }
   }
 
   /**

@@ -516,16 +516,17 @@ class TaskController @Inject() (
     */
   def bulkStatusChange(newStatus: Int): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
-      SearchParameters.withSearch { p =>
-        var params = p
-        params.location match {
-          case Some(l) => // do nothing, already have bounding box
-          case None    =>
-            // No bounding box, so search everything
-            params = p.copy(location = Some(SearchLocation(-180, -90, 180, 90)))
-        }
-        val (count, tasks) = this.taskClusterService.getTasksInBoundingBox(user, params, Paging(-1))
-        val challengeIds   = params.challengeParams.challengeIds.getOrElse(List()).distinct.sorted
+      SearchParameters.withSearch { params =>
+        val (count, tasks) = this.taskClusterService.getTasksInBoundingBox(
+          user,
+          params,
+          Paging(-1),
+          false,
+          "",
+          "",
+          Some(SearchLocation(-180, -90, 180, 90))
+        )
+        val challengeIds = params.challengeParams.challengeIds.getOrElse(List()).distinct.sorted
 
         // Update challenge status to building
         challengeIds.foreach(challengeId => {
