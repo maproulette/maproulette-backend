@@ -6,17 +6,16 @@
 package org.maproulette.framework.repository
 
 import java.sql.Connection
-
 import anorm.~
 import anorm._
 import anorm.SqlParser.{get, int, str}
+
 import javax.inject.{Inject, Singleton}
-import org.maproulette.session.SearchParameters
-import org.maproulette.framework.psql.{Query, Order, Paging}
+import org.maproulette.session.{SearchLocation, SearchParameters}
+import org.maproulette.framework.psql.{Order, Paging, Query}
 import org.maproulette.framework.model.{ClusteredPoint, Point, TaskCluster}
 import play.api.db.Database
 import play.api.libs.json._
-
 import org.maproulette.models.dal.ChallengeDAL
 
 @Singleton
@@ -165,20 +164,80 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
   }
 
   /**
-    * Querys task markers in a bounding box
+    * Queries for task marker data using a CTE-based approach for better performance.
+    * First filters tasks to a smaller set before joining with other tables.
+    * Applies spatial filtering in the main query for optimal index usage.
     *
-    * @param query         Query to execute
-    * @param limit         Maximum number of results to return
-    * @param c             An available connection
-    * @return The list of Tasks found within the bounding box
+    * @param query The query containing all filter parameters
+    * @param limit Maximum number of results to return
+    * @return List of ClusteredPoint objects
     */
   def queryTaskMarkerDataInBoundingBox(
       query: Query,
+      location: Option[SearchLocation],
       limit: Int
   ): List[ClusteredPoint] = {
     this.withMRTransaction { implicit c =>
-      val finalQuery = query.copy(finalClause = s"LIMIT $limit").build(selectTaskMarkersSQL)
-      finalQuery.as(this.pointParser.*)
+      // Extract the location filter if provided
+      val locationClause = location match {
+        case Some(loc) =>
+          s"tasks.location && ST_MakeEnvelope(${loc.left}, ${loc.bottom}, ${loc.right}, ${loc.top}, 4326)"
+        case None => "TRUE"
+      }
+
+      // Create a modified query that only selects task IDs
+      val filteredTasksCTE = s"""
+        WITH filtered_tasks AS (
+          SELECT tasks.id
+          FROM tasks
+          INNER JOIN challenges c ON c.id = tasks.parent_id
+          INNER JOIN projects p ON p.id = c.parent_id
+          LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
+          WHERE ${query.filter.sql()}
+        )
+      """
+
+      // Main query using the CTE
+      val mainQuery = s"""
+        SELECT  tasks.id,
+    tasks.name,
+    tasks.parent_id,
+    c.name,
+    tasks.instruction,
+    tasks.status,
+    tasks.mapped_on,
+    tasks.completed_time_spent,
+    tasks.completed_by,
+    tasks.bundle_id,
+    tasks.is_bundle_primary,
+    tasks.cooperative_work_json::TEXT as cooperative_work,
+    task_review.review_status,
+    task_review.review_requested_by,
+    task_review.reviewed_by,
+    task_review.reviewed_at,
+    task_review.review_started_at,
+    task_review.meta_review_status,
+    task_review.meta_reviewed_by,
+    task_review.meta_reviewed_at,
+    task_review.additional_reviewers,
+    ST_AsGeoJSON(tasks.location) AS location,
+    priority,
+    CASE 
+        WHEN task_review.review_started_at IS NULL THEN 0
+        ELSE EXTRACT(epoch FROM (task_review.reviewed_at - task_review.review_started_at))
+    END AS reviewDuration
+        FROM filtered_tasks
+        INNER JOIN tasks ON tasks.id = filtered_tasks.id
+        INNER JOIN challenges c ON c.id = tasks.parent_id
+        INNER JOIN projects p ON p.id = c.parent_id
+        LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
+        WHERE ${locationClause}
+        LIMIT ${limit}
+      """
+
+      val finalSQL = filteredTasksCTE + mainQuery
+
+      SQL(finalSQL).as(this.pointParser.*)
     }
   }
 
