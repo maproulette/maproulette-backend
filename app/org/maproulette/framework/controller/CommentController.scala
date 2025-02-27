@@ -74,10 +74,16 @@ class CommentController @Inject() (
     * Retrieves all the task comments sent by a user
     *
     * @param id The id of the user who sent the comments
+    * @param searchTerm An optional term to search within the comments
+    * @param sort The field by which to sort the comments (default is "created")
+    * @param order The order of sorting, either "ASC" or "DESC" (default is "DESC")
+    * @param limit The maximum number of comments to return (default is 25)
+    * @param page The page number for pagination (default is 0)
     * @return A list of comments
     */
   def findUserComments(
       id: Long,
+      searchTerm: Option[String] = None,
       sort: String = "created",
       order: String = "DESC",
       limit: Int = 25,
@@ -85,7 +91,7 @@ class CommentController @Inject() (
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       Ok(
-        Json.toJson(this.commentService.findUserComments(id, sort, order, limit, page))
+        Json.toJson(this.commentService.findUserComments(id, searchTerm, sort, order, limit, page))
       )
     }
   }
