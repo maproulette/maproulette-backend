@@ -73,7 +73,8 @@ class ChallengeCommentRepository @Inject() (override val db: Database) extends R
         """
 
       // Add search term filtering if provided
-      val searchFilter = searchTerm.filter(_.nonEmpty).map(_ => " AND c.comment ILIKE {searchTerm}").getOrElse("")
+      val searchFilter =
+        searchTerm.filter(_.nonEmpty).map(_ => " AND c.comment ILIKE {searchTerm}").getOrElse("")
 
       // Final query string with sorting, limit, and pagination
       val finalQuery =
@@ -87,10 +88,10 @@ class ChallengeCommentRepository @Inject() (override val db: Database) extends R
 
       // Create an SQL query using Anorm's interpolation
       val query = SQL(finalQuery).on(
-        "userId" -> userId,
+        "userId"     -> userId,
         "searchTerm" -> searchTerm.map(term => s"%$term%"),
-        "limit" -> limit,
-        "offset" -> (limit * page).toLong
+        "limit"      -> limit,
+        "offset"     -> (limit * page).toLong
       )
 
       query.as(ChallengeCommentRepository.expandedParser.*)

@@ -47,18 +47,18 @@ class CommentRepository @Inject() (override val db: Database) extends Repository
     * @param searchTerm An optional term to search within the comments
     * @return A list of returned Comments
     */
-def queryByUserId(
-    userId: Long,
-    sort: String = "created",
-    order: String = "DESC",
-    limit: Int = 25,
-    page: Int = 0,
-    searchTerm: Option[String] = None
-)(implicit c: Option[Connection] = None): List[Comment] = {
-  withMRConnection { implicit c =>
-    // Base query
-    val baseQuery =
-      """
+  def queryByUserId(
+      userId: Long,
+      sort: String = "created",
+      order: String = "DESC",
+      limit: Int = 25,
+      page: Int = 0,
+      searchTerm: Option[String] = None
+  )(implicit c: Option[Connection] = None): List[Comment] = {
+    withMRConnection { implicit c =>
+      // Base query
+      val baseQuery =
+        """
         SELECT count(*) OVER() AS full_count, c.id, c.project_id, c.challenge_id, c.task_id, c.created, 
         c.action_id, c.comment, u.name, u.avatar_url, c.osm_id,
         t.status AS task_status, tr.review_status
@@ -69,19 +69,20 @@ def queryByUserId(
         WHERE u.id = {userId}
       """
 
-    // Add search term filtering if provided
-    val searchFilter = searchTerm.filter(_.nonEmpty).map(_ => " AND c.comment ILIKE {searchTerm}").getOrElse("")
+      // Add search term filtering if provided
+      val searchFilter =
+        searchTerm.filter(_.nonEmpty).map(_ => " AND c.comment ILIKE {searchTerm}").getOrElse("")
 
-    // Handle special sorting cases
-    val orderByClause = sort match {
-      case "task_status" => s"t.status $order NULLS LAST"
-      case "review_status" => s"tr.review_status $order NULLS LAST"
-      case _ => s"c.$sort $order"
-    }
+      // Handle special sorting cases
+      val orderByClause = sort match {
+        case "task_status"   => s"t.status $order NULLS LAST"
+        case "review_status" => s"tr.review_status $order NULLS LAST"
+        case _               => s"c.$sort $order"
+      }
 
-    // Final query string with sorting, limit, and pagination
-    val finalQuery =
-      s"""
+      // Final query string with sorting, limit, and pagination
+      val finalQuery =
+        s"""
          $baseQuery
          $searchFilter
          ORDER BY $orderByClause
@@ -89,18 +90,17 @@ def queryByUserId(
          OFFSET {offset}
        """
 
-    // Create an SQL query using Anorm's interpolation
-    val query = SQL(finalQuery).on(
-      "userId" -> userId,
-      "searchTerm" -> searchTerm.map(term => s"%$term%"),
-      "limit" -> limit,
-      "offset" -> (limit * page).toLong
-    )
+      // Create an SQL query using Anorm's interpolation
+      val query = SQL(finalQuery).on(
+        "userId"     -> userId,
+        "searchTerm" -> searchTerm.map(term => s"%$term%"),
+        "limit"      -> limit,
+        "offset"     -> (limit * page).toLong
+      )
 
-    query.as(CommentRepository.expandedParser.*)
+      query.as(CommentRepository.expandedParser.*)
+    }
   }
-}
-
 
   /**
     * Add comment to a task
@@ -235,8 +235,8 @@ object CommentRepository {
     ) ~ get[DateTime]("task_comments.created") ~ get[String]("task_comments.comment") ~
       get[Option[Long]]("task_comments.action_id") ~ get[Option[Int]]("full_count") ~
       get[Option[Int]]("task_status") ~ get[Option[Int]]("review_status") map {
-      case id ~ osmId ~ name ~ avatarUrl ~ taskId ~ challengeId ~ projectId ~ created ~ comment ~ 
-           actionId ~ fullCount ~ taskStatus ~ reviewStatus =>
+      case id ~ osmId ~ name ~ avatarUrl ~ taskId ~ challengeId ~ projectId ~ created ~ comment ~
+            actionId ~ fullCount ~ taskStatus ~ reviewStatus =>
         Comment(
           id,
           osm_id = osmId,

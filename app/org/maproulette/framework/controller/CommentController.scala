@@ -117,7 +117,9 @@ class CommentController @Inject() (
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       Ok(
-        Json.toJson(this.commentService.findUserChallengeComments(id, searchTerm, sort, order, limit, page))
+        Json.toJson(
+          this.commentService.findUserChallengeComments(id, searchTerm, sort, order, limit, page)
+        )
       )
     }
   }
