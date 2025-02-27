@@ -29,7 +29,9 @@ case class Comment(
     comment: String,
     actionId: Option[Long] = None,
     fullCount: Int = 0,
-    edited: Boolean = false
+    edited: Boolean = false,
+    taskStatus: Option[Int] = None,
+    reviewStatus: Option[Int] = None
 )
 
 object Comment extends CommonField {

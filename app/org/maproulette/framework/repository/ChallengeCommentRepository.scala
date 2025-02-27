@@ -52,7 +52,8 @@ class ChallengeCommentRepository @Inject() (override val db: Database) extends R
       sort: String = "created",
       order: String = "DESC",
       limit: Int = 25,
-      page: Int = 0
+      page: Int = 0,
+      searchTerm: Option[String] = None
   )(implicit c: Option[Connection] = None): List[ChallengeComment] = {
     withMRConnection { implicit c =>
       var internalSort = s"""c.${sort}""";
@@ -60,14 +61,38 @@ class ChallengeCommentRepository @Inject() (override val db: Database) extends R
         internalSort = s"""ch.${sort}""";
       }
 
-      val query =
-        SQL"""
-           SELECT count(*) OVER() AS full_count, c.id, c.project_id, c.challenge_id, c.created, c.comment, c.osm_id, u.name, u.avatar_url, ch.name as challenge_name FROM CHALLENGE_COMMENTS c
-           inner join users as u on c.osm_id = u.osm_id
-           inner join challenges as ch on c.challenge_id = ch.id
-           WHERE u.id = $userId
-           ORDER BY #$sort #$order LIMIT #$limit OFFSET #${(limit * page).toLong}
+      // Base query
+      val baseQuery =
+        """
+           SELECT count(*) OVER() AS full_count, c.id, c.project_id, c.challenge_id, c.created, 
+           c.comment, c.osm_id, u.name, u.avatar_url, ch.name as challenge_name 
+           FROM CHALLENGE_COMMENTS c
+           INNER JOIN users AS u ON c.osm_id = u.osm_id
+           INNER JOIN challenges AS ch ON c.challenge_id = ch.id
+           WHERE u.id = {userId}
+        """
+
+      // Add search term filtering if provided
+      val searchFilter = searchTerm.filter(_.nonEmpty).map(_ => " AND c.comment ILIKE {searchTerm}").getOrElse("")
+
+      // Final query string with sorting, limit, and pagination
+      val finalQuery =
+        s"""
+           $baseQuery
+           $searchFilter
+           ORDER BY $sort $order
+           LIMIT {limit}
+           OFFSET {offset}
          """
+
+      // Create an SQL query using Anorm's interpolation
+      val query = SQL(finalQuery).on(
+        "userId" -> userId,
+        "searchTerm" -> searchTerm.map(term => s"%$term%"),
+        "limit" -> limit,
+        "offset" -> (limit * page).toLong
+      )
+
       query.as(ChallengeCommentRepository.expandedParser.*)
     }
   }
