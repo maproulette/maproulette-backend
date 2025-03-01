@@ -370,6 +370,90 @@ class TaskController @Inject() (
   }
 
   /**
+    * Locks a bundle of tasks based on the provided task IDs.
+    *
+    * @param taskIds The IDs of the tasks to lock
+    * @return
+    */
+  def lockTaskBundleByIds(taskIds: List[Long]): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        val (lockedTasks, failedTasks) = taskIds.foldLeft((List.empty[Task], List.empty[Long])) {
+          case ((locked, failed), taskId) =>
+            this.dal.retrieveById(taskId) match {
+              case Some(task) =>
+                try {
+                  this.dal.lockItem(user, task)
+                  (task :: locked, failed)
+                } catch {
+                  case _: LockedException => (locked, taskId :: failed)
+                }
+              case None => (locked, failed)
+            }
+        }
+
+        if (failedTasks.nonEmpty) {
+          lockedTasks.foreach(task => this.dal.unlockItem(user, task))
+          Ok(Json.toJson(failedTasks, false))
+        } else {
+          Ok(Json.toJson(lockedTasks, true))
+        }
+      }
+  }
+
+  /**
+    * Unlocks a bundle of tasks based on the provided task IDs.
+    *
+    * @param taskIds The IDs of the tasks to unlock
+    * @return
+    */
+  def unlockTaskBundleByIds(taskIds: List[Long]): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        val tasks = taskIds.flatMap { taskId =>
+          this.dal.retrieveById(taskId) match {
+            case Some(task) =>
+              try {
+                this.dal.unlockItem(user, task)
+                Some(taskId)
+              } catch {
+                case _: Exception => None
+              }
+            case None => None
+          }
+        }
+
+        Ok(Json.toJson(tasks))
+      }
+  }
+
+  /**
+    * Refreshes the locks on a bundle of tasks based on the provided task IDs.
+    *
+    * @param taskIds The IDs of the tasks to refresh locks
+    * @return
+    */
+  def refreshTaskLocksByIds(taskIds: List[Long]): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        val result = taskIds.map { taskId =>
+          this.dal.retrieveById(taskId) match {
+            case Some(task) =>
+              try {
+                this.dal.refreshItemLock(user, task)
+                Some(taskId)
+              } catch {
+                case _: LockedException => None
+              }
+            case None => None
+          }
+        }.flatten
+
+        Ok(Json.toJson(result))
+      }
+  }
+
+  /**
     * Gets a random task(s) given the provided tags.
     *
     * @param projectSearch   Filter on the name of the project
