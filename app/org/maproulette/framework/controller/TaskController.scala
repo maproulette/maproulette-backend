@@ -5,23 +5,23 @@
 package org.maproulette.framework.controller
 
 import akka.util.ByteString
+
 import javax.inject.Inject
 import org.maproulette.data.ActionManager
 import org.maproulette.framework.service.{
+  NotificationService,
   ServiceManager,
-  TaskService,
   TaskClusterService,
-  NotificationService
+  TaskService
 }
 import org.maproulette.framework.psql.Paging
 import org.maproulette.framework.model.User
 import org.maproulette.framework.mixins.TaskJSONMixin
-import org.maproulette.session.{SessionManager, SearchParameters, SearchLocation}
+import org.maproulette.session.{SearchLocation, SearchParameters, SessionManager}
 import play.api.mvc._
 import play.api.libs.json._
 import play.api.http.HttpEntity
-import org.maproulette.exception.NotFoundException
-
+import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.models.dal.TaskDAL
 
 /**
@@ -107,14 +107,31 @@ class TaskController @Inject() (
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       SearchParameters.withSearch { p =>
-        val params = p.copy(location = Some(SearchLocation(left, bottom, right, top)))
+        val challengeIds = if (p.challengeParams.challengeIds.isEmpty) {
+          if ((left, bottom, right, top) match {
+                case (l, b, r, t) => (t - b > 20 || r - l > 20)
+              }) {
+            throw new InvalidException(
+              "Location exceeds the maximum allowed size of 20 latitude by 20 longitude."
+            )
+          }
+          None // or some default value if needed
+        } else {
+          p.challengeParams.challengeIds
+        }
+
+        val params = p.copy(
+          challengeParams = p.challengeParams.copy(challengeIds = None),
+          location = Some(SearchLocation(left, bottom, right, top))
+        )
         val (count, result) = this.taskClusterService.getTasksInBoundingBox(
           User.userOrMocked(user),
           params,
           Paging(limit, page),
           excludeLocked,
           sort,
-          order
+          order,
+          challengeIds
         )
 
         val resultJson = this.insertExtraTaskJSON(result, includeGeometries, includeTags)
@@ -150,12 +167,30 @@ class TaskController @Inject() (
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       SearchParameters.withSearch { p =>
-        val params = p.copy(location = Some(SearchLocation(left, bottom, right, top)))
+        val challengeIds = if (p.challengeParams.challengeIds.isEmpty) {
+          if ((left, bottom, right, top) match {
+                case (l, b, r, t) => (t - b > 20 || r - l > 20)
+              }) {
+            throw new InvalidException(
+              "Location exceeds the maximum allowed size of 20 latitude by 20 longitude."
+            )
+          }
+          None // No challenge IDs
+        } else {
+          p.challengeParams.challengeIds
+        }
+
+        // Create params without challengeIds
+        val params = p.copy(
+          challengeParams = p.challengeParams.copy(challengeIds = None),
+          location = Some(SearchLocation(left, bottom, right, top))
+        )
         val result = this.taskClusterService.getTaskMarkerDataInBoundingBox(
           User.userOrMocked(user),
           params,
           limit,
-          excludeLocked
+          excludeLocked,
+          challengeIds
         )
 
         val resultJson = this.insertExtraTaskJSON(result, includeGeometries, includeTags)
