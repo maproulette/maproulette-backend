@@ -53,7 +53,7 @@ class TaskController @Inject() (
   def getTaskClusters(numberOfPoints: Int): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       SearchParameters.withSearch { implicit params =>
-        Ok(Json.toJson(this.taskClusterService.getTaskClusters(params, numberOfPoints)))
+        Ok(Json.toJson(this.taskClusterService.getTaskClusters(params, numberOfPoints, None)))
       }
     }
   }
