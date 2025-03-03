@@ -52,8 +52,28 @@ class TaskController @Inject() (
     */
   def getTaskClusters(numberOfPoints: Int): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
-      SearchParameters.withSearch { implicit params =>
-        Ok(Json.toJson(this.taskClusterService.getTaskClusters(params, numberOfPoints, None)))
+      SearchParameters.withSearch { implicit p =>
+        val location = p.location.get
+        val challengeIds = if (p.challengeParams.challengeIds.isEmpty && location != null) {
+          if ((location.top, location.bottom, location.right, location.left) match {
+                case (t, b, r, l) => (t - b > 20 || r - l > 20)
+              }) {
+            throw new InvalidException(
+              "Location exceeds the maximum allowed size of 20 latitude by 20 longitude."
+            )
+          }
+          None
+        } else {
+          p.challengeParams.challengeIds
+        }
+
+        val params = p.copy(
+          challengeParams = p.challengeParams.copy(challengeIds = None)
+        )
+
+        Ok(
+          Json.toJson(this.taskClusterService.getTaskClusters(params, numberOfPoints, challengeIds))
+        )
       }
     }
   }
