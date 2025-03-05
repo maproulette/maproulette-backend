@@ -6,7 +6,6 @@
 package org.maproulette.framework.service
 
 import javax.inject.{Inject, Singleton}
-
 import org.maproulette.Config
 import org.maproulette.exception.InvalidException
 import org.maproulette.framework.model._
@@ -14,7 +13,7 @@ import org.maproulette.framework.psql._
 import org.maproulette.framework.psql.filter._
 import org.maproulette.framework.repository.TaskClusterRepository
 import org.maproulette.framework.mixins.{SearchParametersMixin, TaskFilterMixin}
-import org.maproulette.session.SearchParameters
+import org.maproulette.session.{SearchLocation, SearchParameters}
 
 /**
   * Service layer for TaskCluster
@@ -75,53 +74,19 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       paging: Paging = Paging(Config.DEFAULT_LIST_SIZE, 0),
       ignoreLocked: Boolean = false,
       sort: String = "",
-      orderDirection: String = "ASC"
+      orderDirection: String = "ASC",
+      location: Option[SearchLocation] = None
   ): (Int, List[ClusteredPoint]) = {
-    val query = buildQueryForBoundingBox(user, params, ignoreLocked)
-    this.repository.queryTasksInBoundingBox(query, this.getOrder(sort, orderDirection), paging)
-  }
+    // Create a pre-filtered query for basic task conditions
+    val baseQuery = this.filterOutDeletedParents(this.filterOnSearchParameters(params)(false))
 
-  /**
-    * This function will retrieve all the task marker data in a given bounded area. You can use various search
-    * parameters to limit the tasks retrieved in the bounding box area.
-    *
-    * @param params        The search parameters from the cookie or the query string parameters.
-    * @param ignoreLocked  Whether to include locked tasks (by other users) or not
-    * @return The list of Tasks found within the bounding box
-    */
-  def getTaskMarkerDataInBoundingBox(
-      user: User,
-      params: SearchParameters,
-      limit: Int,
-      ignoreLocked: Boolean = false
-  ): List[ClusteredPoint] = {
-    val query = buildQueryForBoundingBox(user, params, ignoreLocked)
-    this.repository.queryTaskMarkerDataInBoundingBox(query, limit)
-  }
+    // Apply locking filters
+    val lockedFilteredQuery = this.filterOutLocked(user, baseQuery, ignoreLocked)
 
-  /**
-    * Builds a query to retrieve tasks within a bounding box, applying search parameters.
-    *
-    * @param user         The user making the request
-    * @param params       Search parameters including location or bounding geometries
-    * @param ignoreLocked Whether to exclude tasks locked by other users
-    * @return The constructed query
-    */
-  private def buildQueryForBoundingBox(
-      user: User,
-      params: SearchParameters,
-      ignoreLocked: Boolean
-  ): Query = {
-    ensureBoundingBox(params)
-    var query = this.filterOutLocked(
-      user,
-      this.filterOutDeletedParents(this.filterOnSearchParameters(params)(false)),
-      ignoreLocked
-    )
-
-    params.taskParams.excludeTaskIds match {
+    // Add exclusion filter if needed
+    val finalQuery = params.taskParams.excludeTaskIds match {
       case Some(excludedIds) if excludedIds.nonEmpty =>
-        query.addFilterGroup(
+        lockedFilteredQuery.addFilterGroup(
           FilterGroup(
             List(
               BaseParameter(
@@ -135,8 +100,63 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
             )
           )
         )
-      case _ => query
+      case _ => lockedFilteredQuery
     }
+
+    // Execute the optimized query
+    this.repository.queryTasksInBoundingBox(
+      finalQuery,
+      this.getOrder(sort, orderDirection),
+      paging,
+      location
+    )
+  }
+
+  /**
+    * This function will retrieve task marker data in a given bounded area with optimized performance.
+    * Uses filtering techniques to limit data retrieved and improve query execution time.
+    *
+    * @param user         The user making the request
+    * @param params       The search parameters including bounding box information
+    * @param limit        Maximum number of points to return
+    * @param ignoreLocked Whether to include locked tasks (by other users) or not
+    * @return The list of ClusteredPoints found within the bounding box
+    */
+  def getTaskMarkerDataInBoundingBox(
+      user: User,
+      params: SearchParameters,
+      limit: Int,
+      ignoreLocked: Boolean = false,
+      location: Option[SearchLocation] = None
+  ): List[ClusteredPoint] = {
+    // Create a pre-filtered query for basic task conditions
+    val baseQuery = this.filterOutDeletedParents(this.filterOnSearchParameters(params)(false))
+
+    // Apply locking filters
+    val lockedFilteredQuery = this.filterOutLocked(user, baseQuery, ignoreLocked)
+
+    // Add exclusion filter if needed
+    val finalQuery = params.taskParams.excludeTaskIds match {
+      case Some(excludedIds) if excludedIds.nonEmpty =>
+        lockedFilteredQuery.addFilterGroup(
+          FilterGroup(
+            List(
+              BaseParameter(
+                Task.FIELD_ID,
+                excludedIds.mkString(","),
+                Operator.IN,
+                negate = true,
+                useValueDirectly = true,
+                table = Some("tasks")
+              )
+            )
+          )
+        )
+      case _ => lockedFilteredQuery
+    }
+
+    // Execute the optimized query
+    this.repository.queryTaskMarkerDataInBoundingBox(finalQuery, location, limit)
   }
 
   /**
