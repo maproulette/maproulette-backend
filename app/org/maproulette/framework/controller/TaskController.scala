@@ -53,18 +53,20 @@ class TaskController @Inject() (
   def getTaskClusters(numberOfPoints: Int): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       SearchParameters.withSearch { implicit p =>
-        val location = p.location.get
-        val challengeIds = if (p.challengeParams.challengeIds.isEmpty && location != null) {
-          if ((location.top, location.bottom, location.right, location.left) match {
-                case (t, b, r, l) => (t - b > 20 || r - l > 20)
-              }) {
-            throw new InvalidException(
-              "Location exceeds the maximum allowed size of 20 latitude by 20 longitude."
-            )
+        val challengeIds = if (p.challengeParams.challengeIds.isEmpty) {
+          p.location match {
+            case Some(location) =>
+              if ((location.top, location.bottom, location.right, location.left) match {
+                    case (t, b, r, l) => (t - b > 50 || r - l > 50)
+                  }) {
+                throw new InvalidException(
+                  "Location exceeds the maximum allowed size of 50 latitude by 50 longitude."
+                )
+              }
           }
           None
         } else {
-          p.challengeParams.challengeIds
+          p.challengeParams.challengeIds // Wrap in Some if not empty
         }
 
         val params = p.copy(
@@ -129,10 +131,10 @@ class TaskController @Inject() (
       SearchParameters.withSearch { p =>
         val challengeIds = if (p.challengeParams.challengeIds.isEmpty) {
           if ((left, bottom, right, top) match {
-                case (l, b, r, t) => (t - b > 20 || r - l > 20)
+                case (l, b, r, t) => (t - b > 50 || r - l > 50)
               }) {
             throw new InvalidException(
-              "Location exceeds the maximum allowed size of 20 latitude by 20 longitude."
+              "Location exceeds the maximum allowed size of 50 latitude by 50 longitude."
             )
           }
           None // or some default value if needed
@@ -189,10 +191,10 @@ class TaskController @Inject() (
       SearchParameters.withSearch { p =>
         val challengeIds = if (p.challengeParams.challengeIds.isEmpty) {
           if ((left, bottom, right, top) match {
-                case (l, b, r, t) => (t - b > 20 || r - l > 20)
+                case (l, b, r, t) => (t - b > 50 || r - l > 50)
               }) {
             throw new InvalidException(
-              "Location exceeds the maximum allowed size of 20 latitude by 20 longitude."
+              "Location exceeds the maximum allowed size of 50 latitude by 50 longitude."
             )
           }
           None // No challenge IDs
