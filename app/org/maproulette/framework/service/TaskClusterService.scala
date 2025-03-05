@@ -35,12 +35,13 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
     */
   def getTaskClusters(
       params: SearchParameters,
-      numberOfPoints: Int = this.repository.DEFAULT_NUMBER_OF_POINTS
+      numberOfPoints: Int = this.repository.DEFAULT_NUMBER_OF_POINTS,
+      challengeIds: Option[List[Long]] = None
   ): List[TaskCluster] = {
     val filtered = this.filterOnSearchParameters(params)(false)
     val query    = this.filterOutDeletedParents(filtered)
 
-    this.repository.queryTaskClusters(query, numberOfPoints, params)
+    this.repository.queryTaskClusters(query, numberOfPoints, params, challengeIds)
   }
 
   /**
@@ -75,10 +76,16 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       paging: Paging = Paging(Config.DEFAULT_LIST_SIZE, 0),
       ignoreLocked: Boolean = false,
       sort: String = "",
-      orderDirection: String = "ASC"
+      orderDirection: String = "ASC",
+      challengeIds: Option[List[Long]] = None
   ): (Int, List[ClusteredPoint]) = {
     val query = buildQueryForBoundingBox(user, params, ignoreLocked)
-    this.repository.queryTasksInBoundingBox(query, this.getOrder(sort, orderDirection), paging)
+    this.repository.queryTasksInBoundingBox(
+      query,
+      this.getOrder(sort, orderDirection),
+      paging,
+      challengeIds
+    )
   }
 
   /**
@@ -93,10 +100,11 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       user: User,
       params: SearchParameters,
       limit: Int,
-      ignoreLocked: Boolean = false
+      ignoreLocked: Boolean = false,
+      challengeIds: Option[List[Long]] = None
   ): List[ClusteredPoint] = {
     val query = buildQueryForBoundingBox(user, params, ignoreLocked)
-    this.repository.queryTaskMarkerDataInBoundingBox(query, limit)
+    this.repository.queryTaskMarkerDataInBoundingBox(query, limit, challengeIds)
   }
 
   /**
