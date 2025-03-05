@@ -809,6 +809,39 @@ GET     /challenge/:cid/tasks/randomTasks           @org.maproulette.controllers
 GET     /challenge/:cid/tasksNearby/:proximityId           @org.maproulette.controllers.api.ChallengeController.getNearbyTasks(cid:Long, proximityId:Long, excludeSelfLocked:Boolean ?=false, limit:Int ?= 5)
 ###
 # tags: [ Challenge ]
+# summary: Retrieves available Tasks within a bounding box
+# description: Retrieves available tasks within a bounding box
+# responses:
+#   '200':
+#     description: The list of available tasks within the bounding box
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Task'     
+# parameters:
+#   - name: cid
+#     in: path
+#     description: The id of the parent Challenge limiting the tasks to only a descendent of that Challenge.
+#   - name: left
+#     in: query
+#     description: The left edge of the bounding box
+#   - name: bottom
+#     in: query
+#     description: The bottom edge of the bounding box
+#   - name: right
+#     in: query
+#     description: The right edge of the bounding box
+#   - name: top
+#     in: query
+#     description: The top edge of the bounding box
+#   - name: limit
+#     in: query
+#     description: Limit the number of results returned in the response. Default value is 5.
+###
+GET     /challenge/:cid/nearby/box/:left/:bottom/:right/:top @org.maproulette.controllers.api.ChallengeController.getNearbyTasksWithinBoundingBox(cid:Long, left:Double, bottom:Double, right:Double, top:Double, limit:Int ?= 5)
+# tags: [ Challenge ]
 # summary: Retrieves prioritized random Task
 # description: Retrieves a prioritized random Task contained within the current Challenge,
 #              with higher priority tasks being returned ahead of lower priority tasks
