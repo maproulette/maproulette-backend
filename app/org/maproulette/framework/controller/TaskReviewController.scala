@@ -431,7 +431,27 @@ class TaskReviewController @Inject() (
       excludeOtherReviewers: Boolean = false
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
-      SearchParameters.withSearch { implicit params =>
+      SearchParameters.withSearch { implicit p =>
+ val challengeIds = if (p.challengeParams.challengeIds.isEmpty) {
+      p.location match {
+        case Some(location) =>
+          if ((location.top, location.bottom, location.right, location.left) match {
+                case (t, b, r, l) => (t - b > 50 || r - l > 50)
+              }) {
+            throw new InvalidException(
+              "Location exceeds the maximum allowed size of 50 latitude by 50 longitude."
+            )
+            }
+          }
+          None
+        } else {
+          p.challengeParams.challengeIds
+        }
+
+    val params = p.copy(
+      challengeParams = p.challengeParams.copy(challengeIds = None)
+      )
+
         Ok(
           Json.toJson(
             this.serviceManager.taskReview.getReviewTaskClusters(
@@ -440,7 +460,8 @@ class TaskReviewController @Inject() (
               params,
               numberOfPoints,
               onlySaved,
-              excludeOtherReviewers
+              excludeOtherReviewers,
+              challengeIds
             )
           )
         )
