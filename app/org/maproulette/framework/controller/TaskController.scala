@@ -137,7 +137,7 @@ class TaskController @Inject() (
               "Location exceeds the maximum allowed size of 50 latitude by 50 longitude."
             )
           }
-          None // or some default value if needed
+          None
         } else {
           p.challengeParams.challengeIds
         }
@@ -197,7 +197,7 @@ class TaskController @Inject() (
               "Location exceeds the maximum allowed size of 50 latitude by 50 longitude."
             )
           }
-          None // No challenge IDs
+          None
         } else {
           p.challengeParams.challengeIds
         }

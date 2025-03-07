@@ -406,13 +406,33 @@ class TaskReviewService @Inject() (
       onlySaved: Boolean = false,
       excludeOtherReviewers: Boolean = false
   ): List[TaskCluster] = {
-    val params = copyParamsForMetaReview(reviewTasksType == META_REVIEW_TASKS, searchParameters)
+    val challengeIds = if (searchParameters.challengeParams.challengeIds.isEmpty) {
+      searchParameters.location match {
+        case Some(location) =>
+          if ((location.top, location.bottom, location.right, location.left) match {
+                case (t, b, r, l) => (t - b > 50 || r - l > 50)
+              }) {
+            throw new InvalidException(
+              "Location exceeds the maximum allowed size of 50 latitude by 50 longitude."
+            )
+          }
+      }
+      None
+    } else {
+      searchParameters.challengeParams.challengeIds
+    }
+
+    val params = searchParameters.copy(
+      challengeParams = searchParameters.challengeParams.copy(challengeIds = None)
+    )
+
+    val metaReviewParams = copyParamsForMetaReview(reviewTasksType == META_REVIEW_TASKS, params)
 
     var query = setupReviewSearchClause(
       Query.simple(List()),
       user,
       permission,
-      params,
+      metaReviewParams,
       reviewTasksType,
       true,
       onlySaved,
@@ -444,7 +464,12 @@ class TaskReviewService @Inject() (
       )
     }
 
-    this.taskClusterRepository.queryTaskClusters(query, numberOfPoints, params)
+    this.taskClusterRepository.queryTaskClusters(
+      query,
+      numberOfPoints,
+      metaReviewParams,
+      challengeIds
+    )
   }
 
   /**
