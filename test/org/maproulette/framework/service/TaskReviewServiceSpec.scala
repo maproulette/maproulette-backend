@@ -177,7 +177,8 @@ class TaskReviewServiceSpec(implicit val application: Application) extends Frame
         User.superUser,
         this.service.REVIEW_REQUESTED_TASKS,
         SearchParameters(),
-        10
+        10,
+        None
       )
       result.head.numberOfPoints mustEqual 2
 
@@ -185,7 +186,8 @@ class TaskReviewServiceSpec(implicit val application: Application) extends Frame
         User.superUser,
         this.service.MY_REVIEWED_TASKS,
         SearchParameters(),
-        10
+        10,
+        None
       )
       result2.head.numberOfPoints mustEqual 1
 
@@ -195,7 +197,8 @@ class TaskReviewServiceSpec(implicit val application: Application) extends Frame
         SearchParameters(
           taskParams = SearchTaskParameters(taskReviewStatus = Some(List(0, 1, 2, 3, 4)))
         ),
-        10
+        10,
+        None
       )
       result3.head.numberOfPoints mustEqual 3
     }
@@ -221,7 +224,8 @@ class TaskReviewServiceSpec(implicit val application: Application) extends Frame
         User.superUser,
         this.service.META_REVIEW_TASKS,
         SearchParameters(),
-        10
+        10,
+        None
       )
       result.head.numberOfPoints mustEqual 1
     }

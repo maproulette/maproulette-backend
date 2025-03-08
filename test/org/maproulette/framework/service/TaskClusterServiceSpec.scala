@@ -64,11 +64,12 @@ class TaskClusterServiceSpec(implicit val application: Application) extends Fram
       val (count, response) = this.service.getTasksInBoundingBox(
         User.superUser,
         SearchParameters(
-          location = Some(SearchLocation(-180, -85, 180, 85)),
-          challengeParams = SearchChallengeParameters(
-            challengeIds = Some(List(randomChallenge.id))
-          )
-        )
+          location = Some(SearchLocation(-180, -85, 180, 85))
+        ),
+        ignoreLocked = true,
+        sort = "id",
+        orderDirection = "ASC",
+        challengeIds = Some(List(randomChallenge.id))
       )
       count mustEqual 2
       response.length mustEqual 2
@@ -78,12 +79,12 @@ class TaskClusterServiceSpec(implicit val application: Application) extends Fram
       val (count, response) = this.service.getTasksInBoundingBox(
         User.superUser,
         SearchParameters(
-          location = Some(SearchLocation(-180, -85, 180, 85)),
-          challengeParams = SearchChallengeParameters(
-            challengeIds = Some(List(randomChallenge.id))
-          )
+          location = Some(SearchLocation(-180, -85, 180, 85))
         ),
-        ignoreLocked = true
+        ignoreLocked = true,
+        sort = "id",
+        orderDirection = "ASC",
+        challengeIds = Some(List(randomChallenge.id))
       )
       count mustEqual 3
       response.length mustEqual 3
@@ -93,13 +94,13 @@ class TaskClusterServiceSpec(implicit val application: Application) extends Fram
       val (count, response) = this.service.getTasksInBoundingBox(
         User.superUser,
         SearchParameters(
-          location = Some(SearchLocation(-180, -85, 180, 85)),
-          challengeParams = SearchChallengeParameters(
-            challengeIds = Some(List(randomChallenge.id))
-          )
+          location = Some(SearchLocation(-180, -85, 180, 85))
         ),
         Paging(1, 0),
-        ignoreLocked = true
+        ignoreLocked = true,
+        sort = "id",
+        orderDirection = "ASC",
+        challengeIds = Some(List(randomChallenge.id))
       )
       count mustEqual 3
       response.length mustEqual 1
@@ -109,14 +110,11 @@ class TaskClusterServiceSpec(implicit val application: Application) extends Fram
       val (count, response) = this.service.getTasksInBoundingBox(
         User.superUser,
         SearchParameters(
-          location = Some(SearchLocation(-180, -85, 180, 85)),
-          challengeParams = SearchChallengeParameters(
-            challengeIds = Some(List(randomChallenge.id))
-          )
+          location = Some(SearchLocation(-180, -85, 180, 85))
         ),
         ignoreLocked = true,
         sort = "id",
-        orderDirection = "DESC"
+        orderDirection = "DESC" challengeIds = Some(List(randomChallenge.id))
       )
       count mustEqual 3
       response.last.id mustEqual randomTask.id
@@ -128,14 +126,14 @@ class TaskClusterServiceSpec(implicit val application: Application) extends Fram
       User.superUser,
       SearchParameters(
         location = Some(SearchLocation(-180, -85, 180, 85)),
-        challengeParams = SearchChallengeParameters(
-          challengeIds = Some(List(randomChallenge.id))
-        ),
         taskParams = SearchTaskParameters(
           excludeTaskIds = Some(List(randomTask.id))
         )
       ),
-      ignoreLocked = true
+      ignoreLocked = true,
+      sort = "id",
+      orderDirection = "ASC",
+      challengeIds = Some(List(randomChallenge.id))
     )
     count mustEqual 2
     response.length mustEqual 2

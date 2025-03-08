@@ -404,15 +404,17 @@ class TaskReviewService @Inject() (
       searchParameters: SearchParameters,
       numberOfPoints: Int = this.taskClusterRepository.DEFAULT_NUMBER_OF_POINTS,
       onlySaved: Boolean = false,
-      excludeOtherReviewers: Boolean = false
+      excludeOtherReviewers: Boolean = false,
+      challengeIds: Option[List[Long]] = None
   ): List[TaskCluster] = {
-    val params = copyParamsForMetaReview(reviewTasksType == META_REVIEW_TASKS, searchParameters)
+    val metaReviewParams =
+      copyParamsForMetaReview(reviewTasksType == META_REVIEW_TASKS, searchParameters)
 
     var query = setupReviewSearchClause(
       Query.simple(List()),
       user,
       permission,
-      params,
+      metaReviewParams,
       reviewTasksType,
       true,
       onlySaved,
@@ -444,7 +446,12 @@ class TaskReviewService @Inject() (
       )
     }
 
-    this.taskClusterRepository.queryTaskClusters(query, numberOfPoints, params)
+    this.taskClusterRepository.queryTaskClusters(
+      query,
+      numberOfPoints,
+      metaReviewParams,
+      challengeIds
+    )
   }
 
   /**
