@@ -407,7 +407,8 @@ class TaskReviewService @Inject() (
       excludeOtherReviewers: Boolean = false,
       challengeIds: Option[List[Long]] = None
   ): List[TaskCluster] = {
-    val metaReviewParams = copyParamsForMetaReview(reviewTasksType == META_REVIEW_TASKS, searchParameters)
+    val metaReviewParams =
+      copyParamsForMetaReview(reviewTasksType == META_REVIEW_TASKS, searchParameters)
 
     var query = setupReviewSearchClause(
       Query.simple(List()),

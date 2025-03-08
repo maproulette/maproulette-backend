@@ -36,7 +36,7 @@ class TaskClusterRepositorySpec(implicit val application: Application) extends F
         )
       )
 
-      val result = this.repository.queryTaskClusters(query, 10, SearchParameters())
+      val result = this.repository.queryTaskClusters(query, 10, SearchParameters(), None)
       result.length mustEqual 1
     }
   }
