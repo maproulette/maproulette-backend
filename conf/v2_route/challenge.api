@@ -546,7 +546,7 @@ POST     /challenges/bulkArchive                    @org.maproulette.controllers
 #     in: query
 #     description: Used in conjunction with the limit parameter to page through X number of responses. Default value is 0, ie. first page.
 ###
-GET     /review/challenges                                 @org.maproulette.framework.controller.TaskReviewController.listChallenges(reviewTasksType:Int, tStatus:String ?= "", excludeOtherReviewers:Boolean ?= false, limit:Int ?= 10, page:Int ?= 0)
+GET     /review/challenges                                 @org.maproulette.framework.controller.TaskReviewController.listChallenges(reviewTasksType:Int, tStatus:String ?= "", excludeOtherReviewers:Boolean ?= false, projectSearch:String ?= "", challengeSearch:String ?= "", limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ Challenge ]
 # summary: List all the Challenges Tasks.

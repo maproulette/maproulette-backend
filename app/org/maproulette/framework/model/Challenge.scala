@@ -149,7 +149,8 @@ case class ChallengeListing(
     enabled: Boolean,
     virtualParents: Option[Array[Long]] = None,
     status: Option[Int],
-    isArchived: Boolean
+    isArchived: Boolean,
+    parentName: Option[String] = None
 )
 
 /**
