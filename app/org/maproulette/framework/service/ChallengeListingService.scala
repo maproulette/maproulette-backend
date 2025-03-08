@@ -8,7 +8,7 @@ package org.maproulette.framework.service
 import javax.inject.{Inject, Singleton}
 import org.maproulette.framework.model._
 import org.maproulette.framework.psql.{Query, _}
-import org.maproulette.framework.psql.filter.{BaseParameter, _}
+import org.maproulette.framework.psql.filter.{BaseParameter, FilterParameter, _}
 import org.maproulette.framework.repository.ChallengeListingRepository
 import org.maproulette.permissions.Permission
 
@@ -40,6 +40,8 @@ class ChallengeListingService @Inject() (
       user: User,
       taskStatus: Option[List[Int]] = None,
       excludeOtherReviewers: Boolean = false,
+      projectSearch: String = "",
+      challengeSearch: String = "",
       paging: Paging = Paging()
   ): List[ChallengeListing] = {
     val filter =
@@ -101,6 +103,22 @@ class ChallengeListingService @Inject() (
                 Operator.IN,
                 includeOnlyIfTrue = reviewTasksType == 1,
                 table = Some(TaskReview.TABLE)
+              ),
+              // Project name search
+              FilterParameter.conditional(
+                "display_name",
+                s"%$projectSearch%",
+                Operator.ILIKE,
+                includeOnlyIfTrue = projectSearch.nonEmpty,
+                table = Some("projects")
+              ),
+              // Challenge name search
+              FilterParameter.conditional(
+                "name",
+                s"%$challengeSearch%",
+                Operator.ILIKE,
+                includeOnlyIfTrue = challengeSearch.nonEmpty,
+                table = Some("challenges")
               )
             )
           ),
@@ -126,7 +144,7 @@ class ChallengeListingService @Inject() (
       Query(
         filter,
         paging = paging,
-        grouping = Grouping > "id"
+        grouping = Grouping > ("id", "projects.display_name")
       )
     )
   }

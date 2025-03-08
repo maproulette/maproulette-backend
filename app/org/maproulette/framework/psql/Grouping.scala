@@ -21,9 +21,13 @@ case class Grouping(groups: GroupField*) extends SQLClause {
       val groupString = groups
         .map(group => {
           SQLUtils.testColumnName(group.name)
-          group.table.getOrElse(table) match {
-            case ""    => group.name
-            case value => s"$value.${group.name}"
+          if (group.name.contains(".")) {
+            group.name
+          } else {
+            group.table.getOrElse(table) match {
+              case ""    => group.name
+              case value => s"$value.${group.name}"
+            }
           }
         })
         .mkString(",")
