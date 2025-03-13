@@ -101,9 +101,9 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
           GROUP BY kmeans 
           ORDER BY kmeans
         """
-      ).as(this.getTaskClusterParser(params).*)
+      ).on(parameters: _*).as(this.getTaskClusterParser(params).*)
 
-      // Filter out invalid clusters
+      // Filter out invalid clusters.
       result.filter(_ != None).asInstanceOf[List[TaskCluster]]
     }
   }
