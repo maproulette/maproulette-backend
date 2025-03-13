@@ -1937,7 +1937,7 @@ class ChallengeDAL @Inject() (
       ORDER BY ST_Distance(
         tasks.location, 
         ST_SetSRID(ST_MakePoint($centerLon, $centerLat), 4326)
-      ), tasks.status, RANDOM()
+      ), tasks.status
       LIMIT ${this.sqlLimit(limit)}"""
 
     this.withMRTransaction { implicit c =>
