@@ -1280,7 +1280,7 @@ class TaskDAL @Inject() (
             NOT tasks.id IN (
                 SELECT task_id FROM status_actions
                 WHERE osm_user_id = ${user.osmProfile.id} AND created >= NOW() - '1 hour'::INTERVAL)
-      ORDER BY ST_Distance(tasks.location, (SELECT location FROM tasks WHERE id = $proximityId)), tasks.status, RANDOM()
+      ORDER BY ST_Distance(tasks.location, (SELECT location FROM tasks WHERE id = $proximityId)), tasks.status
       LIMIT ${this.sqlLimit(limit)}"""
 
     this.withMRTransaction { implicit c =>

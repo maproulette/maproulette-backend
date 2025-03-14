@@ -290,3 +290,37 @@ GET     /virtualchallenge/clustered/:id             @org.maproulette.controllers
 #     description: Id of task around which geographically closest tasks are desired
 ###
 GET     /virtualchallenge/:id/tasksNearby/:proximityId           @org.maproulette.controllers.api.VirtualChallengeController.getNearbyTasks(id:Long, proximityId:Long, limit:Int ?= 5)
+###
+# tags: [ Virtual Challenge ]
+# summary: Retrieves available Tasks in Virtual Challenge within a bounding box
+# description: Retrieves available tasks within a bounding box
+# responses:
+#   '200':
+#     description: The list of available tasks within the bounding box
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the parent Virtual Challenge.
+#   - name: left
+#     in: query
+#     description: The left edge of the bounding box
+#   - name: bottom
+#     in: query
+#     description: The bottom edge of the bounding box
+#   - name: right
+#     in: query
+#     description: The right edge of the bounding box
+#   - name: top
+#     in: query
+#     description: The top edge of the bounding box
+#   - name: limit
+#     in: query
+#     description: Limit the number of results returned in the response. Default value is 5.
+###
+GET     /virtualchallenge/:id/nearby/box/:left/:bottom/:right/:top @org.maproulette.controllers.api.VirtualChallengeController.getNearbyTasksWithinBoundingBox(id:Long, left:Double, bottom:Double, right:Double, top:Double, limit:Int ?= 5)
