@@ -610,12 +610,18 @@ class TaskReviewController @Inject() (
     * @param reviewTasksType  The type of reviews (1: To Be Reviewed,  2: User's reviewed Tasks, 3: All reviewed by users 4: meta review tasks)
     * @param tStatus The task statuses to include
     * @param excludeOtherReviewers Whether tasks completed by other reviewers should be included
+    * @param projectSearch The project search string
+    * @param challengeSearch The challenge search string
+    * @param limit The number of challenges to return
+    * @param page The page number to return
     * @return JSON challenge list
     */
   def listChallenges(
       reviewTasksType: Int,
       tStatus: String,
       excludeOtherReviewers: Boolean = false,
+      projectSearch: String,
+      challengeSearch: String,
       limit: Int,
       page: Int
   ): Action[AnyContent] =
@@ -631,49 +637,13 @@ class TaskReviewController @Inject() (
           user,
           taskStatus,
           excludeOtherReviewers,
+          projectSearch,
+          challengeSearch,
           Paging(limit, page)
         )
 
-        // Populate some parent/virtual parent project data
-        val projects = Some(
-          this.serviceManager.project
-            .list(challenges.map(c => c.parent))
-            .map(p => p.id -> p)
-            .toMap
-        )
-
-        var vpIds = scala.collection.mutable.Set[Long]()
-        challenges.map(c => {
-          c.virtualParents match {
-            case Some(vps) =>
-              vps.map(vp => vpIds += vp)
-            case _ => // do nothing
-          }
-        })
-        val vpObjects =
-          this.serviceManager.project.list(vpIds.toList).map(p => p.id -> p).toMap
-
-        val jsonList = challenges.map { c =>
-          val projectJson = Json
-            .toJson(projects.get(c.parent))
-            .as[JsObject] - Project.KEY_GRANTS
-
-          var updated =
-            Utils.insertIntoJson(Json.toJson(c), Challenge.KEY_PARENT, projectJson, true)
-          c.virtualParents match {
-            case Some(vps) =>
-              val vpJson =
-                Some(
-                  vps.map(vp => Json.toJson(vpObjects.get(vp)).as[JsObject] - Project.KEY_GRANTS)
-                )
-              updated = Utils.insertIntoJson(updated, Challenge.KEY_VIRTUAL_PARENTS, vpJson, true)
-            case _ => // do nothing
-          }
-          updated
-        }
-
         Ok(
-          Json.toJson(jsonList)
+          Json.toJson(challenges)
         )
       }
     }
