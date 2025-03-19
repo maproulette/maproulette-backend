@@ -220,4 +220,23 @@ class TagController @Inject() (
     * @return 200 OK basic message saying all items where uploaded
     */
   def batchUploadPost: Action[JsValue] = this.batchUpload(false)
+
+  /**
+    * Toggles the active status of a keyword. Only super users are authorized to perform this action.
+    *
+    * @param id The id of the keyword to toggle
+    * @return 200 OK with updated keyword, 404 if not found
+    */
+  def toggleStatus(id: Long): Action[AnyContent] = Action.async { implicit request =>
+    implicit val requireSuperUser: Boolean = true
+    this.sessionManager.authenticatedRequest { implicit user =>
+      this.service.toggleTagStatus(id, user) match {
+        case Some(updated) =>
+          this.actionManager
+            .setAction(Some(user), TagType().convertToItem(updated.id), Updated(), "")
+          Ok(Json.toJson(updated))
+        case None => NotFound
+      }
+    }
+  }
 }
