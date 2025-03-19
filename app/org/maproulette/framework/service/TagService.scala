@@ -15,6 +15,7 @@ import org.maproulette.framework.repository.TagRepository
 import org.maproulette.permissions.Permission
 import org.maproulette.utils.Writers
 import play.api.libs.json.JsValue
+import play.api.libs.json.Json
 
 /**
   * @author mcuthbert
@@ -250,4 +251,25 @@ class TagService @Inject() (
     * @return The list of objects
     */
   override def query(query: Query): List[Tag] = this.repository.query(query)
+
+  /**
+    * Toggles a tag's active status. Only super users can perform this action.
+    *
+    * @param tagId The id of the tag to toggle
+    * @param user The user making the request (must be super user)
+    * @return The updated tag
+    */
+  def toggleTagStatus(tagId: Long, user: User): Option[Tag] = {
+    if (!permission.isSuperUser(user)) {
+      throw new IllegalAccessException("Only super users can toggle tag status")
+    }
+
+    this.retrieve(tagId) match {
+      case Some(tag) =>
+        this.cacheManager.withUpdatingCache(id => retrieve(id)) { implicit cachedItem =>
+          this.repository.toggleStatus(tagId, !tag.active)
+        }(id = tagId)
+      case None => None
+    }
+  }
 }
