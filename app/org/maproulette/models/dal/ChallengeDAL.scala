@@ -127,7 +127,8 @@ class ChallengeDAL @Inject() (
       get[Option[JsValue]]("challenges.task_widget_layout") ~
       get[Option[Int]]("challenges.completion_percentage") ~
       get[Option[Int]]("challenges.tasks_remaining") ~
-      get[Boolean]("challenges.require_confirmation") map {
+      get[Boolean]("challenges.require_confirmation") ~
+      get[Boolean]("challenges.require_reject_reason") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
             checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~ status ~ statusMessage ~
@@ -136,7 +137,7 @@ class ChallengeDAL @Inject() (
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
             requiresLocal ~ deleted ~ isGlobal ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~
-            completionPercentage ~ tasksRemaining ~ requireConfirmation =>
+            completionPercentage ~ tasksRemaining ~ requireConfirmation ~ requireRejectReason =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -159,6 +160,7 @@ class ChallengeDAL @Inject() (
           deleted,
           isGlobal,
           requireConfirmation,
+          requireRejectReason,
           infoLink,
           ChallengeGeneral(
             ownerId,
@@ -272,7 +274,8 @@ class ChallengeDAL @Inject() (
       get[Option[DateTime]]("challenges.system_archived_at") ~
       get[Option[Int]]("challenges.completion_percentage") ~
       get[Option[Int]]("challenges.tasks_remaining") ~
-      get[Boolean]("challenges.require_confirmation") map {
+      get[Boolean]("challenges.require_confirmation") ~
+      get[Boolean]("challenges.require_reject_reason") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~
             checkin_comment ~ checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~
@@ -282,7 +285,7 @@ class ChallengeDAL @Inject() (
             preferredReviewTags ~ limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~
             dataOriginDate ~ location ~ bounding ~ requiresLocal ~ deleted ~ isGlobal ~ virtualParents ~
             presets ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ systemArchivedAt ~ completionPercentage ~
-            tasksRemaining ~ requireConfirmation =>
+            tasksRemaining ~ requireConfirmation ~ requireRejectReason =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -305,6 +308,7 @@ class ChallengeDAL @Inject() (
           deleted,
           isGlobal,
           requireConfirmation,
+          requireRejectReason,
           infoLink,
           ChallengeGeneral(
             ownerId,
@@ -496,7 +500,7 @@ class ChallengeDAL @Inject() (
                                       medium_priority_rule, low_priority_rule, default_zoom, min_zoom, max_zoom,
                                       default_basemap, default_basemap_id, custom_basemap, updatetasks, exportable_properties,
                                       osm_id_property, task_bundle_id_property, last_task_refresh, data_origin_date, preferred_tags, preferred_review_tags,
-                                      limit_tags, limit_review_tags, task_styles, requires_local, is_archived, review_setting, dataset_url, require_confirmation, task_widget_layout)
+                                      limit_tags, limit_review_tags, task_styles, requires_local, is_archived, review_setting, dataset_url, require_confirmation, require_reject_reason, task_widget_layout)
               VALUES (${challenge.name}, ${challenge.general.owner}, ${challenge.general.parent}, ${challenge.general.difficulty},
                       ${challenge.description}, ${challenge.infoLink}, ${challenge.general.blurb}, ${challenge.general.instruction},
                       ${challenge.general.enabled}, ${challenge.general.featured},
@@ -510,7 +514,7 @@ class ChallengeDAL @Inject() (
                       ${challenge.dataOriginDate.getOrElse(DateTime.now()).toString}::timestamptz,
                       ${challenge.extra.preferredTags}, ${challenge.extra.preferredReviewTags}, ${challenge.extra.limitTags},
                       ${challenge.extra.limitReviewTags}, ${challenge.extra.taskStyles}, ${challenge.general.requiresLocal}, ${challenge.extra.isArchived},
-                      ${challenge.extra.reviewSetting}, ${challenge.extra.datasetUrl}, ${challenge.extra.requireConfirmation},
+                      ${challenge.extra.reviewSetting}, ${challenge.extra.datasetUrl}, ${challenge.extra.requireConfirmation}, ${challenge.requireRejectReason},
                       ${asJson(challenge.extra.taskWidgetLayout.getOrElse(Json.parse("{}")))}
                       ) ON CONFLICT(parent_id, LOWER(name)) DO NOTHING RETURNING #${this.retrieveColumns}"""
             .as(this.parser.*)
@@ -706,6 +710,10 @@ class ChallengeDAL @Inject() (
             .asOpt[Boolean]
             .getOrElse(cachedItem.extra.requireConfirmation)
 
+          val requireRejectReason = (updates \ "requireRejectReason")
+            .asOpt[Boolean]
+            .getOrElse(cachedItem.requireRejectReason)
+
           val taskWidgetLayout = (updates \ "taskWidgetLayout")
             .asOpt[JsValue]
             .getOrElse(cachedItem.extra.taskWidgetLayout.getOrElse(Json.parse("{}")))
@@ -720,7 +728,7 @@ class ChallengeDAL @Inject() (
                   enabled = $enabled, featured = $featured, checkin_comment = $checkinComment, checkin_source = $checkinSource, overpass_ql = $overpassQL,
                   remote_geo_json = $remoteGeoJson, overpass_target_type = $overpassTargetType, status = $status, status_message = $statusMessage, default_priority = $defaultPriority,
                   data_origin_date = ${dataOriginDate
-              .toString()}::timestamptz, require_confirmation = $requireConfirmation,
+              .toString()}::timestamptz, require_confirmation = $requireConfirmation, require_reject_reason = $requireRejectReason,
                   high_priority_rule = ${if (StringUtils.isEmpty(highPriorityRule)) {
               Option.empty[String]
             } else {
