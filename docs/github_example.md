@@ -49,6 +49,7 @@ RESPONSE {
     "deleted": false,
     "isGlobal": false,
     "requireConfirmation": false,
+    "requireRejectReason": false,
 }
 ```
 ***NOTE:** The owner id will match the ID of the user used based on the APIKey.<br/>

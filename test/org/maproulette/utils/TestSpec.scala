@@ -53,6 +53,7 @@ trait TestSpec extends PlaySpec with MockitoSugar {
     false,
     false,
     false,
+    false,
     None,
     ChallengeGeneral(101, 1, ""),
     ChallengeCreation(),
