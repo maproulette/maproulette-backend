@@ -1,10 +1,5 @@
 # --- !Ups
-CREATE EXTENSION IF NOT EXISTS btree_gist; 
-
-CREATE INDEX IF NOT EXISTS idx_tasks_parent_location ON tasks USING GIST (parent_id, location);
+ALTER TABLE challenges ADD COLUMN require_reject_reason BOOLEAN DEFAULT false;;
 
 # --- !Downs
-
-DROP INDEX IF EXISTS idx_tasks_parent_location;
-
-DROP EXTENSION IF EXISTS btree_gist;
+ALTER TABLE IF EXISTS challenges DROP COLUMN require_reject_reason;;
