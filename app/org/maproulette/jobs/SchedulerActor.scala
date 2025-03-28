@@ -190,7 +190,7 @@ class SchedulerActor @Inject() (
                         ) AS subquery
                       )
                   WHERE id = ${id};"""
-            
+
             SQL(query).executeUpdate()
 
             // The above query will not update the cache, so remove the id from the cache in case it is there
