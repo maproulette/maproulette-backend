@@ -192,11 +192,11 @@ class SchedulerActor @Inject() (
                   WHERE id = ${id};"""
 
             SQL(query).executeUpdate()
-
-            // The above query will not update the cache, so remove the id from the cache in case it is there
-            logger.debug(s"Flushing challenge cache of challenge with id $id")
-            this.dALManager.challenge.cacheManager.cache.remove(id)
         }
+
+        // The above query will not update the cache, so remove the id from the cache in case it is there
+        logger.debug(s"Flushing challenge cache of challenge with id $id")
+        this.dALManager.challenge.cacheManager.cache.remove(id)
       } catch {
         case e: Exception => {
           logger.error("Unable to update location on challenge " + id, e)
