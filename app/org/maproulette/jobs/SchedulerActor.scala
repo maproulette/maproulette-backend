@@ -168,33 +168,35 @@ class SchedulerActor @Inject() (
         db.withTransaction {
           implicit c =>
             val query =
-              s"""UPDATE challenges SET
-                        location = (SELECT ST_Centroid(ST_Collect(ST_Makevalid(location)))
-                                    FROM tasks
-                                    WHERE parent_id = ${id}),
-                        bounding = (SELECT ST_Envelope(ST_Buffer((ST_SetSRID(ST_Extent(location), 4326))::geography,2)::geometry)
-                                    FROM tasks
-                                    WHERE parent_id = ${id}),
-                        last_updated = NOW()
-                    WHERE id = ${id};"""
+              s"""UPDATE challenges 
+                  SET location = (SELECT ST_Centroid(ST_Collect(ST_Makevalid(location)))
+                                 FROM tasks
+                                 WHERE parent_id = ${id}),
+                      bounding = (SELECT ST_Envelope(ST_Buffer((ST_SetSRID(ST_Extent(location), 4326))::geography,2)::geometry)
+                                 FROM tasks
+                                 WHERE parent_id = ${id}),
+                      last_updated = NOW(),
+                      is_global = (
+                        SELECT 
+                          CASE
+                            WHEN (ST_XMax(bbox)::numeric - ST_XMin(bbox)::numeric) > 180 THEN TRUE
+                            WHEN (ST_YMax(bbox)::numeric - ST_YMin(bbox)::numeric) > 90 THEN TRUE
+                            ELSE FALSE
+                          END
+                        FROM (
+                          SELECT ST_Envelope(ST_Buffer((ST_SetSRID(ST_Extent(location), 4326))::geography,2)::geometry) AS bbox
+                          FROM tasks
+                          WHERE parent_id = ${id}
+                        ) AS subquery
+                      )
+                  WHERE id = ${id};"""
+            
             SQL(query).executeUpdate()
 
-            // Update is_global based on bounding box
-            val updateGlobalQuery =
-              s"""UPDATE challenges
-                  SET is_global = (
-                    CASE
-                      WHEN (ST_XMax(bounding)::numeric - ST_XMin(bounding)::numeric) > 180 THEN TRUE
-                      WHEN (ST_YMax(bounding)::numeric - ST_YMin(bounding)::numeric) > 90 THEN TRUE
-                      ELSE FALSE
-                    END
-                  );"""
-
-            SQL(updateGlobalQuery).executeUpdate()
+            // The above query will not update the cache, so remove the id from the cache in case it is there
+            logger.debug(s"Flushing challenge cache of challenge with id $id")
+            this.dALManager.challenge.cacheManager.cache.remove(id)
         }
-        // The above query will not update the cache, so remove the id from the cache in case it is there
-        logger.debug(s"Flushing challenge cache of challenge with id $id")
-        this.dALManager.challenge.cacheManager.cache.remove(id)
       } catch {
         case e: Exception => {
           logger.error("Unable to update location on challenge " + id, e)
