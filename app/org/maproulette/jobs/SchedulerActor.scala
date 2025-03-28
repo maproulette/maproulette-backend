@@ -177,19 +177,13 @@ class SchedulerActor @Inject() (
                                  WHERE parent_id = ${id}),
                       last_updated = NOW(),
                       is_global = (
-                        SELECT 
                           CASE
-                            WHEN (ST_XMax(bbox)::numeric - ST_XMin(bbox)::numeric) > 180 THEN TRUE
-                            WHEN (ST_YMax(bbox)::numeric - ST_YMin(bbox)::numeric) > 90 THEN TRUE
+                            WHEN (ST_XMax(bounding)::numeric - ST_XMin(bounding)::numeric) > 180 THEN TRUE
+                            WHEN (ST_YMax(bounding)::numeric - ST_YMin(bounding)::numeric) > 90 THEN TRUE
                             ELSE FALSE
                           END
-                        FROM (
-                          SELECT ST_Envelope(ST_Buffer((ST_SetSRID(ST_Extent(location), 4326))::geography,2)::geometry) AS bbox
-                          FROM tasks
-                          WHERE parent_id = ${id}
-                        ) AS subquery
                       )
-                  WHERE id = ${id};"""
+                    WHERE id = ${id}"""
 
             SQL(query).executeUpdate()
         }
