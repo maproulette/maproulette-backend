@@ -330,13 +330,18 @@ class TaskBundleRepository @Inject() (
     */
   def lockBundledTasks(user: User, tasks: List[Task]) = {
     this.withMRConnection { implicit c =>
-      for (task <- tasks) {
-        try {
-          this.lockItem(user, task)
-        } catch {
-          case e: Exception => this.logger.warn(e.getMessage)
+      try {
+        if (tasks.isEmpty) {
+          // No valid tasks found
+          throw new Exception("No valid tasks found")
+        } else {
+          // Use bulk locking for better performance
+          this.lockItems(user, tasks)
         }
+      } catch {
+        case e: Exception => this.logger.warn(e.getMessage)
       }
     }
+
   }
 }

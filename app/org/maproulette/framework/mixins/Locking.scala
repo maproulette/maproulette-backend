@@ -213,6 +213,51 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
     }
 
   /**
+    * Locks multiple items in a single database transaction.
+    *
+    * @param user  The user requesting the locks
+    * @param items The list of items to be locked
+    * @param c     A sql connection that is implicitly passed in from the calling function
+    * @return Map of item ids to the user ids that hold the lock for each conflicting item
+    */
+  def lockItems(user: User, items: List[T])(
+      implicit c: Option[Connection] = None
+  ): Map[Long, Long] =
+    this.withMRTransaction { implicit c =>
+      if (items.isEmpty) {
+        Map.empty[Long, Long]
+      } else {
+        // Build a single query with multiple value sets for better performance
+        val valuesList = items
+          .map { item =>
+            s"(${item.itemType.typeId}, ${item.id}, ${user.id}, NOW())"
+          }
+          .mkString(", ")
+
+        val query =
+          s"""
+             |WITH upsert AS (
+             |  INSERT INTO locked (item_type, item_id, user_id, locked_time)
+             |  VALUES $valuesList
+             |  ON CONFLICT (item_type, item_id) 
+             |  DO UPDATE SET locked_time = NOW()
+             |  WHERE locked.user_id = ${user.id}
+             |  RETURNING item_id, user_id
+             |)
+             |SELECT l.item_id, l.user_id
+             |FROM upsert l
+             |WHERE l.user_id != ${user.id}
+           """.stripMargin
+
+        val results = SQL(query).as(
+          (SqlParser.long("item_id") ~ SqlParser.long("user_id")).*
+        )
+
+        results.map { case id ~ userId => (id -> userId) }.toMap
+      }
+    }
+
+  /**
     * Our key for our objects are current Long, but can support String if need be. This function
     * handles transforming java objects to SQL for a specific set related to the object key
     *

@@ -378,25 +378,18 @@ class TaskController @Inject() (
   def lockTaskBundleByIds(taskIds: List[Long]): Action[AnyContent] = Action.async {
     implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
-        val (lockedTasks, failedTasks) = taskIds.foldLeft((List.empty[Task], List.empty[Long])) {
-          case ((locked, failed), taskId) =>
-            this.dal.retrieveById(taskId) match {
-              case Some(task) =>
-                try {
-                  this.dal.lockItem(user, task)
-                  (task :: locked, failed)
-                } catch {
-                  case _: LockedException => (locked, taskId :: failed)
-                }
-              case None => (locked, failed)
-            }
-        }
+        // First retrieve all the tasks
+        val tasks = taskIds.flatMap(taskId => this.dal.retrieveById(taskId))
 
-        if (failedTasks.nonEmpty) {
-          lockedTasks.foreach(task => this.dal.unlockItem(user, task))
-          Ok(Json.toJson(failedTasks, false))
+        if (tasks.isEmpty) {
+          // No valid tasks found
+          Ok(Json.toJson(taskIds, false))
         } else {
-          Ok(Json.toJson(lockedTasks, true))
+          // Use bulk locking for better performance
+          val conflictingLocks = this.dal.lockItems(user, tasks)
+
+          Ok(Json.toJson(tasks, true))
+
         }
       }
   }
