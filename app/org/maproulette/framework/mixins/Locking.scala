@@ -6,13 +6,12 @@
 package org.maproulette.framework.mixins
 
 import java.sql.Connection
-
 import anorm._
-import java.sql.PreparedStatement
 
+import java.sql.PreparedStatement
 import org.maproulette.data.ItemType
 import org.maproulette.exception.LockedException
-import org.maproulette.framework.model.User
+import org.maproulette.framework.model.{Task, User}
 import org.maproulette.framework.psql.TransactionManager
 import org.maproulette.models.BaseObject
 import org.maproulette.framework.repository.RepositoryMixin
@@ -220,7 +219,7 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
     * @param c     A sql connection that is implicitly passed in from the calling function
     * @return Map of item ids to the user ids that hold the lock for each conflicting item
     */
-  def lockItems(user: User, items: List[T])(
+  def lockItems(user: User, items: List[Task])(
       implicit c: Option[Connection] = None
   ): Map[Long, Long] =
     this.withMRTransaction { implicit c =>
@@ -246,14 +245,102 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
              |)
              |SELECT l.item_id, l.user_id
              |FROM upsert l
-             |WHERE l.user_id != ${user.id}
            """.stripMargin
 
         val results = SQL(query).as(
           (SqlParser.long("item_id") ~ SqlParser.long("user_id")).*
         )
 
-        results.map { case id ~ userId => (id -> userId) }.toMap
+        val resultMap = results.map { case id ~ userId => (id -> userId) }.toMap
+
+        // Find items that failed to lock - fix type mismatch by explicitly converting to Long
+        val failedToLock = items.filter(item => !resultMap.contains(item.id))
+        // Find items locked by wrong user
+        val wrongUserLocks = resultMap.filter { case (_, lockUserId) => lockUserId != user.id }
+
+        if (failedToLock.nonEmpty || wrongUserLocks.nonEmpty) {
+          val failedItemsMsg = if (failedToLock.nonEmpty) {
+            s"Failed to lock items: ${failedToLock.map(_.id).mkString(", ")}"
+          } else ""
+
+          val wrongUserMsg = if (wrongUserLocks.nonEmpty) {
+            s"Items locked by different users: ${wrongUserLocks.keys.mkString(", ")}"
+          } else ""
+
+          val errorMsg = List(failedItemsMsg, wrongUserMsg).filter(_.nonEmpty).mkString(". ")
+          throw new IllegalAccessException(s"Lock operation failed. $errorMsg")
+        }
+
+        resultMap
+      }
+    }
+
+  /**
+    * Unlocks multiple items in a single database transaction.
+    *
+    * @param user  The user requesting to unlock the items
+    * @param items The list of items to be unlocked
+    * @param c     A sql connection that is implicitly passed in from the calling function
+    * @return Number of items successfully unlocked
+    * @throws LockedException if any items are locked by a different user or not locked at all
+    */
+  def unlockItems(user: User, items: List[Task])(
+      implicit c: Option[Connection] = None
+  ): Int =
+    this.withMRTransaction { implicit c =>
+      if (items.isEmpty) {
+        0
+      } else {
+        // Create a list of item IDs and types for the IN clause
+        val itemIds  = items.map(_.id)
+        val itemType = items.headOption.map(_.itemType.typeId).getOrElse(0)
+
+        // Check the lock status of all requested items
+        val checkQuery =
+          s"""
+             |SELECT item_id, user_id 
+             |FROM locked 
+             |WHERE item_id IN (${itemIds.mkString(",")})
+             |AND item_type = $itemType
+             |FOR UPDATE
+           """.stripMargin
+
+        val lockStatus = SQL(checkQuery)
+          .as(
+            (SqlParser.long("item_id") ~ SqlParser.long("user_id")).*
+          )
+          .map { case id ~ userId => (id -> userId) }
+          .toMap
+
+        // Find items that aren't locked at all
+        val notLockedItems = itemIds.filter(id => !lockStatus.contains(id))
+
+        // Find items locked by other users
+        val lockedByOthers = lockStatus.filter { case (_, lockUserId) => lockUserId != user.id }
+
+        if (notLockedItems.nonEmpty || lockedByOthers.nonEmpty) {
+          val notLockedMsg = if (notLockedItems.nonEmpty) {
+            s"Items not locked: ${notLockedItems.mkString(", ")}"
+          } else ""
+
+          val lockedByOthersMsg = if (lockedByOthers.nonEmpty) {
+            s"Items locked by different users: ${lockedByOthers.keys.mkString(", ")}"
+          } else ""
+
+          val errorMsg = List(notLockedMsg, lockedByOthersMsg).filter(_.nonEmpty).mkString(". ")
+          throw new LockedException(s"Unlock operation failed for user ${user.id}. $errorMsg")
+        }
+
+        // All items are locked by the current user, proceed with unlock
+        val deleteQuery =
+          s"""
+             |DELETE FROM locked 
+             |WHERE item_id IN (${itemIds.mkString(",")})
+             |AND item_type = $itemType
+             |AND user_id = ${user.id}
+           """.stripMargin
+
+        SQL(deleteQuery).executeUpdate()
       }
     }
 
