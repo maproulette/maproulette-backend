@@ -32,6 +32,7 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
     INNER JOIN challenges c ON c.id = tasks.parent_id
     INNER JOIN projects p ON p.id = c.parent_id
     LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
+    LEFT OUTER JOIN locked l ON l.item_id = tasks.id
   """
 
   // SQL query used to select list of ClusteredPoint data
@@ -42,7 +43,7 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
           task_review.review_status, task_review.review_requested_by, task_review.reviewed_by, task_review.reviewed_at,
           task_review.review_started_at, task_review.meta_review_status, task_review.meta_reviewed_by,
           task_review.meta_reviewed_at, task_review.additional_reviewers,
-          ST_AsGeoJSON(tasks.location) AS location, priority,
+          ST_AsGeoJSON(tasks.location) AS location, priority, l.user_id as locked_by,
           CASE WHEN task_review.review_started_at IS NULL
                 THEN 0
                 ELSE EXTRACT(epoch FROM (task_review.reviewed_at - task_review.review_started_at)) END

@@ -382,12 +382,13 @@ class ChallengeDAL @Inject() (
       get[Option[List[Long]]]("task_review.additional_reviewers") ~
       get[Option[Int]]("task_review.meta_review_status") ~
       get[Option[Long]]("task_review.meta_reviewed_by") ~
-      get[Option[DateTime]]("task_review.meta_reviewed_at") map {
+      get[Option[DateTime]]("task_review.meta_reviewed_at") ~
+      get[Option[Long]]("locked_by") map {
       case id ~ name ~ parentId ~ parentName ~ orParentName ~ instruction ~ location ~ status ~
             mappedOn ~ completedTimeSpent ~ completedBy ~ priority ~ bundleId ~
             isBundlePrimary ~ cooperativeWork ~ reviewStatus ~ reviewRequestedBy ~
             reviewedBy ~ reviewedAt ~ reviewStartedAt ~ additionalReviewers ~
-            metaReviewStatus ~ metaReviewedBy ~ metaReviewedAt =>
+            metaReviewStatus ~ metaReviewedBy ~ metaReviewedAt ~ lockedBy =>
         val locationJSON = Json.parse(location)
         val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
         val point        = Point(coordinates(1), coordinates.head)
@@ -424,7 +425,8 @@ class ChallengeDAL @Inject() (
           pointReview,
           priority,
           bundleId,
-          isBundlePrimary
+          isBundlePrimary,
+          lockedBy
         )
     }
   }
