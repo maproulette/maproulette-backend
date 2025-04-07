@@ -134,7 +134,8 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
                    c.name as challengeName,
                    tasks.location AS taskLocation,
                    c.id AS challengeId,
-                   c.status AS challengeStatus
+                   c.status AS challengeStatus,
+                   l.user_id as locked_by
             FROM tasks
             $joinClause
             WHERE ${query.filter.sql()}
