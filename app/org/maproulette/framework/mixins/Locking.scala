@@ -226,8 +226,11 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
       if (items.isEmpty) {
         Map.empty[Long, Long]
       } else {
+        // Remove duplicates from the input list while preserving order
+        val distinctItems = items.distinctBy(_.id)
+
         // Build a single query with multiple value sets for better performance
-        val valuesList = items
+        val valuesList = distinctItems
           .map { item =>
             s"(${item.itemType.typeId}, ${item.id}, ${user.id}, NOW())"
           }
@@ -291,9 +294,11 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
       if (items.isEmpty) {
         0
       } else {
+        // Remove duplicates from the input list while preserving order
+        val distinctItems = items.distinctBy(_.id)
         // Create a list of item IDs and types for the IN clause
-        val itemIds  = items.map(_.id)
-        val itemType = items.headOption.map(_.itemType.typeId).getOrElse(0)
+        val itemIds  = distinctItems.map(_.id)
+        val itemType = distinctItems.headOption.map(_.itemType.typeId).getOrElse(0)
 
         // Check the lock status of all requested items
         val checkQuery =
