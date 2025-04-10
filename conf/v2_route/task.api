@@ -956,7 +956,7 @@ GET     /taskCluster                                @org.maproulette.framework.c
 #         items:
 #           type: integer
 ###
-POST    /task/bundle/lock                         @org.maproulette.controllers.api.TaskController.lockTaskBundleByIds(taskIds:List[Long])
+POST    /task/bundle/lock                         @org.maproulette.controllers.api.TaskController.lockTaskBundle(taskIds:List[Long])
 ###
 # tags: [ Task ]
 # summary: Unlocks a bundle of tasks
@@ -976,4 +976,4 @@ POST    /task/bundle/lock                         @org.maproulette.controllers.a
 #         items:
 #           type: integer
 ###
-POST    /task/bundle/unlock                        @org.maproulette.controllers.api.TaskController.unlockTaskBundleByIds(taskIds:List[Long])
+POST    /task/bundle/unlock                        @org.maproulette.controllers.api.TaskController.unlockTaskBundle(taskIds:List[Long])

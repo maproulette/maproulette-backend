@@ -375,7 +375,7 @@ class TaskController @Inject() (
     * @param taskIds The IDs of the tasks to lock
     * @return
     */
-  def lockTaskBundleByIds(taskIds: List[Long]): Action[AnyContent] = Action.async {
+  def lockTaskBundle(taskIds: List[Long]): Action[AnyContent] = Action.async {
     implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
         // First retrieve all the tasks
@@ -401,7 +401,7 @@ class TaskController @Inject() (
     * @param taskIds The IDs of the tasks to unlock
     * @return
     */
-  def unlockTaskBundleByIds(taskIds: List[Long]): Action[AnyContent] = Action.async {
+  def unlockTaskBundle(taskIds: List[Long]): Action[AnyContent] = Action.async {
     implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
         val tasks = taskIds.flatMap(taskId => this.dal.retrieveById(taskId))
