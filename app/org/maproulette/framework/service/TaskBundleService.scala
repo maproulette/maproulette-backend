@@ -142,9 +142,12 @@ class TaskBundleService @Inject() (
     */
   def deleteTaskBundle(user: User, bundleId: Long): Unit = {
     val bundle = this.getTaskBundle(user, bundleId)
-
+    val primaryTask = bundle.tasks.getOrElse(List()).find(_.isBundlePrimary.getOrElse(false))
+    
     // Verify permissions to delete this bundle
-    if (!permission.isSuperUser(user) && bundle.ownerId != user.id) {
+    if (!permission.isSuperUser(user) && bundle.ownerId != user.id && primaryTask.isDefined && 
+        primaryTask.get.status.getOrElse(-1) != org.maproulette.framework.model.Task.STATUS_SKIPPED && 
+        primaryTask.get.status.getOrElse(-1) != org.maproulette.framework.model.Task.STATUS_TOO_HARD) {
       val challengeId = bundle.tasks.getOrElse(List()).head.parent
       val challenge   = this.challengeDAL.retrieveById(challengeId)
       this.permission.hasObjectWriteAccess(challenge.get, user)
