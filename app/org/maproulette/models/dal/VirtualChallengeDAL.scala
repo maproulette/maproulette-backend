@@ -526,11 +526,12 @@ class VirtualChallengeDAL @Inject() (
         get[Option[DateTime]]("review_started_at") ~ get[Option[List[Long]]]("additional_reviewers") ~
         get[Option[Int]]("meta_review_status") ~ get[Option[Long]]("meta_reviewed_by") ~
         get[Option[DateTime]]("meta_reviewed_at") ~ int("priority") ~
-        get[Option[Long]]("bundle_id") ~ get[Option[Boolean]]("is_bundle_primary") map {
+        get[Option[Long]]("bundle_id") ~ get[Option[Boolean]]("is_bundle_primary") ~
+        get[Option[Long]]("locked_by") map {
         case id ~ name ~ instruction ~ location ~ status ~ cooperativeWork ~ mappedOn ~ completedTimeSpent ~
               completedBy ~ reviewStatus ~ reviewRequestedBy ~ reviewedBy ~ reviewedAt ~ reviewStartedAt ~
               additionalReviewers ~ metaReviewStatus ~ metaReviewedBy ~ metaReviewedAt ~
-              priority ~ bundleId ~ isBundlePrimary =>
+              priority ~ bundleId ~ isBundlePrimary ~ lockedBy =>
           val locationJSON = Json.parse(location)
           val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
           val point        = Point(coordinates(1), coordinates.head)
@@ -567,7 +568,8 @@ class VirtualChallengeDAL @Inject() (
             pointReview,
             priority,
             bundleId,
-            isBundlePrimary
+            isBundlePrimary,
+            lockedBy
           )
       }
       SQL"""SELECT tasks.id, name, instruction, status, cooperative_work_json::TEXT as cooperative_work,

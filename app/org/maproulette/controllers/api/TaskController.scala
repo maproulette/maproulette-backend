@@ -375,30 +375,23 @@ class TaskController @Inject() (
     * @param taskIds The IDs of the tasks to lock
     * @return
     */
-  def lockTaskBundleByIds(taskIds: List[Long]): Action[AnyContent] = Action.async {
-    implicit request =>
-      this.sessionManager.authenticatedRequest { implicit user =>
-        val (lockedTasks, failedTasks) = taskIds.foldLeft((List.empty[Task], List.empty[Long])) {
-          case ((locked, failed), taskId) =>
-            this.dal.retrieveById(taskId) match {
-              case Some(task) =>
-                try {
-                  this.dal.lockItem(user, task)
-                  (task :: locked, failed)
-                } catch {
-                  case _: LockedException => (locked, taskId :: failed)
-                }
-              case None => (locked, failed)
-            }
-        }
+  def lockTaskBundle(taskIds: List[Long]): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      // First retrieve all the tasks
+      val tasks = taskIds.flatMap(taskId => this.dal.retrieveById(taskId))
 
-        if (failedTasks.nonEmpty) {
-          lockedTasks.foreach(task => this.dal.unlockItem(user, task))
-          Ok(Json.toJson(failedTasks, false))
-        } else {
-          Ok(Json.toJson(lockedTasks, true))
-        }
+      if (tasks.length != taskIds.length) {
+        val missingTaskIds = taskIds.filter(taskId => !tasks.map(_.id).contains(taskId))
+        // No valid tasks found
+        throw new IllegalAccessException(
+          s"Tasks not found to unlock: ${missingTaskIds.mkString(", ")}"
+        )
+      } else {
+        // Use bulk locking for better performance
+        this.dal.lockItems(user, tasks)
+        Ok(Json.toJson(tasks))
       }
+    }
   }
 
   /**
@@ -407,50 +400,19 @@ class TaskController @Inject() (
     * @param taskIds The IDs of the tasks to unlock
     * @return
     */
-  def unlockTaskBundleByIds(taskIds: List[Long]): Action[AnyContent] = Action.async {
-    implicit request =>
-      this.sessionManager.authenticatedRequest { implicit user =>
-        val tasks = taskIds.flatMap { taskId =>
-          this.dal.retrieveById(taskId) match {
-            case Some(task) =>
-              try {
-                this.dal.unlockItem(user, task)
-                Some(taskId)
-              } catch {
-                case _: Exception => None
-              }
-            case None => None
-          }
-        }
-
+  def unlockTaskBundle(taskIds: List[Long]): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      val tasks = taskIds.flatMap(taskId => this.dal.retrieveById(taskId))
+      if (tasks.length != taskIds.length) {
+        val missingTaskIds = taskIds.filter(taskId => !tasks.map(_.id).contains(taskId))
+        // No valid tasks found
+        throw new Exception(s"Tasks not found to unlock: ${missingTaskIds.mkString(", ")}")
+      } else {
+        // Use bulk locking for better performance
+        this.dal.unlockItems(user, tasks)
         Ok(Json.toJson(tasks))
       }
-  }
-
-  /**
-    * Refreshes the locks on a bundle of tasks based on the provided task IDs.
-    *
-    * @param taskIds The IDs of the tasks to refresh locks
-    * @return
-    */
-  def refreshTaskLocksByIds(taskIds: List[Long]): Action[AnyContent] = Action.async {
-    implicit request =>
-      this.sessionManager.authenticatedRequest { implicit user =>
-        val result = taskIds.map { taskId =>
-          this.dal.retrieveById(taskId) match {
-            case Some(task) =>
-              try {
-                this.dal.refreshItemLock(user, task)
-                Some(taskId)
-              } catch {
-                case _: LockedException => None
-              }
-            case None => None
-          }
-        }.flatten
-
-        Ok(Json.toJson(result))
-      }
+    }
   }
 
   /**
