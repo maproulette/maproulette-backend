@@ -191,6 +191,28 @@ class TagRepository @Inject() (override val db: Database) extends RepositoryMixi
       taskTagsMap.toMap
     }
   }
+
+  /**
+    * Toggles the active status of a tag
+    *
+    * @param tagId The id of the tag to toggle
+    * @param active The new active status to set
+    * @param c An implicit connection
+    * @return The updated Tag
+    */
+  def toggleStatus(tagId: Long, active: Boolean)(
+      implicit c: Option[Connection] = None
+  ): Option[Tag] = {
+    this.withMRTransaction { implicit c =>
+      SQL("UPDATE tags SET active = {active} WHERE id = {id} RETURNING *")
+        .on(
+          Symbol("active") -> active,
+          Symbol("id")     -> tagId
+        )
+        .as(TagRepository.parser.*)
+        .headOption
+    }
+  }
 }
 
 object TagRepository {
