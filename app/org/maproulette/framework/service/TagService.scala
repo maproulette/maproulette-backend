@@ -15,7 +15,6 @@ import org.maproulette.framework.repository.TagRepository
 import org.maproulette.permissions.Permission
 import org.maproulette.utils.Writers
 import play.api.libs.json.JsValue
-import play.api.libs.json.Json
 
 /**
   * @author mcuthbert
