@@ -231,4 +231,25 @@ DELETE  /keyword/:id                                @org.maproulette.framework.c
 #     description: Used in conjunction with the limit parameter to page through X number of responses. Default value is 0, ie. first page.
 ###
 GET     /keywords                                   @org.maproulette.framework.controller.TagController.getTags(prefix: String ?= "", tagType: String ?= "", limit: Int ?= 10, page: Int ?= 0)
+###
+# tags: [ Keyword ]
+# summary: Toggle Keyword Status
+# description: Toggles a keyword's active/inactive status. Only available to super users.
+# responses:
+#   '200':
+#     description: The updated Keyword with toggled status
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/Keyword'
+#   '401':
+#     description: The user is not authorized or is not a super user
+#   '404':
+#     description: No Keyword found matching the provided id
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the Keyword to toggle
+###
+PUT     /keyword/:id/toggle                         @org.maproulette.framework.controller.TagController.toggleStatus(id:Long)
 
