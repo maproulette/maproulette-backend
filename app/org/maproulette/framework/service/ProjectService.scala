@@ -265,7 +265,8 @@ class ProjectService @Inject() (
             Project.FIELD_ENABLED,
             onlyEnabled,
             includeOnlyIfTrue = onlyEnabled
-          )
+          ),
+          BaseParameter(Project.FIELD_DELETED, false, Operator.EQ)
         ),
         paging = paging
       )
