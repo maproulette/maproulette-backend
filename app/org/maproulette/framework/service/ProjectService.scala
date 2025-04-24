@@ -169,7 +169,8 @@ class ProjectService @Inject() (
               Project.FIELD_OWNER,
               user.osmProfile.id,
               includeOnlyIfTrue = onlyOwned
-            )
+            ),
+            BaseParameter(Project.FIELD_DELETED, false, Operator.EQ)
           )
         )
         this.query(
@@ -198,26 +199,32 @@ class ProjectService @Inject() (
       onlyEnabled: Boolean = true,
       order: Order = Order()
   ): List[Project] = {
+    val searchParams = if (search.nonEmpty) {
+      List(
+        BaseParameter(
+          Project.FIELD_NAME,
+          SQLUtils.search(search),
+          Operator.ILIKE
+        ),
+        BaseParameter(
+          Project.FIELD_DISPLAY_NAME,
+          SQLUtils.search(search),
+          Operator.ILIKE
+        ),
+        FuzzySearchParameter(
+          Project.FIELD_DISPLAY_NAME,
+          value = search
+        )
+      )
+    } else {
+      List.empty
+    }
+
     val query = Query(
       Filter(
         List(
           FilterGroup(
-            List(
-              BaseParameter(
-                Project.FIELD_NAME,
-                SQLUtils.search(search),
-                Operator.ILIKE
-              ),
-              BaseParameter(
-                Project.FIELD_DISPLAY_NAME,
-                SQLUtils.search(search),
-                Operator.ILIKE
-              ),
-              FuzzySearchParameter(
-                Project.FIELD_DISPLAY_NAME,
-                value = search
-              )
-            ),
+            searchParams ::: List(BaseParameter(Project.FIELD_DELETED, false, Operator.EQ)),
             OR()
           ),
           FilterGroup(
@@ -227,7 +234,8 @@ class ProjectService @Inject() (
                 true,
                 Operator.BOOL,
                 includeOnlyIfTrue = onlyEnabled
-              )
+              ),
+              BaseParameter(Project.FIELD_DELETED, false, Operator.EQ)
             )
           )
         )
