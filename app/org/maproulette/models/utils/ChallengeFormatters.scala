@@ -33,7 +33,10 @@ trait ChallengeWrites extends DefaultWrites {
           "defaultPriority"    -> JsNumber(challengePriority.defaultPriority),
           "highPriorityRule"   -> Json.parse(challengePriority.highPriorityRule.getOrElse("{}")),
           "mediumPriorityRule" -> Json.parse(challengePriority.mediumPriorityRule.getOrElse("{}")),
-          "lowPriorityRule"    -> Json.parse(challengePriority.lowPriorityRule.getOrElse("{}"))
+          "lowPriorityRule"    -> Json.parse(challengePriority.lowPriorityRule.getOrElse("{}")),
+          "highPriorityBounds" -> Json.parse(challengePriority.highPriorityBounds.getOrElse("[]")),
+          "mediumPriorityBounds" -> Json.parse(challengePriority.mediumPriorityBounds.getOrElse("[]")),
+          "lowPriorityBounds"    -> Json.parse(challengePriority.lowPriorityBounds.getOrElse("[]"))
         )
       )
   }
