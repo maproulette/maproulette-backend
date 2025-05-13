@@ -799,9 +799,9 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
       val filter     = this.filterChallenges(params)
       val parameters = filter.parameters()
       normalized(filter.sql().replaceAll(parameters.head.name, "testC")) mustEqual
-        "(c.name <> '' AND (LEVENSHTEIN(LOWER(LEFT(c.name, 255)), LOWER(LEFT({testC}, 255))) < 2 OR " +
-          "METAPHONE(LOWER(LEFT(c.name, 255)), 4) = METAPHONE(LOWER(LEFT({testC}, 255)), 4) OR " +
-          "SOUNDEX(LOWER(LEFT(c.name, 255))) = SOUNDEX(LOWER(LEFT({testC}, 255)))) )"
+        "(c.name <> '' AND (LEVENSHTEIN(LOWER(LEFT(c.name, 255)), LOWER({testC})) < 2 OR " +
+          "METAPHONE(LOWER(LEFT(c.name, 255)), 4) = METAPHONE(LOWER({testC}), 4) OR " +
+          "SOUNDEX(LOWER(c.name)) = SOUNDEX(LOWER({testC}))) )"
     }
 
     "does search on name" in {
