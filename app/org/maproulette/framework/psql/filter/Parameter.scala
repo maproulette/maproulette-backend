@@ -224,8 +224,9 @@ case class FuzzySearchParameter(
     }
     val columnKey = this.getColumnKey(table.getOrElse(tableKey))
     s"""($columnKey <> '' AND
-      (LEVENSHTEIN(LOWER($columnKey), LOWER({${this.getKey()}})) < $score OR
-      METAPHONE(LOWER($columnKey), 4) = METAPHONE(LOWER({${this.getKey()}}), $metaphoneSize) OR
+      (LEVENSHTEIN(LOWER(LEFT($columnKey, 255)), LOWER({${this.getKey()}})) < $score OR
+      METAPHONE(LOWER(LEFT($columnKey, 255)), $metaphoneSize) = METAPHONE(LOWER({${this
+      .getKey()}}), $metaphoneSize) OR
       SOUNDEX(LOWER($columnKey)) = SOUNDEX(LOWER({${this.getKey()}})))
       )"""
   }

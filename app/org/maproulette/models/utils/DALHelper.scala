@@ -284,7 +284,7 @@ trait DALHelper {
     }
     s""" ${this.getSqlKey} ($column <> '' AND
           (LEVENSHTEIN(LOWER($column), LOWER({$key})) < $score OR
-            METAPHONE(LOWER($column), 4) = METAPHONE(LOWER({$key}), $metaphoneSize) OR
+            METAPHONE(LOWER($column), $metaphoneSize) = METAPHONE(LOWER({$key}), $metaphoneSize) OR
             SOUNDEX(LOWER($column)) = SOUNDEX(LOWER({$key})))
           )"""
   }
