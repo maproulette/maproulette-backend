@@ -201,35 +201,48 @@ class CommentService @Inject() (
   /**
     * Finds task comments from a user
     *
-    * @param userId The id of the challenge being searched
+    * @param userId The id of the user whose comments are being searched
+    * @param searchTerm An optional term to search within the comments
+    * @param sort The field by which to sort the results
+    * @param order The order of the sorting (ASC or DESC)
+    * @param limit The maximum number of comments to return
+    * @param page The page number for pagination
     * @return a list of comments
     */
   def findUserComments(
       userId: Long,
+      searchTerm: Option[String] = None,
       sort: String = "created",
       order: String = "DESC",
       limit: Int = 25,
       page: Int = 0
   ): List[Comment] = {
-    val taskComments = this.repository.queryByUserId(userId, sort, order, limit, page)
+    val taskComments = this.repository.queryByUserId(userId, sort, order, limit, page, searchTerm)
+
     taskComments
   }
 
   /**
     * Finds challenge comments from a user
     *
-    * @param userId The id of the challenge being searched
+    * @param userId The id of the user whose comments are being searched
+    * @param searchTerm An optional term to search within the comments
+    * @param sort The field by which to sort the results
+    * @param order The order of the sorting (ASC or DESC)
+    * @param limit The maximum number of comments to return
+    * @param page The page number for pagination
     * @return a list of comments
     */
   def findUserChallengeComments(
       userId: Long,
+      searchTerm: Option[String] = None,
       sort: String = "created",
       order: String = "DESC",
       limit: Int = 25,
       page: Int = 0
   ): List[ChallengeComment] = {
     val challengeComments =
-      this.challengeCommentRepository.queryByUserId(userId, sort, order, limit, page);
+      this.challengeCommentRepository.queryByUserId(userId, sort, order, limit, page, searchTerm);
     challengeComments
   }
 

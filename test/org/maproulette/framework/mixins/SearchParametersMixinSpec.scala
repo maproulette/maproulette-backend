@@ -756,8 +756,8 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
       val parameters = filter.parameters()
       normalized(filter.sql().replaceAll(parameters.head.name, "abc")) mustEqual
         "(p.display_name <> '' AND " +
-          "(LEVENSHTEIN(LOWER(p.display_name), LOWER({abc})) < 2 OR " +
-          "METAPHONE(LOWER(p.display_name), 4) = METAPHONE(LOWER({abc}), 4) OR " +
+          "(LEVENSHTEIN(LOWER(LEFT(p.display_name, 255)), LOWER({abc})) < 2 OR " +
+          "METAPHONE(LOWER(LEFT(p.display_name, 255)), 4) = METAPHONE(LOWER({abc}), 4) OR " +
           "SOUNDEX(LOWER(p.display_name)) = SOUNDEX(LOWER({abc}))) )"
     }
 
@@ -799,8 +799,8 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
       val filter     = this.filterChallenges(params)
       val parameters = filter.parameters()
       normalized(filter.sql().replaceAll(parameters.head.name, "testC")) mustEqual
-        "(c.name <> '' AND (LEVENSHTEIN(LOWER(c.name), LOWER({testC})) < 2 OR " +
-          "METAPHONE(LOWER(c.name), 4) = METAPHONE(LOWER({testC}), 4) OR " +
+        "(c.name <> '' AND (LEVENSHTEIN(LOWER(LEFT(c.name, 255)), LOWER({testC})) < 2 OR " +
+          "METAPHONE(LOWER(LEFT(c.name, 255)), 4) = METAPHONE(LOWER({testC}), 4) OR " +
           "SOUNDEX(LOWER(c.name)) = SOUNDEX(LOWER({testC}))) )"
     }
 

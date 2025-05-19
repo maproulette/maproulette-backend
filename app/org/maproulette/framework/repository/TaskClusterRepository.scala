@@ -28,19 +28,33 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
 
   val pointParser = this.challengeDAL.pointParser
 
-  private val joinClause =
-    new StringBuilder(
-      """
-        INNER JOIN challenges c ON c.id = tasks.parent_id
-        INNER JOIN projects p ON p.id = c.parent_id
-        LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
-      """
-    )
+  private val joinClause = """
+    INNER JOIN challenges c ON c.id = tasks.parent_id
+    INNER JOIN projects p ON p.id = c.parent_id
+    LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
+    LEFT OUTER JOIN locked l ON l.item_id = tasks.id
+  """
+
+  // SQL query used to select list of ClusteredPoint data
+  private val selectTaskMarkersSQL = s"""
+    SELECT tasks.id, tasks.name, tasks.parent_id, c.name, tasks.instruction, tasks.status, tasks.mapped_on,
+          tasks.completed_time_spent, tasks.completed_by,
+          tasks.bundle_id, tasks.is_bundle_primary, tasks.cooperative_work_json::TEXT as cooperative_work,
+          task_review.review_status, task_review.review_requested_by, task_review.reviewed_by, task_review.reviewed_at,
+          task_review.review_started_at, task_review.meta_review_status, task_review.meta_reviewed_by,
+          task_review.meta_reviewed_at, task_review.additional_reviewers,
+          ST_AsGeoJSON(tasks.location) AS location, priority, l.user_id as locked_by,
+          CASE WHEN task_review.review_started_at IS NULL
+                THEN 0
+                ELSE EXTRACT(epoch FROM (task_review.reviewed_at - task_review.review_started_at)) END
+          AS reviewDuration FROM tasks
+          $joinClause
+  """
 
   /**
-    * Queries task clusters with the give query filters and number of points
+    * Queries task clusters with the given query filters and number of points
     *
-    * @param query - Query with the built in filters
+    * @param query - Query with the built-in filters
     * @param numberOfPoints - Number of points to return
     * @param params - SearchParameters to save with the search
     */
@@ -50,57 +64,55 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
       params: SearchParameters
   ): List[TaskCluster] = {
     this.withMRTransaction { implicit c =>
-      val (sql, parameters) = this.getTaskClusterQuery(query, numberOfPoints)
-      sql.insert(
-        0,
-        """SELECT kmeans, count(*) as numberOfPoints,
-              CASE WHEN count(*)=1 THEN (array_agg(taskId))[1] END as taskId,
-              CASE WHEN count(*)=1 THEN (array_agg(taskGeojson))[1] END as geojson,
-              CASE WHEN count(*)=1 THEN (array_agg(taskStatus))[1] END as taskStatus,
-              CASE WHEN count(*)=1 THEN (array_agg(taskPriority))[1] END as taskPriority,
-              ST_AsGeoJSON(ST_Centroid(ST_Collect(taskLocation))) AS geom,
-              ST_AsGeoJSON(ST_ConvexHull(ST_Collect(taskLocation))) AS bounding,
-              array_agg(distinct challengeIds) as challengeIds
+      val result = SQL(
+        s"""
+          WITH filtered_tasks AS (
+            SELECT tasks.*, 
+                   tasks.id as taskId, 
+                   tasks.status as taskStatus,
+                   tasks.priority as taskPriority, 
+                   tasks.geojson::TEXT as taskGeojson,
+                   task_review.*, 
+                   c.name as challengeName,
+                   tasks.location AS taskLocation,
+                   c.id AS challengeId,
+                   c.status AS challengeStatus
+            FROM tasks
+            $joinClause
+            WHERE ${query.filter.sql()}
+            AND tasks.location IS NOT NULL
+          ),
+          task_clusters AS (
+            SELECT *, 
+                   ST_ClusterKMeans(filtered_tasks.taskLocation, 
+                     (SELECT LEAST(COUNT(*), $numberOfPoints) FROM filtered_tasks)::Integer) OVER () AS kmeans
+            FROM filtered_tasks
+          )
+        
+          SELECT kmeans, 
+                 count(*) as numberOfPoints,
+                 CASE WHEN count(*)=1 THEN (array_agg(taskId))[1] END as taskId,
+                 CASE WHEN count(*)=1 THEN (array_agg(taskGeojson))[1] END as geojson,
+                 CASE WHEN count(*)=1 THEN (array_agg(taskStatus))[1] END as taskStatus,
+                 CASE WHEN count(*)=1 THEN (array_agg(taskPriority))[1] END as taskPriority,
+                 ST_AsGeoJSON(ST_Centroid(ST_Collect(taskLocation))) AS geom,
+                 ST_AsGeoJSON(ST_ConvexHull(ST_Collect(taskLocation))) AS bounding,
+                 array_agg(distinct challengeId) as challengeIds
+          FROM task_clusters
+          GROUP BY kmeans 
+          ORDER BY kmeans
         """
-      )
-      sql.append("GROUP BY kmeans ORDER BY kmeans")
-
-      val result = SQL(sql.toString).on(parameters: _*).as(this.getTaskClusterParser(params).*)
+      ).on(query.parameters(): _*).as(this.getTaskClusterParser(params).*)
 
       // Filter out invalid clusters.
       result.filter(_ != None).asInstanceOf[List[TaskCluster]]
     }
   }
 
-  private def getTaskClusterQuery(
-      query: Query,
-      numberOfPoints: Int
-  ): (StringBuilder, List[NamedParameter]) = {
-    val queryString = s"""FROM (
-            SELECT tasks.*, tasks.id as taskId, tasks.status as taskStatus,
-                   tasks.priority as taskPriority, tasks.geojson::TEXT as taskGeojson,
-                   task_review.*, c.name as challengeName,
-                   ST_ClusterKMeans(tasks.location,
-                      (SELECT
-                          CASE WHEN COUNT(*) < $numberOfPoints THEN COUNT(*) ELSE $numberOfPoints END
-                        FROM tasks
-                        $joinClause
-                        WHERE ${query.filter.sql()}
-                      )::Integer
-                    ) OVER () AS kmeans, tasks.location as taskLocation, tasks.parent_id as challengeIds
-            FROM tasks
-            $joinClause
-            WHERE ${query.filter.sql()}
-          ) AS ksub
-          WHERE location IS NOT NULL
-      """
-
-    return (new StringBuilder(queryString), query.parameters())
-  }
-
   /**
     * Queries tasks in a cluster given a clusterId and same query
     * @param query
+    * @param clusterId
     * @param numberOfPoints
     * @param c              an implicit connection
     * @return A list of clustered task points
@@ -111,38 +123,46 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
       numberOfPoints: Int
   )(implicit c: Option[Connection] = None): List[ClusteredPoint] = {
     this.withMRConnection { implicit c =>
-      val whereClause       = new StringBuilder
-      val (sql, parameters) = this.getTaskClusterQuery(query, numberOfPoints)
-      sql.insert(0, """SELECT *, cooperative_work_json::TEXT as cooperative_work,
-            ST_AsGeoJSON(taskLocation) AS location
-        """)
-      sql.append(s" AND kmeans = $clusterId")
-      SQL(sql.toString).as(this.pointParser.*)
+      val result = SQL(s"""
+          WITH filtered_tasks AS (
+            SELECT tasks.*, 
+                   tasks.id as taskId, 
+                   tasks.status as taskStatus,
+                   tasks.priority as taskPriority, 
+                   tasks.geojson::TEXT as taskGeojson,
+                   task_review.*, 
+                   c.name as challengeName,
+                   tasks.location AS taskLocation,
+                   c.id AS challengeId,
+                   c.status AS challengeStatus,
+                   l.user_id as locked_by
+            FROM tasks
+            $joinClause
+            WHERE ${query.filter.sql()}
+            AND tasks.location IS NOT NULL
+          ),
+          task_clusters AS (
+            SELECT *, 
+                   ST_ClusterKMeans(filtered_tasks.taskLocation, 
+                     (SELECT LEAST(COUNT(*), $numberOfPoints) FROM filtered_tasks)::Integer) OVER () AS kmeans
+            FROM filtered_tasks
+          )
+          SELECT *, cooperative_work_json::TEXT as cooperative_work,
+                 ST_AsGeoJSON(taskLocation) AS location
+          FROM task_clusters
+          WHERE kmeans = $clusterId
+      """).as(this.pointParser.*)
+
+      result
     }
   }
-  // sql query use to select list of ClusteredPoint data
-  private val selectTaskMarkersSQL = s"""
-    SELECT tasks.id, tasks.name, tasks.parent_id, c.name, tasks.instruction, tasks.status, tasks.mapped_on,
-          tasks.completed_time_spent, tasks.completed_by,
-          tasks.bundle_id, tasks.is_bundle_primary, tasks.cooperative_work_json::TEXT as cooperative_work,
-          task_review.review_status, task_review.review_requested_by, task_review.reviewed_by, task_review.reviewed_at,
-          task_review.review_started_at, task_review.meta_review_status, task_review.meta_reviewed_by,
-          task_review.meta_reviewed_at, task_review.additional_reviewers,
-          ST_AsGeoJSON(tasks.location) AS location, priority,
-          CASE WHEN task_review.review_started_at IS NULL
-                THEN 0
-                ELSE EXTRACT(epoch FROM (task_review.reviewed_at - task_review.review_started_at)) END
-          AS reviewDuration
-    FROM tasks
-    ${joinClause.toString()}
-  """
 
   /**
-    * Querys tasks in a bounding box
+    * Queries tasks in a bounding box
     *
     * @param query         Query to execute
-    * @param paging
-    * @param c             An available connection
+    * @param order         Order to apply
+    * @param paging        Paging to apply
     * @return The list of Tasks found within the bounding box and the total count of tasks if not bounding
     */
   def queryTasksInBoundingBox(
@@ -154,7 +174,7 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
       val count =
         query.build(s"""
             SELECT count(*) FROM tasks
-            ${joinClause.toString()}
+            $joinClause
           """).as(SqlParser.int("count").single)
 
       val resultsQuery = query.copy(order = order, paging = paging).build(selectTaskMarkersSQL)
@@ -165,7 +185,7 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
   }
 
   /**
-    * Querys task markers in a bounding box
+    * Queries task markers in a bounding box
     *
     * @param query         Query to execute
     * @param limit         Maximum number of results to return
@@ -186,8 +206,8 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
     int("kmeans") ~ int("numberOfPoints") ~ get[Option[Long]]("taskId") ~
       get[Option[Int]]("taskStatus") ~ get[Option[Int]]("taskPriority") ~ get[Option[String]](
       "geojson"
-    ) ~ str("geom") ~
-      str("bounding") ~ get[List[Long]]("challengeIds") map {
+    ) ~
+      str("geom") ~ str("bounding") ~ get[List[Long]]("challengeIds") map {
       case kmeans ~ totalPoints ~ taskId ~ taskStatus ~ taskPriority ~ geojson ~ geom ~ bounding ~ challengeIds =>
         val locationJSON = Json.parse(geom)
         val coordinates  = (locationJSON \ "coordinates").as[List[Double]]

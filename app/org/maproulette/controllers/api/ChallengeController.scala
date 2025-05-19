@@ -396,6 +396,40 @@ class ChallengeController @Inject() (
   }
 
   /**
+    * Gets available tasks within a bounding box
+    *
+    * @param challengeId  The challenge id that is the parent of the tasks that you would be searching for
+    * @param left         The left edge of the bounding box
+    * @param bottom       The bottom edge of the bounding box
+    * @param right        The right edge of the bounding box
+    * @param top          The top edge of the bounding box
+    * @param limit        The maximum number of nearby tasks to return
+    * @return
+    */
+  def getNearbyTasksWithinBoundingBox(
+      challengeId: Long,
+      left: Double,
+      bottom: Double,
+      right: Double,
+      top: Double,
+      limit: Int
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      val results = this.dal
+        .getNearbyTasksWithinBoundingBox(
+          User.userOrMocked(user),
+          challengeId,
+          left,
+          bottom,
+          right,
+          top,
+          limit
+        )
+      Ok(Json.toJson(results))
+    }
+  }
+
+  /**
     * Archive or unarchive a list of challenges
     *
     * @body ids  The list of challengeIds
@@ -1193,6 +1227,7 @@ class ChallengeController @Inject() (
     jsonBody = Utils.insertIntoJson(jsonBody, "updateTasks", false)(BooleanWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "changesetUrl", false)(BooleanWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "requireConfirmation", false)(BooleanWrites)
+    jsonBody = Utils.insertIntoJson(jsonBody, "requireRejectReason", false)(BooleanWrites)
     // if we can't find the parent ID, just use the user's default project instead
     (jsonBody \ "parent").asOpt[Long] match {
       case Some(v) => jsonBody

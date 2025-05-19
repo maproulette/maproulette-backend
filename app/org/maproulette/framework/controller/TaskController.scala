@@ -7,7 +7,12 @@ package org.maproulette.framework.controller
 import akka.util.ByteString
 import javax.inject.Inject
 import org.maproulette.data.ActionManager
-import org.maproulette.framework.service.{ServiceManager, TaskService, TaskClusterService}
+import org.maproulette.framework.service.{
+  ServiceManager,
+  TaskService,
+  TaskClusterService,
+  NotificationService
+}
 import org.maproulette.framework.psql.Paging
 import org.maproulette.framework.model.User
 import org.maproulette.framework.mixins.TaskJSONMixin
@@ -33,7 +38,8 @@ class TaskController @Inject() (
     taskClusterService: TaskClusterService,
     components: ControllerComponents,
     val taskDAL: TaskDAL,
-    val serviceManager: ServiceManager
+    val serviceManager: ServiceManager,
+    val notificationService: NotificationService
 ) extends AbstractController(components)
     with MapRouletteController
     with TaskJSONMixin {
@@ -240,4 +246,38 @@ class TaskController @Inject() (
         }
       }
     }
+
+  /**
+    * Request that a task be unlocked by sending a notification to the user who has it locked
+    *
+    * @param taskId The id of the task that is locked
+    * @return 200 OK with success message, or error status
+    */
+  def requestTaskUnlock(taskId: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      val task = taskDAL.retrieveById(taskId)
+
+      task match {
+        case Some(t) => {
+          val lockerId = taskDAL.lockItem(user, t)
+          if (lockerId != user.id) {
+            this.serviceManager.user.retrieve(lockerId) match {
+              case Some(lockUser) =>
+                this.serviceManager.notification
+                  .createTaskUnlockRequestNotification(user, lockUser, t)
+                Ok(Json.obj("message" -> "Unlock request notification has been sent successfully"))
+              case None =>
+                throw new IllegalAccessException(s"Your notification request encountered an error")
+            }
+          } else {
+            throw new IllegalAccessException(s"Your notification request encountered an error")
+          }
+        }
+        case None =>
+          throw new NotFoundException(
+            s"Task with $taskId not found, unable to process unlock notification request."
+          )
+      }
+    }
+  }
 }

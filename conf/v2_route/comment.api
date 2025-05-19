@@ -57,8 +57,23 @@ GET     /task/:id/comments                          @org.maproulette.framework.c
 #   - name: id
 #     in: path
 #     description: The ID of the User
+#   - name: searchTerm
+#     in: query
+#     description: An optional term to search within the comments
+#   - name: sort
+#     in: query
+#     description: The field by which to sort the comments (default is "created")
+#   - name: order
+#     in: query
+#     description: The order of sorting, either "ASC" or "DESC" (default is "DESC")
+#   - name: limit
+#     in: query
+#     description: The maximum number of comments to return (default is 25)
+#   - name: page
+#     in: query
+#     description: The page number for pagination (default is 0)
 ###
-GET     /comments/user/:id                          @org.maproulette.framework.controller.CommentController.findUserComments(id:Long, sort:String ?= "created", order:String ?= "DESC", limit:Int ?= 25, page:Int ?= 0)
+GET     /comments/user/:id                          @org.maproulette.framework.controller.CommentController.findUserComments(id:Long, searchTerm:Option[String], sort:String ?= "created", order:String ?= "DESC", limit:Int ?= 25, page:Int ?= 0)
 ###
 # tags: [ Comment ]
 # summary: Retrieves comments sent by a User
@@ -78,8 +93,23 @@ GET     /comments/user/:id                          @org.maproulette.framework.c
 #   - name: id
 #     in: path
 #     description: The ID of the User
+#   - name: searchTerm
+#     in: query
+#     description: An optional term to search within the comments
+#   - name: sort
+#     in: query
+#     description: The field by which to sort the comments (default is "created")
+#   - name: order
+#     in: query
+#     description: The order of sorting, either "ASC" or "DESC" (default is "DESC")
+#   - name: limit
+#     in: query
+#     description: The maximum number of comments to return (default is 25)
+#   - name: page
+#     in: query
+#     description: The page number for pagination (default is 0)
 ###
-GET     /challengeComments/user/:id                          @org.maproulette.framework.controller.CommentController.findUserChallengeComments(id:Long, sort:String ?= "created", order:String ?= "DESC", limit:Int ?= 25, page:Int ?= 0)
+GET     /challengeComments/user/:id                          @org.maproulette.framework.controller.CommentController.findUserChallengeComments(id:Long, searchTerm:Option[String], sort:String ?= "created", order:String ?= "DESC", limit:Int ?= 25, page:Int ?= 0)
 ###
 # tags: [ Comment ]
 # summary: Adds comment to Task

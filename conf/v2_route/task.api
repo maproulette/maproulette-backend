@@ -915,4 +915,65 @@ GET     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.c
 #   '200':
 #     description: Success
 ###
+# tags: [ Task ]
+# summary: Request task unlock
+# description: Sends a notification to the user who has locked a task requesting them to unlock it
+# responses:
+#   '200':
+#     description: Ok with a standard message
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
+#   '401':
+#     description: The user is not authorized to make this request
+#   '404':
+#     description: The task or user was not found
+# parameters:
+#   - name: taskId
+#     in: path
+#     description: The id of the task that is locked
+###
+PUT     /task/:taskId/unlock/request                @org.maproulette.framework.controller.TaskController.requestTaskUnlock(taskId:Long)
+###
 GET     /taskCluster                                @org.maproulette.framework.controller.TaskController.getTaskClusters(points:Int ?= 100)
+###
+# tags: [ Task ]
+# summary: Locks a bundle of tasks
+# description: Attempts to lock a set of tasks. If successful, returns the tasks that were locked. If not successful, returns the tasks that were not locked.
+# responses:
+#   '200':
+#     description: List of tasks that were locked or list of tasks that were not locked. Boolean indicates if the tasks were locked.
+#   '401':
+#     description: The user is not authorized to make this request
+# requestBody:
+#   description: A JSON array of task IDs to lock.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: array
+#         items:
+#           type: integer
+###
+POST    /task/bundle/lock                         @org.maproulette.controllers.api.TaskController.lockTaskBundle(taskIds:List[Long])
+###
+# tags: [ Task ]
+# summary: Unlocks a bundle of tasks
+# description: Unlocks the specified tasks in the bundle.
+# responses:
+#   '200':
+#     description: Success message
+#   '401':
+#     description: The user is not authorized to make this request
+# requestBody:
+#   description: A JSON array of task IDs to unlock.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: array
+#         items:
+#           type: integer
+###
+POST    /task/bundle/unlock                        @org.maproulette.controllers.api.TaskController.unlockTaskBundle(taskIds:List[Long])
