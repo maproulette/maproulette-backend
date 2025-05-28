@@ -18,7 +18,6 @@ import org.maproulette.framework.psql.filter.BaseParameter
 import org.maproulette.framework.model.{Task, TaskBundle, User}
 import org.maproulette.framework.mixins.{TaskParserMixin, Locking}
 import org.maproulette.framework.model.Task.STATUS_CREATED
-import org.maproulette.data.TaskType
 import play.api.db.Database
 
 // deprecated and to be removed after conversion
@@ -56,6 +55,7 @@ class TaskBundleRepository @Inject() (
       val tasks = this.taskDAL.retrieveListById(-1, 0)(taskIds)
 
       val failedTaskIds = taskIds.diff(tasks.map(_.id))
+
       // Checks to see if there where any tasks that were locked when the user tried to bundle them.
       if (failedTaskIds.nonEmpty) {
         throw new InvalidException(
