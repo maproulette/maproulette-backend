@@ -18,7 +18,6 @@ import org.maproulette.framework.psql.filter.BaseParameter
 import org.maproulette.framework.model.{Task, TaskBundle, User}
 import org.maproulette.framework.mixins.{TaskParserMixin, Locking}
 import org.maproulette.framework.model.Task.STATUS_CREATED
-import org.maproulette.data.TaskType
 import play.api.db.Database
 
 // deprecated and to be removed after conversion
@@ -53,19 +52,18 @@ class TaskBundleRepository @Inject() (
   ): TaskBundle = {
     // First transaction: verify tasks and create bundle
     val bundleId = this.withMRTransaction { implicit c =>
-      val lockedTasks = this.withListLocking(user, Some(TaskType())) { () =>
-        this.taskDAL.retrieveListById(-1, 0)(taskIds)
-      }
+      val tasks = this.taskDAL.retrieveListById(-1, 0)(taskIds)
 
-      val failedTaskIds = taskIds.diff(lockedTasks.map(_.id))
+      val failedTaskIds = taskIds.diff(tasks.map(_.id))
+
       // Checks to see if there where any tasks that were locked when the user tried to bundle them.
       if (failedTaskIds.nonEmpty) {
         throw new InvalidException(
-          s"Bundle creation failed because the following task IDs were locked: ${failedTaskIds.mkString(", ")}"
+          s"Bundle creation failed because the following task IDs were not found: ${failedTaskIds.mkString(", ")}"
         )
       }
 
-      verifyTasks(lockedTasks)
+      verifyTasks(tasks)
 
       val rowId =
         SQL"""INSERT INTO bundles (owner_id, name) VALUES (${user.id}, ${name})""".executeInsert()
@@ -85,12 +83,10 @@ class TaskBundleRepository @Inject() (
     // Second transaction: add tasks to bundle
     this.bundleTasks(user, bundleId, taskIds)
 
-    val lockedTasks = this.withListLocking(user, Some(TaskType())) { () =>
-      this.taskDAL.retrieveListById(-1, 0)(taskIds)
-    }
+    val tasks = this.taskDAL.retrieveListById(-1, 0)(taskIds)
 
     // Return the created bundle
-    TaskBundle(bundleId, user.id, taskIds, Some(lockedTasks))
+    TaskBundle(bundleId, user.id, taskIds, Some(tasks))
   }
 
   /**
@@ -184,11 +180,9 @@ class TaskBundleRepository @Inject() (
         case None =>
       }
 
-      val lockedTasks = this.withListLocking(user, Some(TaskType())) { () =>
-        this.taskDAL.retrieveListById(-1, 0)(taskIds)
-      }
+      val tasks = this.taskDAL.retrieveListById(-1, 0)(taskIds)
 
-      lockedTasks.foreach { task =>
+      tasks.foreach { task =>
         taskRepository.cacheManager.cache.remove(task.id)
       }
     }
