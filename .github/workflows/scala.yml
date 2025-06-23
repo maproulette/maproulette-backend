@@ -40,7 +40,7 @@ jobs:
     needs: generate_app_secret
     services:
       postgis:
-        image: postgis/postgis:16-3.4
+        image: postgis/postgis:17-3.5
         ports:
           - 5432:5432
         env:
@@ -74,7 +74,7 @@ jobs:
     needs: generate_app_secret
     services:
       postgis:
-        image: postgis/postgis:13-3.3
+        image: postgis/postgis:13-3.5
         ports:
           - 5432:5432
         env:

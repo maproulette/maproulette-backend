@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory
 
 import anorm.ToParameterValue
 import anorm.SqlParser.scalar
-import anorm._, postgresql._
+import anorm._
 import javax.inject.{Inject, Singleton}
 import org.maproulette.exception.InvalidException
 import org.maproulette.Config
