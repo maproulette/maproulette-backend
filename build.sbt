@@ -9,7 +9,7 @@ import scala.io.Source
 import scala.util.Using
 
 name := "MapRouletteAPI"
-scalaVersion := "2.13.10"
+scalaVersion := "2.13.16"
 Universal / packageName := "MapRouletteAPI"
 
 // Developers can run 'sbt format' to easily format their source; this is required to pass a PR build.
