@@ -251,30 +251,42 @@ case class Challenge(
             // Single feature case, wrap in a list
             List(boundsJson)
           }
-          
+
           if (boundingPolygons.isEmpty) {
             return false
           }
 
-          task.location match {
-            case Some(loc) =>
-              val taskLocation = Json.parse(loc)
-              val coordinates = (taskLocation \ "coordinates").as[List[Double]]
-              if (coordinates.length == 2) {
-                val x = coordinates(0) // longitude
-                val y = coordinates(1) // latitude
-                
-                // Check if point is in any of the polygons
-                boundingPolygons.exists(polygon => {
-                  isPointInPolygon(x, y, polygon)
-                })
-              } else {
-                false
+          // Extract coordinates from task geometries
+          try {
+            val geometries = Json.parse(task.geometries)
+            val features   = (geometries \ "features").as[List[JsValue]]
+            if (features.nonEmpty) {
+              val firstFeature = features.head
+              val geometry     = firstFeature \ "geometry"
+              (geometry \ "type").asOpt[String] match {
+                case Some("Point") =>
+                  val coordinates = (geometry \ "coordinates").as[List[Double]]
+                  if (coordinates.length == 2) {
+                    val x = coordinates(0) // longitude
+                    val y = coordinates(1) // latitude
+
+                    // Check if point is in any of the polygons
+                    boundingPolygons.exists(polygon => {
+                      isPointInPolygon(x, y, polygon)
+                    })
+                  } else {
+                    false
+                  }
+                case _ => false
               }
-            case None => false
+            } else {
+              false
+            }
+          } catch {
+            case _: Exception => false
           }
         } catch {
-          case e: Exception => 
+          case e: Exception =>
             false // Return false on any parsing error
         }
       case _ => false
@@ -289,18 +301,18 @@ case class Challenge(
       } else {
         (polygon \ "coordinates").as[List[List[List[Double]]]]
       }
-      
+
       // Use the first ring of the polygon (exterior ring)
       val ring = geometryCoordinates.head
-      
+
       if (ring.isEmpty) {
         return false
       }
-      
+
       var inside = false
-      var i = 0
-      var j = ring.size - 1
-      
+      var i      = 0
+      var j      = ring.size - 1
+
       // Ray casting algorithm to determine if point is in polygon
       while (i < ring.size) {
         // Get coordinates (ring points are in [longitude, latitude] format)
@@ -308,22 +320,22 @@ case class Challenge(
         val yi = ring(i)(1)
         val xj = ring(j)(0)
         val yj = ring(j)(1)
-        
+
         // Check if the ray crosses this edge
-        val intersect = ((yi > y) != (yj > y)) && 
-                         (x < (xj - xi) * (y - yi) / (yj - yi) + xi)
-        
+        val intersect = ((yi > y) != (yj > y)) &&
+          (x < (xj - xi) * (y - yi) / (yj - yi) + xi)
+
         if (intersect) {
           inside = !inside
         }
-        
+
         j = i
         i += 1
       }
-      
+
       inside
     } catch {
-      case e: Exception => 
+      case e: Exception =>
         // If any error occurs during parsing or calculation, return false
         false
     }
@@ -431,14 +443,14 @@ object Challenge extends CommonField {
       case Some(b) if StringUtils.isNotEmpty(b) && !StringUtils.equalsIgnoreCase(b, "[]") =>
         try {
           val boundsJson = Json.parse(b)
-          
+
           // Handle both array of features and single feature
           if (boundsJson.isInstanceOf[JsArray]) {
             val boundsArray = boundsJson.as[List[JsValue]]
             if (boundsArray.isEmpty) {
               return false
             }
-            
+
             // Each item should be a GeoJSON Feature with a Polygon geometry
             boundsArray.forall(item => isValidFeature(item))
           } else if (boundsJson.isInstanceOf[JsObject]) {
@@ -453,14 +465,14 @@ object Challenge extends CommonField {
       case _ => false
     }
   }
-  
+
   /**
-   * Helper method to validate a GeoJSON feature with Polygon geometry
-   */
+    * Helper method to validate a GeoJSON feature with Polygon geometry
+    */
   private def isValidFeature(item: JsValue): Boolean = {
     (item \ "type").asOpt[String].contains("Feature") &&
     ((item \ "geometry" \ "type").asOpt[String].contains("Polygon") &&
-     (item \ "geometry" \ "coordinates").validate[List[List[List[Double]]]].isSuccess)
+    (item \ "geometry" \ "coordinates").validate[List[List[List[Double]]]].isSuccess)
   }
 
   def emptyChallenge(ownerId: Long, parentId: Long): Challenge = Challenge(
