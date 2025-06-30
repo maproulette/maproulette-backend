@@ -46,8 +46,8 @@ or even [Rancher Desktop](https://rancherdesktop.io/).
 as similar to production as possible. It also handles fetching x8664 and aarch64 builds automatically.
 Follow the installation steps and install the JDK and sbt using a command similar to:
 
-* `sdk install java 17.0.12-tem`
-* `sdk install sbt 1.10.1`
+* `sdk install java 17.0.15-tem`
+* `sdk install sbt 1.11.2`
 
 #### Validation
 
@@ -70,7 +70,7 @@ MapRoulette development assumes a database is running on the local system within
 
 Below is a sample command to run a PostGIS database within a container and sets necessary ports/credentials.
 
-* **NOTE: Apple Silicon:** Use `ghcr.io/baosystems/postgis:13-3.3` docker image since postGIS does not yet publish aarch64 images.
+* **NOTE: Apple Silicon:** Use `ghcr.io/baosystems/postgis:17-3.5` docker image since postGIS does not yet publish aarch64 images.
 * NOTE: No volume mount is used so the database's data will be deleted when the container is deleted.
   If you'd like to keep the data external of the container, be sure to add `--volume "/some/path/here/postgres-data":/var/lib/postgresql/data` to the docker call.
 
@@ -84,7 +84,7 @@ docker run \
     -e POSTGRES_DB=maproulette-db \
     -e POSTGRES_USER=maproulette-db-user \
     -e POSTGRES_PASSWORD=maproulette-db-pass \
-    postgis/postgis:13-3.3
+    postgis/postgis:17-3.5
 ```
 
 * NOTE: If there's a port conflict, you probably have another pg instance running. Check with `docker ps`.
@@ -197,12 +197,12 @@ Stop and start the MapRoulette server to load the updated configuration.
 
 #### Run the MapRoulette front-end
 
-Clone the maproulette3 repository and follow the steps in the [DEVELOPMENT.md "Run the UI from Docker" section](https://github.com/maproulette/maproulette3/blob/develop/DEVELOPMENT.md#run-the-ui-from-docker).
+Clone the maproulette3 repository and follow the steps in the [DEVELOPMENT.md "Run the UI from Docker" section](https://github.com/maproulette/maproulette3/blob/master/DEVELOPMENT.md#run-the-ui-from-docker).
 Be sure to execute the `docker run` step that starts the UI.
 
 #### Step 3 - Validation
 
-* Open <http://localhost:3000/> and attempt to log in
+* Open <http://127.0.0.1::3000/> and attempt to log in
   * This should redirect to the development OpenStreetMap server and redirect back to MapRoulette
   * The username should show in the top-right corner
 * Create a new Project (this is the easiest way to verify), or a new challenge, or update a project/challenge/task,

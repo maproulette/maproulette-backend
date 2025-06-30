@@ -25,7 +25,7 @@ class LeaderboardRepositorySpec(implicit val application: Application) extends F
       // Check for everything
       val results = this.repository.queryUserLeaderboard(
         Query.simple(List()),
-        userId => List(new LeaderboardChallenge(userId, "name", 1))
+        userId => List(new LeaderboardChallenge(userId, "name", 1, 1))
       )
       results.size mustEqual 4
 
@@ -49,7 +49,7 @@ class LeaderboardRepositorySpec(implicit val application: Application) extends F
             )
           )
         ),
-        userId => List(new LeaderboardChallenge(userId, "name", 1))
+        userId => List(new LeaderboardChallenge(userId, "name", 1, 1))
       )
       results2.size mustEqual 2
 
@@ -73,7 +73,7 @@ class LeaderboardRepositorySpec(implicit val application: Application) extends F
             )
           )
         ),
-        userId => List(new LeaderboardChallenge(userId, "name", 1))
+        userId => List(new LeaderboardChallenge(userId, "name", 1, 1))
       )
       results3.size mustEqual 2
     }

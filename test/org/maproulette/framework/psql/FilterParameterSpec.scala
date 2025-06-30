@@ -296,8 +296,8 @@ object FilterParameterSpec {
       size: Int = FilterParameter.DEFAULT_METAPHONE_SIZE,
       keyPrefix: String = ""
   ) = s"""($key <> '' AND
-      (LEVENSHTEIN(LOWER($key), LOWER({$keyPrefix$key})) < $score OR
-      METAPHONE(LOWER($key), 4) = METAPHONE(LOWER({$keyPrefix$key}), $size) OR
+      (LEVENSHTEIN(LOWER(LEFT($key, 255)), LOWER({$keyPrefix$key})) < $score OR
+      METAPHONE(LOWER(LEFT($key, 255)), $size) = METAPHONE(LOWER({$keyPrefix$key}), $size) OR
       SOUNDEX(LOWER($key)) = SOUNDEX(LOWER({$keyPrefix$key})))
       )"""
 }
