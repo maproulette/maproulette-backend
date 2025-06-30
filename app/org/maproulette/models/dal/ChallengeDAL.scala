@@ -775,7 +775,7 @@ class ChallengeDAL @Inject() (
 
           val requireConfirmation = (updates \ "requireConfirmation")
             .asOpt[Boolean]
-            .getOrElse(cachedItem.extra.requireConfirmation)
+            .getOrElse(cachedItem.requireConfirmation)
 
           val requireRejectReason = (updates \ "requireRejectReason")
             .asOpt[Boolean]

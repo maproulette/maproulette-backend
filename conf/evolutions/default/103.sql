@@ -1,5 +1,3 @@
--- Adds priority bounds columns to challenges table
--- ---------------------------------------
 -- !Ups
 ALTER TABLE challenges ADD COLUMN high_priority_bounds character varying NULL;
 ALTER TABLE challenges ADD COLUMN medium_priority_bounds character varying NULL;
