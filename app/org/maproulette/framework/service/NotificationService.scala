@@ -126,6 +126,18 @@ class NotificationService @Inject() (
   }
 
   /**
+    * Marks as unread the given notifications owned by the given userId
+    *
+    * @param userId          The id of the user that owns the notifications
+    * @param user            The user making the request
+    * @param notificationIds The ids of the notifications to be marked unread
+    */
+  def markNotificationsUnread(userId: Long, user: User, notificationIds: List[Long]): Boolean = {
+    permission.hasWriteAccess(UserType(), user)(userId)
+    this.repository.markNotificationsUnread(userId, notificationIds)
+  }
+
+  /**
     * Deletes the given notifications owned by the given userId
     *
     * @param userId          The id of the user that owns the notifications
