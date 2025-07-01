@@ -257,7 +257,7 @@ case class Challenge(
           }
 
           // Extract coordinates from task geometries
-                    try {
+          try {
             val geometries = Json.parse(task.geometries)
             val features   = (geometries \ "features").as[List[JsValue]]
             if (features.nonEmpty) {
@@ -283,35 +283,38 @@ case class Challenge(
   /**
     * Helper method to check if a geometry (Point, LineString, Polygon, etc.) is within any of the bounding polygons.
     * This method handles all GeoJSON geometry types including collections.
-    * 
+    *
     * @param geometry The GeoJSON geometry to check
     * @param boundingPolygons List of bounding polygon GeoJSON features
     * @return true if any part of the geometry is within any bounding polygon
     */
-  private def checkGeometryWithinBounds(geometry: JsValue, boundingPolygons: List[JsValue]): Boolean = {
+  private def checkGeometryWithinBounds(
+      geometry: JsValue,
+      boundingPolygons: List[JsValue]
+  ): Boolean = {
     try {
-    (geometry \ "type").asOpt[String] match {
-      case Some("Point") =>
-        val coordinates = (geometry \ "coordinates").as[List[Double]]
-        if (coordinates.length == 2) {
-          val x = coordinates(0) // longitude
-          val y = coordinates(1) // latitude
-          boundingPolygons.exists(polygon => isPointInPolygon(x, y, polygon))
-        } else {
-          false
-        }
-      case Some("LineString") =>
-        val coordinates = (geometry \ "coordinates").as[List[List[Double]]]
-        coordinates.exists(coord => {
-          if (coord.length == 2) {
-            val x = coord(0) // longitude
-            val y = coord(1) // latitude
+      (geometry \ "type").asOpt[String] match {
+        case Some("Point") =>
+          val coordinates = (geometry \ "coordinates").as[List[Double]]
+          if (coordinates.length == 2) {
+            val x = coordinates(0) // longitude
+            val y = coordinates(1) // latitude
             boundingPolygons.exists(polygon => isPointInPolygon(x, y, polygon))
           } else {
             false
           }
-        })
-              case Some("GeometryCollection") =>
+        case Some("LineString") =>
+          val coordinates = (geometry \ "coordinates").as[List[List[Double]]]
+          coordinates.exists(coord => {
+            if (coord.length == 2) {
+              val x = coord(0) // longitude
+              val y = coord(1) // latitude
+              boundingPolygons.exists(polygon => isPointInPolygon(x, y, polygon))
+            } else {
+              false
+            }
+          })
+        case Some("GeometryCollection") =>
           val geometries = (geometry \ "geometries").as[List[JsValue]]
           geometries.exists(subGeometry => checkGeometryWithinBounds(subGeometry, boundingPolygons))
         case _ => false
