@@ -83,6 +83,17 @@ class NotificationController @Inject() (
       }
     }
 
+  def markNotificationsUnread(userId: Long): Action[JsValue] =
+    Action.async(bodyParsers.json) { implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        val notificationIds = (request.body \ "notificationIds").as[List[Long]]
+        if (!notificationIds.isEmpty) {
+          this.service.markNotificationsUnread(userId, user, notificationIds)
+        }
+        Ok(Json.toJson(StatusMessage("OK", JsString(s"Notifications marked as unread"))))
+      }
+    }
+
   def deleteNotifications(userId: Long): Action[JsValue] =
     Action.async(bodyParsers.json) { implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>

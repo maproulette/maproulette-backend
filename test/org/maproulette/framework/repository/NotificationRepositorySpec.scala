@@ -111,6 +111,33 @@ class NotificationRepositorySpec(implicit val application: Application) extends 
       readNotifications.head.isRead mustEqual true
     }
 
+    "mark notifications as unread" taggedAs NotificationTag in {
+      val freshUser = this.serviceManager.user.create(
+        this.getTestUser(199911115, "MarkNotificationUnreadOUser"),
+        User.superUser
+      )
+      this.repository.create(this.getTestNotification(freshUser.id))
+
+      val initialNotifications = this.repository.getUserNotifications(freshUser.id)
+      initialNotifications.size mustEqual 1
+      initialNotifications.head.isRead mustEqual false
+
+      // First mark as read
+      this.repository.markNotificationsRead(freshUser.id, initialNotifications.map(_.id))
+      val readNotifications =
+        this.repository.getUserNotifications(freshUser.id, isRead = Some(true))
+      readNotifications.size mustEqual 1
+      readNotifications.head.isRead mustEqual true
+
+      // Then mark as unread
+      this.repository.markNotificationsUnread(freshUser.id, readNotifications.map(_.id))
+      val unreadAgainNotifications =
+        this.repository.getUserNotifications(freshUser.id, isRead = Some(false))
+      unreadAgainNotifications.size mustEqual 1
+      unreadAgainNotifications.head.id mustEqual initialNotifications.head.id
+      unreadAgainNotifications.head.isRead mustEqual false
+    }
+
     "delete notifications" taggedAs NotificationTag in {
       val freshUser = this.serviceManager.user.create(
         this.getTestUser(199911114, "DeleteNotificationsOUser"),
