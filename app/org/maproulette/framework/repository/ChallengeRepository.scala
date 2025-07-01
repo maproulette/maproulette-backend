@@ -240,6 +240,9 @@ object ChallengeRepository {
       get[Option[String]]("challenges.high_priority_rule") ~
       get[Option[String]]("challenges.medium_priority_rule") ~
       get[Option[String]]("challenges.low_priority_rule") ~
+      get[Option[String]]("challenges.high_priority_bounds") ~
+      get[Option[String]]("challenges.medium_priority_bounds") ~
+      get[Option[String]]("challenges.low_priority_bounds") ~
       get[Int]("challenges.default_zoom") ~
       get[Int]("challenges.min_zoom") ~
       get[Int]("challenges.max_zoom") ~
@@ -273,7 +276,7 @@ object ChallengeRepository {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
             checkin_source ~ overpassql ~ overpassTargetType ~ remoteGeoJson ~ status ~ statusMessage ~ defaultPriority ~ highPriorityRule ~
-            mediumPriorityRule ~ lowPriorityRule ~ defaultZoom ~ minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~
+            mediumPriorityRule ~ lowPriorityRule ~ highPriorityBounds ~ mediumPriorityBounds ~ lowPriorityBounds ~ defaultZoom ~ minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~
             customBasemap ~ updateTasks ~ exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ requiresLocal ~ location ~ bounding ~
             deleted ~ isGlobal ~ virtualParents ~ isArchived ~ reviewSetting ~ datasetUrl ~ requireConfirmation ~ requireRejectReason ~ taskWidgetLayout ~ systemArchivedAt =>
@@ -287,6 +290,18 @@ object ChallengeRepository {
         }
         val lpr = lowPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
+          case r                                                                => r
+        }
+        val hpb = highPriorityBounds match {
+          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
+          case r                                                                => r
+        }
+        val mpb = mediumPriorityBounds match {
+          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
+          case r                                                                => r
+        }
+        val lpb = lowPriorityBounds match {
+          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
           case r                                                                => r
         }
 
@@ -317,7 +332,7 @@ object ChallengeRepository {
             requiresLocal
           ),
           ChallengeCreation(overpassql, remoteGeoJson, overpassTargetType),
-          ChallengePriority(defaultPriority, hpr, mpr, lpr),
+          ChallengePriority(defaultPriority, hpr, mpr, lpr, hpb, mpb, lpb),
           ChallengeExtra(
             defaultZoom,
             minZoom,

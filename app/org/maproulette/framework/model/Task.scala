@@ -90,6 +90,16 @@ case class Task(
       element = updatedTask.get
     }
 
+    // Check using bounds first, which don't require geometry properties
+    if (parent.isWithinBounds(parent.priority.highPriorityBounds, element)) {
+      return Challenge.PRIORITY_HIGH
+    } else if (parent.isWithinBounds(parent.priority.mediumPriorityBounds, element)) {
+      return Challenge.PRIORITY_MEDIUM
+    } else if (parent.isWithinBounds(parent.priority.lowPriorityBounds, element)) {
+      return Challenge.PRIORITY_LOW
+    }
+
+    // Then check using rules
     val matchingList = getGeometryProperties().flatMap { props =>
       if (parent.isHighPriority(props, element)) {
         Some(Challenge.PRIORITY_HIGH)

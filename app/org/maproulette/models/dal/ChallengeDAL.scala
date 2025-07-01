@@ -99,6 +99,9 @@ class ChallengeDAL @Inject() (
       get[Option[String]]("challenges.high_priority_rule") ~
       get[Option[String]]("challenges.medium_priority_rule") ~
       get[Option[String]]("challenges.low_priority_rule") ~
+      get[Option[String]]("challenges.high_priority_bounds") ~
+      get[Option[String]]("challenges.medium_priority_bounds") ~
+      get[Option[String]]("challenges.low_priority_bounds") ~
       get[Int]("challenges.default_zoom") ~
       get[Int]("challenges.min_zoom") ~
       get[Int]("challenges.max_zoom") ~
@@ -132,7 +135,7 @@ class ChallengeDAL @Inject() (
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
             checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~ status ~ statusMessage ~
-            defaultPriority ~ highPriorityRule ~ mediumPriorityRule ~ lowPriorityRule ~ defaultZoom ~
+            defaultPriority ~ highPriorityRule ~ mediumPriorityRule ~ lowPriorityRule ~ highPriorityBounds ~ mediumPriorityBounds ~ lowPriorityBounds ~ defaultZoom ~
             minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~ customBasemap ~ updateTasks ~
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
@@ -148,6 +151,18 @@ class ChallengeDAL @Inject() (
         }
         val lpr = lowPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
+          case r                                                                => r
+        }
+        val hpb = highPriorityBounds match {
+          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
+          case r                                                                => r
+        }
+        val mpb = mediumPriorityBounds match {
+          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
+          case r                                                                => r
+        }
+        val lpb = lowPriorityBounds match {
+          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
           case r                                                                => r
         }
 
@@ -178,7 +193,7 @@ class ChallengeDAL @Inject() (
             requiresLocal
           ),
           ChallengeCreation(overpassql, remoteGeoJson, overpassTargetType),
-          ChallengePriority(defaultPriority, hpr, mpr, lpr),
+          ChallengePriority(defaultPriority, hpr, mpr, lpr, hpb, mpb, lpb),
           ChallengeExtra(
             defaultZoom,
             minZoom,
@@ -243,6 +258,9 @@ class ChallengeDAL @Inject() (
       get[Option[String]]("challenges.high_priority_rule") ~
       get[Option[String]]("challenges.medium_priority_rule") ~
       get[Option[String]]("challenges.low_priority_rule") ~
+      get[Option[String]]("challenges.high_priority_bounds") ~
+      get[Option[String]]("challenges.medium_priority_bounds") ~
+      get[Option[String]]("challenges.low_priority_bounds") ~
       get[Int]("challenges.default_zoom") ~
       get[Int]("challenges.min_zoom") ~
       get[Int]("challenges.max_zoom") ~
@@ -280,7 +298,7 @@ class ChallengeDAL @Inject() (
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~
             checkin_comment ~ checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~
             status ~ statusMessage ~ defaultPriority ~ highPriorityRule ~ mediumPriorityRule ~
-            lowPriorityRule ~ defaultZoom ~ minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~
+            lowPriorityRule ~ highPriorityBounds ~ mediumPriorityBounds ~ lowPriorityBounds ~ defaultZoom ~ minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~
             customBasemap ~ updateTasks ~ exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~
             preferredReviewTags ~ limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~
             dataOriginDate ~ location ~ bounding ~ requiresLocal ~ deleted ~ isGlobal ~ virtualParents ~
@@ -296,6 +314,18 @@ class ChallengeDAL @Inject() (
         }
         val lpr = lowPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
+          case r                                                                => r
+        }
+        val hpb = highPriorityBounds match {
+          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
+          case r                                                                => r
+        }
+        val mpb = mediumPriorityBounds match {
+          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
+          case r                                                                => r
+        }
+        val lpb = lowPriorityBounds match {
+          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
           case r                                                                => r
         }
 
@@ -326,7 +356,7 @@ class ChallengeDAL @Inject() (
             requiresLocal
           ),
           ChallengeCreation(overpassql, remoteGeoJson, overpassTargetType),
-          ChallengePriority(defaultPriority, hpr, mpr, lpr),
+          ChallengePriority(defaultPriority, hpr, mpr, lpr, hpb, mpb, lpb),
           ChallengeExtra(
             defaultZoom,
             minZoom,
@@ -499,24 +529,25 @@ class ChallengeDAL @Inject() (
           SQL"""INSERT INTO challenges (name, owner_id, parent_id, difficulty, description, info_link, blurb,
                                       instruction, enabled, featured, checkin_comment, checkin_source,
                                       overpass_ql, remote_geo_json, overpass_target_type, status, status_message, default_priority, high_priority_rule,
-                                      medium_priority_rule, low_priority_rule, default_zoom, min_zoom, max_zoom,
+                                      medium_priority_rule, low_priority_rule, high_priority_bounds, medium_priority_bounds, low_priority_bounds, default_zoom, min_zoom, max_zoom,
                                       default_basemap, default_basemap_id, custom_basemap, updatetasks, exportable_properties,
                                       osm_id_property, task_bundle_id_property, last_task_refresh, data_origin_date, preferred_tags, preferred_review_tags,
                                       limit_tags, limit_review_tags, task_styles, requires_local, is_archived, review_setting, dataset_url, require_confirmation, require_reject_reason, task_widget_layout)
-              VALUES (${challenge.name}, ${challenge.general.owner}, ${challenge.general.parent}, ${challenge.general.difficulty},
+              VALUES (${challenge.name}, ${challenge.general.owner}, ${challenge.general.parent},
+                      ${challenge.general.difficulty}, 
                       ${challenge.description}, ${challenge.infoLink}, ${challenge.general.blurb}, ${challenge.general.instruction},
                       ${challenge.general.enabled}, ${challenge.general.featured},
                       ${challenge.general.checkinComment}, ${challenge.general.checkinSource}, ${challenge.creation.overpassQL}, ${challenge.creation.remoteGeoJson},
                       ${challenge.creation.overpassTargetType}, ${challenge.status},
                       ${challenge.statusMessage}, ${challenge.priority.defaultPriority}, ${challenge.priority.highPriorityRule},
-                      ${challenge.priority.mediumPriorityRule}, ${challenge.priority.lowPriorityRule}, ${challenge.extra.defaultZoom}, ${challenge.extra.minZoom},
+                      ${challenge.priority.mediumPriorityRule}, ${challenge.priority.lowPriorityRule}, ${challenge.priority.highPriorityBounds}, ${challenge.priority.mediumPriorityBounds}, ${challenge.priority.lowPriorityBounds}, ${challenge.extra.defaultZoom}, ${challenge.extra.minZoom},
                       ${challenge.extra.maxZoom}, ${challenge.extra.defaultBasemap}, ${challenge.extra.defaultBasemapId}, ${challenge.extra.customBasemap}, ${challenge.extra.updateTasks},
                       ${challenge.extra.exportableProperties}, ${challenge.extra.osmIdProperty}, ${challenge.extra.taskBundleIdProperty},
                       ${challenge.lastTaskRefresh.getOrElse(DateTime.now()).toString}::timestamptz,
                       ${challenge.dataOriginDate.getOrElse(DateTime.now()).toString}::timestamptz,
                       ${challenge.extra.preferredTags}, ${challenge.extra.preferredReviewTags}, ${challenge.extra.limitTags},
                       ${challenge.extra.limitReviewTags}, ${challenge.extra.taskStyles}, ${challenge.general.requiresLocal}, ${challenge.extra.isArchived},
-                      ${challenge.extra.reviewSetting}, ${challenge.extra.datasetUrl}, ${challenge.extra.requireConfirmation}, ${challenge.requireRejectReason},
+                      ${challenge.extra.reviewSetting}, ${challenge.extra.datasetUrl}, ${challenge.requireConfirmation}, ${challenge.requireRejectReason},
                       ${asJson(challenge.extra.taskWidgetLayout.getOrElse(Json.parse("{}")))}
                       ) ON CONFLICT(parent_id, LOWER(name)) DO NOTHING RETURNING #${this.retrieveColumns}"""
             .as(this.parser.*)
@@ -595,6 +626,28 @@ class ChallengeDAL @Inject() (
           case x if Challenge.isValidRule(Some(x)) => x
           case _                                   => ""
         }
+        val highPriorityBounds = (updates \ "highPriorityBounds")
+          .asOpt[String]
+          .orElse((updates \ "highPriorityBounds").asOpt[JsValue].map(_.toString))
+          .getOrElse(cachedItem.priority.highPriorityBounds.getOrElse("")) match {
+          case x if Challenge.isValidBounds(Some(x)) => x
+          case _                                     => ""
+        }
+        val mediumPriorityBounds = (updates \ "mediumPriorityBounds")
+          .asOpt[String]
+          .orElse((updates \ "mediumPriorityBounds").asOpt[JsValue].map(_.toString))
+          .getOrElse(cachedItem.priority.mediumPriorityBounds.getOrElse("")) match {
+          case x if Challenge.isValidBounds(Some(x)) => x
+          case _                                     => ""
+        }
+        val lowPriorityBounds = (updates \ "lowPriorityBounds")
+          .asOpt[String]
+          .orElse((updates \ "lowPriorityBounds").asOpt[JsValue].map(_.toString))
+          .getOrElse(cachedItem.priority.lowPriorityBounds.getOrElse("")) match {
+          case x if Challenge.isValidBounds(Some(x)) => x
+          case _                                     => ""
+        }
+
         this.withMRTransaction { implicit c =>
           val name     = (updates \ "name").asOpt[String].getOrElse(cachedItem.name)
           val ownerId  = (updates \ "ownerId").asOpt[Long].getOrElse(cachedItem.general.owner)
@@ -648,6 +701,18 @@ class ChallengeDAL @Inject() (
               !StringUtils.equalsIgnoreCase(
                 lowPriorityRule,
                 cachedItem.priority.lowPriorityRule.getOrElse("")
+              ) ||
+              !StringUtils.equalsIgnoreCase(
+                highPriorityBounds,
+                cachedItem.priority.highPriorityBounds.getOrElse("")
+              ) ||
+              !StringUtils.equalsIgnoreCase(
+                mediumPriorityBounds,
+                cachedItem.priority.mediumPriorityBounds.getOrElse("")
+              ) ||
+              !StringUtils.equalsIgnoreCase(
+                lowPriorityBounds,
+                cachedItem.priority.lowPriorityBounds.getOrElse("")
               ) ||
               defaultPriority != cachedItem.priority.defaultPriority) {
             updatedPriorityRules = true
@@ -710,7 +775,7 @@ class ChallengeDAL @Inject() (
 
           val requireConfirmation = (updates \ "requireConfirmation")
             .asOpt[Boolean]
-            .getOrElse(cachedItem.extra.requireConfirmation)
+            .getOrElse(cachedItem.requireConfirmation)
 
           val requireRejectReason = (updates \ "requireRejectReason")
             .asOpt[Boolean]
@@ -745,6 +810,21 @@ class ChallengeDAL @Inject() (
               Option.empty[String]
             } else {
               Some(lowPriorityRule)
+            }},
+                  high_priority_bounds = ${if (StringUtils.isEmpty(highPriorityBounds)) {
+              Option.empty[String]
+            } else {
+              Some(highPriorityBounds)
+            }},
+                  medium_priority_bounds = ${if (StringUtils.isEmpty(mediumPriorityBounds)) {
+              Option.empty[String]
+            } else {
+              Some(mediumPriorityBounds)
+            }},
+                  low_priority_bounds = ${if (StringUtils.isEmpty(lowPriorityBounds)) {
+              Option.empty[String]
+            } else {
+              Some(lowPriorityBounds)
             }},
                   default_zoom = $defaultZoom, min_zoom = $minZoom, max_zoom = $maxZoom, default_basemap = $defaultBasemap, default_basemap_id = $defaultBasemapId,
                   custom_basemap = $customBasemap, updatetasks = $updateTasks, exportable_properties = $exportableProperties,
@@ -813,38 +893,39 @@ class ChallengeDAL @Inject() (
       // make sure that at least one of the challenges is valid
       if (overrideValidation || Challenge.isValidRule(challenge.priority.highPriorityRule) ||
           Challenge.isValidRule(challenge.priority.mediumPriorityRule) ||
-          Challenge.isValidRule(challenge.priority.lowPriorityRule)) {
+          Challenge.isValidRule(challenge.priority.lowPriorityRule) ||
+          Challenge.isValidBounds(challenge.priority.highPriorityBounds) ||
+          Challenge.isValidBounds(challenge.priority.mediumPriorityBounds) ||
+          Challenge.isValidBounds(challenge.priority.lowPriorityBounds)) {
         var pointer                  = 0
         var currentTasks: List[Task] = List.empty
         do {
           currentTasks =
             listChildren(DEFAULT_NUM_CHILDREN_LIST, pointer * DEFAULT_NUM_CHILDREN_LIST)
-          val highPriorityIDs = currentTasks
-            .filter(_.getTaskPriority(challenge) == Challenge.PRIORITY_HIGH)
-            .map(_.id)
-            .mkString(",")
-          val mediumPriorityIDs = currentTasks
-            .filter(_.getTaskPriority(challenge) == Challenge.PRIORITY_MEDIUM)
-            .map(_.id)
-            .mkString(",")
-          val lowPriorityIDs = currentTasks
-            .filter(_.getTaskPriority(challenge) == Challenge.PRIORITY_LOW)
-            .map(_.id)
-            .mkString(",")
 
-          if (highPriorityIDs.nonEmpty) {
-            SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_HIGH} WHERE id IN (#$highPriorityIDs)"""
-              .executeUpdate()
-          }
-          if (mediumPriorityIDs.nonEmpty) {
-            SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_MEDIUM} WHERE id IN (#$mediumPriorityIDs)"""
-              .executeUpdate()
-          }
-          if (lowPriorityIDs.nonEmpty) {
-            SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_LOW} WHERE id IN (#$lowPriorityIDs)"""
-              .executeUpdate()
-          }
+          // Let the task model determine the priorities based on both rules and bounds
+          val highPriorityTasks =
+            currentTasks.filter(_.getTaskPriority(challenge) == Challenge.PRIORITY_HIGH)
+          val mediumPriorityTasks =
+            currentTasks.filter(_.getTaskPriority(challenge) == Challenge.PRIORITY_MEDIUM)
+          val lowPriorityTasks =
+            currentTasks.filter(_.getTaskPriority(challenge) == Challenge.PRIORITY_LOW)
 
+          if (highPriorityTasks.nonEmpty) {
+            val highPriorityIds = highPriorityTasks.map(_.id).mkString(",")
+            SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_HIGH} WHERE id IN (#$highPriorityIds)"""
+              .executeUpdate()
+          }
+          if (mediumPriorityTasks.nonEmpty) {
+            val mediumPriorityIds = mediumPriorityTasks.map(_.id).mkString(",")
+            SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_MEDIUM} WHERE id IN (#$mediumPriorityIds)"""
+              .executeUpdate()
+          }
+          if (lowPriorityTasks.nonEmpty) {
+            val lowPriorityIds = lowPriorityTasks.map(_.id).mkString(",")
+            SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_LOW} WHERE id IN (#$lowPriorityIds)"""
+              .executeUpdate()
+          }
           pointer += 1
         } while (currentTasks.size >= DEFAULT_NUM_CHILDREN_LIST)
         this.taskDAL.clearCaches
