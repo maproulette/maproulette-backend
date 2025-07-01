@@ -216,7 +216,7 @@ class NotificationServiceSpec(implicit val application: Application) extends Fra
 
     "mark notifications as unread" taggedAs NotificationTag in {
       val freshUser = this.serviceManager.user.create(
-        this.getTestUser(299911125, "Service_markNotificationUnreadOUser"),
+        this.getTestUser(299911134, "Service_markNotificationUnreadOUser"),
         User.superUser
       )
       this.repository.create(this.getTestNotification(freshUser.id))
@@ -257,12 +257,13 @@ class NotificationServiceSpec(implicit val application: Application) extends Fra
       val notifications = this.service.getUserNotifications(this.defaultUser.id, this.defaultUser)
 
       val freshUser = this.serviceManager.user.create(
-        this.getTestUser(299911126, "Service_markNotificationsUnreadFailureOUser"),
+        this.getTestUser(299911133, "Service_markNotificationsUnreadFailureOUser"),
         User.superUser
       )
 
       an[IllegalAccessException] should be thrownBy
-        this.service.markNotificationsUnread(this.defaultUser.id, freshUser, notifications.map(_.id))
+        this.service
+          .markNotificationsUnread(this.defaultUser.id, freshUser, notifications.map(_.id))
     }
 
     "delete notifications" taggedAs NotificationTag in {
