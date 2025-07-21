@@ -389,6 +389,26 @@ class TaskController @Inject() (
       } else {
         // Use bulk locking for better performance
         this.dal.lockItems(user, tasks)
+        
+        tasks.foreach { task =>
+          this.serviceManager.challenge.retrieve(task.parent) match {
+            case Some(challenge) =>
+              this.serviceManager.project.retrieve(challenge.general.parent) match {
+                case Some(project) =>
+                  webSocketProvider.sendMessage(
+                    WebSocketMessages.taskClaimed(
+                      task,
+                      WebSocketMessages.challengeSummary(challenge),
+                      WebSocketMessages.projectSummary(project),
+                      WebSocketMessages.userSummary(user)
+                    )
+                  )
+                case None => 
+              }
+            case None => 
+          }
+        }
+        
         Ok(Json.toJson(tasks))
       }
     }
@@ -410,6 +430,14 @@ class TaskController @Inject() (
       } else {
         // Use bulk locking for better performance
         this.dal.unlockItems(user, tasks)
+        
+        // Send WebSocket notifications for each unlocked task
+        tasks.foreach { task =>
+          webSocketProvider.sendMessage(
+            WebSocketMessages.taskReleased(task, Some(WebSocketMessages.userSummary(user)))
+          )
+        }
+        
         Ok(Json.toJson(tasks))
       }
     }
