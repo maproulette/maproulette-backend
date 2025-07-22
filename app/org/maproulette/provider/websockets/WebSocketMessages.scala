@@ -150,8 +150,14 @@ object WebSocketMessages {
       Some(userData)
     )
 
+  def tasksCompleted(tasksData: List[Task], userData: Option[UserSummary]): List[ServerMessage] =
+    createTasksMessage("tasks-completed", tasksData, None, None, userData)
+
   def taskUpdated(taskData: Task, userData: Option[UserSummary]): List[ServerMessage] =
     createTaskMessage("task-update", taskData, None, None, userData)
+
+  def tasksUpdated(tasksData: List[Task], userData: Option[UserSummary]): List[ServerMessage] =
+    createTasksMessage("tasks-update", tasksData, None, None, userData)
 
   def teamUpdate(data: TeamUpdateData): TeamMessage = createTeamMessage("team-update", data)
 
