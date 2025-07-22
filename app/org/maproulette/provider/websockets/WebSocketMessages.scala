@@ -65,6 +65,16 @@ object WebSocketMessages {
   case class TaskMessage(messageType: String, data: TaskAction, meta: ServerMeta)
       extends ServerMessage
 
+  case class TasksAction(
+      tasks: List[Task],
+      challenge: Option[ChallengeSummary],
+      project: Option[ProjectSummary],
+      byUser: Option[UserSummary]
+  )
+
+  case class TasksMessage(messageType: String, data: TasksAction, meta: ServerMeta)
+      extends ServerMessage
+
   case class TeamUpdateData(teamId: Long, userId: Option[Long])
 
   case class TeamMessage(messageType: String, data: TeamUpdateData, meta: ServerMeta)
@@ -106,8 +116,25 @@ object WebSocketMessages {
       Some(userData)
     )
 
+  def tasksClaimed(
+      tasksData: List[Task],
+      challengeData: ChallengeSummary,
+      projectData: ProjectSummary,
+      userData: UserSummary
+  ): List[ServerMessage] =
+    createTasksMessage(
+      "tasks-claimed",
+      tasksData,
+      Some(challengeData),
+      Some(projectData),
+      Some(userData)
+    )
+
   def taskReleased(taskData: Task, userData: Option[UserSummary]): List[ServerMessage] =
     createTaskMessage("task-released", taskData, None, None, userData)
+
+  def tasksReleased(tasksData: List[Task], userData: Option[UserSummary]): List[ServerMessage] =
+    createTasksMessage("tasks-released", tasksData, None, None, userData)
 
   def taskCompleted(
       taskData: Task,
@@ -196,6 +223,32 @@ object WebSocketMessages {
     )
   }
 
+  private def createTasksMessage(
+      messageType: String,
+      tasksData: List[Task],
+      challengeData: Option[ChallengeSummary],
+      projectData: Option[ProjectSummary],
+      userData: Option[UserSummary]
+  ): List[ServerMessage] = {
+    val data = TasksAction(tasksData, challengeData, projectData, userData)
+
+    // Create one message for subscribers to all tasks and one for subscribers
+    // to just challenge-specific tasks (assuming all tasks are from the same challenge)
+    if (tasksData.isEmpty) {
+      List.empty[WebSocketMessages.ServerMessage]
+    } else {
+      val challengeId = tasksData.head.parent
+      List[WebSocketMessages.ServerMessage](
+        TasksMessage(messageType, data, ServerMeta(Some(WebSocketMessages.SUBSCRIPTION_TASKS))),
+        TasksMessage(
+          messageType,
+          data,
+          ServerMeta(Some(WebSocketMessages.SUBSCRIPTION_CHALLENGE_TASKS + s"_${challengeId}"))
+        )
+      )
+    }
+  }
+
   private def createChallengeTaskMessage(messageType: String, data: TaskAction): TaskMessage = {
     TaskMessage(
       messageType,
@@ -240,6 +293,8 @@ object WebSocketMessages {
   implicit val reviewMessageWrites: Writes[ReviewMessage]       = Json.writes[ReviewMessage]
   implicit val taskActionWrites: Writes[TaskAction]             = Json.writes[TaskAction]
   implicit val taskMessageWrites: Writes[TaskMessage]           = Json.writes[TaskMessage]
+  implicit val tasksActionWrites: Writes[TasksAction]           = Json.writes[TasksAction]
+  implicit val tasksMessageWrites: Writes[TasksMessage]         = Json.writes[TasksMessage]
   implicit val teamUpdateDataWrites: Writes[TeamUpdateData]     = Json.writes[TeamUpdateData]
   implicit val teamMessageWrites: Writes[TeamMessage]           = Json.writes[TeamMessage]
   implicit val followUpdateDataWrites: Writes[FollowUpdateData] = Json.writes[FollowUpdateData]
