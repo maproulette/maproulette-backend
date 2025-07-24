@@ -549,8 +549,24 @@ class TaskDAL @Inject() (
     if (tasksLength < 1) {
       throw new InvalidException("Must be at least one task in list to setTaskStatus.")
     }
+    if (user.guest) {
+      throw new IllegalAccessException("Guest users cannot make edits to tasks.")
+    }
 
-    var primaryTask  = tasks.head
+    var primaryTask =
+      if (isBundle) tasks.find(_.isBundlePrimary.getOrElse(false)).get else tasks.head
+
+    // Allow mappers who have completed the task to change status during revisions
+    val allowReset = if (primaryTask.completedBy.getOrElse(-1) == user.id) true else false
+
+    if (!Task.isValidStatusProgression(
+          primaryTask.status.getOrElse(Task.STATUS_CREATED),
+          status,
+          allowReset
+        )) {
+      throw new InvalidException("Invalid task status supplied.")
+    }
+
     var bundleUpdate = ""
 
     // Find primary task in bundle if we are using a bundle
@@ -567,24 +583,13 @@ class TaskDAL @Inject() (
       case _ => // not a bundle
     }
 
-    // Allow mappers who have completed the task to change status during revisions
-    val allowReset = if (primaryTask.completedBy.getOrElse(-1) == user.id) true else false
-
-    if (!Task.isValidStatusProgression(
-          primaryTask.status.getOrElse(Task.STATUS_CREATED),
-          status,
-          allowReset
-        )) {
-      throw new InvalidException("Invalid task status supplied.")
-    } else if (user.guest) {
-      throw new IllegalAccessException("Guest users cannot make edits to tasks.")
-    }
-
     val reviewNeeded = requestReview match {
       case Some(r) => r
       case None =>
         user.settings.needsReview.getOrElse(config.defaultNeedsReview) != User.REVIEW_NOT_NEEDED &&
-          status != Task.STATUS_SKIPPED && status != Task.STATUS_DELETED && status != Task.STATUS_DISABLED
+          status != Task.STATUS_SKIPPED &&
+          status != Task.STATUS_DELETED &&
+          status != Task.STATUS_DISABLED
     }
 
     val responses = completionResponses match {
@@ -596,6 +601,10 @@ class TaskDAL @Inject() (
     var updatedRows = 0
 
     this.withMRTransaction { implicit c =>
+      val startedLock =
+        (SQL"""SELECT created FROM locked l WHERE l.item_id = ${primaryTask.id} AND
+                 l.item_type = ${primaryTask.itemType.typeId} AND l.user_id = ${user.id}
+               """).as(SqlParser.scalar[DateTime].singleOpt)
       for (task <- tasks) {
         if (task.bundleId != None && task.bundleId.get != bundleId.getOrElse(-1) && !allowReset) {
           throw new InvalidException(
@@ -620,17 +629,13 @@ class TaskDAL @Inject() (
                                     LEFT JOIN locked l on l.item_id = t2.id AND l.item_type = ${task.itemType.typeId}
                                     WHERE t2.id = ${task.id} AND (l.user_id = ${user.id} OR l.user_id IS NULL)
                                   )""".executeUpdate()
-          // if returning 0, then this is because the item is locked by a  different user
+          // if returning 0, then this is because the item is locked by a different user
           if (updatedRows == 0) {
             throw new IllegalAccessException(
               s"This task is locked by another user, cannot update status at this time."
             )
           }
         }
-
-        val startedLock = (SQL"""SELECT created FROM locked l WHERE l.item_id = ${task.id} AND
-                                       l.item_type = ${task.itemType.typeId} AND l.user_id = ${user.id}
-                             """).as(SqlParser.scalar[DateTime].singleOpt)
 
         var completedTimeSpent: Option[Long] = None
         if (!skipStatusUpdate) {
@@ -670,7 +675,8 @@ class TaskDAL @Inject() (
           task.review.reviewStatus match {
             case Some(rs) =>
               SQL"""UPDATE task_review tr
-                      SET review_status = ${Task.REVIEW_STATUS_REQUESTED}, review_requested_by = ${user.id}
+                      SET review_status = ${Task.REVIEW_STATUS_REQUESTED}, 
+                          review_requested_by = ${user.id}
                       WHERE tr.task_id = ${task.id}
                  """.executeUpdate()
 
@@ -745,7 +751,7 @@ class TaskDAL @Inject() (
                   },
                   bundleId = bundleId,
                   isBundlePrimary =
-                    if (bundleId != None) Some(task.id == primaryTask.id)
+                    if (bundleId.isDefined) Some(task.id == primaryTask.id)
                     else None
                 )
               )
@@ -762,7 +768,7 @@ class TaskDAL @Inject() (
                   },
                   bundleId = bundleId,
                   isBundlePrimary =
-                    if (bundleId != None) Some(task.id == primaryTask.id)
+                    if (bundleId.isDefined) Some(task.id == primaryTask.id)
                     else None
                 )
               )
