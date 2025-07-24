@@ -65,6 +65,8 @@ class WebSocketActor(out: ActorRef) extends Actor {
       out ! Json.toJson(serverMessage)
     case serverMessage: WebSocketMessages.TaskMessage =>
       out ! Json.toJson(serverMessage)
+    case serverMessage: WebSocketMessages.TasksMessage =>
+      out ! Json.toJson(serverMessage)
     case serverMessage: WebSocketMessages.TeamMessage =>
       out ! Json.toJson(serverMessage)
     case serverMessage: WebSocketMessages.FollowMessage =>
