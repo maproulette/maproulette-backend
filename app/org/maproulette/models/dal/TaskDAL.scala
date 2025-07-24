@@ -553,8 +553,14 @@ class TaskDAL @Inject() (
       throw new IllegalAccessException("Guest users cannot make edits to tasks.")
     }
 
-    var primaryTask =
-      if (isBundle) tasks.find(_.isBundlePrimary.getOrElse(false)).get else tasks.head
+    var primaryTask = if (isBundle) {
+      primaryTaskId
+        .flatMap(id => tasks.find(_.id == id))
+        .orElse(tasks.find(_.isBundlePrimary.getOrElse(false)))
+        .getOrElse(tasks.head)
+    } else {
+      tasks.head
+    }
 
     // Allow mappers who have completed the task to change status during revisions
     val allowReset = if (primaryTask.completedBy.getOrElse(-1) == user.id) true else false
@@ -629,7 +635,7 @@ class TaskDAL @Inject() (
                                     LEFT JOIN locked l on l.item_id = t2.id AND l.item_type = ${task.itemType.typeId}
                                     WHERE t2.id = ${task.id} AND (l.user_id = ${user.id} OR l.user_id IS NULL)
                                   )""".executeUpdate()
-          // if returning 0, then this is because the item is locked by a different user
+          // if returning 0, then this is because the item is locked by a  different user
           if (updatedRows == 0) {
             throw new IllegalAccessException(
               s"This task is locked by another user, cannot update status at this time."
