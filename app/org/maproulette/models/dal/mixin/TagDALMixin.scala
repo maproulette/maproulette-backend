@@ -14,6 +14,8 @@ import org.maproulette.framework.model.{Tag, User}
 import org.maproulette.framework.service.TagService
 import org.maproulette.models.BaseObject
 import org.maproulette.models.dal.BaseDAL
+import play.api.libs.json.{JsNumber, JsObject, JsValue, Json}
+import scala.language.postfixOps
 
 /**
   * @author cuthbertm
@@ -140,6 +142,19 @@ trait TagDALMixin[T <: BaseObject[Long]] {
               s"INSERT INTO tags_on_${this.tableName} (${name}_id, tag_id) VALUES " + rows + " ON CONFLICT DO NOTHING"
             ).on(parameters: _*)
               .execute()
+              
+            // Update MR tag metrics for challenges if we're adding tags to a task
+            if (this.tableName == "tasks") {
+              // Get the task's parent challenge
+              val challengeId = SQL"""SELECT parent_id FROM tasks WHERE id = $id""".as(SqlParser.long("parent_id").single)
+              
+              // Get the tag names for the tag IDs
+              tags.foreach { tagId =>
+                // Call the updateMRTagMetrics method in ChallengeDAL
+val challengeId = SQL"""SELECT parent_id FROM tasks WHERE id = $id""".as(SqlParser.long("parent_id").single)
+                this.updateMRTagMetrics(challengeId, tagId)
+              }
+            }
           } else if (completeList) {
             SQL"""DELETE FROM tags_on_#${this.tableName} WHERE #${name}_id = $id""".executeUpdate()
           }
@@ -183,6 +198,38 @@ trait TagDALMixin[T <: BaseObject[Long]] {
           Symbol("offset") -> offset
         )
         .as(this.parser.*)
+    }
+  }
+
+  def updateMRTagMetrics(challengeId: Long, tagId: Long)(
+      implicit c: Option[Connection] = None
+  ): Unit = {
+    this.withMRTransaction { implicit c =>
+      // First check if the tag already exists in the metrics
+      val currentMetricsQuery = SQL"""SELECT mr_tag_metrics::text FROM challenges WHERE id = $challengeId"""
+      val currentMetricsOpt = currentMetricsQuery.as((SqlParser.str("mr_tag_metrics").?).singleOpt).flatten
+      
+      // Update the metrics based on whether it already exists or not
+      val tagIdStr = tagId.toString
+      val updateSQL = currentMetricsOpt match {
+        case Some(metricsStr) if metricsStr.nonEmpty =>
+          val metrics = Json.parse(metricsStr)
+          val updatedMetrics = if ((metrics \ tagIdStr).isDefined) {
+            // Tag exists, increment the count
+            val currentCount = (metrics \ tagIdStr).as[Int]
+            Json.obj(tagIdStr -> (currentCount + 1)).deepMerge(metrics.as[JsObject] - tagIdStr)
+          } else {
+            // Tag doesn't exist yet, add it with count 1
+            metrics.as[JsObject] + (tagIdStr -> JsNumber(1))
+          }
+          SQL"""UPDATE challenges SET mr_tag_metrics = ${updatedMetrics.toString}::jsonb WHERE id = $challengeId"""
+        case _ =>
+          // No metrics yet, create new object with this tag
+          val newMetrics = Json.obj(tagIdStr -> 1)
+          SQL"""UPDATE challenges SET mr_tag_metrics = ${newMetrics.toString}::jsonb WHERE id = $challengeId"""
+      }
+      
+      updateSQL.executeUpdate()
     }
   }
 }

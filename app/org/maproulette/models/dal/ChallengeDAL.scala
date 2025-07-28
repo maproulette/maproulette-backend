@@ -29,7 +29,7 @@ import org.maproulette.session.SearchParameters
 import org.maproulette.utils.Utils
 import play.api.db.Database
 import play.api.libs.json.JodaReads._
-import play.api.libs.json.{JsString, JsValue, Json}
+import play.api.libs.json.{JsNumber, JsObject, JsString, JsValue, Json}
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
@@ -213,7 +213,11 @@ class ChallengeDAL @Inject() (
             isArchived,
             reviewSetting,
             taskWidgetLayout,
-            datasetUrl
+            datasetUrl,
+            None, // systemArchivedAt
+            None, // presets
+            requireConfirmation,
+            None // mrTagMetrics
           ),
           status,
           statusMessage,
@@ -2035,4 +2039,4 @@ class ChallengeDAL @Inject() (
       SQL(query).as(taskDAL.parser.*)
     }
   }
-}
+    }

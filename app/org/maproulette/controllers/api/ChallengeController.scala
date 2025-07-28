@@ -35,6 +35,8 @@ import org.maproulette.utils.CSVEncoder
 import play.api.http.HttpEntity
 import play.api.libs.Files
 import play.api.libs.json._
+import anorm._
+import anorm.SqlParser
 import play.api.libs.ws.WSClient
 import play.api.mvc._
 import play.shaded.oauth.oauth.signpost.exception.OAuthNotAuthorizedException
@@ -1561,5 +1563,38 @@ class ChallengeController @Inject() (
             BadRequest(Json.toJson(StatusMessage("KO", JsString(e.getMessage))))
         }
       }
+  }
+
+  /**
+    * Gets the tag metrics for a challenge
+    *
+    * @param id The id of the challenge
+    * @return The tag metrics as JSON
+    */
+  def getTagMetrics(id: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      this.dal.retrieveById(id) match {
+        case Some(challenge) =>
+          permission.hasReadAccess(ChallengeType(), user)(id)
+          this.dal.withMRConnection { implicit c =>
+            // Use a simple parser to get the optional string value
+            val metricsParser = SqlParser.get[Option[String]]("mr_tag_metrics")
+            val metricsOpt = SQL"SELECT mr_tag_metrics::text as mr_tag_metrics FROM challenges WHERE id = $id"
+              .as(metricsParser.singleOpt).flatten
+            
+            // Convert to JSON or return empty object
+            val result = metricsOpt match {
+              case Some(metricsStr) if metricsStr.nonEmpty => 
+                Json.parse(metricsStr)
+              case _ => 
+                Json.obj()
+            }
+            
+            Ok(result)
+          }
+        case None =>
+          throw new NotFoundException(s"No challenge found with id $id")
+      }
+    }
   }
 }
