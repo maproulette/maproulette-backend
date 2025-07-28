@@ -1365,8 +1365,14 @@ POST     /challenge/:challengeId/archive   @org.maproulette.controllers.api.Chal
 #     in: path
 #     description: The ID of the challenge
 #     required: true
+#   - name: limit
+#     in: query
+#     description: The number of top tags to return
+#     schema:
+#       type: integer
+#       default: 3
 ###
-GET     /challenge/:id/topTags                   @org.maproulette.controllers.api.ChallengeController.getTagMetrics(id:Long)
+GET     /challenge/:id/topTags                   @org.maproulette.controllers.api.ChallengeController.getTagMetrics(id:Long, limit:Int ?= 3)
 
 ### NoDocs ###
 GET     /healthCheck                                 @org.maproulette.controllers.api.ChallengeController.healthCheck()
