@@ -85,41 +85,28 @@ case class Task(
     * @return Priority HIGH = 0, MEDIUM = 1, LOW = 2
     */
   def getTaskPriority(parent: Challenge, updatedTask: Option[Task] = None): Int = {
-    var element = this;
-    if (updatedTask.nonEmpty) {
-      element = updatedTask.get
-    }
-
-    // Check using bounds first, which don't require geometry properties
-    if (parent.isWithinBounds(parent.priority.highPriorityBounds, element)) {
+    val element = updatedTask.getOrElse(this)
+    val geometryProps = getGeometryProperties()
+    
+    // Check high priority rules and bounds together
+    if (parent.isWithinBounds(parent.priority.highPriorityBounds, element) || 
+        geometryProps.exists(parent.isHighPriority(_, element))) {
       return Challenge.PRIORITY_HIGH
-    } else if (parent.isWithinBounds(parent.priority.mediumPriorityBounds, element)) {
+    }
+    
+    // Check medium priority rules and bounds together
+    if (parent.isWithinBounds(parent.priority.mediumPriorityBounds, element) || 
+        geometryProps.exists(parent.isMediumPriority(_, element))) {
       return Challenge.PRIORITY_MEDIUM
-    } else if (parent.isWithinBounds(parent.priority.lowPriorityBounds, element)) {
+    }
+    
+    // Check low priority rules and bounds together
+    if (parent.isWithinBounds(parent.priority.lowPriorityBounds, element) || 
+        geometryProps.exists(parent.isLowRulePriority(_, element))) {
       return Challenge.PRIORITY_LOW
     }
-
-    // Then check using rules
-    val matchingList = getGeometryProperties().flatMap { props =>
-      if (parent.isHighPriority(props, element)) {
-        Some(Challenge.PRIORITY_HIGH)
-      } else if (parent.isMediumPriority(props, element)) {
-        Some(Challenge.PRIORITY_MEDIUM)
-      } else if (parent.isLowRulePriority(props, element)) {
-        Some(Challenge.PRIORITY_LOW)
-      } else {
-        None
-      }
-    }
-    if (matchingList.isEmpty) {
-      parent.priority.defaultPriority
-    } else if (matchingList.contains(Challenge.PRIORITY_HIGH)) {
-      Challenge.PRIORITY_HIGH
-    } else if (matchingList.contains(Challenge.PRIORITY_MEDIUM)) {
-      Challenge.PRIORITY_MEDIUM
-    } else {
-      Challenge.PRIORITY_LOW
-    }
+    
+    parent.priority.defaultPriority
   }
 
   def getGeometryProperties(): List[Map[String, String]] = {
@@ -395,3 +382,4 @@ object Task extends CommonField {
   def emptyTask(parentId: Long): Task =
     Task(-1, "", DateTime.now(), DateTime.now(), parentId, Some(""), None, "")
 }
+
