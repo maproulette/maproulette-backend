@@ -603,8 +603,9 @@ class TaskDAL @Inject() (
       case None    => null
     }
 
-    val oldStatus   = primaryTask.status
-    var updatedRows = 0
+    val oldStatus    = primaryTask.status
+    var updatedRows  = 0
+    val updatedTasks = scala.collection.mutable.ListBuffer[Task]()
 
     this.withMRTransaction { implicit c =>
       val startedLock =
@@ -794,33 +795,10 @@ class TaskDAL @Inject() (
             )
           }
 
-          // Get the latest task data and notify clients of the update
+          // Collect updated task data for WebSocket notifications
           this.retrieveById(task.id) match {
-            case Some(latestTask) =>
-              webSocketProvider.sendMessage(
-                WebSocketMessages.taskUpdated(latestTask, Some(WebSocketMessages.userSummary(user)))
-              )
-
-              // Also transmit a task-completion if the status changed
-              if (oldStatus.getOrElse(Task.STATUS_CREATED) != status) {
-                this.serviceManager.challenge.retrieve(latestTask.parent) match {
-                  case Some(challenge) =>
-                    this.serviceManager.project.retrieve(challenge.general.parent) match {
-                      case Some(project) =>
-                        webSocketProvider.sendMessage(
-                          WebSocketMessages.taskCompleted(
-                            latestTask,
-                            WebSocketMessages.challengeSummary(challenge),
-                            WebSocketMessages.projectSummary(project),
-                            WebSocketMessages.userSummary(user)
-                          )
-                        )
-                      case None =>
-                    }
-                  case None =>
-                }
-              }
-            case None =>
+            case Some(latestTask) => updatedTasks += latestTask
+            case None             =>
           }
         }
       }
@@ -834,21 +812,48 @@ class TaskDAL @Inject() (
       }
     }
 
-    this.manager.challenge.updateFinishedStatus(user = user)(primaryTask.parent)
-
+    // Send WebSocket notifications after the transaction
     Future {
-      this.serviceManager.achievement.awardTaskCompletionAchievements(user, primaryTask, status)
-    }
+      if (updatedTasks.nonEmpty) {
+        if (isBundle) {
+          // Send a single tasksUpdated message for bundles
+          webSocketProvider.sendMessage(
+            WebSocketMessages
+              .tasksUpdated(updatedTasks.toList, Some(WebSocketMessages.userSummary(user)))
+          )
+          webSocketProvider.sendMessage(
+            WebSocketMessages
+              .tasksCompleted(updatedTasks.toList, Some(WebSocketMessages.userSummary(user)))
+          )
+        } else {
+          // Send individual taskUpdated messages for single tasks
+          updatedTasks.foreach { latestTask =>
+            webSocketProvider.sendMessage(
+              WebSocketMessages.taskUpdated(latestTask, Some(WebSocketMessages.userSummary(user)))
+            )
+            webSocketProvider.sendMessage(
+              WebSocketMessages
+                .tasksCompleted(List(latestTask), Some(WebSocketMessages.userSummary(user)))
+            )
+          }
 
-    if (reviewNeeded) {
-      webSocketProvider.sendMessage(
-        WebSocketMessages.reviewNew(
-          WebSocketMessages.ReviewData(
-            this.serviceManager.taskReview.getTaskWithReview(primaryTask.id)
+        }
+      }
+
+      this.serviceManager.achievement.awardTaskCompletionAchievements(user, primaryTask, status)
+
+      if (reviewNeeded) {
+        webSocketProvider.sendMessage(
+          WebSocketMessages.reviewNew(
+            WebSocketMessages.ReviewData(
+              this.serviceManager.taskReview.getTaskWithReview(primaryTask.id)
+            )
           )
         )
-      )
+      }
     }
+
+    this.manager.challenge.updateFinishedStatus(user = user)(primaryTask.parent)
 
     updatedRows
   }
