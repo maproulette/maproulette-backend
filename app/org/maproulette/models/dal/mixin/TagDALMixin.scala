@@ -142,16 +142,20 @@ trait TagDALMixin[T <: BaseObject[Long]] {
               s"INSERT INTO tags_on_${this.tableName} (${name}_id, tag_id) VALUES " + rows + " ON CONFLICT DO NOTHING"
             ).on(parameters: _*)
               .execute()
-              
+
             // Update MR tag metrics for challenges if we're adding tags to a task
             if (this.tableName == "tasks") {
               // Get the task's parent challenge
-              val challengeId = SQL"""SELECT parent_id FROM tasks WHERE id = $id""".as(SqlParser.long("parent_id").single)
-              
+              val challengeId = SQL"""SELECT parent_id FROM tasks WHERE id = $id""".as(
+                SqlParser.long("parent_id").single
+              )
+
               // Get the tag names for the tag IDs
               tags.foreach { tagId =>
                 // Call the updateMRTagMetrics method in ChallengeDAL
-val challengeId = SQL"""SELECT parent_id FROM tasks WHERE id = $id""".as(SqlParser.long("parent_id").single)
+                val challengeId = SQL"""SELECT parent_id FROM tasks WHERE id = $id""".as(
+                  SqlParser.long("parent_id").single
+                )
                 this.updateMRTagMetrics(challengeId, tagId)
               }
             }
@@ -206,9 +210,11 @@ val challengeId = SQL"""SELECT parent_id FROM tasks WHERE id = $id""".as(SqlPars
   ): Unit = {
     this.withMRTransaction { implicit c =>
       // First check if the tag already exists in the metrics
-      val currentMetricsQuery = SQL"""SELECT mr_tag_metrics::text FROM challenges WHERE id = $challengeId"""
-      val currentMetricsOpt = currentMetricsQuery.as((SqlParser.str("mr_tag_metrics").?).singleOpt).flatten
-      
+      val currentMetricsQuery =
+        SQL"""SELECT mr_tag_metrics::text FROM challenges WHERE id = $challengeId"""
+      val currentMetricsOpt =
+        currentMetricsQuery.as((SqlParser.str("mr_tag_metrics").?).singleOpt).flatten
+
       // Update the metrics based on whether it already exists or not
       val tagIdStr = tagId.toString
       val updateSQL = currentMetricsOpt match {
@@ -228,7 +234,7 @@ val challengeId = SQL"""SELECT parent_id FROM tasks WHERE id = $id""".as(SqlPars
           val newMetrics = Json.obj(tagIdStr -> 1)
           SQL"""UPDATE challenges SET mr_tag_metrics = ${newMetrics.toString}::jsonb WHERE id = $challengeId"""
       }
-      
+
       updateSQL.executeUpdate()
     }
   }

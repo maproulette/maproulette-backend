@@ -1573,78 +1573,90 @@ class ChallengeController @Inject() (
     * @param limit The number of top tags to return (default 3)
     * @return The tag metrics as JSON
     */
-  def getTagMetrics(id: Long, limit: Int = 3): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.authenticatedRequest { implicit user =>
-      this.dal.retrieveById(id) match {
-        case Some(challenge) =>
-          permission.hasReadAccess(ChallengeType(), user)(id)
-          this.dal.withMRConnection { implicit c =>
-            // Use a simple parser to get the optional string value
-            val metricsParser = SqlParser.get[Option[String]]("mr_tag_metrics")
-            val metricsOpt = SQL"SELECT mr_tag_metrics::text as mr_tag_metrics FROM challenges WHERE id = $id"
-              .as(metricsParser.singleOpt).flatten
-            
-            // Convert to JSON or return empty object
-            val result = metricsOpt match {
-              case Some(metricsStr) if metricsStr.nonEmpty => 
-                val jsValue = Json.parse(metricsStr)
-                
-                // Get the top tags based on count
-                // The metrics format is { "tagId": count, "tagId2": count2, ... }
-                val topTagIds = jsValue.as[JsObject].fields
-                  .map { case (tagId, countValue) => 
-                    // Extract count from the JsValue
-                    val count = countValue.asOpt[Int].getOrElse(0)
-                    (tagId, count)
-                  }
-                  .sortBy(-_._2) // Sort by count in descending order
-                  .take(limit)   // Take only the top N tags
-                
-                // Fetch tag names from the tags table
-                val tagParser = for {
-                  id <- SqlParser.long("id")
-                  name <- SqlParser.str("name")
-                } yield (id.toString, name)
-                
-                // Query the tags table to get names for the tag IDs
-                val tagNames = if (topTagIds.nonEmpty) {
-                  // Convert string IDs to Long for the query
-                  val numericTagIds = topTagIds.map(_._1).flatMap(id => try {
-                    Some(id.toLong)
-                  } catch {
-                    case _: NumberFormatException => None
-                  })
-                  
-                  if (numericTagIds.nonEmpty) {
-                    val idList = numericTagIds.mkString(",")
-                    SQL(s"SELECT id, name FROM tags WHERE id IN ($idList)")
-                      .as(tagParser.*)
-                      .toMap
+  def getTagMetrics(id: Long, limit: Int = 3): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        this.dal.retrieveById(id) match {
+          case Some(challenge) =>
+            permission.hasReadAccess(ChallengeType(), user)(id)
+            this.dal.withMRConnection { implicit c =>
+              // Use a simple parser to get the optional string value
+              val metricsParser = SqlParser.get[Option[String]]("mr_tag_metrics")
+              val metricsOpt =
+                SQL"SELECT mr_tag_metrics::text as mr_tag_metrics FROM challenges WHERE id = $id"
+                  .as(metricsParser.singleOpt)
+                  .flatten
+
+              // Convert to JSON or return empty object
+              val result = metricsOpt match {
+                case Some(metricsStr) if metricsStr.nonEmpty =>
+                  val jsValue = Json.parse(metricsStr)
+
+                  // Get the top tags based on count
+                  // The metrics format is { "tagId": count, "tagId2": count2, ... }
+                  val topTagIds = jsValue
+                    .as[JsObject]
+                    .fields
+                    .map {
+                      case (tagId, countValue) =>
+                        // Extract count from the JsValue
+                        val count = countValue.asOpt[Int].getOrElse(0)
+                        (tagId, count)
+                    }
+                    .sortBy(-_._2) // Sort by count in descending order
+                    .take(limit)   // Take only the top N tags
+
+                  // Fetch tag names from the tags table
+                  val tagParser = for {
+                    id   <- SqlParser.long("id")
+                    name <- SqlParser.str("name")
+                  } yield (id.toString, name)
+
+                  // Query the tags table to get names for the tag IDs
+                  val tagNames = if (topTagIds.nonEmpty) {
+                    // Convert string IDs to Long for the query
+                    val numericTagIds = topTagIds
+                      .map(_._1)
+                      .flatMap(id =>
+                        try {
+                          Some(id.toLong)
+                        } catch {
+                          case _: NumberFormatException => None
+                        }
+                      )
+
+                    if (numericTagIds.nonEmpty) {
+                      val idList = numericTagIds.mkString(",")
+                      SQL(s"SELECT id, name FROM tags WHERE id IN ($idList)")
+                        .as(tagParser.*)
+                        .toMap
+                    } else {
+                      Map.empty[String, String]
+                    }
                   } else {
                     Map.empty[String, String]
                   }
-                } else {
-                  Map.empty[String, String]
-                }
-                
-                // Create a JSON array of tag objects
-                JsArray(
-                  topTagIds.map { case (tagId, count) =>
-                    JsObject(Seq(
-                      "id" -> JsString(tagId),
-                      "name" -> JsString(tagNames.getOrElse(tagId, tagId)), // Use ID as name if not found
-                      "count" -> JsNumber(count)
-                    ))
+
+                  // Create a JSON array of tag objects
+                  JsArray(topTagIds.map {
+                    case (tagId, count) =>
+                      JsObject(
+                        Seq(
+                          "id"    -> JsString(tagId),
+                          "name"  -> JsString(tagNames.getOrElse(tagId, tagId)), // Use ID as name if not found
+                          "count" -> JsNumber(count)
+                        )
+                      )
                   })
-              case _ => 
-              Json.obj()
+                case _ =>
+                  Json.obj()
+              }
+
+              Ok(result)
             }
-            
-            Ok(result)
-          }
-        case None =>
-          throw new NotFoundException(s"No challenge found with id $id")
+          case None =>
+            throw new NotFoundException(s"No challenge found with id $id")
+        }
       }
-    }
   }
 }

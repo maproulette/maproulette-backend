@@ -2039,4 +2039,4 @@ class ChallengeDAL @Inject() (
       SQL(query).as(taskDAL.parser.*)
     }
   }
-    }
+}
