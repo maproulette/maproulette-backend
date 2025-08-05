@@ -592,8 +592,8 @@ class TaskDAL @Inject() (
       case None    => null
     }
 
-    val oldStatus   = primaryTask.status
-    var updatedRows = 0
+    val oldStatus    = primaryTask.status
+    var updatedRows  = 0
     val updatedTasks = scala.collection.mutable.ListBuffer[Task]()
 
     this.withMRTransaction { implicit c =>
@@ -786,7 +786,7 @@ class TaskDAL @Inject() (
           // Collect updated task data for WebSocket notifications
           this.retrieveById(task.id) match {
             case Some(latestTask) => updatedTasks += latestTask
-            case None =>
+            case None             =>
           }
         }
       }
@@ -801,44 +801,47 @@ class TaskDAL @Inject() (
     }
 
     // Send WebSocket notifications after the transaction
-    if (updatedTasks.nonEmpty) {
-      if (isBundle) {
-        // Send a single tasksUpdated message for bundles
-        webSocketProvider.sendMessage(
-          WebSocketMessages.tasksUpdated(updatedTasks.toList, Some(WebSocketMessages.userSummary(user)))
-        )
-        webSocketProvider.sendMessage(
-          WebSocketMessages.tasksCompleted(updatedTasks.toList, Some(WebSocketMessages.userSummary(user)))
-        )
-      } else {
-        // Send individual taskUpdated messages for single tasks
-        updatedTasks.foreach { latestTask =>
+    Future {
+      if (updatedTasks.nonEmpty) {
+        if (isBundle) {
+          // Send a single tasksUpdated message for bundles
           webSocketProvider.sendMessage(
-            WebSocketMessages.taskUpdated(latestTask, Some(WebSocketMessages.userSummary(user)))
+            WebSocketMessages
+              .tasksUpdated(updatedTasks.toList, Some(WebSocketMessages.userSummary(user)))
           )
           webSocketProvider.sendMessage(
-            WebSocketMessages.tasksCompleted(List(latestTask), Some(WebSocketMessages.userSummary(user)))
+            WebSocketMessages
+              .tasksCompleted(updatedTasks.toList, Some(WebSocketMessages.userSummary(user)))
           )
+        } else {
+          // Send individual taskUpdated messages for single tasks
+          updatedTasks.foreach { latestTask =>
+            webSocketProvider.sendMessage(
+              WebSocketMessages.taskUpdated(latestTask, Some(WebSocketMessages.userSummary(user)))
+            )
+            webSocketProvider.sendMessage(
+              WebSocketMessages
+                .tasksCompleted(List(latestTask), Some(WebSocketMessages.userSummary(user)))
+            )
+          }
+
         }
-      
+      }
+
+      this.serviceManager.achievement.awardTaskCompletionAchievements(user, primaryTask, status)
+
+      if (reviewNeeded) {
+        webSocketProvider.sendMessage(
+          WebSocketMessages.reviewNew(
+            WebSocketMessages.ReviewData(
+              this.serviceManager.taskReview.getTaskWithReview(primaryTask.id)
+            )
+          )
+        )
       }
     }
 
     this.manager.challenge.updateFinishedStatus(user = user)(primaryTask.parent)
-
-    Future {
-      this.serviceManager.achievement.awardTaskCompletionAchievements(user, primaryTask, status)
-    }
-
-    if (reviewNeeded) {
-      webSocketProvider.sendMessage(
-        WebSocketMessages.reviewNew(
-          WebSocketMessages.ReviewData(
-            this.serviceManager.taskReview.getTaskWithReview(primaryTask.id)
-          )
-        )
-      )
-    }
 
     updatedRows
   }

@@ -390,26 +390,29 @@ class TaskController @Inject() (
         // Use bulk locking for better performance
         this.dal.lockItems(user, tasks)
 
-          val tasksByChallenge = tasks.groupBy(_.parent)
-          
-          tasksByChallenge.foreach { case (challengeId, challengeTasks) =>
-            this.serviceManager.challenge.retrieve(challengeId) match {
-              case Some(challenge) =>
-                this.serviceManager.project.retrieve(challenge.general.parent) match {
-                  case Some(project) =>
-                   webSocketProvider.sendMessage(
-                      WebSocketMessages.tasksClaimed(
-                        challengeTasks,
-                        WebSocketMessages.challengeSummary(challenge),
-                        WebSocketMessages.projectSummary(project),
-                        WebSocketMessages.userSummary(user)
+        val tasksByChallenge = tasks.groupBy(_.parent)
+
+        Future {
+          tasksByChallenge.foreach {
+            case (challengeId, challengeTasks) =>
+              this.serviceManager.challenge.retrieve(challengeId) match {
+                case Some(challenge) =>
+                  this.serviceManager.project.retrieve(challenge.general.parent) match {
+                    case Some(project) =>
+                      webSocketProvider.sendMessage(
+                        WebSocketMessages.tasksClaimed(
+                          challengeTasks,
+                          WebSocketMessages.challengeSummary(challenge),
+                          WebSocketMessages.projectSummary(project),
+                          WebSocketMessages.userSummary(user)
+                        )
                       )
-                    )
-                  case None =>
-                }
-              case None =>
-            }
-          }  
+                    case None =>
+                  }
+                case None =>
+              }
+          }
+        }
         Ok(Json.toJson(tasks))
       }
     }
@@ -433,11 +436,15 @@ class TaskController @Inject() (
         this.dal.unlockItems(user, tasks)
 
         val tasksByChallenge = tasks.groupBy(_.parent)
-        
-        tasksByChallenge.foreach { case (challengeId, challengeTasks) =>
-          webSocketProvider.sendMessage(
-            WebSocketMessages.tasksReleased(challengeTasks, Some(WebSocketMessages.userSummary(user)))
-          )
+
+        Future {
+          tasksByChallenge.foreach {
+            case (challengeId, challengeTasks) =>
+              webSocketProvider.sendMessage(
+                WebSocketMessages
+                  .tasksReleased(challengeTasks, Some(WebSocketMessages.userSummary(user)))
+              )
+          }
         }
 
         Ok(Json.toJson(tasks))
