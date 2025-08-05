@@ -1345,5 +1345,33 @@ PUT     /challenge/:id/tasks                        @org.maproulette.controllers
 #             description: boolean indicating if the challenge should be archived or unarchived
 ###
 POST     /challenge/:challengeId/archive   @org.maproulette.controllers.api.ChallengeController.archiveChallenge(challengeId: Long)
+###
+# tags: [ Challenge ]
+# summary: Get Tag Metrics for Challenge
+# description: This will retrieve the tag metrics for a challenge
+# responses:
+#   '200':
+#     description: The tag metrics for the challenge
+#     content:
+#       application/json:
+#         schema:
+#           type: object
+#   '401':
+#     description: The user is not authorized to make this request
+#   '404':
+#     description: No Challenge with provided ID found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The ID of the challenge
+#     required: true
+#   - name: limit
+#     in: query
+#     description: The number of top tags to return
+#     schema:
+#       type: integer
+#       default: 3
+###
+GET     /challenge/:id/topTags                   @org.maproulette.controllers.api.ChallengeController.getTagMetrics(id:Long, limit:Int ?= 3)
 ### NoDocs ###
 GET     /healthCheck                                 @org.maproulette.controllers.api.ChallengeController.healthCheck()

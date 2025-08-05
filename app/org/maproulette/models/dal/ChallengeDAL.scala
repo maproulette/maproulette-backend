@@ -213,7 +213,11 @@ class ChallengeDAL @Inject() (
             isArchived,
             reviewSetting,
             taskWidgetLayout,
-            datasetUrl
+            datasetUrl,
+            None, // systemArchivedAt
+            None, // presets
+            requireConfirmation,
+            None // mrTagMetrics
           ),
           status,
           statusMessage,

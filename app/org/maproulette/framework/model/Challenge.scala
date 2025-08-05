@@ -142,7 +142,8 @@ case class ChallengeExtra(
     datasetUrl: Option[String] = None,
     systemArchivedAt: Option[DateTime] = None,
     presets: Option[List[String]] = None,
-    requireConfirmation: Boolean = false
+    requireConfirmation: Boolean = false,
+    mrTagMetrics: Option[JsValue] = None
 ) extends DefaultWrites
 
 case class ChallengeListing(

@@ -186,6 +186,18 @@ trait MRSchemaTypes {
               case None          => "{}"
             }
         )
+      ),
+      ReplaceField(
+        "mrTagMetrics",
+        Field(
+          "mrTagMetrics",
+          StringType,
+          resolve = ctx =>
+            ctx.value.mrTagMetrics match {
+              case Some(jsValue) => Json.stringify(jsValue)
+              case None          => "{}"
+            }
+        )
       )
     )
   // Comment Types

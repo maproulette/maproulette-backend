@@ -45,10 +45,36 @@ trait ChallengeWrites extends DefaultWrites {
 
   implicit val challengeExtraWrites = new Writes[ChallengeExtra] {
     def writes(o: ChallengeExtra): JsValue = {
-      var original = Json.toJson(o)(Json.writes[ChallengeExtra])
+      // Create the JSON manually since automatic derivation isn't working
+      val json = Json.obj(
+        "defaultZoom"          -> o.defaultZoom,
+        "minZoom"              -> o.minZoom,
+        "maxZoom"              -> o.maxZoom,
+        "defaultBasemap"       -> o.defaultBasemap,
+        "defaultBasemapId"     -> o.defaultBasemapId,
+        "customBasemap"        -> o.customBasemap,
+        "updateTasks"          -> o.updateTasks,
+        "exportableProperties" -> o.exportableProperties,
+        "osmIdProperty"        -> o.osmIdProperty,
+        "preferredTags"        -> o.preferredTags,
+        "preferredReviewTags"  -> o.preferredReviewTags,
+        "limitTags"            -> o.limitTags,
+        "limitReviewTags"      -> o.limitReviewTags,
+        "taskBundleIdProperty" -> o.taskBundleIdProperty,
+        "isArchived"           -> o.isArchived,
+        "reviewSetting"        -> o.reviewSetting,
+        "taskWidgetLayout"     -> o.taskWidgetLayout,
+        "datasetUrl"           -> o.datasetUrl,
+        "systemArchivedAt"     -> o.systemArchivedAt,
+        "presets"              -> o.presets,
+        "requireConfirmation"  -> o.requireConfirmation,
+        "mrTagMetrics"         -> o.mrTagMetrics
+      )
+
+      // Handle taskStyles specially
       o.taskStyles match {
-        case Some(ts) => Utils.insertIntoJson(original, "taskStyles", Json.parse(ts), true)
-        case None     => original
+        case Some(ts) => Utils.insertIntoJson(json, "taskStyles", Json.parse(ts), true)
+        case None     => json
       }
     }
   }
@@ -107,7 +133,42 @@ trait ChallengeReads extends DefaultReads {
         case None        => Utils.insertIntoJson(jsonWithExtras, "isArchived", false, false)
       }
 
-      Json.fromJson[ChallengeExtra](jsonWithExtras)(Json.reads[ChallengeExtra])
+      // Extract fields manually since automatic derivation isn't working
+      try {
+        JsSuccess(
+          ChallengeExtra(
+            defaultZoom =
+              (jsonWithExtras \ "defaultZoom").asOpt[Int].getOrElse(Challenge.DEFAULT_ZOOM),
+            minZoom = (jsonWithExtras \ "minZoom").asOpt[Int].getOrElse(Challenge.MIN_ZOOM),
+            maxZoom = (jsonWithExtras \ "maxZoom").asOpt[Int].getOrElse(Challenge.MAX_ZOOM),
+            defaultBasemap = (jsonWithExtras \ "defaultBasemap").asOpt[Int],
+            defaultBasemapId = (jsonWithExtras \ "defaultBasemapId").asOpt[String],
+            customBasemap = (jsonWithExtras \ "customBasemap").asOpt[String],
+            updateTasks = (jsonWithExtras \ "updateTasks").asOpt[Boolean].getOrElse(false),
+            exportableProperties = (jsonWithExtras \ "exportableProperties").asOpt[String],
+            osmIdProperty = (jsonWithExtras \ "osmIdProperty").asOpt[String],
+            preferredTags = (jsonWithExtras \ "preferredTags").asOpt[String],
+            preferredReviewTags = (jsonWithExtras \ "preferredReviewTags").asOpt[String],
+            limitTags = (jsonWithExtras \ "limitTags").asOpt[Boolean].getOrElse(false),
+            limitReviewTags = (jsonWithExtras \ "limitReviewTags").asOpt[Boolean].getOrElse(false),
+            taskStyles = (jsonWithExtras \ "taskStyles").asOpt[String],
+            taskBundleIdProperty = (jsonWithExtras \ "taskBundleIdProperty").asOpt[String],
+            isArchived = (jsonWithExtras \ "isArchived").asOpt[Boolean].getOrElse(false),
+            reviewSetting = (jsonWithExtras \ "reviewSetting")
+              .asOpt[Int]
+              .getOrElse(Challenge.REVIEW_SETTING_NOT_REQUIRED),
+            taskWidgetLayout = (jsonWithExtras \ "taskWidgetLayout").asOpt[JsValue],
+            datasetUrl = (jsonWithExtras \ "datasetUrl").asOpt[String],
+            systemArchivedAt = (jsonWithExtras \ "systemArchivedAt").asOpt[DateTime],
+            presets = (jsonWithExtras \ "presets").asOpt[List[String]],
+            requireConfirmation =
+              (jsonWithExtras \ "requireConfirmation").asOpt[Boolean].getOrElse(false),
+            mrTagMetrics = (jsonWithExtras \ "mrTagMetrics").asOpt[JsValue]
+          )
+        )
+      } catch {
+        case e: Exception => JsError(e.getMessage)
+      }
     }
   }
 
