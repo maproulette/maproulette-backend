@@ -1579,41 +1579,34 @@ class ChallengeController @Inject() (
           case Some(challenge) =>
             permission.hasReadAccess(ChallengeType(), user)(id)
             this.dal.withMRConnection { implicit c =>
-              // Use a simple parser to get the optional string value
               val metricsParser = SqlParser.get[Option[String]]("mr_tag_metrics")
               val metricsOpt =
                 SQL"SELECT mr_tag_metrics::text as mr_tag_metrics FROM challenges WHERE id = $id"
                   .as(metricsParser.singleOpt)
                   .flatten
 
-              // Convert to JSON or return empty object
               val result = metricsOpt match {
                 case Some(metricsStr) if metricsStr.nonEmpty =>
                   val jsValue = Json.parse(metricsStr)
 
-                  // Get the top tags based on count
-                  // The metrics format is { "tagId": count, "tagId2": count2, ... }
                   val topTagIds = jsValue
                     .as[JsObject]
                     .fields
                     .map {
                       case (tagId, countValue) =>
-                        // Extract count from the JsValue
                         val count = countValue.asOpt[Int].getOrElse(0)
                         (tagId, count)
                     }
-                    .sortBy(-_._2) // Sort by count in descending order
-                    .take(limit)   // Take only the top N tags
+                    .sortBy(-_._2)
+                    .take(limit)
 
-                  // Fetch tag names from the tags table
                   val tagParser = for {
                     id   <- SqlParser.long("id")
                     name <- SqlParser.str("name")
                   } yield (id.toString, name)
 
-                  // Query the tags table to get names for the tag IDs
                   val tagNames = if (topTagIds.nonEmpty) {
-                    // Convert string IDs to Long for the query
+
                     val numericTagIds = topTagIds
                       .map(_._1)
                       .flatMap(id =>
@@ -1636,13 +1629,12 @@ class ChallengeController @Inject() (
                     Map.empty[String, String]
                   }
 
-                  // Create a JSON array of tag objects
                   JsArray(topTagIds.map {
                     case (tagId, count) =>
                       JsObject(
                         Seq(
                           "id"    -> JsString(tagId),
-                          "name"  -> JsString(tagNames.getOrElse(tagId, tagId)), // Use ID as name if not found
+                          "name"  -> JsString(tagNames.getOrElse(tagId, tagId)),
                           "count" -> JsNumber(count)
                         )
                       )
