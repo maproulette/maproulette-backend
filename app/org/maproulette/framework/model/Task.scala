@@ -85,27 +85,27 @@ case class Task(
     * @return Priority HIGH = 0, MEDIUM = 1, LOW = 2
     */
   def getTaskPriority(parent: Challenge, updatedTask: Option[Task] = None): Int = {
-    val element = updatedTask.getOrElse(this)
+    val element       = updatedTask.getOrElse(this)
     val geometryProps = getGeometryProperties()
-    
+
     // Check high priority rules and bounds together
-    if (parent.isWithinBounds(parent.priority.highPriorityBounds, element) || 
+    if (parent.isWithinBounds(parent.priority.highPriorityBounds, element) ||
         geometryProps.exists(parent.isHighPriority(_, element))) {
       return Challenge.PRIORITY_HIGH
     }
-    
+
     // Check medium priority rules and bounds together
-    if (parent.isWithinBounds(parent.priority.mediumPriorityBounds, element) || 
+    if (parent.isWithinBounds(parent.priority.mediumPriorityBounds, element) ||
         geometryProps.exists(parent.isMediumPriority(_, element))) {
       return Challenge.PRIORITY_MEDIUM
     }
-    
+
     // Check low priority rules and bounds together
-    if (parent.isWithinBounds(parent.priority.lowPriorityBounds, element) || 
+    if (parent.isWithinBounds(parent.priority.lowPriorityBounds, element) ||
         geometryProps.exists(parent.isLowRulePriority(_, element))) {
       return Challenge.PRIORITY_LOW
     }
-    
+
     parent.priority.defaultPriority
   }
 
@@ -382,4 +382,3 @@ object Task extends CommonField {
   def emptyTask(parentId: Long): Task =
     Task(-1, "", DateTime.now(), DateTime.now(), parentId, Some(""), None, "")
 }
-
