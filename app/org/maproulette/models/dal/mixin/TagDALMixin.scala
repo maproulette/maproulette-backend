@@ -14,8 +14,7 @@ import org.maproulette.framework.model.{Tag, User}
 import org.maproulette.framework.service.TagService
 import org.maproulette.models.BaseObject
 import org.maproulette.models.dal.BaseDAL
-import play.api.libs.json.{JsNumber, JsObject, JsValue, Json}
-import scala.language.postfixOps
+import play.api.libs.json.{JsNumber, JsObject, Json}
 
 /**
   * @author cuthbertm

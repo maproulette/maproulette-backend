@@ -36,7 +36,6 @@ import play.api.http.HttpEntity
 import play.api.libs.Files
 import play.api.libs.json._
 import anorm._
-import anorm.SqlParser._
 import anorm.SqlParser
 import play.api.libs.ws.WSClient
 import play.api.mvc._
