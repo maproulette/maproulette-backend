@@ -59,19 +59,19 @@ trait ChallengeWrites extends DefaultWrites {
       )
 
       val optionFields: Seq[Option[(String, JsValue)]] = Seq(
-        o.defaultBasemap.map(v => "defaultBasemap"       -> JsNumber(v)),
-        o.defaultBasemapId.map(v => "defaultBasemapId"    -> JsString(v)),
-        o.customBasemap.map(v => "customBasemap"          -> JsString(v)),
+        o.defaultBasemap.map(v => "defaultBasemap"             -> JsNumber(v)),
+        o.defaultBasemapId.map(v => "defaultBasemapId"         -> JsString(v)),
+        o.customBasemap.map(v => "customBasemap"               -> JsString(v)),
         o.exportableProperties.map(v => "exportableProperties" -> JsString(v)),
-        o.osmIdProperty.map(v => "osmIdProperty"          -> JsString(v)),
-        o.preferredTags.map(v => "preferredTags"          -> JsString(v)),
-        o.preferredReviewTags.map(v => "preferredReviewTags" -> JsString(v)),
+        o.osmIdProperty.map(v => "osmIdProperty"               -> JsString(v)),
+        o.preferredTags.map(v => "preferredTags"               -> JsString(v)),
+        o.preferredReviewTags.map(v => "preferredReviewTags"   -> JsString(v)),
         o.taskBundleIdProperty.map(v => "taskBundleIdProperty" -> JsString(v)),
-        o.taskWidgetLayout.map(v => "taskWidgetLayout"    -> v),
-        o.datasetUrl.map(v => "datasetUrl"                -> JsString(v)),
-        o.systemArchivedAt.map(dt => "systemArchivedAt"   -> Json.toJson(dt)),
-        o.presets.map(v => "presets"                      -> Json.toJson(v)),
-        o.mrTagMetrics.map(v => "mrTagMetrics"            -> v)
+        o.taskWidgetLayout.map(v => "taskWidgetLayout"         -> v),
+        o.datasetUrl.map(v => "datasetUrl"                     -> JsString(v)),
+        o.systemArchivedAt.map(dt => "systemArchivedAt"        -> Json.toJson(dt)),
+        o.presets.map(v => "presets"                           -> Json.toJson(v)),
+        o.mrTagMetrics.map(v => "mrTagMetrics"                 -> v)
       )
 
       val json = JsObject(baseFields ++ optionFields.flatten)
