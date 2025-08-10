@@ -45,33 +45,38 @@ trait ChallengeWrites extends DefaultWrites {
 
   implicit val challengeExtraWrites = new Writes[ChallengeExtra] {
     def writes(o: ChallengeExtra): JsValue = {
-      // Create the JSON manually since automatic derivation isn't working
-      val json = Json.obj(
-        "defaultZoom"          -> o.defaultZoom,
-        "minZoom"              -> o.minZoom,
-        "maxZoom"              -> o.maxZoom,
-        "defaultBasemap"       -> o.defaultBasemap,
-        "defaultBasemapId"     -> o.defaultBasemapId,
-        "customBasemap"        -> o.customBasemap,
-        "updateTasks"          -> o.updateTasks,
-        "exportableProperties" -> o.exportableProperties,
-        "osmIdProperty"        -> o.osmIdProperty,
-        "preferredTags"        -> o.preferredTags,
-        "preferredReviewTags"  -> o.preferredReviewTags,
-        "limitTags"            -> o.limitTags,
-        "limitReviewTags"      -> o.limitReviewTags,
-        "taskBundleIdProperty" -> o.taskBundleIdProperty,
-        "isArchived"           -> o.isArchived,
-        "reviewSetting"        -> o.reviewSetting,
-        "taskWidgetLayout"     -> o.taskWidgetLayout,
-        "datasetUrl"           -> o.datasetUrl,
-        "systemArchivedAt"     -> o.systemArchivedAt,
-        "presets"              -> o.presets,
-        "requireConfirmation"  -> o.requireConfirmation,
-        "mrTagMetrics"         -> o.mrTagMetrics
+      // Build JSON manually and omit Option fields that are None (avoid serializing as null)
+      val baseFields: Seq[(String, JsValue)] = Seq(
+        "defaultZoom"         -> JsNumber(o.defaultZoom),
+        "minZoom"             -> JsNumber(o.minZoom),
+        "maxZoom"             -> JsNumber(o.maxZoom),
+        "updateTasks"         -> JsBoolean(o.updateTasks),
+        "limitTags"           -> JsBoolean(o.limitTags),
+        "limitReviewTags"     -> JsBoolean(o.limitReviewTags),
+        "isArchived"          -> JsBoolean(o.isArchived),
+        "reviewSetting"       -> JsNumber(o.reviewSetting),
+        "requireConfirmation" -> JsBoolean(o.requireConfirmation)
       )
 
-      // Handle taskStyles specially
+      val optionFields: Seq[Option[(String, JsValue)]] = Seq(
+        o.defaultBasemap.map(v => "defaultBasemap"             -> JsNumber(v)),
+        o.defaultBasemapId.map(v => "defaultBasemapId"         -> JsString(v)),
+        o.customBasemap.map(v => "customBasemap"               -> JsString(v)),
+        o.exportableProperties.map(v => "exportableProperties" -> JsString(v)),
+        o.osmIdProperty.map(v => "osmIdProperty"               -> JsString(v)),
+        o.preferredTags.map(v => "preferredTags"               -> JsString(v)),
+        o.preferredReviewTags.map(v => "preferredReviewTags"   -> JsString(v)),
+        o.taskBundleIdProperty.map(v => "taskBundleIdProperty" -> JsString(v)),
+        o.taskWidgetLayout.map(v => "taskWidgetLayout"         -> v),
+        o.datasetUrl.map(v => "datasetUrl"                     -> JsString(v)),
+        o.systemArchivedAt.map(dt => "systemArchivedAt"        -> Json.toJson(dt)),
+        o.presets.map(v => "presets"                           -> Json.toJson(v)),
+        o.mrTagMetrics.map(v => "mrTagMetrics"                 -> v)
+      )
+
+      val json = JsObject(baseFields ++ optionFields.flatten)
+
+      // Handle taskStyles specially (stored as JSON string; return as parsed JSON when present)
       o.taskStyles match {
         case Some(ts) => Utils.insertIntoJson(json, "taskStyles", Json.parse(ts), true)
         case None     => json
