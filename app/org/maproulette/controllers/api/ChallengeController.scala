@@ -140,6 +140,9 @@ class ChallengeController @Inject() (
     * @param statusFilter Filtering by status of the tasks
     * @param reviewStatusFilter Filtering by review status of the tasks
     * @param priorityFilter Filtering by priority of the tasks
+    * @param timezone Timezone offset for date formatting
+    * @param bbox Optional bounding box parameter (left,bottom,right,top)
+    * @param filename Optional filename for the export
     * @return
     */
   def getChallengeGeoJSON(
@@ -148,6 +151,7 @@ class ChallengeController @Inject() (
       reviewStatusFilter: String,
       priorityFilter: String,
       timezone: String,
+      bbox: String,
       filename: String
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
@@ -169,6 +173,29 @@ class ChallengeController @Inject() (
             } else {
               Some(Utils.split(priorityFilter).map(_.toInt))
             }
+            val boundingBox = if (StringUtils.isEmpty(bbox)) {
+              None
+            } else {
+              val coordStrings = bbox.split(",").map(_.trim)
+              if (coordStrings.length != 4) {
+                throw new InvalidException(
+                  s"Invalid bbox '${bbox}'. Expected 4 comma-separated components: left,bottom,right,top"
+                )
+              }
+
+              val coords =
+                try {
+                  coordStrings.map(_.toDouble)
+                } catch {
+                  case _: NumberFormatException =>
+                    throw new InvalidException(
+                      s"Invalid bbox '${bbox}'. Found a non-numeric coordinate."
+                    )
+                }
+
+              Some((coords(0), coords(1), coords(2), coords(3))) // left, bottom, right, top
+            }
+
             val attachmentFilename = if (StringUtils.isEmpty(filename)) {
               "challenge_geojson.json"
             } else {
@@ -189,7 +216,8 @@ class ChallengeController @Inject() (
                       reviewStatus,
                       priority,
                       Some(params),
-                      timezone
+                      timezone,
+                      boundingBox
                     )
                 ),
                 Some("application/json;charset=utf-8;header=present")

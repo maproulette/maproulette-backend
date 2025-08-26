@@ -1167,6 +1167,7 @@ class ChallengeDAL @Inject() (
     * @param priorityFilter     To view the geojson for only challenges with a specific priority
     * @param params             SearchParameters for filtering by taskPropertySearch
     * @param timezone           The timezone offset (ie. -07:00)
+    * @param boundingBox        Optional bounding box to limit tasks (left, bottom, right, top)
     * @param c                  The implicit connection for the function
     * @return
     */
@@ -1176,7 +1177,8 @@ class ChallengeDAL @Inject() (
       reviewStatusFilter: Option[List[Int]] = None,
       priorityFilter: Option[List[Int]] = None,
       params: Option[SearchParameters] = None,
-      timezone: String = Utils.UTC_TIMEZONE
+      timezone: String = Utils.UTC_TIMEZONE,
+      boundingBox: Option[(Double, Double, Double, Double)] = None
   )(implicit c: Option[Connection] = None): String = {
     this.withMRConnection { implicit c =>
       val filters = new StringBuilder()
@@ -1254,6 +1256,15 @@ class ChallengeDAL @Inject() (
                 )""")
             case _ => // do nothing
           }
+        case None => // do nothing
+      }
+
+      // Apply bounding box filter if provided
+      boundingBox match {
+        case Some((left, bottom, right, top)) =>
+          filters.append(
+            s""" AND ST_Intersects(t.location, ST_MakeEnvelope($left, $bottom, $right, $top, 4326))"""
+          )
         case None => // do nothing
       }
 
