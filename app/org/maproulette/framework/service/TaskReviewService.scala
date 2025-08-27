@@ -881,10 +881,16 @@ class TaskReviewService @Inject() (
       case sortColumn if sortColumn.nonEmpty =>
         // We have two "id" columns: one for Tasks and one for taskReview. So
         // we need to specify which one to sort by for the SQL query.
-        val table =
-          if (sortColumn == "id" || sortColumn == "status") Some("tasks")
-          else if (sortColumn == "reviewed_at") Some("task_review")
-          else Some("")
+        val (table, isColumn) =
+          if (sortColumn.startsWith("(COALESCE((tasks.geojson")) {
+            (Some(""), false)
+          } else if (sortColumn == "id" || sortColumn == "status") {
+            (Some("tasks"), true)
+          } else if (sortColumn == "reviewed_at") {
+            (Some("task_review"), true)
+          } else {
+            (Some(""), true)
+          }
         val direction = if (order == "DESC") Order.DESC else Order.ASC
 
         Order(
@@ -892,7 +898,8 @@ class TaskReviewService @Inject() (
             OrderField(
               name = sortColumn,
               direction = direction,
-              table = table
+              table = table,
+              isColumn = isColumn
             )
           )
         )

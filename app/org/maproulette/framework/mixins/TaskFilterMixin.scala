@@ -26,6 +26,15 @@ trait TaskFilterMixin {
     Order(
       List(
         sort match {
+          case s if s.startsWith("(COALESCE((tasks.geojson") =>
+            // JSON property sort expression, pass raw without column validation
+            // Flip direction to match expected ascending/descending behavior for property values
+            OrderField(
+              s,
+              if (direction == Order.DESC) Order.ASC else Order.DESC,
+              Some(""),
+              isColumn = false
+            )
           case "reviewRequestedBy" =>
             OrderField("review_requested_by", direction, Some("task_review"))
           case "reviewedBy" =>

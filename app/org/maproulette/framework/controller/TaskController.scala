@@ -103,17 +103,25 @@ class TaskController @Inject() (
       order: String = "ASC",
       includeTotal: Boolean = false,
       includeGeometries: Boolean = false,
-      includeTags: Boolean = false
+      includeTags: Boolean = false,
+      propertySort: Boolean = false,
+      propertyKey: String = ""
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       SearchParameters.withSearch { p =>
         val params = p.copy(location = Some(SearchLocation(left, bottom, right, top)))
+        val sortExpr =
+          if (propertySort && propertyKey.nonEmpty) {
+            val safeKey = propertyKey.replace("'", "''")
+            s"(COALESCE((tasks.geojson::json->'features'->0->'properties'->>'${safeKey}'), (tasks.geojson::json->'properties'->>'${safeKey}')))"
+          } else sort
+
         val (count, result) = this.taskClusterService.getTasksInBoundingBox(
           User.userOrMocked(user),
           params,
           Paging(limit, page),
           excludeLocked,
-          sort,
+          sortExpr,
           order
         )
 

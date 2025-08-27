@@ -172,7 +172,9 @@ class TaskReviewController @Inject() (
       sort: String,
       order: String,
       excludeOtherReviewers: Boolean = false,
-      includeTags: Boolean = false
+      includeTags: Boolean = false,
+      propertySort: Boolean = false,
+      propertyKey: String = ""
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       SearchParameters.withSearch { implicit params =>
@@ -184,7 +186,8 @@ class TaskReviewController @Inject() (
           params,
           onlySaved,
           Paging(limit, page),
-          sort,
+          if (propertySort && !StringUtils.isEmpty(propertyKey)) s"properties->>'$propertyKey'"
+          else sort,
           order,
           true,
           excludeOtherReviewers
@@ -219,7 +222,9 @@ class TaskReviewController @Inject() (
       sort: String,
       order: String,
       includeTags: Boolean = false,
-      asMetaReview: Boolean = false
+      asMetaReview: Boolean = false,
+      propertySort: Boolean = false,
+      propertyKey: String = ""
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       SearchParameters.withSearch { implicit params =>
@@ -229,7 +234,8 @@ class TaskReviewController @Inject() (
           allowReviewNeeded,
           limit,
           page,
-          sort,
+          if (propertySort && !StringUtils.isEmpty(propertyKey)) s"properties->>'$propertyKey'"
+          else sort,
           order,
           asMetaReview
         )
@@ -289,7 +295,9 @@ class TaskReviewController @Inject() (
       direction: String,
       displayedColumns: String,
       invertedFilters: String,
-      onlySaved: Boolean = false
+      onlySaved: Boolean = false,
+      propertySort: Boolean = false,
+      propertyKey: String = ""
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       SearchParameters.withSearch { implicit params =>
@@ -335,7 +343,8 @@ class TaskReviewController @Inject() (
             reviewer = reviewByFilter,
             metaReviewer = metaReviewedByFilter
           ),
-          sortBy,
+          if (propertySort && !StringUtils.isEmpty(propertyKey)) s"properties->>'$propertyKey'"
+          else sortBy,
           direction,
           onlySaved
         )
