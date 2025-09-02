@@ -431,7 +431,7 @@ class DataManager @Inject() (
         s"""SELECT tasks.parent_id, c.name,
               COUNT(tasks.completed_time_spent) as tasksWithTime,
               COALESCE(SUM(tasks.completed_time_spent), 0) as totalTimeSpent,
-              SUM(CASE WHEN tasks.status != 4 THEN 1 ELSE 0 END) as total,
+              SUM(CASE WHEN (tasks.status != 4 AND tasks.status != 9) THEN 1 ELSE 0 END) as total,
               SUM(CASE tasks.status WHEN 0 THEN 1 ELSE 0 END) as available,
               SUM(CASE tasks.status WHEN 1 THEN 1 ELSE 0 END) as fixed,
               SUM(CASE tasks.status WHEN 2 THEN 1 ELSE 0 END) as false_positive,

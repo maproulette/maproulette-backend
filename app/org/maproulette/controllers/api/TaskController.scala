@@ -370,6 +370,89 @@ class TaskController @Inject() (
   }
 
   /**
+    * Locks a bundle of tasks based on the provided task IDs.
+    *
+    * @param taskIds The IDs of the tasks to lock
+    * @return
+    */
+  def lockTaskBundle(taskIds: List[Long]): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      // First retrieve all the tasks
+      val tasks = taskIds.flatMap(taskId => this.dal.retrieveById(taskId))
+
+      if (tasks.length != taskIds.length) {
+        val missingTaskIds = taskIds.filter(taskId => !tasks.map(_.id).contains(taskId))
+        // No valid tasks found
+        throw new IllegalAccessException(
+          s"Tasks not found to unlock: ${missingTaskIds.mkString(", ")}"
+        )
+      } else {
+        // Use bulk locking for better performance
+        this.dal.lockItems(user, tasks)
+
+        val tasksByChallenge = tasks.groupBy(_.parent)
+
+        Future {
+          tasksByChallenge.foreach {
+            case (challengeId, challengeTasks) =>
+              this.serviceManager.challenge.retrieve(challengeId) match {
+                case Some(challenge) =>
+                  this.serviceManager.project.retrieve(challenge.general.parent) match {
+                    case Some(project) =>
+                      webSocketProvider.sendMessage(
+                        WebSocketMessages.tasksClaimed(
+                          challengeTasks,
+                          WebSocketMessages.challengeSummary(challenge),
+                          WebSocketMessages.projectSummary(project),
+                          WebSocketMessages.userSummary(user)
+                        )
+                      )
+                    case None =>
+                  }
+                case None =>
+              }
+          }
+        }
+        Ok(Json.toJson(tasks))
+      }
+    }
+  }
+
+  /**
+    * Unlocks a bundle of tasks based on the provided task IDs.
+    *
+    * @param taskIds The IDs of the tasks to unlock
+    * @return
+    */
+  def unlockTaskBundle(taskIds: List[Long]): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      val tasks = taskIds.flatMap(taskId => this.dal.retrieveById(taskId))
+      if (tasks.length != taskIds.length) {
+        val missingTaskIds = taskIds.filter(taskId => !tasks.map(_.id).contains(taskId))
+        // No valid tasks found
+        throw new Exception(s"Tasks not found to unlock: ${missingTaskIds.mkString(", ")}")
+      } else {
+        // Use bulk locking for better performance
+        this.dal.unlockItems(user, tasks)
+
+        val tasksByChallenge = tasks.groupBy(_.parent)
+
+        Future {
+          tasksByChallenge.foreach {
+            case (challengeId, challengeTasks) =>
+              webSocketProvider.sendMessage(
+                WebSocketMessages
+                  .tasksReleased(challengeTasks, Some(WebSocketMessages.userSummary(user)))
+              )
+          }
+        }
+
+        Ok(Json.toJson(tasks))
+      }
+    }
+  }
+
+  /**
     * Gets a random task(s) given the provided tags.
     *
     * @param projectSearch   Filter on the name of the project

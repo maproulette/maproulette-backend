@@ -508,16 +508,16 @@ GET     /tasks/random                               @org.maproulette.controllers
 # parameters:
 #   - name: left
 #     in: path
-#     description: The minimum latitude for the bounding box.
+#     description: The minimum longitude for the bounding box.
 #   - name: bottom
 #     in: path
-#     description: The minimum longitude for the bounding box.
+#     description: The minimum latitude for the bounding box.
 #   - name: right
 #     in: path
-#     description: The maximum latitude for the bounding box.
+#     description: The maximum longitude for the bounding box.
 #   - name: top
 #     in: path
-#     description: The maximum longitude for the bounding box.
+#     description: The maximum latitude for the bounding box.
 #   - name: limit
 #     in: query
 #     description: Limit the number of results returned in the response. Default value is 1.
@@ -535,6 +535,43 @@ GET     /tasks/random                               @org.maproulette.controllers
 #     description: Ignore the lock status of the task. So true will include all tasks, including ones locked by another user.
 ###
 PUT     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.controller.TaskController.getTasksInBoundingBox(left:Double, bottom:Double, right:Double, top:Double, limit:Int ?= 10000, page:Int ?= 0, excludeLocked:Boolean ?= false, sort:String ?= "", order:String ?= "ASC", includeTotal:Boolean ?= false, includeGeometries:Boolean ?=false, includeTags:Boolean ?= false)
+###
+# tags: [ Task ]
+# summary: Retrieves Task Marker Data within a bounding box
+# description: Retrieves task marker data within a given bounding box.
+# responses:
+#   '200':
+#     description: The list of markers representing Tasks that match the search criteria within the bounding box.
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.ClusteredPoint'
+# parameters:
+#   - name: left
+#     in: path
+#     description: The minimum longitude for the bounding box.
+#   - name: bottom
+#     in: path
+#     description: The minimum latitude for the bounding box.
+#   - name: right
+#     in: path
+#     description: The maximum longitude for the bounding box.
+#   - name: top
+#     in: path
+#     description: The maximum latitude for the bounding box.
+#   - name: limit
+#     in: query
+#     description: Limit the number of results returned in the response. Default value is 1.
+#   - name: excludeLocked
+#     in: query
+#     description: Ignore the lock status of the task. So true will include all tasks, including ones locked by another user.
+#   - name: includeGeometries
+#     in: query
+#     description: Optional flag to have geometries data returned for each task.
+###
+PUT     /markers/box/:left/:bottom/:right/:top        @org.maproulette.framework.controller.TaskController.getTaskMarkerDataInBoundingBox(left:Double, bottom:Double, right:Double, top:Double, limit:Int ?= 500, excludeLocked:Boolean ?= false, includeGeometries:Boolean ?= false, includeTags:Boolean ?= false)
 ###
 # tags: [ Task ]
 # summary: Update Task Changeset
@@ -878,4 +915,65 @@ GET     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.c
 #   '200':
 #     description: Success
 ###
+# tags: [ Task ]
+# summary: Request task unlock
+# description: Sends a notification to the user who has locked a task requesting them to unlock it
+# responses:
+#   '200':
+#     description: Ok with a standard message
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
+#   '401':
+#     description: The user is not authorized to make this request
+#   '404':
+#     description: The task or user was not found
+# parameters:
+#   - name: taskId
+#     in: path
+#     description: The id of the task that is locked
+###
+PUT     /task/:taskId/unlock/request                @org.maproulette.framework.controller.TaskController.requestTaskUnlock(taskId:Long)
+###
 GET     /taskCluster                                @org.maproulette.framework.controller.TaskController.getTaskClusters(points:Int ?= 100)
+###
+# tags: [ Task ]
+# summary: Locks a bundle of tasks
+# description: Attempts to lock a set of tasks. If successful, returns the tasks that were locked. If not successful, returns the tasks that were not locked.
+# responses:
+#   '200':
+#     description: List of tasks that were locked or list of tasks that were not locked. Boolean indicates if the tasks were locked.
+#   '401':
+#     description: The user is not authorized to make this request
+# requestBody:
+#   description: A JSON array of task IDs to lock.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: array
+#         items:
+#           type: integer
+###
+POST    /task/bundle/lock                         @org.maproulette.controllers.api.TaskController.lockTaskBundle(taskIds:List[Long])
+###
+# tags: [ Task ]
+# summary: Unlocks a bundle of tasks
+# description: Unlocks the specified tasks in the bundle.
+# responses:
+#   '200':
+#     description: Success message
+#   '401':
+#     description: The user is not authorized to make this request
+# requestBody:
+#   description: A JSON array of task IDs to unlock.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: array
+#         items:
+#           type: integer
+###
+POST    /task/bundle/unlock                        @org.maproulette.controllers.api.TaskController.unlockTaskBundle(taskIds:List[Long])

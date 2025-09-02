@@ -809,6 +809,39 @@ GET     /challenge/:cid/tasks/randomTasks           @org.maproulette.controllers
 GET     /challenge/:cid/tasksNearby/:proximityId           @org.maproulette.controllers.api.ChallengeController.getNearbyTasks(cid:Long, proximityId:Long, excludeSelfLocked:Boolean ?=false, limit:Int ?= 5)
 ###
 # tags: [ Challenge ]
+# summary: Retrieves available Tasks within a bounding box
+# description: Retrieves available tasks within a bounding box
+# responses:
+#   '200':
+#     description: The list of available tasks within the bounding box
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Task'     
+# parameters:
+#   - name: cid
+#     in: path
+#     description: The id of the parent Challenge limiting the tasks to only a descendent of that Challenge.
+#   - name: left
+#     in: query
+#     description: The left edge of the bounding box
+#   - name: bottom
+#     in: query
+#     description: The bottom edge of the bounding box
+#   - name: right
+#     in: query
+#     description: The right edge of the bounding box
+#   - name: top
+#     in: query
+#     description: The top edge of the bounding box
+#   - name: limit
+#     in: query
+#     description: Limit the number of results returned in the response. Default value is 5.
+###
+GET     /challenge/:cid/nearby/box/:left/:bottom/:right/:top @org.maproulette.controllers.api.ChallengeController.getNearbyTasksWithinBoundingBox(cid:Long, left:Double, bottom:Double, right:Double, top:Double, limit:Int ?= 5)
+# tags: [ Challenge ]
 # summary: Retrieves prioritized random Task
 # description: Retrieves a prioritized random Task contained within the current Challenge,
 #              with higher priority tasks being returned ahead of lower priority tasks
@@ -1312,5 +1345,33 @@ PUT     /challenge/:id/tasks                        @org.maproulette.controllers
 #             description: boolean indicating if the challenge should be archived or unarchived
 ###
 POST     /challenge/:challengeId/archive   @org.maproulette.controllers.api.ChallengeController.archiveChallenge(challengeId: Long)
+###
+# tags: [ Challenge ]
+# summary: Get Tag Metrics for Challenge
+# description: This will retrieve the tag metrics for a challenge
+# responses:
+#   '200':
+#     description: The tag metrics for the challenge
+#     content:
+#       application/json:
+#         schema:
+#           type: object
+#   '401':
+#     description: The user is not authorized to make this request
+#   '404':
+#     description: No Challenge with provided ID found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The ID of the challenge
+#     required: true
+#   - name: limit
+#     in: query
+#     description: The number of top tags to return
+#     schema:
+#       type: integer
+#       default: 3
+###
+GET     /challenge/:id/topTags                   @org.maproulette.controllers.api.ChallengeController.getTagMetrics(id:Long, limit:Int ?= 3)
 ### NoDocs ###
 GET     /healthCheck                                 @org.maproulette.controllers.api.ChallengeController.healthCheck()

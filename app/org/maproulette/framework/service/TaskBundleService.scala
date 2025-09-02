@@ -90,12 +90,12 @@ class TaskBundleService @Inject() (
   }
 
   /**
-    *  Resets the bundle to the tasks provided, and unlock all tasks removed from current bundle
+    *  Sets the bundle to the tasks provided, and unlock all tasks removed from current bundle
     *
     * @param bundleId The id of the bundle
     * @param taskIds The task ids the bundle will reset to
     */
-  def resetTaskBundle(
+  def updateTaskBundle(
       user: User,
       bundleId: Long,
       taskIds: List[Long]
@@ -108,7 +108,7 @@ class TaskBundleService @Inject() (
       )
     }
 
-    this.repository.resetTaskBundle(user, bundleId, taskIds)
+    this.repository.updateTaskBundle(user, bundleId, taskIds)
     this.getTaskBundle(user, bundleId)
   }
 
@@ -120,8 +120,7 @@ class TaskBundleService @Inject() (
   def unbundleTasks(
       user: User,
       bundleId: Long,
-      taskIds: List[Long],
-      preventTaskIdUnlocks: List[Long]
+      taskIds: List[Long]
   )(): TaskBundle = {
     val bundle = this.getTaskBundle(user, bundleId)
 
@@ -132,7 +131,7 @@ class TaskBundleService @Inject() (
       )
     }
 
-    this.repository.unbundleTasks(user, bundleId, taskIds, preventTaskIdUnlocks)
+    this.repository.unbundleTasks(user, bundleId, taskIds)
     this.getTaskBundle(user, bundleId)
   }
 
@@ -142,10 +141,13 @@ class TaskBundleService @Inject() (
     * @param bundleId The id of the bundle
     */
   def deleteTaskBundle(user: User, bundleId: Long): Unit = {
-    val bundle = this.getTaskBundle(user, bundleId)
+    val bundle      = this.getTaskBundle(user, bundleId)
+    val primaryTask = bundle.tasks.getOrElse(List()).find(_.isBundlePrimary.getOrElse(false))
 
     // Verify permissions to delete this bundle
-    if (!permission.isSuperUser(user) && bundle.ownerId != user.id) {
+    if (!permission.isSuperUser(user) && bundle.ownerId != user.id && primaryTask.isDefined &&
+        primaryTask.get.status.getOrElse(-1) != org.maproulette.framework.model.Task.STATUS_SKIPPED &&
+        primaryTask.get.status.getOrElse(-1) != org.maproulette.framework.model.Task.STATUS_TOO_HARD) {
       val challengeId = bundle.tasks.getOrElse(List()).head.parent
       val challenge   = this.challengeDAL.retrieveById(challengeId)
       this.permission.hasObjectWriteAccess(challenge.get, user)

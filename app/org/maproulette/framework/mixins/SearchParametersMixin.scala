@@ -23,6 +23,7 @@ trait SearchParametersMixin {
     var filterList = List(
       this.filterLocation(params),
       this.filterBounding(params),
+      this.filterChallengeGlobal(params),
       this.filterTaskStatus(params),
       this.filterTaskId(params),
       this.filterTaskFeatureId(params),
@@ -699,11 +700,34 @@ trait SearchParametersMixin {
     * challengeParams.archived value is true
     */
   def filterChallengeArchived(params: SearchParameters): FilterGroup = {
-    if (params.challengeParams.archived.getOrElse("false") == "false") {
+    if (params.challengeParams.archived.getOrElse(false) == false) {
       FilterGroup(
         List(
           FilterParameter.conditional(
             Challenge.FIELD_ARCHIVED,
+            value = "false",
+            Operator.EQ,
+            useValueDirectly = true,
+            includeOnlyIfTrue = true,
+            table = Some("c")
+          )
+        )
+      )
+    } else {
+      FilterGroup(List())
+    }
+  }
+
+  /**
+    * Filters by c.is_global. Will only include if
+    * challengeParams.global value is true
+    */
+  def filterChallengeGlobal(params: SearchParameters): FilterGroup = {
+    if (params.challengeParams.global.getOrElse(true) == false) {
+      FilterGroup(
+        List(
+          FilterParameter.conditional(
+            Challenge.FIELD_GLOBAL,
             value = "false",
             Operator.EQ,
             useValueDirectly = true,

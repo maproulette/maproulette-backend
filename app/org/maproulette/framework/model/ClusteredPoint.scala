@@ -69,7 +69,8 @@ case class ClusteredPoint(
     pointReview: PointReview,
     priority: Int,
     bundleId: Option[Long] = None,
-    isBundlePrimary: Option[Boolean] = None
+    isBundlePrimary: Option[Boolean] = None,
+    lockedBy: Option[Long] = None
 )
 
 object ClusteredPoint {

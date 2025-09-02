@@ -89,16 +89,18 @@ trait TaskFilterMixin {
     query.addFilterGroup(
       FilterGroup(
         List(
-          FilterParameter.conditional(
+          BaseParameter(
             Challenge.FIELD_DELETED,
             false,
-            Operator.BOOL,
+            Operator.EQ,
+            useValueDirectly = true,
             table = Some("c")
           ),
-          FilterParameter.conditional(
+          BaseParameter(
             Project.FIELD_DELETED,
             false,
-            Operator.BOOL,
+            Operator.EQ,
+            useValueDirectly = true,
             table = Some("p")
           )
         )

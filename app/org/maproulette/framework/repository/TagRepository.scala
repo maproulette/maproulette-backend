@@ -191,6 +191,28 @@ class TagRepository @Inject() (override val db: Database) extends RepositoryMixi
       taskTagsMap.toMap
     }
   }
+
+  /**
+    * Toggles the active status of a tag
+    *
+    * @param tagId The id of the tag to toggle
+    * @param active The new active status to set
+    * @param c An implicit connection
+    * @return The updated Tag
+    */
+  def toggleStatus(tagId: Long, active: Boolean)(
+      implicit c: Option[Connection] = None
+  ): Option[Tag] = {
+    this.withMRTransaction { implicit c =>
+      SQL("UPDATE tags SET active = {active} WHERE id = {id} RETURNING *")
+        .on(
+          Symbol("active") -> active,
+          Symbol("id")     -> tagId
+        )
+        .as(TagRepository.parser.*)
+        .headOption
+    }
+  }
 }
 
 object TagRepository {
@@ -198,9 +220,10 @@ object TagRepository {
     get[Long]("tags.id") ~
       get[String]("tags.name") ~
       get[Option[String]]("tags.description") ~
-      get[String]("tags.tag_type") map {
-      case id ~ name ~ description ~ tagType =>
-        new Tag(id, name.toLowerCase, description, tagType = tagType)
+      get[String]("tags.tag_type") ~
+      get[Boolean]("tags.active") map {
+      case id ~ name ~ description ~ tagType ~ active =>
+        new Tag(id, name.toLowerCase, description, tagType = tagType, active = active)
     }
   }
 
@@ -209,9 +232,13 @@ object TagRepository {
       get[Long]("tags.id") ~
       get[String]("tags.name") ~
       get[Option[String]]("tags.description") ~
-      get[String]("tags.tag_type") map {
-      case taskId ~ id ~ name ~ description ~ tagType => {
-        new TaskTag(taskId, new Tag(id, name.toLowerCase, description, tagType = tagType))
+      get[String]("tags.tag_type") ~
+      get[Boolean]("tags.active") map {
+      case taskId ~ id ~ name ~ description ~ tagType ~ active => {
+        new TaskTag(
+          taskId,
+          new Tag(id, name.toLowerCase, description, tagType = tagType, active = active)
+        )
       }
     }
   }

@@ -251,6 +251,16 @@ class UserController @Inject() (
     }
   }
 
+  def getLockedTasks(
+      userId: Long,
+      limit: Long
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      val tasks = this.serviceManager.user.getLockedTasks(userId, user, limit)
+      Ok(Json.toJson(tasks))
+    }
+  }
+
   def saveTask(userId: Long, taskId: Long): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
       this.serviceManager.user.saveTask(userId, taskId, user)

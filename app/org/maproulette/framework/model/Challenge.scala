@@ -114,7 +114,10 @@ case class ChallengePriority(
     defaultPriority: Int = Challenge.PRIORITY_HIGH,
     highPriorityRule: Option[String] = None,
     mediumPriorityRule: Option[String] = None,
-    lowPriorityRule: Option[String] = None
+    lowPriorityRule: Option[String] = None,
+    highPriorityBounds: Option[String] = None,
+    mediumPriorityBounds: Option[String] = None,
+    lowPriorityBounds: Option[String] = None
 ) extends DefaultWrites
 
 case class ChallengeExtra(
@@ -136,8 +139,11 @@ case class ChallengeExtra(
     isArchived: Boolean = false,
     reviewSetting: Int = Challenge.REVIEW_SETTING_NOT_REQUIRED,
     taskWidgetLayout: Option[JsValue] = None,
+    datasetUrl: Option[String] = None,
     systemArchivedAt: Option[DateTime] = None,
-    presets: Option[List[String]] = None
+    presets: Option[List[String]] = None,
+    requireConfirmation: Boolean = false,
+    mrTagMetrics: Option[JsValue] = None
 ) extends DefaultWrites
 
 case class ChallengeListing(
@@ -161,6 +167,9 @@ case class Challenge(
     override val modified: DateTime,
     override val description: Option[String] = None,
     deleted: Boolean = false,
+    isGlobal: Boolean = false,
+    requireConfirmation: Boolean = false,
+    requireRejectReason: Boolean = false,
     infoLink: Option[String] = None,
     general: ChallengeGeneral,
     creation: ChallengeCreation,
@@ -230,6 +239,139 @@ case class Challenge(
       false
     }
   }
+
+  def isWithinBounds(boundsList: Option[String], task: Task): Boolean = {
+    boundsList match {
+      case Some(bounds) if bounds.nonEmpty && bounds != "[]" =>
+        try {
+          // Parse the GeoJSON input which could be an array or a single feature
+          val boundsJson = Json.parse(bounds)
+          val boundingPolygons = if (boundsJson.isInstanceOf[JsArray]) {
+            boundsJson.as[List[JsValue]]
+          } else {
+            // Single feature case, wrap in a list
+            List(boundsJson)
+          }
+
+          if (boundingPolygons.isEmpty) {
+            return false
+          }
+
+          // Extract coordinates from task geometries
+          try {
+            val geometries = Json.parse(task.geometries)
+            val features   = (geometries \ "features").as[List[JsValue]]
+            if (features.nonEmpty) {
+              // Check if any feature is within bounds (important for ways/relations with multiple features)
+              features.exists(feature => {
+                val geometry = (feature \ "geometry").get
+                checkGeometryWithinBounds(geometry, boundingPolygons)
+              })
+            } else {
+              false
+            }
+          } catch {
+            case _: Exception => false
+          }
+        } catch {
+          case e: Exception =>
+            false // Return false on any parsing error
+        }
+      case _ => false
+    }
+  }
+
+  /**
+    * Helper method to check if a geometry (Point, LineString, Polygon, etc.) is within any of the bounding polygons.
+    * This method handles all GeoJSON geometry types including collections.
+    *
+    * @param geometry The GeoJSON geometry to check
+    * @param boundingPolygons List of bounding polygon GeoJSON features
+    * @return true if any part of the geometry is within any bounding polygon
+    */
+  private def checkGeometryWithinBounds(
+      geometry: JsValue,
+      boundingPolygons: List[JsValue]
+  ): Boolean = {
+    try {
+      (geometry \ "type").asOpt[String] match {
+        case Some("Point") =>
+          val coordinates = (geometry \ "coordinates").as[List[Double]]
+          if (coordinates.length == 2) {
+            val x = coordinates(0) // longitude
+            val y = coordinates(1) // latitude
+            boundingPolygons.exists(polygon => isPointInPolygon(x, y, polygon))
+          } else {
+            false
+          }
+        case Some("LineString") =>
+          val coordinates = (geometry \ "coordinates").as[List[List[Double]]]
+          coordinates.exists(coord => {
+            if (coord.length == 2) {
+              val x = coord(0) // longitude
+              val y = coord(1) // latitude
+              boundingPolygons.exists(polygon => isPointInPolygon(x, y, polygon))
+            } else {
+              false
+            }
+          })
+        case Some("GeometryCollection") =>
+          val geometries = (geometry \ "geometries").as[List[JsValue]]
+          geometries.exists(subGeometry => checkGeometryWithinBounds(subGeometry, boundingPolygons))
+        case _ => false
+      }
+    } catch {
+      case _: Exception => false // Return false on any parsing or processing error
+    }
+  }
+
+  private def isPointInPolygon(x: Double, y: Double, polygon: JsValue): Boolean = {
+    try {
+      // Handle both direct geometry and GeoJSON feature
+      val geometryCoordinates = if ((polygon \ "type").asOpt[String].contains("Feature")) {
+        (polygon \ "geometry" \ "coordinates").as[List[List[List[Double]]]]
+      } else {
+        (polygon \ "coordinates").as[List[List[List[Double]]]]
+      }
+
+      // Use the first ring of the polygon (exterior ring)
+      val ring = geometryCoordinates.head
+
+      if (ring.isEmpty) {
+        return false
+      }
+
+      var inside = false
+      var i      = 0
+      var j      = ring.size - 1
+
+      // Ray casting algorithm to determine if point is in polygon
+      while (i < ring.size) {
+        // Get coordinates (ring points are in [longitude, latitude] format)
+        val xi = ring(i)(0)
+        val yi = ring(i)(1)
+        val xj = ring(j)(0)
+        val yj = ring(j)(1)
+
+        // Check if the ray crosses this edge
+        val intersect = ((yi > y) != (yj > y)) &&
+          (x < (xj - xi) * (y - yi) / (yj - yi) + xi)
+
+        if (intersect) {
+          inside = !inside
+        }
+
+        j = i
+        i += 1
+      }
+
+      inside
+    } catch {
+      case e: Exception =>
+        // If any error occurs during parsing or calculation, return false
+        false
+    }
+  }
 }
 
 object Challenge extends CommonField {
@@ -283,6 +425,7 @@ object Challenge extends CommonField {
   val FIELD_PARENT_ID = "parent_id"
   val FIELD_ENABLED   = "enabled"
   val FIELD_ARCHIVED  = "is_archived"
+  val FIELD_GLOBAL    = "is_global"
   val FIELD_STATUS    = "status"
   val FIELD_DELETED   = "deleted"
 
@@ -321,12 +464,58 @@ object Challenge extends CommonField {
     !rules.contains(false)
   }
 
+  /**
+    * This will check to make sure that the bounds string is fully valid.
+    *
+    * @param bounds
+    * @return
+    */
+  def isValidBounds(bounds: Option[String]): Boolean = {
+    bounds match {
+      case Some(b) if StringUtils.isNotEmpty(b) && !StringUtils.equalsIgnoreCase(b, "[]") =>
+        try {
+          val boundsJson = Json.parse(b)
+
+          // Handle both array of features and single feature
+          if (boundsJson.isInstanceOf[JsArray]) {
+            val boundsArray = boundsJson.as[List[JsValue]]
+            if (boundsArray.isEmpty) {
+              return false
+            }
+
+            // Each item should be a GeoJSON Feature with a Polygon geometry
+            boundsArray.forall(item => isValidFeature(item))
+          } else if (boundsJson.isInstanceOf[JsObject]) {
+            // Single GeoJSON feature case
+            isValidFeature(boundsJson)
+          } else {
+            false
+          }
+        } catch {
+          case _: Exception => false
+        }
+      case _ => false
+    }
+  }
+
+  /**
+    * Helper method to validate a GeoJSON feature with Polygon geometry
+    */
+  private def isValidFeature(item: JsValue): Boolean = {
+    (item \ "type").asOpt[String].contains("Feature") &&
+    ((item \ "geometry" \ "type").asOpt[String].contains("Polygon") &&
+    (item \ "geometry" \ "coordinates").validate[List[List[List[Double]]]].isSuccess)
+  }
+
   def emptyChallenge(ownerId: Long, parentId: Long): Challenge = Challenge(
     -1,
     "",
     DateTime.now(),
     DateTime.now(),
     None,
+    false,
+    false,
+    false,
     false,
     None,
     ChallengeGeneral(-1, -1, ""),

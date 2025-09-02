@@ -126,6 +126,18 @@ class NotificationService @Inject() (
   }
 
   /**
+    * Marks as unread the given notifications owned by the given userId
+    *
+    * @param userId          The id of the user that owns the notifications
+    * @param user            The user making the request
+    * @param notificationIds The ids of the notifications to be marked unread
+    */
+  def markNotificationsUnread(userId: Long, user: User, notificationIds: List[Long]): Boolean = {
+    permission.hasWriteAccess(UserType(), user)(userId)
+    this.repository.markNotificationsUnread(userId, notificationIds)
+  }
+
+  /**
     * Deletes the given notifications owned by the given userId
     *
     * @param userId          The id of the user that owns the notifications
@@ -487,6 +499,8 @@ class NotificationService @Inject() (
       case UserNotification.NOTIFICATION_TYPE_FOLLOW => subscriptions.follow
       case UserNotification.NOTIFICATION_TYPE_CHALLENGE_COMMENT =>
         UserNotification.NOTIFICATION_EMAIL_IMMEDIATE
+      case UserNotification.NOTIFICATION_TYPE_CHALLENGE_UNLOCK_REQUESTED =>
+        UserNotification.NOTIFICATION_EMAIL_IMMEDIATE
       case _ => throw new InvalidException("Invalid notification type")
     }
 
@@ -579,5 +593,31 @@ class NotificationService @Inject() (
   def usersWithTasksToBeReviewed(user: User): List[UserRevCount] = {
     permission.hasSuperAccess(user)
     this.repository.usersWithTasksToBeReviewed()
+  }
+
+  /**
+    * Create new notification requesting that a task be unlocked
+    *
+    * @param fromUser  The user requesting the unlock
+    * @param lockedByUser  The user receiving the request
+    * @param task The challenge that needs to be unlocked
+    */
+  def createTaskUnlockRequestNotification(
+      fromUser: User,
+      lockedByUser: User,
+      task: Task
+  ): Unit = {
+    val fromUserName = Some(fromUser.osmProfile.displayName)
+    this.addNotification(
+      UserNotification(
+        -1,
+        userId = lockedByUser.id,
+        notificationType = UserNotification.NOTIFICATION_TYPE_CHALLENGE_UNLOCK_REQUESTED,
+        fromUsername = fromUserName,
+        taskId = Some(task.id),
+        description = Some(s"${fromUserName} is requesting you to unlock a task")
+      ),
+      User.superUser
+    )
   }
 }

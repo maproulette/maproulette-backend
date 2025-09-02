@@ -458,7 +458,10 @@ class UserService @Inject() (
         .getOrElse(cachedItem.settings.allowFollowing.getOrElse(true))
       val seeTagFixSuggestions = (value \ "settings" \ "seeTagFixSuggestions")
         .asOpt[Boolean]
-        .getOrElse(cachedItem.settings.seeTagFixSuggestions.getOrElse(true))
+        .getOrElse(cachedItem.settings.seeTagFixSuggestions.getOrElse(false))
+      val disableTaskConfirm = (value \ "settings" \ "disableTaskConfirm")
+        .asOpt[Boolean]
+        .getOrElse(cachedItem.settings.disableTaskConfirm.getOrElse(false))
       val theme = (value \ "settings" \ "theme")
         .asOpt[Int]
         .getOrElse(cachedItem.settings.theme.getOrElse(-1))
@@ -502,7 +505,8 @@ class UserService @Inject() (
               Some(allowFollowing),
               Some(theme),
               customBasemaps,
-              Some(seeTagFixSuggestions)
+              Some(seeTagFixSuggestions),
+              Some(disableTaskConfirm)
             ),
             properties = Some(properties)
           ),
@@ -839,6 +843,23 @@ class UserService @Inject() (
   ): List[Task] = {
     this.permission.hasReadAccess(UserType(), user)(userId)
     this.savedObjectsRepository.getSavedTasks(userId, challengeIds, paging)
+  }
+
+  /**
+    * Retrieve all the tasks that have been locked by the provided user
+    *
+    * @param userId The id of the user
+    * @param user The user making the actual request
+    * @param limit
+    * @return A list of Tasks that have been locked by the user
+    */
+  def getLockedTasks(
+      userId: Long,
+      user: User,
+      limit: Long
+  ): List[LockedTaskData] = {
+    this.permission.hasReadAccess(UserType(), user)(userId)
+    this.savedObjectsRepository.getLockedTasks(userId, limit)
   }
 
   /**

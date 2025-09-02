@@ -148,6 +148,28 @@ class NotificationRepository @Inject() (override val db: Database) extends Repos
   }
 
   /**
+    * Marks as unread the given notifications owned by the given userId
+    *
+    * @param userId          The id of the user that owns the notifications
+    * @param notificationIds The ids of the notifications to be marked unread
+    */
+  def markNotificationsUnread(userId: Long, notificationIds: List[Long])(
+      implicit c: Option[Connection] = None
+  ): Boolean = {
+    withMRConnection { implicit c =>
+      Query
+        .simple(
+          List(
+            BaseParameter(UserNotification.FIELD_USER_ID, userId),
+            BaseParameter(UserNotification.FIELD_ID, notificationIds, Operator.IN)
+          )
+        )
+        .build("UPDATE user_notifications SET is_read=FALSE")
+        .execute()
+    }
+  }
+
+  /**
     * Deletes the given notifications owned by the given userId
     *
     * @param userId          The id of the user that owns the notifications

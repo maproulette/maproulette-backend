@@ -33,17 +33,53 @@ trait ChallengeWrites extends DefaultWrites {
           "defaultPriority"    -> JsNumber(challengePriority.defaultPriority),
           "highPriorityRule"   -> Json.parse(challengePriority.highPriorityRule.getOrElse("{}")),
           "mediumPriorityRule" -> Json.parse(challengePriority.mediumPriorityRule.getOrElse("{}")),
-          "lowPriorityRule"    -> Json.parse(challengePriority.lowPriorityRule.getOrElse("{}"))
+          "lowPriorityRule"    -> Json.parse(challengePriority.lowPriorityRule.getOrElse("{}")),
+          "highPriorityBounds" -> Json.parse(challengePriority.highPriorityBounds.getOrElse("[]")),
+          "mediumPriorityBounds" -> Json.parse(
+            challengePriority.mediumPriorityBounds.getOrElse("[]")
+          ),
+          "lowPriorityBounds" -> Json.parse(challengePriority.lowPriorityBounds.getOrElse("[]"))
         )
       )
   }
 
   implicit val challengeExtraWrites = new Writes[ChallengeExtra] {
     def writes(o: ChallengeExtra): JsValue = {
-      var original = Json.toJson(o)(Json.writes[ChallengeExtra])
+      // Build JSON manually and omit Option fields that are None (avoid serializing as null)
+      val baseFields: Seq[(String, JsValue)] = Seq(
+        "defaultZoom"         -> JsNumber(o.defaultZoom),
+        "minZoom"             -> JsNumber(o.minZoom),
+        "maxZoom"             -> JsNumber(o.maxZoom),
+        "updateTasks"         -> JsBoolean(o.updateTasks),
+        "limitTags"           -> JsBoolean(o.limitTags),
+        "limitReviewTags"     -> JsBoolean(o.limitReviewTags),
+        "isArchived"          -> JsBoolean(o.isArchived),
+        "reviewSetting"       -> JsNumber(o.reviewSetting),
+        "requireConfirmation" -> JsBoolean(o.requireConfirmation)
+      )
+
+      val optionFields: Seq[Option[(String, JsValue)]] = Seq(
+        o.defaultBasemap.map(v => "defaultBasemap"             -> JsNumber(v)),
+        o.defaultBasemapId.map(v => "defaultBasemapId"         -> JsString(v)),
+        o.customBasemap.map(v => "customBasemap"               -> JsString(v)),
+        o.exportableProperties.map(v => "exportableProperties" -> JsString(v)),
+        o.osmIdProperty.map(v => "osmIdProperty"               -> JsString(v)),
+        o.preferredTags.map(v => "preferredTags"               -> JsString(v)),
+        o.preferredReviewTags.map(v => "preferredReviewTags"   -> JsString(v)),
+        o.taskBundleIdProperty.map(v => "taskBundleIdProperty" -> JsString(v)),
+        o.taskWidgetLayout.map(v => "taskWidgetLayout"         -> v),
+        o.datasetUrl.map(v => "datasetUrl"                     -> JsString(v)),
+        o.systemArchivedAt.map(dt => "systemArchivedAt"        -> Json.toJson(dt)),
+        o.presets.map(v => "presets"                           -> Json.toJson(v)),
+        o.mrTagMetrics.map(v => "mrTagMetrics"                 -> v)
+      )
+
+      val json = JsObject(baseFields ++ optionFields.flatten)
+
+      // Handle taskStyles specially (stored as JSON string; return as parsed JSON when present)
       o.taskStyles match {
-        case Some(ts) => Utils.insertIntoJson(original, "taskStyles", Json.parse(ts), true)
-        case None     => original
+        case Some(ts) => Utils.insertIntoJson(json, "taskStyles", Json.parse(ts), true)
+        case None     => json
       }
     }
   }
@@ -55,6 +91,9 @@ trait ChallengeWrites extends DefaultWrites {
       (JsPath \ "modified").write[DateTime] and
       (JsPath \ "description").writeNullable[String] and
       (JsPath \ "deleted").write[Boolean] and
+      (JsPath \ "isGlobal").write[Boolean] and
+      (JsPath \ "requireConfirmation").write[Boolean] and
+      (JsPath \ "requireRejectReason").write[Boolean] and
       (JsPath \ "infoLink").writeNullable[String] and
       JsPath.write[ChallengeGeneral] and
       JsPath.write[ChallengeCreation] and
@@ -99,7 +138,42 @@ trait ChallengeReads extends DefaultReads {
         case None        => Utils.insertIntoJson(jsonWithExtras, "isArchived", false, false)
       }
 
-      Json.fromJson[ChallengeExtra](jsonWithExtras)(Json.reads[ChallengeExtra])
+      // Extract fields manually since automatic derivation isn't working
+      try {
+        JsSuccess(
+          ChallengeExtra(
+            defaultZoom =
+              (jsonWithExtras \ "defaultZoom").asOpt[Int].getOrElse(Challenge.DEFAULT_ZOOM),
+            minZoom = (jsonWithExtras \ "minZoom").asOpt[Int].getOrElse(Challenge.MIN_ZOOM),
+            maxZoom = (jsonWithExtras \ "maxZoom").asOpt[Int].getOrElse(Challenge.MAX_ZOOM),
+            defaultBasemap = (jsonWithExtras \ "defaultBasemap").asOpt[Int],
+            defaultBasemapId = (jsonWithExtras \ "defaultBasemapId").asOpt[String],
+            customBasemap = (jsonWithExtras \ "customBasemap").asOpt[String],
+            updateTasks = (jsonWithExtras \ "updateTasks").asOpt[Boolean].getOrElse(false),
+            exportableProperties = (jsonWithExtras \ "exportableProperties").asOpt[String],
+            osmIdProperty = (jsonWithExtras \ "osmIdProperty").asOpt[String],
+            preferredTags = (jsonWithExtras \ "preferredTags").asOpt[String],
+            preferredReviewTags = (jsonWithExtras \ "preferredReviewTags").asOpt[String],
+            limitTags = (jsonWithExtras \ "limitTags").asOpt[Boolean].getOrElse(false),
+            limitReviewTags = (jsonWithExtras \ "limitReviewTags").asOpt[Boolean].getOrElse(false),
+            taskStyles = (jsonWithExtras \ "taskStyles").asOpt[String],
+            taskBundleIdProperty = (jsonWithExtras \ "taskBundleIdProperty").asOpt[String],
+            isArchived = (jsonWithExtras \ "isArchived").asOpt[Boolean].getOrElse(false),
+            reviewSetting = (jsonWithExtras \ "reviewSetting")
+              .asOpt[Int]
+              .getOrElse(Challenge.REVIEW_SETTING_NOT_REQUIRED),
+            taskWidgetLayout = (jsonWithExtras \ "taskWidgetLayout").asOpt[JsValue],
+            datasetUrl = (jsonWithExtras \ "datasetUrl").asOpt[String],
+            systemArchivedAt = (jsonWithExtras \ "systemArchivedAt").asOpt[DateTime],
+            presets = (jsonWithExtras \ "presets").asOpt[List[String]],
+            requireConfirmation =
+              (jsonWithExtras \ "requireConfirmation").asOpt[Boolean].getOrElse(false),
+            mrTagMetrics = (jsonWithExtras \ "mrTagMetrics").asOpt[JsValue]
+          )
+        )
+      } catch {
+        case e: Exception => JsError(e.getMessage)
+      }
     }
   }
 
@@ -110,6 +184,9 @@ trait ChallengeReads extends DefaultReads {
       ((JsPath \ "modified").read[DateTime] or Reads.pure(DateTime.now())) and
       (JsPath \ "description").readNullable[String] and
       (JsPath \ "deleted").read[Boolean] and
+      (JsPath \ "isGlobal").read[Boolean] and
+      (JsPath \ "requireConfirmation").read[Boolean] and
+      (JsPath \ "requireRejectReason").read[Boolean] and
       (JsPath \ "infoLink").readNullable[String] and
       JsPath.read[ChallengeGeneral] and
       JsPath.read[ChallengeCreation] and

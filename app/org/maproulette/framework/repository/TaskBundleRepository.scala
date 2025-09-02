@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory
 
 import anorm.ToParameterValue
 import anorm.SqlParser.scalar
-import anorm._, postgresql._
+import anorm._
 import javax.inject.{Inject, Singleton}
 import org.maproulette.exception.InvalidException
 import org.maproulette.Config
@@ -18,7 +18,6 @@ import org.maproulette.framework.psql.filter.BaseParameter
 import org.maproulette.framework.model.{Task, TaskBundle, User}
 import org.maproulette.framework.mixins.{TaskParserMixin, Locking}
 import org.maproulette.framework.model.Task.STATUS_CREATED
-import org.maproulette.data.TaskType
 import play.api.db.Database
 
 // deprecated and to be removed after conversion
@@ -51,73 +50,52 @@ class TaskBundleRepository @Inject() (
       taskIds: List[Long],
       verifyTasks: (List[Task]) => Unit
   ): TaskBundle = {
-    this.withMRTransaction { implicit c =>
-      val lockedTasks = this.withListLocking(user, Some(TaskType())) { () =>
-        this.taskDAL.retrieveListById(-1, 0)(taskIds)
-      }
+    // First transaction: verify tasks and create bundle
+    val bundleId = this.withMRTransaction { implicit c =>
+      val tasks = this.taskDAL.retrieveListById(-1, 0)(taskIds)
 
-      val failedTaskIds = taskIds.diff(lockedTasks.map(_.id))
+      val failedTaskIds = taskIds.diff(tasks.map(_.id))
+
       // Checks to see if there where any tasks that were locked when the user tried to bundle them.
       if (failedTaskIds.nonEmpty) {
         throw new InvalidException(
-          s"Bundle creation failed because the following task IDs were locked: ${failedTaskIds.mkString(", ")}"
+          s"Bundle creation failed because the following task IDs were not found: ${failedTaskIds.mkString(", ")}"
         )
       }
 
-      verifyTasks(lockedTasks)
+      verifyTasks(tasks)
 
       val rowId =
         SQL"""INSERT INTO bundles (owner_id, name) VALUES (${user.id}, ${name})""".executeInsert()
 
       rowId match {
-        case Some(bundleId: Long) =>
-          // Update the task object to bind it to the bundle
-          SQL(s"""UPDATE tasks SET bundle_id = $bundleId
-               WHERE id IN ({inList})""")
-            .on(
-              "inList" -> taskIds
-            )
-            .executeUpdate()
-
-          primaryId match {
-            case Some(id) =>
-              val sqlQuery = s"""UPDATE tasks SET is_bundle_primary = true WHERE id = $id"""
-              SQL(sqlQuery).executeUpdate()
-            case None => // Handle the case where primaryId is None
+        case Some(id: Long) =>
+          // Set primary task if specified
+          primaryId.foreach { pid =>
+            SQL"""UPDATE tasks SET is_bundle_primary = true WHERE id = $pid""".executeUpdate()
           }
-
-          val sqlInsertTaskBundles =
-            s"""INSERT INTO task_bundles (task_id, bundle_id) VALUES ({taskId}, $bundleId)"""
-          val parameters = lockedTasks.map(task => Seq[NamedParameter]("taskId" -> task.id))
-          BatchSql(sqlInsertTaskBundles, parameters.head, parameters.tail: _*).execute()
-
-          // Lock each of the new tasks to indicate they are part of the bundle
-          for (task <- lockedTasks) {
-            try {
-              this.lockItem(user, task)
-            } catch {
-              case e: Exception => this.logger.warn(e.getMessage)
-            }
-            taskRepository.cacheManager.cache.remove(task.id)
-          }
-
-          TaskBundle(bundleId, user.id, lockedTasks.map(task => {
-            task.id
-          }), Some(lockedTasks))
-
+          id
         case None =>
           throw new Exception("Bundle creation failed")
       }
     }
+
+    // Second transaction: add tasks to bundle
+    this.bundleTasks(user, bundleId, taskIds)
+
+    val tasks = this.taskDAL.retrieveListById(-1, 0)(taskIds)
+
+    // Return the created bundle
+    TaskBundle(bundleId, user.id, taskIds, Some(tasks))
   }
 
   /**
-    *  Resets the bundle to the tasks provided, and unlock all tasks removed from current bundle
+    *  Sets the bundle to the tasks provided, and unlock all tasks removed from current bundle
     *
     * @param bundleId The id of the bundle
     * @param taskIds The task ids the bundle will reset to
     */
-  def resetTaskBundle(
+  def updateTaskBundle(
       user: User,
       bundleId: Long,
       taskIds: List[Long]
@@ -134,7 +112,7 @@ class TaskBundleRepository @Inject() (
       val tasksToRemove = currentTaskIds.filter(taskId => !taskIds.contains(taskId))
 
       if (tasksToRemove.nonEmpty) {
-        this.unbundleTasks(user, bundleId, tasksToRemove, List.empty)
+        this.unbundleTasks(user, bundleId, tasksToRemove)
       }
 
       // Filter for tasks that need to be added back to the bundle.
@@ -202,17 +180,9 @@ class TaskBundleRepository @Inject() (
         case None =>
       }
 
-      val lockedTasks = this.withListLocking(user, Some(TaskType())) { () =>
-        this.taskDAL.retrieveListById(-1, 0)(taskIds)
-      }
+      val tasks = this.taskDAL.retrieveListById(-1, 0)(taskIds)
 
-      lockedTasks.foreach { task =>
-        try {
-          this.lockItem(user, task)
-        } catch {
-          case e: Exception =>
-            this.logger.warn(e.getMessage)
-        }
+      tasks.foreach { task =>
         taskRepository.cacheManager.cache.remove(task.id)
       }
     }
@@ -226,8 +196,7 @@ class TaskBundleRepository @Inject() (
   def unbundleTasks(
       user: User,
       bundleId: Long,
-      taskIds: List[Long],
-      preventTaskIdUnlocks: List[Long]
+      taskIds: List[Long]
   ): Unit = {
     this.withMRConnection { implicit c =>
       val tasks = this.retrieveTasks(
@@ -265,13 +234,6 @@ class TaskBundleRepository @Inject() (
                 )
                 .executeUpdate()
 
-              if (!preventTaskIdUnlocks.contains(task.id)) {
-                try {
-                  this.unlockItem(user, task)
-                } catch {
-                  case e: Exception => this.logger.warn(e.getMessage)
-                }
-              }
               taskRepository.cacheManager.cache.remove(task.id)
             case None => // do nothing
           }
@@ -306,13 +268,19 @@ class TaskBundleRepository @Inject() (
         .on("bundleId" -> bundleId)
         .executeUpdate()
 
+      // Update cache for each task
       tasks.foreach { task =>
         if (!task.isBundlePrimary.getOrElse(false)) {
-          try {
-            this.unlockItem(user, task)
-          } catch {
-            case e: Exception => this.logger.warn(e.getMessage)
-          }
+          SQL(
+            """UPDATE tasks 
+                  SET status = {status} 
+                  WHERE id = {taskId}
+              """
+          ).on(
+              "taskId" -> task.id,
+              "status" -> STATUS_CREATED
+            )
+            .executeUpdate()
         }
         taskRepository.cacheManager.cache.remove(task.id)
       }
@@ -356,13 +324,18 @@ class TaskBundleRepository @Inject() (
     */
   def lockBundledTasks(user: User, tasks: List[Task]) = {
     this.withMRConnection { implicit c =>
-      for (task <- tasks) {
-        try {
-          this.lockItem(user, task)
-        } catch {
-          case e: Exception => this.logger.warn(e.getMessage)
+      try {
+        if (tasks.isEmpty) {
+          // No valid tasks found
+          throw new Exception("No valid tasks found")
+        } else {
+          // Use bulk locking for better performance
+          this.lockItems(user, tasks)
         }
+      } catch {
+        case e: Exception => this.logger.warn(e.getMessage)
       }
     }
+
   }
 }

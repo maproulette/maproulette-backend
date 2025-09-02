@@ -31,9 +31,12 @@ import org.maproulette.permissions.Permission
 import org.maproulette.provider.ChallengeProvider
 import org.maproulette.session.{SearchParameters, SessionManager}
 import org.maproulette.utils.Utils
+import org.maproulette.utils.CSVEncoder
 import play.api.http.HttpEntity
 import play.api.libs.Files
 import play.api.libs.json._
+import anorm._
+import anorm.SqlParser
 import play.api.libs.ws.WSClient
 import play.api.mvc._
 import play.shaded.oauth.oauth.signpost.exception.OAuthNotAuthorizedException
@@ -390,6 +393,40 @@ class ChallengeController @Inject() (
     this.sessionManager.userAwareRequest { implicit user =>
       val results = this.dalManager.task
         .getNearbyTasks(User.userOrMocked(user), challengeId, proximityId, excludeSelfLocked, limit)
+      Ok(Json.toJson(results))
+    }
+  }
+
+  /**
+    * Gets available tasks within a bounding box
+    *
+    * @param challengeId  The challenge id that is the parent of the tasks that you would be searching for
+    * @param left         The left edge of the bounding box
+    * @param bottom       The bottom edge of the bounding box
+    * @param right        The right edge of the bounding box
+    * @param top          The top edge of the bounding box
+    * @param limit        The maximum number of nearby tasks to return
+    * @return
+    */
+  def getNearbyTasksWithinBoundingBox(
+      challengeId: Long,
+      left: Double,
+      bottom: Double,
+      right: Double,
+      top: Double,
+      limit: Int
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      val results = this.dal
+        .getNearbyTasksWithinBoundingBox(
+          User.userOrMocked(user),
+          challengeId,
+          left,
+          bottom,
+          right,
+          top,
+          limit
+        )
       Ok(Json.toJson(results))
     }
   }
@@ -824,10 +861,16 @@ class ChallengeController @Inject() (
           }
 
           // Find matching geojson feature properties
-          var propData = ""
+          var propData    = ""
+          var featureType = ""
           task.geojson match {
             case Some(g) =>
-              val taskProps = (Json.parse(g) \\ "properties")(0).as[JsObject]
+              val parsedFeature = Json.parse(g)
+              featureType = (parsedFeature \\ "geometry")(0) \ "type" match {
+                case JsDefined(value) => value.as[String]
+                case JsUndefined()    => "Unknown"
+              }
+              val taskProps = (parsedFeature \\ "properties")(0).as[JsObject]
               for (key <- propsToExportHeaders) {
                 (taskProps \ key) match {
                   case value: JsDefined =>
@@ -879,17 +922,31 @@ class ChallengeController @Inject() (
           var taskLink =
             s"[[hyperlink URL link=${urlPrefix}challenge/${task.parent}/task/${task.taskId}]]"
 
-          s"""${task.taskId},${taskLink},${task.parent},${challengeLink},"${task.name}","${Task.statusMap
-            .get(task.status)
-            .get}",""" +
-            s""""${Challenge.priorityMap.get(task.priority).get}",${mappedOn},""" +
-            s"""${task.completedTimeSpent.getOrElse("")},"${mapper}",""" +
-            s"""${Task.reviewStatusMap.get(task.reviewStatus.getOrElse(-1)).get},""" +
-            s""""${task.reviewedBy.getOrElse("")}",${reviewedAt},"${reviewTimeSeconds}",""" +
-            s""""${task.additionalReviewers.getOrElse(List()).mkString(", ")}",""" +
-            s""""${comments}","${task.bundleId.getOrElse("")}","${task.isBundlePrimary
-              .getOrElse("")}",""" +
-            s""""${task.tags.getOrElse("")}"${propData}${responseData}""".stripMargin
+          // Create a CSV row with more meaningful column names and data
+          val csvRow = List(
+            task.taskId,
+            taskLink,
+            task.parent,
+            challengeLink,
+            task.name,
+            featureType,
+            Task.statusMap.get(task.status).getOrElse(""),
+            Challenge.priorityMap.get(task.priority).getOrElse(""),
+            mappedOn,
+            task.completedTimeSpent.getOrElse(""),
+            mapper,
+            Task.reviewStatusMap.get(task.reviewStatus.getOrElse(-1)).get,
+            task.reviewedBy.getOrElse(""),
+            reviewedAt,
+            reviewTimeSeconds,
+            task.additionalReviewers.getOrElse(List()).mkString(", "),
+            comments,
+            task.bundleId.getOrElse(""),
+            task.isBundlePrimary.getOrElse(""),
+            task.tags.getOrElse("")
+          )
+
+          CSVEncoder.encodeRow(csvRow)
         })
 
         var propsToExportHeaderString = propsToExportHeaders.mkString(",")
@@ -901,7 +958,7 @@ class ChallengeController @Inject() (
             ResponseHeader(OK, Map(CONTENT_DISPOSITION -> s"attachment; filename=${filename}")),
           body = HttpEntity.Strict(
             ByteString(
-              s"""TaskID,TaskLink,ChallengeID,ChallengeLink,TaskName,TaskStatus,TaskPriority,MappedOn,CompletionTime,Mapper,ReviewStatus,Reviewer,ReviewedAt,ReviewTimeSeconds,AdditionalReviewers,Comments,BundleId,IsBundlePrimary,Tags${propsToExportHeaderString}${responseHeaders}\n"""
+              s"""TaskID,TaskLink,ChallengeID,ChallengeLink,TaskName,GeometryType,TaskStatus,TaskPriority,MappedOn,CompletionTime,Mapper,ReviewStatus,Reviewer,ReviewedAt,ReviewTimeSeconds,AdditionalReviewers,Comments,BundleId,IsBundlePrimary,Tags${propsToExportHeaderString}${responseHeaders}\n"""
             ).concat(ByteString(seqString.mkString("\n"))),
             Some("text/csv; header=present")
           )
@@ -1150,6 +1207,7 @@ class ChallengeController @Inject() (
     jsonBody = Utils.insertIntoJson(jsonBody, "owner", user.osmProfile.id, true)(LongWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "enabled", true)(BooleanWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "deleted", false)(BooleanWrites)
+    jsonBody = Utils.insertIntoJson(jsonBody, "isGlobal", false)(BooleanWrites)
     jsonBody =
       Utils.insertIntoJson(jsonBody, "challengeType", Actions.ITEM_TYPE_CHALLENGE)(IntWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "difficulty", Challenge.DIFFICULTY_NORMAL)(IntWrites)
@@ -1170,6 +1228,8 @@ class ChallengeController @Inject() (
     jsonBody = Utils.insertIntoJson(jsonBody, "taskWidgetLayout", JsObject.empty)(jsValueWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "updateTasks", false)(BooleanWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "changesetUrl", false)(BooleanWrites)
+    jsonBody = Utils.insertIntoJson(jsonBody, "requireConfirmation", false)(BooleanWrites)
+    jsonBody = Utils.insertIntoJson(jsonBody, "requireRejectReason", false)(BooleanWrites)
     // if we can't find the parent ID, just use the user's default project instead
     (jsonBody \ "parent").asOpt[Long] match {
       case Some(v) => jsonBody
@@ -1501,6 +1561,92 @@ class ChallengeController @Inject() (
           case e: Exception =>
             logger.error(e.getMessage, e)
             BadRequest(Json.toJson(StatusMessage("KO", JsString(e.getMessage))))
+        }
+      }
+  }
+
+  /**
+    * Gets the tag metrics for a challenge
+    *
+    * @param id The id of the challenge
+    * @param limit The number of top tags to return (default 3)
+    * @return The tag metrics as JSON
+    */
+  def getTagMetrics(id: Long, limit: Int = 3): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        this.dal.retrieveById(id) match {
+          case Some(challenge) =>
+            permission.hasReadAccess(ChallengeType(), user)(id)
+            this.dal.withMRConnection { implicit c =>
+              val metricsParser = SqlParser.get[Option[String]]("mr_tag_metrics")
+              val metricsOpt =
+                SQL"SELECT mr_tag_metrics::text as mr_tag_metrics FROM challenges WHERE id = $id"
+                  .as(metricsParser.singleOpt)
+                  .flatten
+
+              val result = metricsOpt match {
+                case Some(metricsStr) if metricsStr.nonEmpty =>
+                  val jsValue = Json.parse(metricsStr)
+
+                  val topTagIds = jsValue
+                    .as[JsObject]
+                    .fields
+                    .map {
+                      case (tagId, countValue) =>
+                        val count = countValue.asOpt[Int].getOrElse(0)
+                        (tagId, count)
+                    }
+                    .sortBy(-_._2)
+                    .take(limit)
+
+                  val tagParser = for {
+                    id   <- SqlParser.long("id")
+                    name <- SqlParser.str("name")
+                  } yield (id.toString, name)
+
+                  val tagNames = if (topTagIds.nonEmpty) {
+
+                    val numericTagIds = topTagIds
+                      .map(_._1)
+                      .flatMap(id =>
+                        try {
+                          Some(id.toLong)
+                        } catch {
+                          case _: NumberFormatException => None
+                        }
+                      )
+
+                    if (numericTagIds.nonEmpty) {
+                      val idList = numericTagIds.mkString(",")
+                      SQL(s"SELECT id, name FROM tags WHERE id IN ($idList)")
+                        .as(tagParser.*)
+                        .toMap
+                    } else {
+                      Map.empty[String, String]
+                    }
+                  } else {
+                    Map.empty[String, String]
+                  }
+
+                  JsArray(topTagIds.map {
+                    case (tagId, count) =>
+                      JsObject(
+                        Seq(
+                          "id"    -> JsString(tagId),
+                          "name"  -> JsString(tagNames.getOrElse(tagId, tagId)),
+                          "count" -> JsNumber(count)
+                        )
+                      )
+                  })
+                case _ =>
+                  Json.obj()
+              }
+
+              Ok(result)
+            }
+          case None =>
+            throw new NotFoundException(s"No challenge found with id $id")
         }
       }
   }

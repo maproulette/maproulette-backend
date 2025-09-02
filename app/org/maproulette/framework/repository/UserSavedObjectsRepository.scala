@@ -6,10 +6,12 @@
 package org.maproulette.framework.repository
 
 import java.sql.Connection
-
 import anorm.SQL
+import anorm.SqlParser._
+import org.joda.time.DateTime
+
 import javax.inject.{Inject, Singleton}
-import org.maproulette.framework.model.{Challenge, SavedChallenge, SavedTasks}
+import org.maproulette.framework.model.{Challenge, LockedTaskData, SavedChallenge, SavedTasks, Task}
 import org.maproulette.framework.psql.filter.{
   BaseParameter,
   FilterParameter,
@@ -17,7 +19,6 @@ import org.maproulette.framework.psql.filter.{
   SubQueryFilter
 }
 import org.maproulette.framework.psql._
-import org.maproulette.framework.model.Task
 import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}
 import play.api.db.Database
 
@@ -147,6 +148,41 @@ class UserSavedObjectsRepository @Inject() (
           |LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
           |""".stripMargin)(baseTable = "tasks")
         .as(taskDAL.parser.*)
+    }
+  }
+
+  /**
+    * Retrieves a list of locked tasks for a specific user.
+    *
+    * @param userId       The ID of the user for whom you are requesting the saved challenges.
+    * @param limit        The maximum number of tasks to return.
+    * @param c            An optional existing connection.
+    * @return A list tasks the user has locked, each item containing the task ID, its locked time, and the challenge name.
+    */
+  def getLockedTasks(
+      userId: Long,
+      limit: Long
+  )(implicit c: Option[Connection] = None): List[LockedTaskData] = {
+    this.withMRTransaction { implicit c =>
+      val parser = for {
+        id         <- get[Long]("id")
+        parent     <- get[Long]("tasks.parent_id")
+        parentName <- get[String]("challenges.challenge_name")
+        lockedTime <- get[DateTime]("locked.locked_time")
+      } yield (LockedTaskData(id, parent, parentName, lockedTime))
+
+      val query = """
+                    SELECT t.id, t.parent_id, l.locked_time, c.name AS challenge_name
+                    FROM tasks t
+                    INNER JOIN locked l ON t.id = l.item_id
+                    INNER JOIN challenges c ON t.parent_id = c.id
+                    WHERE l.user_id = {userId}
+                    LIMIT {limit}
+                  """
+
+      SQL(query)
+        .on("userId" -> userId, "limit" -> limit)
+        .as(parser.*)
     }
   }
 

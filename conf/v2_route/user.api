@@ -321,6 +321,36 @@ DELETE   /user/:userId/unsave/:challengeId          @org.maproulette.framework.c
 GET     /user/:userId/savedTasks                    @org.maproulette.framework.controller.UserController.getSavedTasks(userId:Long, challengeIds:String ?= "", limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ User ]
+# summary: Retrieves Users Locked Tasks
+# description: Retrieves a list of all the tasks the user with the matching id has locked
+# responses:
+#   '200':
+#     description: The retrieved Tasks
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.LockedTaskData'
+#   '401':
+#     description: The user is not authorized to make this request.
+#   '404':
+#     description: userId is not known.
+# parameters:
+#   - name: userId
+#     in: path
+#     description: The id of the user to retrieve the locked tasks for
+#   - name: limit
+#     in: query
+#     description: Limit the number of results returned in the response. Default value is 50.
+#     required: false
+#     schema:
+#       type: integer
+#       default: 50
+###
+GET     /user/:userId/lockedTasks                    @org.maproulette.framework.controller.UserController.getLockedTasks(userId:Long, limit:Int ?= 50)
+###
+# tags: [ User ]
 # summary: Saves a Task for a User
 # description: Saves a Task to a user account
 # responses:

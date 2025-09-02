@@ -46,7 +46,10 @@ RESPONSE {
     "description": "Project for Github Example.",
     "groups": [],
     "enabled": true,
-    "deleted": false
+    "deleted": false,
+    "isGlobal": false,
+    "requireConfirmation": false,
+    "requireRejectReason": false,
 }
 ```
 ***NOTE:** The owner id will match the ID of the user used based on the APIKey.<br/>

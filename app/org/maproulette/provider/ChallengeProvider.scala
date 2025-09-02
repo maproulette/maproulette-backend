@@ -282,85 +282,89 @@ class ChallengeProvider @Inject() (
     }
   }
 
+  // Helper function to retrieve a non-null, non-empty string from a field
+  // Supports both string and numeric IDs.
+  def getNonNullString(value: JsValue, fieldName: String): Option[String] = {
+    (value \ fieldName).asOpt[JsValue].flatMap {
+      case JsString(str) if str.nonEmpty => Some(str)
+      case JsNumber(num)                 => Some(num.toString)
+      case _                             => None
+    }
+  }
+
   /**
-    * Extracts the OSM id from the given JsValue based on the `osmIdProperty`
+    * Checks for the first valid ID in the specified list of field names.
+    */
+  def findName(value: JsValue, fields: List[String]): Option[String] = {
+    fields.iterator
+      .flatMap { fieldName =>
+        val result = getNonNullString(value, fieldName)
+        result
+      }
+      .toList
+      .headOption
+  }
+
+  /**
+    * Extracts the OSM ID from the given JsValue based on the `osmIdProperty`
     * challenge field. Returns None if either the challenge has not specified an
     * osmIdProperty or if the JsValue contains neither a field nor property with
     * the specified name. If the JsValue represents a collection of features,
-    * each feature will be checked and the first OSM id found returned
+    * each feature will be checked and the first OSM ID found will be returned.
     */
-  private def featureOSMId(value: JsValue, challenge: Challenge): Option[String] = {
-    challenge.extra.osmIdProperty match {
-      case Some(osmIdName) =>
-        // Whether `value` represents multiple features or just one, process as List
-        val features = (value \ "features").asOpt[List[JsValue]].getOrElse(List(value))
-        features
-          .map(feature =>
-            // First look for a matching field on the feature itself. If not found, then
-            // look at the feature's properties
-            (feature \ osmIdName).asOpt[String] match {
-              case Some(matchingIdField) => Some(matchingIdField)
-              case None =>
-                (feature \ "properties").asOpt[JsObject] match {
-                  case Some(properties) =>
-                    (properties \ osmIdName).asOpt[String] match {
-                      case Some(matchingIdProperty) => Some(matchingIdProperty)
-                      case None                     => None // feature doesn't have the id property
-                    }
-                  case None => None // feature doesn't have any properties
-                }
-            }
-          )
-          .find(_.isDefined) match { // first feature that has a match
-          case Some(featureWithId) => featureWithId
-          case None                => None // No features found with matching id field or property
+  def featureOSMId(value: JsValue, challenge: Challenge): Option[String] = {
+    challenge.extra.osmIdProperty.flatMap { osmIdName =>
+      // Whether `value` represents multiple features or just one, process as List
+      val features = (value \ "features").asOpt[List[JsValue]].getOrElse(List(value))
+
+      features.flatMap { feature =>
+        // First look for a matching field on the feature itself
+        getNonNullString(feature, osmIdName).orElse {
+          // If not found on the feature, then look at the feature's properties
+          (feature \ "properties").asOpt[JsObject].flatMap { properties =>
+            getNonNullString(properties, osmIdName)
+          }
         }
-      case None => None // No osmIdProperty defined on challenge
+      }.headOption // Get the first non-empty match
     }
   }
 
   /**
     * Extracts an appropriate task name from the given JsValue, looking for any
-    * of multiple suitable id fields, or finally defaulting to a random UUID if
-    * no acceptable field is found
+    * of multiple suitable ID fields, or finally defaulting to a random UUID if
+    * no acceptable field is found.
     */
-  private def taskNameFromJsValue(value: JsValue, challenge: Challenge): String = {
+  def taskNameFromJsValue(value: JsValue, challenge: Challenge): String = {
     // Use field/property specified by challenge, if available. Otherwise look
-    // for commonly used id fields/properties
-    if (!challenge.extra.osmIdProperty.getOrElse("").isEmpty) {
-      return featureOSMId(value, challenge) match {
-        case Some(osmId) => osmId
-        case None        => UUID.randomUUID().toString // task does not contain id property
-      }
+    // for commonly used ID fields/properties
+    if (challenge.extra.osmIdProperty.exists(_.nonEmpty)) {
+      return featureOSMId(value, challenge).getOrElse(UUID.randomUUID().toString)
     }
 
-    val featureList = (value \ "features").asOpt[List[JsValue]]
-    if (featureList.isDefined) {
-      taskNameFromJsValue(featureList.get.head, challenge) // Base name on first feature
-    } else {
-      val nameKeys = List.apply("id", "@id", "osmid", "osm_id", "name")
-      nameKeys.collectFirst {
-        case x if (value \ x).asOpt[JsValue].isDefined =>
-          // Support both string and numeric ids. If it's a string, use it.
-          // Otherwise convert the value to a string
-          (value \ x).asOpt[String] match {
-            case Some(stringValue) => stringValue
-            case None              => (value \ x).asOpt[JsValue].get.toString
-          }
-      } match {
-        case Some(n) => n
-        case None =>
-          (value \ "properties").asOpt[JsObject] match {
-            // See if we can find an id field on the feature properties
-            case Some(properties) => taskNameFromJsValue(properties, challenge)
-            case None             =>
+    (value \ "features")
+      .asOpt[List[JsValue]]
+      .flatMap(_.headOption)
+      .flatMap { firstFeature =>
+        val name = taskNameFromJsValue(firstFeature, challenge)
+        if (name.nonEmpty) Some(name) else None
+      }
+      .getOrElse {
+        val nameKeys = List("id", "@id", "osmid", "osm_id", "name")
+        findName(value, nameKeys).getOrElse {
+          (value \ "properties")
+            .asOpt[JsObject]
+            .flatMap { properties =>
+              val name = taskNameFromJsValue(properties, challenge)
+              if (name.nonEmpty) Some(name) else None
+            }
+            .getOrElse {
               // if we still don't find anything, create a UUID for it. The
               // caveat to this is that if you upload the same file again, it
               // will create duplicate tasks
               UUID.randomUUID().toString
-          }
+            }
+        }
       }
-    }
   }
 
   /**
@@ -460,11 +464,36 @@ class ChallengeProvider @Inject() (
           case None    => osmQLProvider.requestTimeout
         }
 
+        val modifiedQuery = rewriteQuery(ql)
+        logger.info(modifiedQuery)
+
         val jsonFuture =
-          this.ws.url(osmQLProvider.providerURL).withRequestTimeout(timeout).post(parseQuery(ql))
+          this.ws.url(osmQLProvider.providerURL).withRequestTimeout(timeout).post(modifiedQuery)
         jsonFuture onComplete {
           case Success(result) =>
             if (result.status == Status.OK) {
+              val contentType = result.header("Content-Type")
+
+              // check that the Overpass API returned JSON
+              if (contentType.isDefined && contentType != Some("application/json")) {
+                this.challengeDAL.update(
+                  Json.obj(
+                    "status"        -> Challenge.STATUS_FAILED,
+                    "statusMessage" -> s"""
+                    |Overpass API returned response with Content-Type: ${contentType.get}
+                    |
+                    |MapRoulette requires OverpassQL queries to return JSON.
+                    |
+                    |If your query contained [out:xml] or [out:csv], replace it with [out:json] and try again.
+                    """.stripMargin
+                  ),
+                  user
+                )(challenge.id)
+                throw new InvalidException(
+                  s"Overpass API returned unexpected Content-Type: ${contentType.get}"
+                )
+              }
+
               this.db.withTransaction { implicit c =>
                 var partial          = false
                 val payload          = result.json
@@ -730,23 +759,60 @@ class ChallengeProvider @Inject() (
   }
 
   /**
-    * parse the query, replace various extended overpass query parameters see https://wiki.openstreetmap.org/wiki/Overpass_turbo/Extended_Overpass_Queries
-    * Currently do not support {{bbox}} or {{center}}
+    * rewrite the user-provided OverpassQL query, adding output format and timeout settings if they are missing.
     *
-    * @param query The query to parse
-    * @return
+    * @param query the input query as a string
+    * @return a modified query string
     */
-  private def parseQuery(query: String): String = {
+  private def rewriteQuery(query: String): String = {
     val osmQLProvider = config.getOSMQLProvider
-    // User can set their own custom timeout if the want
-    if (query.indexOf("[out:json]") == 0) {
-      query
-    } else if (query.indexOf("[timeout:") == 0) {
-      s"[out:json]$query"
-    } else {
-      s"[out:json][timeout:${osmQLProvider.requestTimeout.toSeconds}];$query"
+    val timeout       = osmQLProvider.requestTimeout.toSeconds
+
+    val split = query.trim.split("\n", 2)
+    var (firstLine, restOfQuery) = {
+      split.length match {
+        case 0 => ("", "")
+        case 1 => (split(0).trim, "")
+        case _ => (split(0).trim, split(1))
+      }
     }
-    // execute regex matching against {{data:string}}, {{geocodeId:name}}, {{geocodeArea:name}}, {{geocodeBbox:name}}, {{geocodeCoords:name}}
+
+    if (firstLine.startsWith("[") && firstLine.endsWith(";")) {
+      // first line looks like OverpassQL settings statement
+      // https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL#Settings
+
+      if (!firstLine.contains("[out:")) {
+        // if no output format was given by the user, add [out:json]
+        firstLine = "[out:json]" + firstLine
+      }
+      if (!firstLine.contains("[timeout:")) {
+        // if no timeout was specified by the user, add one
+        firstLine = s"[timeout:${timeout}]" + firstLine
+      }
+
+      return s"${firstLine}\n${restOfQuery}"
+    } else {
+      // first line doesn't look like OverpassQL settings, so assume no settings were provided,
+      // and prepend the required ones.
+
+      // NOTE: this branch will incorrectly be reached if the query started with a comment,
+      // or if the settings were split across multiple lines (OverpassQL allows both).
+      // In those cases it's better to do nothing (hopefully the query will work without any changes)
+      // than to add redundant settings (which is a syntax error).
+
+      val settings = Array("out", "timeout", "bbox", "date", "diff", "adiff", "maxsize")
+      // Check (crudely) if it looks like settings have already been provided somewhere in the query
+      if (settings.exists(setting => query.contains(s"[${setting}:"))) {
+        // If so, return it unmodified
+        return query
+      } else {
+        // If not, hopefully it's safe to prepend our default settings
+        return s"[out:json][timeout:${timeout}];\n$query"
+      }
+    }
+
+    // TODO: execute regex matching against {{data:string}}, {{geocodeId:name}}, {{geocodeArea:name}}, {{geocodeBbox:name}}, {{geocodeCoords:name}}
+    // see https://wiki.openstreetmap.org/wiki/Overpass_turbo/Extended_Overpass_Queries
   }
 
   /**

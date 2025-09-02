@@ -9,7 +9,7 @@ import org.maproulette.framework.psql.CommonField
 import play.api.libs.json.{Json, Writes}
 import play.api.libs.json.JodaWrites._
 
-case class LeaderboardChallenge(id: Long, name: String, activity: Int)
+case class LeaderboardChallenge(id: Long, name: String, activity: Int, status: Int)
 object LeaderboardChallenge {
   implicit val writes: Writes[LeaderboardChallenge] = Json.writes[LeaderboardChallenge]
 }
@@ -20,8 +20,8 @@ case class LeaderboardUser(
     avatarURL: String,
     score: Int,
     rank: Int,
-    completedTasks: Int,
-    avgTimeSpent: Long,
+    completedTasks: Option[Int],
+    avgTimeSpent: Option[Long],
     created: DateTime = new DateTime(),
     topChallenges: List[LeaderboardChallenge],
     reviewsApproved: Option[Int],

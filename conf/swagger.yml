@@ -2,7 +2,7 @@
 openapi: "3.0.3"
 info:
   title: "MapRoulette API"
-  description: "API for MapRoulette enabling the creation and maintenance of MapRoulette challenges"
+  description: "API for MapRoulette enabling the creation and maintenance of MapRoulette challenges. Using the api requires a user apiKey which you can find at the bottom of https://maproulette.org/user/profile. There are Python and Java Wrapper for this API which are linked in the Navigation at https://learn.maproulette.org/en-us/documentation/."
   contact:
     name: "maproulette@maproulette.org"
   license:
@@ -315,4 +315,4 @@ components:
       type: apiKey
       in: header
       name: apiKey
-      description: The user's apiKey to authorize the request
+      description: The user's apiKey to authorize the request; find it on https://maproulette.org/user/profile at the bottom of the page.
