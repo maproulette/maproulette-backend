@@ -377,35 +377,49 @@ object SearchParameters {
         case AnyContentAsFormUrlEncoded(formData) =>
           val tpsData = formData("taskPropertySearch")
           if (tpsData.length > 0 && tpsData.head != "{}") {
-            taskPropertySearch =
-              Json.fromJson[TaskPropertySearch](Json.parse(tpsData.head)) match {
-                case JsSuccess(tps, _) => {
-                  Some(tps)
+            try {
+              taskPropertySearch =
+                Json.fromJson[TaskPropertySearch](Json.parse(tpsData.head)) match {
+                  case JsSuccess(tps, _) => {
+                    Some(tps)
+                  }
+                  case e: JsError =>
+                    throw new InvalidException(s"Unable to create TaskPropertySearch from JSON: ${JsError toJson e}")
                 }
-                case e: JsError =>
-                  throw new InvalidException(s"Unable to create TaskPropertySearch from JSON: ${JsError toJson e}")
-              }
+            } catch {
+              case e: Exception =>
+                // Log the error but don't fail the request - just skip the taskPropertySearch
+                play.api.Logger("SearchParameters").warn(s"Failed to parse taskPropertySearch from form data: ${e.getMessage}")
+                taskPropertySearch = None
+            }
           }
         case _ => None
       }
     }
     // Otherwise if submitted as PUT data.
     else {
-      taskPropertySearch = (request.body.asJson) match {
-        case Some(v) =>
-          (v \ "taskPropertySearch").toOption match {
-            case Some(result) => {
-              Json.fromJson[TaskPropertySearch](result) match {
-                case JsSuccess(tps, _) => {
-                  Some(tps)
+      try {
+        taskPropertySearch = (request.body.asJson) match {
+          case Some(v) =>
+            (v \ "taskPropertySearch").toOption match {
+              case Some(result) => {
+                Json.fromJson[TaskPropertySearch](result) match {
+                  case JsSuccess(tps, _) => {
+                    Some(tps)
+                  }
+                  case e: JsError =>
+                    throw new InvalidException(s"Unable to create TaskPropertySearch from JSON: ${JsError toJson e}")
                 }
-                case e: JsError =>
-                  throw new InvalidException(s"Unable to create TaskPropertySearch from JSON: ${JsError toJson e}")
               }
+              case None => None
             }
-            case None => None
-          }
-        case None => None
+          case None => None
+        }
+      } catch {
+        case e: Exception =>
+          // Log the error but don't fail the request - just skip the taskPropertySearch
+          play.api.Logger("SearchParameters").warn(s"Failed to parse taskPropertySearch from request body: ${e.getMessage}")
+          taskPropertySearch = None
       }
     }
 
