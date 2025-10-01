@@ -943,6 +943,9 @@ GET     /challenge/:cid/previousTask/:id            @org.maproulette.controllers
 #   - name: timezone
 #     in: query
 #     description: A timezone offset to apply to time fields. Format should be like '+HH:MM'. Default is GMT (+00:00)
+#   - name: bbox
+#     in: query
+#     description: Bounding box to limit the tasks returned. Format should be 'left,bottom,right,top' (comma-separated coordinates) in degrees
 #   - name: filename
 #     in: query
 #     description: Optional filename to be used for the export
@@ -956,7 +959,7 @@ GET     /challenge/:cid/previousTask/:id            @org.maproulette.controllers
 #       schema:
 #         $ref: '#/components/schemas/org.maproulette.session.TaskPropertySearch'
 ###
-GET     /challenge/view/:id                         @org.maproulette.controllers.api.ChallengeController.getChallengeGeoJSON(id:Long, status:String ?= "", reviewStatus:String ?= "", priority:String ?= "", timezone:String ?= "", filename:String ?= "")
+GET     /challenge/view/:id                         @org.maproulette.controllers.api.ChallengeController.getChallengeGeoJSON(id:Long, status:String ?= "", reviewStatus:String ?= "", priority:String ?= "", timezone:String ?= "", bbox:String ?= "", filename:String ?= "")
 ###
 # tags: [ Challenge ]
 # summary: Retrieves Challenge GeoJSON
@@ -979,6 +982,9 @@ GET     /challenge/view/:id                         @org.maproulette.controllers
 #   - name: reviewStatus
 #     in: query
 #     description: Can filter the Tasks returned by the reviewStatus of the Task. 0 - Requested, 1 - Approved, 2 - Rejected, 3 - Assisted, 4 - Disputed
+#   - name: bbox
+#     in: query
+#     description: Bounding box to limit the tasks returned. Format should be 'left,bottom,right,top' (comma-separated coordinates) in degrees
 #   - name: filename
 #     in: query
 #     description: Optional filename to be used for the export
@@ -992,7 +998,7 @@ GET     /challenge/view/:id                         @org.maproulette.controllers
 #       schema:
 #         $ref: '#/components/schemas/org.maproulette.session.TaskPropertySearch'
 ###
-POST    /challenge/view/:id                         @org.maproulette.controllers.api.ChallengeController.getChallengeGeoJSON(id:Long, status:String ?= "", reviewStatus:String ?= "", priority:String ?= "", timezone:String ?= "", filename:String ?= "")
+POST    /challenge/view/:id                         @org.maproulette.controllers.api.ChallengeController.getChallengeGeoJSON(id:Long, status:String ?= "", reviewStatus:String ?= "", priority:String ?= "", timezone:String ?= "", bbox:String ?= "", filename:String ?= "")
 ###
 # tags: [ Challenge ]
 # summary: Retrieves clustered Task points
