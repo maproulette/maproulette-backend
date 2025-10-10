@@ -415,7 +415,7 @@ class DataManager @Inject() (
               ${this.order(orderColumn, orderDirection)}
               LIMIT ${this.sqlLimit(limit)} OFFSET {offset}
           """
-        
+
         // Case 2: Project list provided - use optimized join from challenges/vpc
         case (_, Some(idList)) if idList.nonEmpty =>
           val project = this.serviceManager.project.retrieve(idList.head).get
@@ -448,7 +448,7 @@ class DataManager @Inject() (
                   ${this.order(orderColumn, orderDirection)}
                   LIMIT ${this.sqlLimit(limit)} OFFSET {offset}
               """
-            
+
             // Regular project: start from challenges filtered by parent_id
             case Some(false) =>
               s"""SELECT tasks.parent_id, c.name,
@@ -476,7 +476,7 @@ class DataManager @Inject() (
                   ${this.order(orderColumn, orderDirection)}
                   LIMIT ${this.sqlLimit(limit)} OFFSET {offset}
               """
-            
+
             // Unknown project type: use UNION to handle both virtual and regular
             case _ =>
               s"""SELECT tasks.parent_id, c.name,
@@ -507,7 +507,7 @@ class DataManager @Inject() (
                   LIMIT ${this.sqlLimit(limit)} OFFSET {offset}
               """
           }
-        
+
         // Case 3: No filters - get all challenges
         case _ =>
           s"""SELECT tasks.parent_id, c.name,
