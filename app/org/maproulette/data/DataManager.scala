@@ -369,10 +369,6 @@ class DataManager @Inject() (
         }
       )
 
-      val challengeFilter = challengeId match {
-        case Some(id) if id != -1 => s"AND tasks.parent_id = $id"
-        case _                    => buildProjectSearch(projectList, "c.parent_id", "c.id")
-      }
       val priorityFilter = priority match {
         case Some(p) =>
           val invert =
@@ -381,49 +377,164 @@ class DataManager @Inject() (
         case None => ""
       }
 
-      val searchFilters = new StringBuilder(
-        s"1=1 $challengeFilter $priorityFilter ${if (searchString != "") searchField("c.name")
-        else ""}"
-      )
-
-      this.paramsTaskStatus(searchParams, searchFilters)
-      this.paramsTaskReviewStatus(searchParams, searchFilters)
-      this.paramsTaskId(searchParams, searchFilters)
-      this.paramsOwner(searchParams, searchFilters)
-      this.paramsReviewer(searchParams, searchFilters)
-      this.paramsMapper(searchParams, searchFilters)
+      // Build task-level filters
+      val taskFilters = new StringBuilder("1=1")
+      this.paramsTaskStatus(searchParams, taskFilters)
+      this.paramsTaskReviewStatus(searchParams, taskFilters)
+      this.paramsTaskId(searchParams, taskFilters)
+      this.paramsOwner(searchParams, taskFilters)
+      this.paramsReviewer(searchParams, taskFilters)
+      this.paramsMapper(searchParams, taskFilters)
 
       // The percentage columns are a bit of a hack simply so that we can order by the percentages.
       // It won't decrease performance as this is simple basic math calculations, but it certainly
       // isn't pretty
-      val query =
-        s"""SELECT tasks.parent_id, c.name,
-              COUNT(tasks.completed_time_spent) as tasksWithTime,
-              COALESCE(SUM(tasks.completed_time_spent), 0) as totalTimeSpent,
-              SUM(CASE WHEN (tasks.status != 4 AND tasks.status != 9) THEN 1 ELSE 0 END) as total,
-              SUM(CASE tasks.status WHEN 0 THEN 1 ELSE 0 END) as available,
-              SUM(CASE tasks.status WHEN 1 THEN 1 ELSE 0 END) as fixed,
-              SUM(CASE tasks.status WHEN 2 THEN 1 ELSE 0 END) as false_positive,
-              SUM(CASE tasks.status WHEN 3 THEN 1 ELSE 0 END) as skipped,
-              SUM(CASE tasks.status WHEN 4 THEN 1 ELSE 0 END) as deleted,
-              SUM(CASE tasks.status WHEN 5 THEN 1 ELSE 0 END) as already_fixed,
-              SUM(CASE tasks.status WHEN 6 THEN 1 ELSE 0 END) AS too_hard,
-              SUM(CASE tasks.status WHEN 7 THEN 1 ELSE 0 END) AS answered,
-              SUM(CASE tasks.status WHEN 8 THEN 1 ELSE 0 END) AS validated,
-              SUM(CASE tasks.status WHEN 9 THEN 1 ELSE 0 END) AS disabled
-            FROM tasks
-            INNER JOIN challenges c ON c.id = tasks.parent_id
-            INNER JOIN projects p ON p.id = c.parent_id
-            WHERE ${if (onlyEnabled) {
-          "c.enabled = true AND p.enabled = true AND"
-        } else {
-          ""
-        }}
-              ${searchFilters.toString()}
-            GROUP BY tasks.parent_id, c.name
-            ${this.order(orderColumn, orderDirection)}
-            LIMIT ${this.sqlLimit(limit)} OFFSET {offset}
-        """
+      // Optimized query structure: start from the most selective table to avoid full table scans on tasks
+      val query = (challengeId, projectList) match {
+        // Case 1: Specific challenge ID provided
+        case (Some(id), _) if id != -1 =>
+          s"""SELECT tasks.parent_id, c.name,
+                COUNT(tasks.completed_time_spent) as tasksWithTime,
+                COALESCE(SUM(tasks.completed_time_spent), 0) as totalTimeSpent,
+                SUM(CASE WHEN (tasks.status != 4 AND tasks.status != 9) THEN 1 ELSE 0 END) as total,
+                SUM(CASE tasks.status WHEN 0 THEN 1 ELSE 0 END) as available,
+                SUM(CASE tasks.status WHEN 1 THEN 1 ELSE 0 END) as fixed,
+                SUM(CASE tasks.status WHEN 2 THEN 1 ELSE 0 END) as false_positive,
+                SUM(CASE tasks.status WHEN 3 THEN 1 ELSE 0 END) as skipped,
+                SUM(CASE tasks.status WHEN 4 THEN 1 ELSE 0 END) as deleted,
+                SUM(CASE tasks.status WHEN 5 THEN 1 ELSE 0 END) as already_fixed,
+                SUM(CASE tasks.status WHEN 6 THEN 1 ELSE 0 END) AS too_hard,
+                SUM(CASE tasks.status WHEN 7 THEN 1 ELSE 0 END) AS answered,
+                SUM(CASE tasks.status WHEN 8 THEN 1 ELSE 0 END) AS validated,
+                SUM(CASE tasks.status WHEN 9 THEN 1 ELSE 0 END) AS disabled
+              FROM challenges c
+              INNER JOIN tasks ON tasks.parent_id = c.id
+              WHERE c.id = $id ${if (searchString != "") s"AND ${searchField("c.name")}" else ""}
+                AND ${taskFilters.toString()} $priorityFilter
+              GROUP BY tasks.parent_id, c.name
+              ${this.order(orderColumn, orderDirection)}
+              LIMIT ${this.sqlLimit(limit)} OFFSET {offset}
+          """
+        
+        // Case 2: Project list provided - use optimized join from challenges/vpc
+        case (_, Some(idList)) if idList.nonEmpty =>
+          val project = this.serviceManager.project.retrieve(idList.head).get
+          project.isVirtual match {
+            // Virtual project: start from virtual_project_challenges for maximum efficiency
+            case Some(true) =>
+              s"""SELECT tasks.parent_id, c.name,
+                    COUNT(tasks.completed_time_spent) as tasksWithTime,
+                    COALESCE(SUM(tasks.completed_time_spent), 0) as totalTimeSpent,
+                    SUM(CASE WHEN (tasks.status != 4 AND tasks.status != 9) THEN 1 ELSE 0 END) as total,
+                    SUM(CASE tasks.status WHEN 0 THEN 1 ELSE 0 END) as available,
+                    SUM(CASE tasks.status WHEN 1 THEN 1 ELSE 0 END) as fixed,
+                    SUM(CASE tasks.status WHEN 2 THEN 1 ELSE 0 END) as false_positive,
+                    SUM(CASE tasks.status WHEN 3 THEN 1 ELSE 0 END) as skipped,
+                    SUM(CASE tasks.status WHEN 4 THEN 1 ELSE 0 END) as deleted,
+                    SUM(CASE tasks.status WHEN 5 THEN 1 ELSE 0 END) as already_fixed,
+                    SUM(CASE tasks.status WHEN 6 THEN 1 ELSE 0 END) AS too_hard,
+                    SUM(CASE tasks.status WHEN 7 THEN 1 ELSE 0 END) AS answered,
+                    SUM(CASE tasks.status WHEN 8 THEN 1 ELSE 0 END) AS validated,
+                    SUM(CASE tasks.status WHEN 9 THEN 1 ELSE 0 END) AS disabled
+                  FROM virtual_project_challenges vpc
+                  INNER JOIN challenges c ON c.id = vpc.challenge_id
+                  ${if (onlyEnabled) "INNER JOIN projects p ON p.id = c.parent_id" else ""}
+                  INNER JOIN tasks ON tasks.parent_id = c.id
+                  WHERE vpc.project_id IN (${idList.mkString(",")})
+                    ${if (onlyEnabled) "AND c.enabled = true AND p.enabled = true" else ""}
+                    ${if (searchString != "") s"AND ${searchField("c.name")}" else ""}
+                    AND ${taskFilters.toString()} $priorityFilter
+                  GROUP BY tasks.parent_id, c.name
+                  ${this.order(orderColumn, orderDirection)}
+                  LIMIT ${this.sqlLimit(limit)} OFFSET {offset}
+              """
+            
+            // Regular project: start from challenges filtered by parent_id
+            case Some(false) =>
+              s"""SELECT tasks.parent_id, c.name,
+                    COUNT(tasks.completed_time_spent) as tasksWithTime,
+                    COALESCE(SUM(tasks.completed_time_spent), 0) as totalTimeSpent,
+                    SUM(CASE WHEN (tasks.status != 4 AND tasks.status != 9) THEN 1 ELSE 0 END) as total,
+                    SUM(CASE tasks.status WHEN 0 THEN 1 ELSE 0 END) as available,
+                    SUM(CASE tasks.status WHEN 1 THEN 1 ELSE 0 END) as fixed,
+                    SUM(CASE tasks.status WHEN 2 THEN 1 ELSE 0 END) as false_positive,
+                    SUM(CASE tasks.status WHEN 3 THEN 1 ELSE 0 END) as skipped,
+                    SUM(CASE tasks.status WHEN 4 THEN 1 ELSE 0 END) as deleted,
+                    SUM(CASE tasks.status WHEN 5 THEN 1 ELSE 0 END) as already_fixed,
+                    SUM(CASE tasks.status WHEN 6 THEN 1 ELSE 0 END) AS too_hard,
+                    SUM(CASE tasks.status WHEN 7 THEN 1 ELSE 0 END) AS answered,
+                    SUM(CASE tasks.status WHEN 8 THEN 1 ELSE 0 END) AS validated,
+                    SUM(CASE tasks.status WHEN 9 THEN 1 ELSE 0 END) AS disabled
+                  FROM challenges c
+                  ${if (onlyEnabled) "INNER JOIN projects p ON p.id = c.parent_id" else ""}
+                  INNER JOIN tasks ON tasks.parent_id = c.id
+                  WHERE c.parent_id IN (${idList.mkString(",")})
+                    ${if (onlyEnabled) "AND c.enabled = true AND p.enabled = true" else ""}
+                    ${if (searchString != "") s"AND ${searchField("c.name")}" else ""}
+                    AND ${taskFilters.toString()} $priorityFilter
+                  GROUP BY tasks.parent_id, c.name
+                  ${this.order(orderColumn, orderDirection)}
+                  LIMIT ${this.sqlLimit(limit)} OFFSET {offset}
+              """
+            
+            // Unknown project type: use UNION to handle both virtual and regular
+            case _ =>
+              s"""SELECT tasks.parent_id, c.name,
+                    COUNT(tasks.completed_time_spent) as tasksWithTime,
+                    COALESCE(SUM(tasks.completed_time_spent), 0) as totalTimeSpent,
+                    SUM(CASE WHEN (tasks.status != 4 AND tasks.status != 9) THEN 1 ELSE 0 END) as total,
+                    SUM(CASE tasks.status WHEN 0 THEN 1 ELSE 0 END) as available,
+                    SUM(CASE tasks.status WHEN 1 THEN 1 ELSE 0 END) as fixed,
+                    SUM(CASE tasks.status WHEN 2 THEN 1 ELSE 0 END) as false_positive,
+                    SUM(CASE tasks.status WHEN 3 THEN 1 ELSE 0 END) as skipped,
+                    SUM(CASE tasks.status WHEN 4 THEN 1 ELSE 0 END) as deleted,
+                    SUM(CASE tasks.status WHEN 5 THEN 1 ELSE 0 END) as already_fixed,
+                    SUM(CASE tasks.status WHEN 6 THEN 1 ELSE 0 END) AS too_hard,
+                    SUM(CASE tasks.status WHEN 7 THEN 1 ELSE 0 END) AS answered,
+                    SUM(CASE tasks.status WHEN 8 THEN 1 ELSE 0 END) AS validated,
+                    SUM(CASE tasks.status WHEN 9 THEN 1 ELSE 0 END) AS disabled
+                  FROM challenges c
+                  ${if (onlyEnabled) "INNER JOIN projects p ON p.id = c.parent_id" else ""}
+                  INNER JOIN tasks ON tasks.parent_id = c.id
+                  WHERE (c.parent_id IN (${idList.mkString(",")})
+                         OR c.id IN (SELECT vpc.challenge_id FROM virtual_project_challenges vpc 
+                                     WHERE vpc.project_id IN (${idList.mkString(",")})))
+                    ${if (onlyEnabled) "AND c.enabled = true AND p.enabled = true" else ""}
+                    ${if (searchString != "") s"AND ${searchField("c.name")}" else ""}
+                    AND ${taskFilters.toString()} $priorityFilter
+                  GROUP BY tasks.parent_id, c.name
+                  ${this.order(orderColumn, orderDirection)}
+                  LIMIT ${this.sqlLimit(limit)} OFFSET {offset}
+              """
+          }
+        
+        // Case 3: No filters - get all challenges
+        case _ =>
+          s"""SELECT tasks.parent_id, c.name,
+                COUNT(tasks.completed_time_spent) as tasksWithTime,
+                COALESCE(SUM(tasks.completed_time_spent), 0) as totalTimeSpent,
+                SUM(CASE WHEN (tasks.status != 4 AND tasks.status != 9) THEN 1 ELSE 0 END) as total,
+                SUM(CASE tasks.status WHEN 0 THEN 1 ELSE 0 END) as available,
+                SUM(CASE tasks.status WHEN 1 THEN 1 ELSE 0 END) as fixed,
+                SUM(CASE tasks.status WHEN 2 THEN 1 ELSE 0 END) as false_positive,
+                SUM(CASE tasks.status WHEN 3 THEN 1 ELSE 0 END) as skipped,
+                SUM(CASE tasks.status WHEN 4 THEN 1 ELSE 0 END) as deleted,
+                SUM(CASE tasks.status WHEN 5 THEN 1 ELSE 0 END) as already_fixed,
+                SUM(CASE tasks.status WHEN 6 THEN 1 ELSE 0 END) AS too_hard,
+                SUM(CASE tasks.status WHEN 7 THEN 1 ELSE 0 END) AS answered,
+                SUM(CASE tasks.status WHEN 8 THEN 1 ELSE 0 END) AS validated,
+                SUM(CASE tasks.status WHEN 9 THEN 1 ELSE 0 END) AS disabled
+              FROM challenges c
+              ${if (onlyEnabled) "INNER JOIN projects p ON p.id = c.parent_id" else ""}
+              INNER JOIN tasks ON tasks.parent_id = c.id
+              WHERE ${if (onlyEnabled) "c.enabled = true AND p.enabled = true AND" else ""}
+                ${if (searchString != "") searchField("c.name") else "1=1"}
+                AND ${taskFilters.toString()} $priorityFilter
+              GROUP BY tasks.parent_id, c.name
+              ${this.order(orderColumn, orderDirection)}
+              LIMIT ${this.sqlLimit(limit)} OFFSET {offset}
+          """
+      }
 
       SQL(query)
         .on(Symbol("ss") -> this.search(searchString), Symbol("offset") -> offset)
