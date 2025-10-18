@@ -13,7 +13,13 @@ import anorm.SqlParser.{get, int, str}
 import javax.inject.{Inject, Singleton}
 import org.maproulette.session.SearchParameters
 import org.maproulette.framework.psql.{Query, Order, Paging}
-import org.maproulette.framework.model.{ClusteredPoint, Point, TaskCluster}
+import org.maproulette.framework.model.{
+  ClusteredPoint,
+  Point,
+  TaskCluster,
+  TaskMarker,
+  TaskMarkerLocation
+}
 import play.api.db.Database
 import play.api.libs.json._
 
@@ -229,6 +235,53 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
         } else {
           None
         }
+    }
+  }
+
+  def queryTaskMarkers(
+      statuses: List[Int],
+      global: Boolean,
+      bounds: List[Double]
+  ): List[TaskMarker] = {
+    this.withMRTransaction { implicit c =>
+      var query =
+        """
+    SELECT tasks.id, ST_AsGeoJSON(tasks.location) AS location, tasks.status, c.name as challengeName
+        FROM tasks
+        INNER JOIN challenges c ON c.id = tasks.parent_id
+        WHERE c.deleted = false
+        AND c.enabled = true
+        AND c.is_archived = false
+    """
+
+      if (!global) {
+        query += " AND c.is_global = false"
+      }
+
+      if (statuses.nonEmpty) {
+        query += s" AND tasks.status IN (${statuses.mkString(",")})"
+      }
+
+      if (bounds.nonEmpty && bounds.length == 4) {
+        val left   = bounds(0)
+        val bottom = bounds(1)
+        val right  = bounds(2)
+        val top    = bounds(3)
+        query += s" AND tasks.location && ST_MakeEnvelope($left, $bottom, $right, $top, 4326)"
+      }
+
+      SQL(query)
+        .as((int("id") ~ str("location") ~ int("status") ~ str("challengeName")).map {
+          case id ~ location ~ status ~ challengeName =>
+            val locationJSON = Json.parse(location)
+            val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
+            TaskMarker(
+              id,
+              TaskMarkerLocation(coordinates(1), coordinates.head),
+              status,
+              challengeName
+            )
+        }.*)
     }
   }
 }

@@ -574,6 +574,25 @@ PUT     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.c
 PUT     /markers/box/:left/:bottom/:right/:top        @org.maproulette.framework.controller.TaskController.getTaskMarkerDataInBoundingBox(left:Double, bottom:Double, right:Double, top:Double, limit:Int ?= 500, excludeLocked:Boolean ?= false, includeGeometries:Boolean ?= false, includeTags:Boolean ?= false)
 ###
 # tags: [ Task ]
+# summary: Retrieves Task Marker Data
+# description: Retrieves task marker data.
+# responses:
+#   '200':
+#     description: The list of markers representing Tasks.
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.TaskMarker'
+# parameters:
+#   - name: statuses
+#     in: query
+#     description: Task Status Filter
+###
+GET     /taskMarkers        @org.maproulette.framework.controller.TaskController.getTaskMarkers(statuses: List[Int], global:Boolean ?= false, bounds: List[Double])
+###
+# tags: [ Task ]
 # summary: Update Task Changeset
 # description: Will update the changeset of the task. It will do this by attempting to match the OSM changeset to the Task based on the geometry and the time that the changeset was executed.
 # responses:

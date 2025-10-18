@@ -980,6 +980,33 @@ class ChallengeDAL @Inject() (
     }
   }
 
+  def getChallengeTaskMarkers(
+      id: Long,
+      statuses: List[Int]
+  )(implicit c: Option[Connection] = None): List[ChallengeTaskMarker] = {
+    this.withMRConnection { implicit c =>
+      var query =
+        s"""SELECT tasks.id, ST_AsGeoJSON(tasks.location) AS location, tasks.status
+                      FROM tasks
+                      WHERE tasks.parent_id = $id"""
+
+      if (statuses.nonEmpty) {
+        query += s" AND tasks.status IN (${statuses.mkString(",")})"
+      }
+
+      SQL(query).as((int("id") ~ str("location") ~ int("status")).map {
+        case id ~ location ~ status =>
+          val locationJSON = Json.parse(location)
+          val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
+          ChallengeTaskMarker(
+            id,
+            TaskMarkerLocation(coordinates(1), coordinates.head),
+            status
+          )
+      }.*)
+    }
+  }
+
   override def find(
       searchString: String,
       limit: Int = Config.DEFAULT_LIST_SIZE,

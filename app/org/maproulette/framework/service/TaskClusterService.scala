@@ -99,6 +99,14 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
     this.repository.queryTaskMarkerDataInBoundingBox(query, limit)
   }
 
+  def getTaskMarkers(
+      statuses: List[Int],
+      global: Boolean,
+      bounds: List[Double]
+  ): List[TaskMarker] = {
+    this.repository.queryTaskMarkers(statuses, global, bounds)
+  }
+
   /**
     * Builds a query to retrieve tasks within a bounding box, applying search parameters.
     *

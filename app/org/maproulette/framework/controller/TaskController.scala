@@ -14,7 +14,7 @@ import org.maproulette.framework.service.{
   NotificationService
 }
 import org.maproulette.framework.psql.Paging
-import org.maproulette.framework.model.User
+import org.maproulette.framework.model.{User, TaskMarker, TaskMarkerLocation}
 import org.maproulette.framework.mixins.TaskJSONMixin
 import org.maproulette.session.{SessionManager, SearchParameters, SearchLocation}
 import play.api.mvc._
@@ -161,6 +161,26 @@ class TaskController @Inject() (
         val resultJson = this.insertExtraTaskJSON(result, includeGeometries, includeTags)
 
         Ok(resultJson)
+      }
+    }
+  }
+
+  def getTaskMarkers(
+      statuses: List[Int],
+      global: Boolean,
+      bounds: List[Double]
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      SearchParameters.withSearch { p =>
+        Ok(
+          Json.toJson(
+            this.taskClusterService.getTaskMarkers(
+              statuses,
+              global,
+              bounds
+            )
+          )
+        )
       }
     }
   }

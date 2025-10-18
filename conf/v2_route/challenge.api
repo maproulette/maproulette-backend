@@ -31,6 +31,25 @@
 POST    /challenge                                  @org.maproulette.controllers.api.ChallengeController.create
 ###
 # tags: [ Challenge ]
+# summary: Retrieves Task Marker Data
+# description: Retrieves task marker data.
+# responses:
+#   '200':
+#     description: The list of markers representing Tasks.
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeTaskMarker'
+# parameters:
+#   - id: challenge id
+#     in: path
+#     description: Id of the challenge
+###
+GET     /challenge/:id/taskMarkers        @org.maproulette.controllers.api.ChallengeController.getChallengeTaskMarkers(id:Long, statuses: List[Int])
+###
+# tags: [ Challenge ]
 # summary: Updates a Challenge
 # description: Will update an already existing challenge from the supplied JSON in the body.
 #               When updating the Challenge object you can within the same json body include Task
