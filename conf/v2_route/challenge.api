@@ -47,7 +47,7 @@ POST    /challenge                                  @org.maproulette.controllers
 #     in: path
 #     description: Id of the challenge
 ###
-GET     /challenge/:id/taskMarkers        @org.maproulette.controllers.api.ChallengeController.getChallengeTaskMarkers(id:Long, statuses: List[Int])
+GET     /challenge/:id/taskMarkers        @org.maproulette.controllers.api.ChallengeController.getChallengeTaskMarkers(id:Long, statuses: String)
 ###
 # tags: [ Challenge ]
 # summary: Updates a Challenge

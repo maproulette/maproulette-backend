@@ -560,10 +560,16 @@ class ChallengeController @Inject() (
       }
   }
 
-  def getChallengeTaskMarkers(id: Long, statuses: List[Int]): Action[AnyContent] = Action.async {
+  def getChallengeTaskMarkers(id: Long, statuses: String): Action[AnyContent] = Action.async {
     implicit request =>
       this.sessionManager.userAwareRequest { implicit user =>
-        Ok(Json.toJson(this.dal.getChallengeTaskMarkers(id, statuses)))
+        // Parse comma-separated statuses string into List[Int]
+        val statusList = if (statuses.isEmpty) {
+          List.empty[Int]
+        } else {
+          statuses.split(",").map(_.trim.toInt).toList
+        }
+        Ok(Json.toJson(this.dal.getChallengeTaskMarkers(id, statusList)))
       }
   }
 

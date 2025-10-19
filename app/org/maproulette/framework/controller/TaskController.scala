@@ -166,15 +166,22 @@ class TaskController @Inject() (
   }
 
   def getTaskMarkers(
-      statuses: List[Int],
+      statuses: String,
       global: Boolean
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       SearchParameters.withSearch { p =>
+        // Parse comma-separated statuses string into List[Int]
+        val statusList = if (statuses.isEmpty) {
+          List.empty[Int]
+        } else {
+          statuses.split(",").map(_.trim.toInt).toList
+        }
+
         Ok(
           Json.toJson(
             this.taskClusterService.getTaskMarkers(
-              statuses,
+              statusList,
               global
             )
           )
