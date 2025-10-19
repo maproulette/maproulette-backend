@@ -14,7 +14,7 @@ import org.maproulette.framework.service.{
   NotificationService
 }
 import org.maproulette.framework.psql.Paging
-import org.maproulette.framework.model.{User, TaskMarker, TaskMarkerLocation}
+import org.maproulette.framework.model.{User, TaskMarker, TaskMarkerLocation, TaskMarkerResponse}
 import org.maproulette.framework.mixins.TaskJSONMixin
 import org.maproulette.session.{SessionManager, SearchParameters, SearchLocation}
 import play.api.mvc._
@@ -167,25 +167,75 @@ class TaskController @Inject() (
 
   def getTaskMarkers(
       statuses: String,
-      global: Boolean
+      global: Boolean,
+      cluster: Boolean,
+      bounds: Option[String]
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       SearchParameters.withSearch { p =>
-        // Parse comma-separated statuses string into List[Int]
         val statusList = if (statuses.isEmpty) {
           List.empty[Int]
         } else {
           statuses.split(",").map(_.trim.toInt).toList
         }
 
-        Ok(
-          Json.toJson(
-            this.taskClusterService.getTaskMarkers(
-              statusList,
-              global
+        val boundingBox = bounds match {
+          case Some(b) =>
+            b.split(",").map(_.trim.toDouble).toList match {
+              case List(left, bottom, right, top) =>
+                SearchLocation(left, bottom, right, top)
+              case _ => SearchLocation(-180.0, -90.0, 180.0, 90.0)
+            }
+          case None => SearchLocation(-180.0, -90.0, 180.0, 90.0)
+        }
+
+        val taskCount = this.taskClusterService.countTaskMarkers(
+          statusList,
+          global,
+          boundingBox
+        )
+
+        if (taskCount > 5000) {
+          Ok(
+            Json.toJson(
+              TaskMarkerResponse(
+                totalCount = taskCount,
+                tasks = None,
+                clusters = None
+              )
             )
           )
-        )
+        } else if (cluster || taskCount > 500) {
+          val clusters = this.taskClusterService.getTaskMarkersClustered(
+            statusList,
+            global,
+            boundingBox
+          )
+          Ok(
+            Json.toJson(
+              TaskMarkerResponse(
+                totalCount = taskCount,
+                tasks = None,
+                clusters = Some(clusters)
+              )
+            )
+          )
+        } else {
+          val markers = this.taskClusterService.getTaskMarkersWithBoundingBox(
+            statusList,
+            global,
+            boundingBox
+          )
+          Ok(
+            Json.toJson(
+              TaskMarkerResponse(
+                totalCount = taskCount,
+                tasks = Some(markers),
+                clusters = None
+              )
+            )
+          )
+        }
       }
     }
   }

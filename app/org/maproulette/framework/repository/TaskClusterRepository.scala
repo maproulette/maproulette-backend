@@ -11,12 +11,13 @@ import anorm.~
 import anorm._
 import anorm.SqlParser.{get, int, str}
 import javax.inject.{Inject, Singleton}
-import org.maproulette.session.SearchParameters
+import org.maproulette.session.{SearchParameters, SearchLocation}
 import org.maproulette.framework.psql.{Query, Order, Paging}
 import org.maproulette.framework.model.{
   ClusteredPoint,
   Point,
   TaskCluster,
+  TaskClusterSummary,
   TaskMarker,
   TaskMarkerLocation
 }
@@ -238,19 +239,134 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
     }
   }
 
+  private def getTaskClusterSummaryParser(): anorm.RowParser[Serializable] = {
+    int("kmeans") ~ int("numberOfPoints") ~ get[Option[Long]]("taskId") ~
+      get[Option[Int]]("taskStatus") ~
+      str("geom") ~ str("bounding") map {
+      case kmeans ~ totalPoints ~ taskId ~ taskStatus ~ geom ~ bounding =>
+        val locationJSON = Json.parse(geom)
+        val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
+        // Let's check to make sure we received valid number of coordinates.
+        if (coordinates.length > 1) {
+          val point = Point(coordinates(1), coordinates.head)
+          TaskClusterSummary(
+            kmeans,
+            totalPoints,
+            taskId,
+            taskStatus,
+            point,
+            Json.parse(bounding)
+          )
+        } else {
+          None
+        }
+    }
+  }
+
+  /**
+    * Queries task markers
+    *
+    * @param statuses List of task status filters
+    * @param global   Whether to include global challenges
+    * @return List of task markers
+    */
   def queryTaskMarkers(
       statuses: List[Int],
       global: Boolean
   ): List[TaskMarker] = {
+    // Use a global bounding box covering the entire world
+    val worldBoundingBox = SearchLocation(-180.0, -90.0, 180.0, 90.0)
+    this.queryTaskMarkersWithBoundingBox(statuses, global, worldBoundingBox)
+  }
+
+  def queryTaskMarkersClustered(
+      statuses: List[Int],
+      global: Boolean,
+      boundingBox: SearchLocation
+  ): List[TaskClusterSummary] = {
+    this.withMRTransaction { implicit c =>
+      var left       = boundingBox.left
+      var bottom     = boundingBox.bottom
+      var right      = boundingBox.right
+      var top        = boundingBox.top
+      var statusList = statuses.mkString(",")
+      var filters    = s"""
+  WHERE t.location && ST_MakeEnvelope($left, $bottom, $right, $top, 4326)
+    """
+      filters += s" AND c.deleted = false"
+      filters += s" AND c.enabled = true"
+      filters += s" AND c.is_archived = false"
+      if (!global) {
+        filters += s" AND c.is_global = false"
+      }
+      if (statuses.nonEmpty) {
+        filters += s" AND t.status IN ($statusList)"
+      }
+      filters += s" AND t.location IS NOT NULL"
+
+      var query = s"""
+WITH filtered_tasks AS (
+  SELECT 
+    t.id AS taskId,
+    t.status AS taskStatus,
+    t.location AS taskLocation
+  FROM tasks t
+  INNER JOIN challenges c ON c.id = t.parent_id
+  ${filters}
+),
+cluster_input AS (
+  SELECT 
+    *,
+    LEAST(COUNT(*) OVER (), 100) AS cluster_count
+  FROM filtered_tasks
+),
+task_clusters AS (
+  SELECT 
+    *,
+    ST_ClusterKMeans(taskLocation, cluster_count::int) OVER () AS kmeans
+  FROM cluster_input
+)
+SELECT 
+  kmeans,
+  COUNT(*) AS numberOfPoints,
+  CASE WHEN COUNT(*) = 1 THEN (ARRAY_AGG(taskId))[1] END AS taskId,
+  CASE WHEN COUNT(*) = 1 THEN (ARRAY_AGG(taskStatus))[1] END AS taskStatus,
+  ST_AsGeoJSON(ST_Centroid(ST_Collect(taskLocation))) AS geom,
+  ST_AsGeoJSON(ST_ConvexHull(ST_Collect(taskLocation))) AS bounding
+FROM task_clusters
+GROUP BY kmeans
+ORDER BY kmeans;
+"""
+      SQL(query)
+        .as(this.getTaskClusterSummaryParser().*)
+        .filter(_ != None)
+        .asInstanceOf[List[TaskClusterSummary]]
+    }
+  }
+
+  /**
+    * Queries task markers with bounding box filtering
+    *
+    * @param statuses List of task status filters
+    * @param global   Whether to include global challenges
+    * @param boundingBox   Search parameters including bounding box
+    * @return List of task markers within the bounding box
+    */
+  def queryTaskMarkersWithBoundingBox(
+      statuses: List[Int],
+      global: Boolean,
+      boundingBox: SearchLocation
+  ): List[TaskMarker] = {
     this.withMRTransaction { implicit c =>
       var query =
         """
-    SELECT tasks.id, ST_AsGeoJSON(tasks.location) AS location, tasks.status, c.name as challengeName
+    SELECT tasks.id, ST_AsGeoJSON(tasks.location) AS location, tasks.status
         FROM tasks
         INNER JOIN challenges c ON c.id = tasks.parent_id
         WHERE c.deleted = false
         AND c.enabled = true
         AND c.is_archived = false
+        AND tasks.location IS NOT NULL
     """
 
       if (!global) {
@@ -261,18 +377,66 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
         query += s" AND tasks.status IN (${statuses.mkString(",")})"
       }
 
+      var left   = boundingBox.left
+      var bottom = boundingBox.bottom
+      var right  = boundingBox.right
+      var top    = boundingBox.top
+      query += s" AND ST_Intersects(tasks.location, ST_MakeEnvelope($left, $bottom, $right, $top, 4326))"
+
       SQL(query)
-        .as((int("id") ~ str("location") ~ int("status") ~ str("challengeName")).map {
-          case id ~ location ~ status ~ challengeName =>
+        .as((int("id") ~ str("location") ~ int("status")).map {
+          case id ~ location ~ status =>
             val locationJSON = Json.parse(location)
             val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
             TaskMarker(
               id,
               TaskMarkerLocation(coordinates(1), coordinates.head),
-              status,
-              challengeName
+              status
             )
         }.*)
+    }
+  }
+
+  /**
+    * Counts task markers in the given bounding box
+    *
+    * @param statuses List of task status filters
+    * @param global   Whether to include global challenges
+    * @param boundingBox   Search parameters including bounding box
+    * @return Count of task markers
+    */
+  def queryCountTaskMarkers(
+      statuses: List[Int],
+      global: Boolean,
+      boundingBox: SearchLocation
+  ): Int = {
+    this.withMRTransaction { implicit c =>
+      var query =
+        """
+    SELECT COUNT(*) as count
+        FROM tasks
+        INNER JOIN challenges c ON c.id = tasks.parent_id
+        WHERE c.deleted = false
+        AND c.enabled = true
+        AND c.is_archived = false
+        AND tasks.location IS NOT NULL
+    """
+
+      if (!global) {
+        query += " AND c.is_global = false"
+      }
+
+      if (statuses.nonEmpty) {
+        query += s" AND tasks.status IN (${statuses.mkString(",")})"
+      }
+
+      var left   = boundingBox.left
+      var bottom = boundingBox.bottom
+      var right  = boundingBox.right
+      var top    = boundingBox.top
+      query += s" AND ST_Intersects(tasks.location, ST_MakeEnvelope($left, $bottom, $right, $top, 4326))"
+
+      SQL(query).as(int("count").single)
     }
   }
 }

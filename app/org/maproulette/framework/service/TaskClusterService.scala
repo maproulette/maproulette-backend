@@ -14,7 +14,7 @@ import org.maproulette.framework.psql._
 import org.maproulette.framework.psql.filter._
 import org.maproulette.framework.repository.TaskClusterRepository
 import org.maproulette.framework.mixins.{SearchParametersMixin, TaskFilterMixin}
-import org.maproulette.session.SearchParameters
+import org.maproulette.session.{SearchParameters, SearchLocation}
 
 /**
   * Service layer for TaskCluster
@@ -144,6 +144,54 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
         )
       case _ => query
     }
+  }
+
+  /**
+    * Retrieves task markers with bounding box filtering
+    *
+    * @param statuses List of task status filters
+    * @param global   Whether to include global challenges
+    * @param params   Search parameters including bounding box
+    * @return List of task markers
+    */
+  def getTaskMarkersWithBoundingBox(
+      statuses: List[Int],
+      global: Boolean,
+      boundingBox: SearchLocation
+  ): List[TaskMarker] = {
+    this.repository.queryTaskMarkersWithBoundingBox(statuses, global, boundingBox)
+  }
+
+  /**
+    * Retrieves clustered task markers
+    *
+    * @param statuses List of task status filters
+    * @param global   Whether to include global challenges
+    * @param boundingBox   Search parameters including bounding box
+    * @return List of task cluster summaries
+    */
+  def getTaskMarkersClustered(
+      statuses: List[Int],
+      global: Boolean,
+      boundingBox: SearchLocation
+  ): List[TaskClusterSummary] = {
+    this.repository.queryTaskMarkersClustered(statuses, global, boundingBox)
+  }
+
+  /**
+    * Counts task markers in the given bounding box
+    *
+    * @param statuses List of task status filters
+    * @param global   Whether to include global challenges
+    * @param boundingBox   Search parameters including bounding box
+    * @return Count of task markers
+    */
+  def countTaskMarkers(
+      statuses: List[Int],
+      global: Boolean,
+      boundingBox: SearchLocation
+  ): Int = {
+    this.repository.queryCountTaskMarkers(statuses, global, boundingBox)
   }
 
   /**

@@ -575,22 +575,38 @@ PUT     /markers/box/:left/:bottom/:right/:top        @org.maproulette.framework
 ###
 # tags: [ Task ]
 # summary: Retrieves Task Marker Data
-# description: Retrieves task marker data.
+# description: Retrieves task marker data with total count. When there are more than 10000 tasks, returns only the count. When clustering is enabled or there are more than 1000 tasks, returns cluster objects. Otherwise returns individual task markers. All responses include the total task count.
 # responses:
 #   '200':
-#     description: The list of markers representing Tasks.
+#     description: TaskMarkerResponse containing total count and optionally markers or clusters.
 #     content:
 #       application/json:
 #         schema:
-#           type: array
-#           items:
-#             $ref: '#/components/schemas/org.maproulette.framework.model.TaskMarker'
+#           $ref: '#/components/schemas/org.maproulette.framework.model.TaskMarkerResponse'
 # parameters:
 #   - name: statuses
 #     in: query
 #     description: Task Status Filter
+#   - name: global
+#     in: query
+#     description: Include global challenges
+#     schema:
+#       type: boolean
+#       default: false
+#   - name: cluster
+#     in: query
+#     description: Enable clustering
+#     schema:
+#       type: boolean
+#       default: false
+#   - name: bounds
+#     in: query
+#     description: Comma-separated bounding box coordinates (left,bottom,right,top). Defaults to full world (-180,-90,180,90) if not provided.
+#     schema:
+#       type: string
+#       example: "-122.5,37.7,-122.3,37.8"
 ###
-GET     /taskMarkers        @org.maproulette.framework.controller.TaskController.getTaskMarkers(statuses: String, global:Boolean ?= false)
+GET     /taskMarkers        @org.maproulette.framework.controller.TaskController.getTaskMarkers(statuses: String, global:Boolean ?= false, cluster:Boolean ?= false, bounds: Option[String])
 ###
 # tags: [ Task ]
 # summary: Update Task Changeset

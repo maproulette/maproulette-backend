@@ -30,8 +30,7 @@ object TaskMarkerLocation {
 case class TaskMarker(
     id: Long,
     location: TaskMarkerLocation,
-    status: Int,
-    challengeName: String
+    status: Int
 )
 
 object TaskMarker {
