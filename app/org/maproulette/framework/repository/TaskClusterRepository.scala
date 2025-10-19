@@ -240,8 +240,7 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
 
   def queryTaskMarkers(
       statuses: List[Int],
-      global: Boolean,
-      bounds: List[Double]
+      global: Boolean
   ): List[TaskMarker] = {
     this.withMRTransaction { implicit c =>
       var query =
@@ -260,14 +259,6 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
 
       if (statuses.nonEmpty) {
         query += s" AND tasks.status IN (${statuses.mkString(",")})"
-      }
-
-      if (bounds.nonEmpty && bounds.length == 4) {
-        val left   = bounds(0)
-        val bottom = bounds(1)
-        val right  = bounds(2)
-        val top    = bounds(3)
-        query += s" AND tasks.location && ST_MakeEnvelope($left, $bottom, $right, $top, 4326)"
       }
 
       SQL(query)

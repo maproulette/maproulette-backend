@@ -101,10 +101,9 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
 
   def getTaskMarkers(
       statuses: List[Int],
-      global: Boolean,
-      bounds: List[Double]
+      global: Boolean
   ): List[TaskMarker] = {
-    this.repository.queryTaskMarkers(statuses, global, bounds)
+    this.repository.queryTaskMarkers(statuses, global)
   }
 
   /**

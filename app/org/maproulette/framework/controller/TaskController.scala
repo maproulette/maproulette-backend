@@ -167,8 +167,7 @@ class TaskController @Inject() (
 
   def getTaskMarkers(
       statuses: List[Int],
-      global: Boolean,
-      bounds: List[Double]
+      global: Boolean
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       SearchParameters.withSearch { p =>
@@ -176,8 +175,7 @@ class TaskController @Inject() (
           Json.toJson(
             this.taskClusterService.getTaskMarkers(
               statuses,
-              global,
-              bounds
+              global
             )
           )
         )

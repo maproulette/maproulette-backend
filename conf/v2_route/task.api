@@ -590,7 +590,7 @@ PUT     /markers/box/:left/:bottom/:right/:top        @org.maproulette.framework
 #     in: query
 #     description: Task Status Filter
 ###
-GET     /taskMarkers        @org.maproulette.framework.controller.TaskController.getTaskMarkers(statuses: List[Int], global:Boolean ?= false, bounds: List[Double])
+GET     /taskMarkers        @org.maproulette.framework.controller.TaskController.getTaskMarkers(statuses: List[Int], global:Boolean ?= false)
 ###
 # tags: [ Task ]
 # summary: Update Task Changeset
