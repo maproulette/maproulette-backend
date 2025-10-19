@@ -1089,6 +1089,43 @@ class ChallengeController @Inject() (
       }
     }
 
+  /**
+    * Efficient endpoint for exploring challenges with specific parameters
+    * Uses an optimized query path specifically designed for the explore challenges feature
+    *
+    * @param global Whether to include global challenges (default: true)
+    * @param bounds Bounding box as [left,bottom,right,top] to filter challenges by location
+    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
+    * @param limit Maximum number of results to return
+    * @return A list of challenges matching the criteria
+    */
+  def exploreChallenges(
+      global: Boolean,
+      bounds: Option[String],
+      sortBy: String,
+      limit: Int
+  ): Action[AnyContent] =
+    Action.async { implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        val boundingBox = bounds.flatMap { b =>
+          b.split(",").map(_.trim).filter(_.nonEmpty).toList match {
+            case List(left, bottom, right, top) =>
+              Some((left.toDouble, bottom.toDouble, right.toDouble, top.toDouble))
+            case _ => None
+          }
+        }
+
+        val challenges = this.dal.exploreChallenges(
+          includeGlobal = global,
+          boundingBox = boundingBox,
+          sortBy = sortBy,
+          limit = limit
+        )
+
+        Ok(Json.toJson(challenges))
+      }
+    }
+
   def healthCheck(): Action[AnyContent] =
     Action { implicit request =>
       Ok(Json.toJson(StatusMessage("OK", JsString("We good"))))

@@ -2077,4 +2077,54 @@ class ChallengeDAL @Inject() (
       SQL(query).as(taskDAL.parser.*)
     }
   }
+
+  /**
+    * Optimized method to explore challenges with specific filtering
+    * This is a purpose-built query for the exploreChallenges endpoint
+    *
+    * @param includeGlobal Whether to include challenges marked as global
+    * @param boundingBox Optional bounding box to filter by challenge location (left, bottom, right, top)
+    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
+    * @param limit Maximum number of results to return
+    * @param c Optional database connection
+    * @return List of challenges matching the criteria
+    */
+  def exploreChallenges(
+      includeGlobal: Boolean,
+      boundingBox: Option[(Double, Double, Double, Double)],
+      sortBy: String,
+      limit: Int
+  )(implicit c: Option[Connection] = None): List[Challenge] = {
+    this.withMRConnection { implicit c =>
+      var query =
+        s"""SELECT *, ST_AsGeoJSON(location) AS locationJSON, ST_AsGeoJSON(bounding) AS boundingJSON FROM challenges c WHERE c.deleted = false AND c.enabled = true AND c.is_archived = false"""
+
+      if (!includeGlobal) {
+        query += " AND c.is_global = false"
+      }
+
+      boundingBox match {
+        case Some((left, bottom, right, top)) =>
+          query += s" AND ST_Intersects(c.bounding, ST_MakeEnvelope($left, $bottom, $right, $top, 4326))"
+        case None =>
+      }
+
+      val orderByClause = sortBy.toLowerCase match {
+        case "name"       => "c.name ASC"
+        case "created"    => "c.created DESC"
+        case "modified"   => "c.modified DESC"
+        case "popularity" => "c.popularity DESC NULLS LAST"
+        case "difficulty" => "c.difficulty ASC"
+        case _            => "c.name ASC"
+      }
+
+      query += s" ORDER BY $orderByClause"
+
+      if (limit > 0) {
+        query += s" LIMIT ${this.sqlLimit(limit)}"
+      }
+
+      SQL(query).as(this.parser.*)
+    }
+  }
 }

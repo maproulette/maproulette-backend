@@ -273,6 +273,51 @@ GET     /challenges/find                            @org.maproulette.controllers
 GET     /challenges/extendedFind                    @org.maproulette.controllers.api.ChallengeController.extendedFind(limit:Int ?= 10, page:Int ?= 0, sort:String ?= "", order:String ?= "ASC")
 ###
 # tags: [ Challenge ]
+# summary: Explore Challenges with specific filtering and sorting
+# description: Efficiently finds challenges with bounding box filtering, global toggle, sorting, and result limiting
+# parameters:
+#   - name: global
+#     in: query
+#     description: Whether to include global challenges (default true)
+#     required: false
+#     schema:
+#       type: boolean
+#       default: true
+#   - name: bounds
+#     in: query
+#     description: Bounding box as comma-separated values [north,west,south,east] to filter challenges by location
+#     required: false
+#     schema:
+#       type: string
+#       example: "40.7128,-74.0060,40.7000,-74.0200"
+#   - name: sortBy
+#     in: query
+#     description: Column to sort results by
+#     required: false
+#     schema:
+#       type: string
+#       enum: [name, created, modified, popularity, difficulty]
+#       default: name
+#   - name: limit
+#     in: query
+#     description: Maximum number of results to return
+#     required: false
+#     schema:
+#       type: integer
+#       default: 50
+# responses:
+#   '200':
+#     description: A list of Challenges matching the criteria
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+###
+GET     /challenges/exploreChallenges                    @org.maproulette.controllers.api.ChallengeController.exploreChallenges(global:Boolean ?= true, bounds:Option[String] ?= None, sortBy:String ?= "name", limit:Int ?= 50)
+###
+# tags: [ Challenge ]
 # summary: List challenges in specified projects
 # description: Retrieves a lightweight listing of challenges, with just a few basic fields for each, that belong to the specified project(s).
 # responses:
