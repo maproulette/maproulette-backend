@@ -317,7 +317,7 @@ WITH filtered_tasks AS (
 cluster_input AS (
   SELECT 
     *,
-    LEAST(COUNT(*) OVER (), 100) AS cluster_count
+    LEAST(COUNT(*) OVER (), 50) AS cluster_count
   FROM filtered_tasks
 ),
 task_clusters AS (

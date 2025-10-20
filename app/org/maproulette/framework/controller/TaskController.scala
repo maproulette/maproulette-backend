@@ -205,7 +205,7 @@ class TaskController @Inject() (
               )
             )
           )
-        } else if (cluster || taskCount > 500) {
+        } else if ((cluster || taskCount > 500) && !(taskCount < 100)) {
           val clusters = this.taskClusterService.getTaskMarkersClustered(
             statusList,
             global,
