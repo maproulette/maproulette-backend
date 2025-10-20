@@ -981,18 +981,13 @@ class ChallengeDAL @Inject() (
   }
 
   def getChallengeTaskMarkers(
-      id: Long,
-      statuses: List[Int]
+      id: Long
   )(implicit c: Option[Connection] = None): List[ChallengeTaskMarker] = {
     this.withMRConnection { implicit c =>
       var query =
         s"""SELECT tasks.id, ST_AsGeoJSON(tasks.location) AS location, tasks.status
                       FROM tasks
                       WHERE tasks.parent_id = $id"""
-
-      if (statuses.nonEmpty) {
-        query += s" AND tasks.status IN (${statuses.mkString(",")})"
-      }
 
       SQL(query).as((int("id") ~ str("location") ~ int("status")).map {
         case id ~ location ~ status =>
