@@ -396,6 +396,175 @@ class ChallengeDAL @Inject() (
         )
     }
   }
+
+  /**
+    * The row parser for BaseChallenge (flattened structure for API responses)
+    */
+  val baseChallengeParser: RowParser[BaseChallenge] = {
+    get[Long]("challenges.id") ~
+      get[String]("challenges.name") ~
+      get[DateTime]("challenges.created") ~
+      get[DateTime]("challenges.modified") ~
+      get[Option[String]]("challenges.description") ~
+      get[Boolean]("deleted") ~
+      get[Boolean]("is_global") ~
+      get[Boolean]("challenges.require_confirmation") ~
+      get[Boolean]("challenges.require_reject_reason") ~
+      get[Option[String]]("challenges.info_link") ~
+      get[Long]("challenges.owner_id") ~
+      get[Long]("challenges.parent_id") ~
+      get[String]("challenges.instruction") ~
+      get[Int]("challenges.difficulty") ~
+      get[Option[String]]("challenges.blurb") ~
+      get[Boolean]("challenges.enabled") ~
+      get[Boolean]("challenges.featured") ~
+      get[Int]("challenges.cooperative_type") ~
+      get[Option[Int]]("challenges.popularity") ~
+      get[Option[String]]("challenges.checkin_comment") ~
+      get[Option[String]]("challenges.checkin_source") ~
+      get[Boolean]("challenges.requires_local") ~
+      get[Option[String]]("challenges.overpass_ql") ~
+      get[Option[String]]("challenges.remote_geo_json") ~
+      get[Option[String]]("challenges.overpass_target_type") ~
+      get[Int]("challenges.default_priority") ~
+      get[Option[String]]("challenges.high_priority_rule") ~
+      get[Option[String]]("challenges.medium_priority_rule") ~
+      get[Option[String]]("challenges.low_priority_rule") ~
+      get[Option[String]]("challenges.high_priority_bounds") ~
+      get[Option[String]]("challenges.medium_priority_bounds") ~
+      get[Option[String]]("challenges.low_priority_bounds") ~
+      get[Int]("challenges.default_zoom") ~
+      get[Int]("challenges.min_zoom") ~
+      get[Int]("challenges.max_zoom") ~
+      get[Boolean]("challenges.updatetasks") ~
+      get[Boolean]("challenges.limit_tags") ~
+      get[Boolean]("challenges.limit_review_tags") ~
+      get[Boolean]("challenges.is_archived") ~
+      get[Int]("challenges.review_setting") ~
+      get[Option[Int]]("challenges.default_basemap") ~
+      get[Option[String]]("challenges.default_basemap_id") ~
+      get[Option[String]]("challenges.custom_basemap") ~
+      get[Option[String]]("challenges.exportable_properties") ~
+      get[Option[String]]("challenges.osm_id_property") ~
+      get[Option[String]]("challenges.task_bundle_id_property") ~
+      get[Option[JsValue]]("challenges.task_widget_layout") ~
+      get[Option[String]]("challenges.task_styles") ~
+      get[Option[Int]]("challenges.status") ~
+      get[Option[String]]("challenges.status_message") ~
+      get[Option[DateTime]]("challenges.last_task_refresh") ~
+      get[Option[DateTime]]("challenges.data_origin_date") ~
+      get[Option[String]]("locationJSON") ~
+      get[Option[String]]("boundingJSON") ~
+      get[Option[Int]]("challenges.completion_percentage") ~
+      get[Option[Int]]("challenges.tasks_remaining") map {
+      case id ~ name ~ created ~ modified ~ description ~ deleted ~ isGlobal ~ requireConfirmation ~ requireRejectReason ~
+            infoLink ~ ownerId ~ parentId ~ instruction ~ difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~
+            popularity ~ checkin_comment ~ checkin_source ~ requiresLocal ~ overpassQL ~ remoteGeoJson ~ overpassTargetType ~
+            defaultPriority ~ highPriorityRule ~ mediumPriorityRule ~ lowPriorityRule ~ highPriorityBounds ~
+            mediumPriorityBounds ~ lowPriorityBounds ~ defaultZoom ~ minZoom ~ maxZoom ~ updateTasks ~ limitTags ~
+            limitReviewTags ~ isArchived ~ reviewSetting ~ defaultBasemap ~ defaultBasemapId ~ customBasemap ~
+            exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ taskWidgetLayout ~ taskStyles ~ status ~
+            statusMessage ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~ completionPercentage ~ tasksRemaining =>
+        // Parse JSON strings for priority rules and bounds
+        val hpr = highPriorityRule.flatMap(r =>
+          if (StringUtils.isEmpty(r) || StringUtils.equals(r, "{}")) None else Some(Json.parse(r))
+        )
+        val mpr = mediumPriorityRule.flatMap(r =>
+          if (StringUtils.isEmpty(r) || StringUtils.equals(r, "{}")) None else Some(Json.parse(r))
+        )
+        val lpr = lowPriorityRule.flatMap(r =>
+          if (StringUtils.isEmpty(r) || StringUtils.equals(r, "{}")) None else Some(Json.parse(r))
+        )
+        val hpb = highPriorityBounds.flatMap(b =>
+          if (StringUtils.isEmpty(b) || StringUtils.equals(b, "[]")) None else Some(Json.parse(b))
+        )
+        val mpb = mediumPriorityBounds.flatMap(b =>
+          if (StringUtils.isEmpty(b) || StringUtils.equals(b, "[]")) None else Some(Json.parse(b))
+        )
+        val lpb = lowPriorityBounds.flatMap(b =>
+          if (StringUtils.isEmpty(b) || StringUtils.equals(b, "[]")) None else Some(Json.parse(b))
+        )
+        val ts = taskStyles.flatMap(s =>
+          if (StringUtils.isEmpty(s)) None else Some(Json.parse(s))
+        )
+
+        new BaseChallenge(
+          id,
+          name,
+          created,
+          modified,
+          description,
+          deleted,
+          isGlobal,
+          requireConfirmation,
+          requireRejectReason,
+          infoLink,
+          ownerId,
+          parentId,
+          instruction,
+          difficulty,
+          blurb,
+          enabled,
+          featured,
+          cooperativeType,
+          popularity,
+          checkin_comment.getOrElse(""),
+          checkin_source.getOrElse(""),
+          requiresLocal,
+          overpassQL,
+          remoteGeoJson,
+          overpassTargetType,
+          defaultPriority,
+          hpr,
+          mpr,
+          lpr,
+          hpb,
+          mpb,
+          lpb,
+          defaultZoom,
+          minZoom,
+          maxZoom,
+          updateTasks,
+          limitTags,
+          limitReviewTags,
+          isArchived,
+          reviewSetting,
+          defaultBasemap,
+          defaultBasemapId,
+          customBasemap,
+          exportableProperties,
+          osmIdProperty,
+          taskBundleIdProperty,
+          taskWidgetLayout,
+          ts,
+          status,
+          statusMessage,
+          lastTaskRefresh,
+          dataOriginDate,
+          location.map(Json.parse),
+          bounding.map(Json.parse),
+          completionPercentage,
+          tasksRemaining
+        )
+    }
+  }
+
+  /**
+    * Retrieves a BaseChallenge by ID (flattened structure for API responses)
+    */
+  def retrieveBaseChallengeById(implicit id: Long, c: Option[Connection] = None): Option[BaseChallenge] = {
+    this.withMRConnection { implicit c =>
+      val query =
+        s"""
+          |SELECT c.$retrieveColumns
+          |FROM challenges c
+          |WHERE c.id = {id}
+         """.stripMargin
+
+      SQL(query).on(Symbol("id") -> id).as(this.baseChallengeParser.singleOpt)
+    }
+  }
+
   val pointParser: RowParser[ClusteredPoint] = {
     get[Long]("tasks.id") ~
       get[String]("tasks.name") ~

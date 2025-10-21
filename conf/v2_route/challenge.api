@@ -94,7 +94,7 @@ PUT     /challenge/:id                              @org.maproulette.controllers
 #     content:
 #       application/json:
 #         schema:
-#           $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+#           $ref: '#/components/schemas/org.maproulette.framework.model.BaseChallenge'
 #   '404':
 #     description: ID field supplied but no object found matching the id
 # parameters:

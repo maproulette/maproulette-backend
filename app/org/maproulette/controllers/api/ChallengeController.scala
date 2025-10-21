@@ -122,6 +122,23 @@ class ChallengeController @Inject() (
   }
 
   /**
+    * Overrides the default read method to return a BaseChallenge (flattened structure)
+    * instead of the nested Challenge structure
+    *
+    * @param id The id of the challenge to retrieve
+    * @return 200 Ok with BaseChallenge json, 404 if not found
+    */
+  override def read(implicit id: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      implicit val baseChallengeWrites = BaseChallenge.baseChallengeWrites
+      this.dal.retrieveBaseChallengeById match {
+        case Some(value) => Ok(Json.toJson(value))
+        case None        => NotFound
+      }
+    }
+  }
+
+  /**
     * Gets a json list of tags of the challenge
     *
     * @param id The id of the challenge containing the tags
