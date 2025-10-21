@@ -1,5 +1,6 @@
 ###
 # tags: [ Bundle ]
+# operationId: bundle_create_a_task_bundle
 # summary: Create a task bundle
 # description: Create a new task bundle with the task ids in the supplied JSON body.
 # responses:
@@ -22,6 +23,7 @@
 POST    /taskBundle                                 @org.maproulette.framework.controller.TaskBundleController.createTaskBundle
 ###
 # tags: [ Bundle ]
+# operationId: bundle_gets_a_task_bundle
 # summary: Gets a Task Bundle
 # description: Gets a task bundle based on the supplied id
 # responses:
@@ -47,6 +49,7 @@ POST    /taskBundle                                 @org.maproulette.framework.c
 POST     /taskBundle/:id                             @org.maproulette.framework.controller.TaskBundleController.getTaskBundle(id:Long, lockTasks:Boolean ?= false)
 ###
 # tags: [ Bundle ]
+# operationId: bundle_updates_a_task_bundle
 # summary: Updates a Task Bundle
 # description: Sets the bundle to the tasks provided, and unlock all tasks removed from current bundle
 # responses:
@@ -66,6 +69,7 @@ POST     /taskBundle/:id                             @org.maproulette.framework.
 POST     /taskBundle/:id/update                          @org.maproulette.framework.controller.TaskBundleController.updateTaskBundle(id: Long, taskIds: List[Long])
 ###
 # tags: [ Bundle ]
+# operationId: bundle_deletes_a_task_bundle
 # summary: Deletes a Task Bundle
 # description: Deletes a task bundle based on the supplied id
 # responses:
@@ -82,6 +86,7 @@ POST     /taskBundle/:id/update                          @org.maproulette.framew
 DELETE     /taskBundle/:id                          @org.maproulette.framework.controller.TaskBundleController.deleteTaskBundle(id:Long)
 ###
 # tags: [ Bundle ]
+# operationId: bundle_unbundles_tasks_from_task_bundle
 # summary: Unbundles tasks from Task Bundle
 # description: Removes a list of tasks from a bundle of tasks
 # responses:

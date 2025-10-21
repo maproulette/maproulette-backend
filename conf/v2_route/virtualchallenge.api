@@ -1,5 +1,6 @@
 ###
 # tags: [ Virtual Challenge ]
+# operationId: virtual_challenge_create_a_virtual_challenge
 # summary: Create a Virtual Challenge
 # description: Will create a new Virtual Challenge from the supplied JSON in the body.
 #               When creating the Virtual Challenge, leave the ID field out of the body json,
@@ -28,6 +29,7 @@
 POST    /virtualchallenge                           @org.maproulette.controllers.api.VirtualChallengeController.create
 ###
 # tags: [ Virtual Challenge ]
+# operationId: virtual_challenge_updates_a_virtual_challenge
 # summary: Updates a Virtual Challenge
 # description: Will update an already existing Virtual Challenge from the supplied JSON in the body.
 # responses:
@@ -58,6 +60,7 @@ POST    /virtualchallenge                           @org.maproulette.controllers
 PUT     /virtualchallenge/:id                       @org.maproulette.controllers.api.VirtualChallengeController.update(id:Long)
 ###
 # tags: [ Virtual Challenge ]
+# operationId: virtual_challenge_retrieves_an_already_existing_virtual_challenge
 # summary: Retrieves an already existing Virtual Challenge
 # description: Retrieves an already existing Virtual Challenge based on the supplied ID in the URL.
 # responses:
@@ -76,6 +79,7 @@ PUT     /virtualchallenge/:id                       @org.maproulette.controllers
 GET     /virtualchallenge/:id                              @org.maproulette.controllers.api.VirtualChallengeController.read(id:Long)
 ###
 # tags: [ Virtual Challenge ]
+# operationId: virtual_challenge_retrieves_an_already_existing_virtual_challenge_by_id
 # summary: Retrieves an already existing Virtual Challenge
 # description: Retrieves an already existing Virtual Challenge based on the name of the Virtual Challenge rather than an ID
 # responses:
@@ -98,6 +102,7 @@ GET     /virtualchallenge/:id                              @org.maproulette.cont
 GET     /virtualchallengebyname/:name                   @org.maproulette.controllers.api.VirtualChallengeController.readByName(id:Long ?= -1, name:String)
 ###
 # tags: [ Virtual Challenge ]
+# operationId: virtual_challenge_deletes_an_existing_virtual_challenge
 # summary: Deletes an existing Virtual Challenge
 # description: Deletes an existing Virtual Challenge based on the supplied ID. This will delete all associated Tasks of the Virtual Challenge.
 # responses:
@@ -122,6 +127,7 @@ GET     /virtualchallengebyname/:name                   @org.maproulette.control
 DELETE  /virtualchallenge/:id                           @org.maproulette.controllers.api.VirtualChallengeController.delete(id:Long, immediate:Boolean ?= false)
 ###
 # tags: [ Virtual Challenge ]
+# operationId: virtual_challenge_list_all_the_virtual_challenge
 # summary: List all the Virtual Challenge.
 # description: Lists all the Virtual Challenges in the system
 # responses:
@@ -144,6 +150,7 @@ DELETE  /virtualchallenge/:id                           @org.maproulette.control
 GET     /virtualchallenges                              @org.maproulette.controllers.api.VirtualChallengeController.list(limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= false)
 ###
 # tags: [ Virtual Challenge ]
+# operationId: virtual_challenge_list_all_the_virtual_challenges_tasks
 # summary: List all the Virtual Challenges Tasks.
 # description: Lists all the Tasks that are children of the supplied Virtual Challenge.
 # responses:
@@ -169,6 +176,7 @@ GET     /virtualchallenges                              @org.maproulette.control
 GET     /virtualchallenge/:id/tasks                     @org.maproulette.controllers.api.VirtualChallengeController.listTasks(id:Long, limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ Virtual Challenge ]
+# operationId: virtual_challenge_retrieves_random_task
 # summary: Retrieves random Task
 # description: Retrieves a random Task based on the search criteria and contained within the current Virtual Challenge
 # responses:
@@ -189,6 +197,7 @@ GET     /virtualchallenge/:id/tasks                     @org.maproulette.control
 GET     /virtualchallenge/:cid/task                 @org.maproulette.controllers.api.VirtualChallengeController.getRandomTask(cid:Long, proximity:Long ?= -1)
 ###
 # tags: [ Virtual Challenge ]
+# operationId: virtual_challenge_retrieves_next_task
 # summary: Retrieves next Task
 # description: Retrieves the next sequential Task based on the task ordering within the Virtual Challenge. If it is currently on the last task it will response with the first task in the Virtual Challenge.
 # responses:
@@ -209,6 +218,7 @@ GET     /virtualchallenge/:cid/task                 @org.maproulette.controllers
 GET     /virtualchallenge/:cid/nextTask/:id         @org.maproulette.controllers.api.VirtualChallengeController.getSequentialNextTask(cid:Long, id:Long)
 ###
 # tags: [ Virtual Challenge ]
+# operationId: virtual_challenge_retrieves_previous_task
 # summary: Retrieves previous Task
 # description: Retrieves the previous sequential Task based on the task ordering within the Virtual Challenge. If it is currently on the first task it will response with the last task in the Virtual Challenge.
 # responses:
@@ -229,6 +239,7 @@ GET     /virtualchallenge/:cid/nextTask/:id         @org.maproulette.controllers
 GET     /virtualchallenge/:cid/previousTask/:id     @org.maproulette.controllers.api.VirtualChallengeController.getSequentialPreviousTask(cid:Long, id:Long)
 ###
 # tags: [ Virtual Challenge ]
+# operationId: virtual_challenge_retrieves_virtual_challenge_geojson
 # summary: Retrieves Virtual Challenge GeoJSON
 # description: Retrieves the GeoJSON for the Virtual Challenge that represents all the associated Tasks of the Virtual Challenge.
 #               WARNING* This API query can be quite slow due to retrieving all the points that is grouped in various different challenges
@@ -248,6 +259,7 @@ GET     /virtualchallenge/:cid/previousTask/:id     @org.maproulette.controllers
 GET     /virtualchallenge/view/:id                  @org.maproulette.controllers.api.VirtualChallengeController.getVirtualChallengeGeoJSON(id:Long, filter:String ?= "")
 ###
 # tags: [ Virtual Challenge ]
+# operationId: virtual_challenge_retrieves_clustered_task_points
 # summary: Retrieves clustered Task points
 # description: Retrieves all the Tasks for a specific Virtual Challenge as clustered points to potentially display on a map.
 # responses:
@@ -270,6 +282,7 @@ GET     /virtualchallenge/view/:id                  @org.maproulette.controllers
 GET     /virtualchallenge/clustered/:id             @org.maproulette.controllers.api.VirtualChallengeController.getClusteredPoints(id:Long, filter:String ?= "")
 ###
 # tags: [ Virtual Challenge ]
+# operationId: virtual_challenge_retrieves_nearby_tasks_in_virtual_challenge
 # summary: Retrieves nearby Tasks in Virtual Challenge
 # description: Retrieves tasks geographically closest to the specified task within the same Virtual Challenge
 # responses:
@@ -292,6 +305,7 @@ GET     /virtualchallenge/clustered/:id             @org.maproulette.controllers
 GET     /virtualchallenge/:id/tasksNearby/:proximityId           @org.maproulette.controllers.api.VirtualChallengeController.getNearbyTasks(id:Long, proximityId:Long, limit:Int ?= 5)
 ###
 # tags: [ Virtual Challenge ]
+# operationId: virtual_challenge_retrieves_available_tasks_in_virtual_challenge_wit
 # summary: Retrieves available Tasks in Virtual Challenge within a bounding box
 # description: Retrieves available tasks within a bounding box
 # responses:

@@ -1,5 +1,6 @@
 ###
 # tags: [ Comment ]
+# operationId: comment_retrieves_a_comment
 # summary: Retrieves a comment
 # description: Retrieves a comment based on a specific ID.
 # responses:
@@ -19,6 +20,7 @@
 GET     /comment/:id                                @org.maproulette.framework.controller.CommentController.retrieve(id:Long)
 ###
 # tags: [ Comment ]
+# operationId: comment_retrieves_comments_for_a_task
 # summary: Retrieves comments for a Task
 # description: Retrieves all the comments for a specific Task
 # responses:
@@ -40,6 +42,7 @@ GET     /comment/:id                                @org.maproulette.framework.c
 GET     /task/:id/comments                          @org.maproulette.framework.controller.CommentController.find(id:Long)
 ###
 # tags: [ Comment ]
+# operationId: comment_retrieves_comments_sent_by_a_user
 # summary: Retrieves comments sent by a User
 # produces: [ application/json ]
 # description: Retrieves all the comments sent by a User
@@ -76,6 +79,7 @@ GET     /task/:id/comments                          @org.maproulette.framework.c
 GET     /comments/user/:id                          @org.maproulette.framework.controller.CommentController.findUserComments(id:Long, searchTerm:Option[String], sort:String ?= "created", order:String ?= "DESC", limit:Int ?= 25, page:Int ?= 0)
 ###
 # tags: [ Comment ]
+# operationId: comment_retrieves_comments_sent_by_user_id
 # summary: Retrieves comments sent by a User
 # produces: [ application/json ]
 # description: Retrieves all the challenge comments sent by a User
@@ -112,6 +116,7 @@ GET     /comments/user/:id                          @org.maproulette.framework.c
 GET     /challengeComments/user/:id                          @org.maproulette.framework.controller.CommentController.findUserChallengeComments(id:Long, searchTerm:Option[String], sort:String ?= "created", order:String ?= "DESC", limit:Int ?= 25, page:Int ?= 0)
 ###
 # tags: [ Comment ]
+# operationId: comment_adds_comment_to_task
 # summary: Adds comment to Task
 # description: Adds a comment to a Task
 # responses:
@@ -150,6 +155,7 @@ GET     /challengeComments/user/:id                          @org.maproulette.fr
 POST    /task/:id/comment                           @org.maproulette.framework.controller.CommentController.add(id:Long, actionId:Option[Long])
 ###
 # tags: [ Comment ]
+# operationId: comment_adds_comment_to_each_task_in_a_task_bundle
 # summary: Adds comment to each Task in a Task Bundle
 # description: Adds a comment to each Task in Bundle
 # responses:
@@ -188,6 +194,7 @@ POST    /task/:id/comment                           @org.maproulette.framework.c
 POST    /taskBundle/:id/comment                     @org.maproulette.framework.controller.CommentController.addToBundleTasks(id:Long, actionId:Option[Long])
 ###
 # tags: [ Comment ]
+# operationId: comment_update_comment_on_task
 # summary: Update comment on Task
 # description: Updates an existing comment on a Task. Only the original user who made the comment or a SuperUser can update the comment
 # responses:
@@ -225,6 +232,7 @@ POST    /taskBundle/:id/comment                     @org.maproulette.framework.c
 PUT    /comment/:commentId                          @org.maproulette.framework.controller.CommentController.update(commentId:Long)
 ###
 # tags: [ Comment ]
+# operationId: comment_deletes_comment_from_task
 # summary: Deletes comment from Task
 # description: Deletes a comment from the specific Task
 # responses:
@@ -243,6 +251,7 @@ PUT    /comment/:commentId                          @org.maproulette.framework.c
 DELETE  /task/:id/comment/:commentId                @org.maproulette.framework.controller.CommentController.delete(id:Long, commentId:Long)
 ###
 # tags: [ Comment ]
+# operationId: comment_adds_comment_to_challenge
 # summary: Adds comment to Challenge
 # description: Adds a comment to a Task
 # responses:
@@ -278,6 +287,7 @@ DELETE  /task/:id/comment/:commentId                @org.maproulette.framework.c
 POST    /challenge/:id/comment                           @org.maproulette.framework.controller.CommentController.addChallengeComment(id:Long)
 ###
 # tags: [ Comment ]
+# operationId: comment_retrieves_comments_for_a_challenge
 # summary: Retrieves comments for a Challenge
 # description: Retrieves all the challenge comments for a specific Challenge
 # responses:

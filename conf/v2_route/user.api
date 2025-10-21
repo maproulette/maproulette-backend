@@ -1,5 +1,6 @@
 ###
 # tags: [ User ]
+# operationId: user_retrieves_current_user
 # summary: Retrieves current user
 # description: Retrieves the current logged-in user's JSON
 # responses:
@@ -15,6 +16,7 @@
 GET     /user/whoami                               @org.maproulette.framework.controller.UserController.whoami()
 ###
 # tags: [ User ]
+# operationId: user_retrieves_users_json_information
 # summary: Retrieves Users Json information
 # description: Retrieves User Json based on the supplied ID
 # responses:
@@ -36,6 +38,7 @@ GET     /user/whoami                               @org.maproulette.framework.co
 GET     /user/:userId                               @org.maproulette.framework.controller.UserController.getUser(userId:Long)
 ###
 # tags: [ User ]
+# operationId: user_retrieves_user_by_osm_id
 # summary: Retrieves Users Json information
 # description: Retrieves User Json based on the supplied OSM username
 # responses:
@@ -57,6 +60,7 @@ GET     /user/:userId                               @org.maproulette.framework.c
 GET     /osmuser/:username                          @org.maproulette.framework.controller.UserController.getUserByOSMUsername(username:String)
 ###
 # tags: [ User ]
+# operationId: user_deletes_a_user_from_the_database
 # summary: Deletes a user from the database
 # description: This will delete a user completely from the database. It can also optionally anonymize the users data from actions taken in MapRoulette, like change in status for tasks, comments on tasks and answers to survey questions
 # responses:
@@ -82,6 +86,7 @@ GET     /osmuser/:username                          @org.maproulette.framework.c
 DELETE  /user/:osmId                                @org.maproulette.framework.controller.UserController.deleteUser(osmId:Long, anonymize:Boolean ?= false)
 ###
 # tags: [ User ]
+# operationId: user_retrieves_users_public_json_information
 # summary: Retrieves Users public Json information
 # description: Retrieves a JSON object that represents the user's public information that anyone can retrieve. This is a limited set of information that only includes certain fields.
 # responses:
@@ -101,6 +106,7 @@ DELETE  /user/:osmId                                @org.maproulette.framework.c
 GET     /user/:userId/public                               @org.maproulette.framework.controller.UserController.getPublicUser(userId:Long)
 ###
 # tags: [ User ]
+# operationId: user_retrieves_public_user_by_name
 # summary: Retrieves Users public Json information
 # description: Retrieves User Json based on the supplied OSM username
 # responses:
@@ -120,6 +126,7 @@ GET     /user/:userId/public                               @org.maproulette.fram
 GET     /osmuser/:username/public                          @org.maproulette.framework.controller.UserController.getPublicUserByOSMUsername(username:String)
 ###
 # tags: [ User ]
+# operationId: user_deletes_user_from_project
 # summary: Deletes a user from the database
 # description: This will delete a user completely from the database. It can also optionally anonymize the users data from actions taken in MapRoulette, like change in status for tasks, comments on tasks and answers to survey questions
 # responses:
@@ -142,6 +149,7 @@ GET     /osmuser/:username/public                          @org.maproulette.fram
 DELETE  /user/:osmId                                @org.maproulette.framework.controller.UserController.deleteUser(osmId:Long, anonymize:Boolean ?= false)
 ###
 # tags: [ User ]
+# operationId: user_generates_an_api_key_for_a_specified_user
 # summary: Generates an API_KEY for a specified user
 # description: This API will generate or regenerate the API_KEY for a specified user
 # responses:
@@ -163,6 +171,7 @@ DELETE  /user/:osmId                                @org.maproulette.framework.c
 PUT     /user/:userId/apikey                        @org.maproulette.framework.controller.UserController.generateAPIKey(userId:Long)
 ###
 # tags: [ User ]
+# operationId: user_search_for_users_by_osm_username
 # summary: Search for users by OSM username
 # description: Retrieves list of matching users
 # responses:
@@ -194,6 +203,7 @@ GET     /users/find/:username                          @org.maproulette.framewor
 GET     /users/find                                    @org.maproulette.framework.controller.UserController.searchUserByOSMUsername(username:String ?= "", limit:Int ?= 10)
 ###
 # tags: [ User ]
+# operationId: user_get_a_list_of_users
 # summary: Get a list of users
 # description: Retrieves list of matching users
 # responses:
@@ -216,6 +226,7 @@ GET     /users/find                                    @org.maproulette.framewor
 GET     /users                                         @org.maproulette.framework.controller.UserController.extendedFind(limit:Int ?= 10, page:Int ?= 0, sort:String ?= "")
 ###
 # tags: [ User ]
+# operationId: user_retrieves_users_saved_challenged
 # summary: Retrieves Users Saved Challenged
 # description: Retrieves that list of challenges that has been saved by the User
 # responses:
@@ -243,6 +254,7 @@ GET     /users                                         @org.maproulette.framewor
 GET     /user/:userId/saved                         @org.maproulette.framework.controller.UserController.getSavedChallenges(userId:Long, limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ User ]
+# operationId: user_saves_challenge_for_a_user
 # summary: Saves Challenge for a User
 # description: Saves a Challenge to a user account
 # responses:
@@ -267,6 +279,7 @@ GET     /user/:userId/saved                         @org.maproulette.framework.c
 POST    /user/:userId/save/:challengeId             @org.maproulette.framework.controller.UserController.saveChallenge(userId:Long, challengeId:Long)
 ###
 # tags: [ User ]
+# operationId: user_unsaves_challenge_for_a_user
 # summary: Unsaves Challenge for a User
 # description: Unsaves a Challenge to a user account
 # responses:
@@ -291,6 +304,7 @@ POST    /user/:userId/save/:challengeId             @org.maproulette.framework.c
 DELETE   /user/:userId/unsave/:challengeId          @org.maproulette.framework.controller.UserController.unsaveChallenge(userId:Long, challengeId:Long)
 ###
 # tags: [ User ]
+# operationId: user_retrieves_users_saved_tasks
 # summary: Retrieves Users Saved Tasks
 # description: Retrieves that list of tasks that has been saved by the User
 # responses:
@@ -321,6 +335,7 @@ DELETE   /user/:userId/unsave/:challengeId          @org.maproulette.framework.c
 GET     /user/:userId/savedTasks                    @org.maproulette.framework.controller.UserController.getSavedTasks(userId:Long, challengeIds:String ?= "", limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ User ]
+# operationId: user_retrieves_users_locked_tasks
 # summary: Retrieves Users Locked Tasks
 # description: Retrieves a list of all the tasks the user with the matching id has locked
 # responses:
@@ -351,6 +366,7 @@ GET     /user/:userId/savedTasks                    @org.maproulette.framework.c
 GET     /user/:userId/lockedTasks                    @org.maproulette.framework.controller.UserController.getLockedTasks(userId:Long, limit:Int ?= 50)
 ###
 # tags: [ User ]
+# operationId: user_saves_a_task_for_a_user
 # summary: Saves a Task for a User
 # description: Saves a Task to a user account
 # responses:
@@ -375,6 +391,7 @@ GET     /user/:userId/lockedTasks                    @org.maproulette.framework.
 POST    /user/:userId/saveTask/:taskId              @org.maproulette.framework.controller.UserController.saveTask(userId:Long, taskId:Long)
 ###
 # tags: [ User ]
+# operationId: user_unsaves_task_for_a_user
 # summary: Unsaves Task for a User
 # description: Unsaves a Task from a user account
 # responses:
@@ -399,6 +416,7 @@ POST    /user/:userId/saveTask/:taskId              @org.maproulette.framework.c
 DELETE   /user/:userId/unsaveTask/:taskId           @org.maproulette.framework.controller.UserController.unsaveTask(userId:Long, taskId:Long)
 ###
 # tags: [ User ]
+# operationId: user_updates_usersettings
 # summary: Updates UserSettings
 # description: Updates the user settings for a specified user
 # responses:
@@ -429,6 +447,7 @@ DELETE   /user/:userId/unsaveTask/:taskId           @org.maproulette.framework.c
 PUT    /user/:userId                                @org.maproulette.framework.controller.UserController.updateUser(userId:Long)
 ###
 # tags: [ User ]
+# operationId: user_refresh_user_profile
 # summary: Refresh User Profile
 # description: Refreshes the user profile from OSM
 # responses:
@@ -444,6 +463,7 @@ PUT    /user/:userId                                @org.maproulette.framework.c
 PUT     /user/:userId/refresh                        @org.maproulette.framework.controller.UserController.refreshProfile(userId:Long)
 ###
 # tags: [ User ]
+# operationId: user_gets_a_list_of_users_managing_project
 # summary: Gets a list of users managing project
 # description: Gets list of users managing project along with their roles (1 - Admin, 2 - Write, 3 - Read)
 # responses:
@@ -474,6 +494,7 @@ PUT     /user/:userId/refresh                        @org.maproulette.framework.
 GET     /user/project/:projectId                     @org.maproulette.framework.controller.UserController.getUsersManagingProject(projectId:Long, osmIds:String ?= "", includeTeams:Boolean ?= false)
 ###
 # tags: [ User ]
+# operationId: user_grant_role_to_user_on_project
 # summary: Grant role to user on project
 # description: Grants a user an Admin, Write or Read role on the project
 # responses:
@@ -502,6 +523,7 @@ GET     /user/project/:projectId                     @org.maproulette.framework.
 POST     /user/:userId/project/:projectId/:role  @org.maproulette.framework.controller.UserController.addUserToProject(userId:Long, projectId:Long, role:Int, isOSMUserId:Boolean ?= false)
 ###
 # tags: [ User ]
+# operationId: user_set_project_role_for_user_removing_any_prior_roles
 # summary: Set project role for user, removing any prior roles on the project
 # description: Sets a user's role on the project to Admin, Write or Read. This will also remove any other roles on the project from the user.
 # responses:
@@ -529,6 +551,7 @@ POST     /user/:userId/project/:projectId/:role  @org.maproulette.framework.cont
 PUT     /user/:userId/project/:projectId/:role  @org.maproulette.framework.controller.UserController.setUserProjectRole(userId:Long, projectId:Long, role:Int, isOSMUserId:Boolean ?= false)
 ###
 # tags: [ User ]
+# operationId: user_grant_role_on_project_to_a_list_of_users
 # summary: Grant role on project to a list of users
 # description: Grants Admin, Write, or Read role on project to list of users
 # responses:
@@ -564,6 +587,7 @@ PUT     /user/:userId/project/:projectId/:role  @org.maproulette.framework.contr
 PUT     /user/project/:projectId/:role         @org.maproulette.framework.controller.UserController.addUsersToProject(projectId:Long, role:Int, isOSMUserId:Boolean ?= false)
 ###
 # tags: [ User ]
+# operationId: user_remove_granted_role_on_project_from_user
 # summary: Remove granted role on project from user
 # description: Removes Admin, Write, or Read role on a project from a user
 # responses:
@@ -592,6 +616,7 @@ PUT     /user/project/:projectId/:role         @org.maproulette.framework.contro
 DELETE  /user/:userId/project/:projectId/:role  @org.maproulette.framework.controller.UserController.removeUserFromProject(userId:Long, projectId:Long, role:Int, isOSMUserId:Boolean ?= false)
 ###
 # tags: [ User ]
+# operationId: user_removes_granted_role_on_project_from_a_list_of_use
 # summary: Removes granted role on project from a list of users
 # description: Removes Admin, Write, or Read role on project from a list of users
 # responses:
@@ -628,6 +653,7 @@ DELETE  /user/:userId/project/:projectId/:role  @org.maproulette.framework.contr
 DELETE  /user/project/:projectId/:role         @org.maproulette.framework.controller.UserController.removeUsersFromProject(projectId:Long, role:Int, isOSMUserId:Boolean ?= false)
 ###
 # tags: [ User ]
+# operationId: user_promote_a_standard_user_to_a_super_user
 # summary: Promote a standard user to a super user
 # description: Promote a standard user, a 'grantee', to a super user role; the requesting user is called a 'grantor'.
 #              This will add the superuser role to the grantee user, allowing the grantee to perform super user actions.
@@ -649,6 +675,7 @@ DELETE  /user/project/:projectId/:role         @org.maproulette.framework.contro
 PUT     /superuser/:userId                    @org.maproulette.framework.controller.UserController.promoteUserToSuperUser(userId:Long)
 ###
 # tags: [ User ]
+# operationId: user_remove_the_superuser_role_from_a_super_user
 # summary: Remove the superuser role from a super user
 # description: Demote a super user, a 'grantee', back to a standard user; the requesting user is called a 'grantor'.
 #              This will remove the superuser role from the grantee.
@@ -670,6 +697,7 @@ PUT     /superuser/:userId                    @org.maproulette.framework.control
 DELETE  /superuser/:userId                    @org.maproulette.framework.controller.UserController.demoteSuperUserToUser(userId:Long)
 ###
 # tags: [ User ]
+# operationId: user_get_all_current_superusers
 # summary: Get all current superusers
 # description: Return a list of MapRoulette user ids who are superusers. The requesting user must be a super user.
 # responses:

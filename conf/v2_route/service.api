@@ -1,5 +1,6 @@
 ###
 # tags: [ Service ]
+# operationId: service_retrieves_service_information_such_as_the_version_
 # summary: Retrieves service information such as the version and compiler version
 # description: Retrieves service information such as the version and compiler version
 # responses:

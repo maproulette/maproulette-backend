@@ -1,5 +1,6 @@
 ###
 # tags: [ Review ]
+# operationId: review_retrieves_and_claims_a_review_needed_task
 # summary: Retrieves and claims a review needed Task
 # description: Retrieves a Task and claims that task for review
 # responses:
@@ -17,6 +18,7 @@
 GET     /task/:id/review/start                       @org.maproulette.framework.controller.TaskReviewController.startTaskReview(id:Long)
 ###
 # tags: [ Review ]
+# operationId: review_cancels_a_claim_on_a_task_for_review
 # summary: Cancels a claim on a task for review
 # description: Cancels a claim on a task for review
 # responses:
@@ -34,6 +36,7 @@ GET     /task/:id/review/start                       @org.maproulette.framework.
 GET     /task/:id/review/cancel                       @org.maproulette.framework.controller.TaskReviewController.cancelTaskReview(id:Long)
 ###
 # tags: [ Review ]
+# operationId: review_retrieves_tasks_that_need_review
 # summary: Retrieves tasks that need review
 # description: Retrieves list of Tasks and total count
 # responses:
@@ -80,6 +83,7 @@ GET     /task/:id/review/cancel                       @org.maproulette.framework
 GET     /tasks/review                          @org.maproulette.framework.controller.TaskReviewController.getReviewRequestedTasks(onlySaved: Boolean ?= false, limit:Int ?= -1, page:Int ?= 0, sort:String ?= "", order:String ?= "ASC", excludeOtherReviewers: Boolean ?= false, includeTags: Boolean ?= false)
 ###
 # tags: [ Review ]
+# operationId: review_retrieves_reviewed_tasks_that_have_been_reviewed_e
 # summary: Retrieves reviewed tasks that have been reviewed either by this user or where the user requested
 #          the review.
 # description: Retrieves list of Tasks
@@ -135,6 +139,7 @@ GET     /tasks/review                          @org.maproulette.framework.contro
 GET     /tasks/reviewed                          @org.maproulette.framework.controller.TaskReviewController.getReviewedTasks(allowReviewNeeded:Boolean ?= false, limit:Int ?= 10, page:Int ?= 0, sort:String ?= "", order:String ?= "ASC", includeTags:Boolean ?= false, asMetaReview: Boolean ?= false)
 ###
 # tags: [ Review ]
+# operationId: review_retrieves_and_claims_a_the_next_review_needed_task
 # summary: Retrieves and claims a the next review needed Task
 # description: Retrieves the next Task (given the search parameters) and claims that task for review
 # responses:
@@ -176,6 +181,7 @@ GET     /tasks/reviewed                          @org.maproulette.framework.cont
 GET     /tasks/review/next                       @org.maproulette.framework.controller.TaskReviewController.nextTaskReview(onlySaved:Boolean ?= false, sort:String ?= "", order:String ?= "ASC", lastTaskId:Long ?= -1, excludeOtherReviewers:Boolean ?= false, asMetaReview: Boolean ?= false)
 ###
 # tags: [ Review ]
+# operationId: review_retrieves_nearby_tasks
 # summary: Retrieves nearby Tasks
 # description: Retrieves review tasks geographically closest to the specified task within the given filters
 # responses:
@@ -204,6 +210,7 @@ GET     /tasks/review/next                       @org.maproulette.framework.cont
 GET     /tasks/review/nearby/:proximityId           @org.maproulette.framework.controller.TaskReviewController.getNearbyReviewTasks(proximityId:Long, limit:Int ?= 5, excludeOtherReviewers:Boolean ?= false, onlySaved:Boolean ?= false)
 ###
 # tags: [ Review ]
+# operationId: review_retrieves_reviewed_tasks_by_user
 # summary: Retrieves tasks that need review
 # description: Retrieves list of Tasks and total count
 # responses:
@@ -250,6 +257,7 @@ GET     /tasks/review/nearby/:proximityId           @org.maproulette.framework.c
 GET     /tasks/review/metrics                          @org.maproulette.framework.controller.TaskReviewMetricsController.getReviewMetrics(reviewTasksType: Int, onlySaved:Boolean ?= false, excludeOtherReviewers: Boolean ?= false, includeByPriority:Boolean ?= false, includeByTaskStatus:Boolean ?= false)
 ###
 # tags: [ Review ]
+# operationId: review_retrieves_task_review_clusters
 # summary: Retrieves task review clusters
 # description: Retrieves task clusters that contain the centroid location for a group of review tasks
 # responses:
@@ -284,6 +292,7 @@ GET     /tasks/review/metrics                          @org.maproulette.framewor
 GET     /taskCluster/review                                @org.maproulette.framework.controller.TaskReviewController.getReviewTaskClusters(reviewTasksType:Int, points:Int ?= 100, onlySaved:Boolean ?= false, excludeOtherReviewers:Boolean ?= false)
 ###
 # tags: [ Review ]
+# operationId: review_retrieve_a_summary_of_review_coverage_for_mappers
 # summary: Retrieve a summary of review coverage for mappers
 # description: This will retrieve a summary of review coverage for each mapper and respond with a csv
 # responses:
@@ -312,6 +321,7 @@ GET     /taskCluster/review                                @org.maproulette.fram
 GET     /tasks/review/mappers/export                          @org.maproulette.framework.controller.TaskReviewMetricsController.extractMapperMetrics(onlySaved:Boolean ?= false)
 ###
 # tags: [ Review ]
+# operationId: review_retrieve_a_summary_of_review_coverage_for_review_r
 # summary: Retrieve a summary of review coverage for review related tasks
 # description: This will retrieve a summary of review coverage for each review related task and respond with a csv
 # response:
@@ -379,6 +389,7 @@ GET     /tasks/review/mappers/export                          @org.maproulette.f
 GET     /tasks/review/reviewTable/export              @org.maproulette.framework.controller.TaskReviewController.extractReviewTableData(taskId: String ?= "", featureId: String ?= "", reviewStatus: String ?= "0,1,2,3,4,5,6,7,-1", mapper: String ?= "", challengeId: String ?= "", projectId: String ?= "", mappedOn: String ?= "", reviewedBy: String ?= "", reviewedAt: String ?= "", metaReviewedBy: String ?= "", metaReviewStatus: String ?= "2,0,1,2,3,6", status: String ?= "0,1,2,3,4,5,6,9", priority: String ?= "0,1,2", tagFilter: String ?= "", sortBy: String ?= "mapped_on", direction: String ?= "ASC", displayedColumns: String ?= "Internal Id,Review Status,Mapper,Challenge,Project,Mapped On,Reviewer,Reviewed On,Status,Priority,Actions,Additional Reviewers", invertedFilters: String ?= "", onlySaved: Boolean ?= false)
 ###
 # tags: [ Review ]
+# operationId: review_retrieve_a_summary_of_meta-review_coverage_for_rev
 # summary: Retrieve a summary of meta-review coverage for reviewers
 # description: This will retrieve a summary of meta-review coverage for each reviewer and respond with a csv
 # responses:
@@ -404,6 +415,7 @@ GET     /tasks/review/reviewTable/export              @org.maproulette.framework
 GET     /tasks/metareview/reviewers/export                          @org.maproulette.framework.controller.TaskReviewMetricsController.extractMetaReviewCoverage(onlySaved:Boolean ?= false)
 ###
 # tags: [ Review ]
+# operationId: review_retrieves_metrics_grouped_by_tag
 # summary: Retrieves metrics grouped by tag
 # description: Retrieves list of Tasks and total count
 # responses:

@@ -1,5 +1,6 @@
 ###
 # tags: [ Project ]
+# operationId: project_create_a_project
 # summary: Create a Project
 # description: Will create a new project from the supplied JSON in the body. When creating the
 #               the Project, leave the ID field out of the body json, if updating (generally use the
@@ -28,6 +29,7 @@
 POST    /project                                    @org.maproulette.framework.controller.ProjectController.insert
 ###
 # tags: [ Project ]
+# operationId: project_updates_a_project
 # summary: Updates a Project
 # description: Will update an already existing project from the supplied JSON in the body.
 # responses:
@@ -59,6 +61,7 @@ POST    /project                                    @org.maproulette.framework.c
 PUT     /project/:id                                @org.maproulette.framework.controller.ProjectController.update(id:Long)
 ###
 # tags: [ Project ]
+# operationId: project_retrieves_an_already_existing_project
 # summary: Retrieves an already existing Project
 # description: Retrieves an already existing project based on the supplied ID in the URL.
 # responses:
@@ -78,6 +81,7 @@ PUT     /project/:id                                @org.maproulette.framework.c
 GET     /project/:id                                @org.maproulette.framework.controller.ProjectController.retrieve(id:Long)
 ###
 # tags: [ Project ]
+# operationId: project_retrieves_already_existing_projects_based_on_a_giv
 # summary: Retrieves already existing Projects based on a given list of ids
 # description: Retrieves already existing projects based on the supplied IDs
 # responses:
@@ -97,6 +101,7 @@ GET     /project/:id                                @org.maproulette.framework.c
 GET     /projectsById                               @org.maproulette.framework.controller.ProjectController.retrieveList(projectIds:String)
 ###
 # tags: [ Project ]
+# operationId: project_retrieves_project_by_name
 # summary: Retrieves an already existing Project
 # description: Retrieves an already existing project based on the name of the project rather than an ID
 # responses:
@@ -116,6 +121,7 @@ GET     /projectsById                               @org.maproulette.framework.c
 GET     /projectByName/:name                        @org.maproulette.framework.controller.ProjectController.retrieveByName(name:String)
 ###
 # tags: [ Project ]
+# operationId: project_deletes_an_existing_project
 # summary: Deletes an existing Project
 # description: Deletes an existing project based on the supplied ID. This will delete all the children Challenges and Tasks under the project as well.
 # responses:
@@ -143,6 +149,7 @@ GET     /projectByName/:name                        @org.maproulette.framework.c
 DELETE  /project/:id                                @org.maproulette.framework.controller.ProjectController.delete(id:Long, immediate:Boolean ?= false)
 ###
 # tags: [ Project ]
+# operationId: project_retrieve_featured_projects
 # summary: Retrieve featured projects
 # description: Get all the currently featured projects
 # responses:
@@ -168,6 +175,7 @@ DELETE  /project/:id                                @org.maproulette.framework.c
 GET     /projects/featured                          @org.maproulette.framework.controller.ProjectController.getFeaturedProjects(onlyEnabled:Boolean ?= true, limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ Project ]
+# operationId: project_list_all_the_projects
 # summary: List all the projects.
 # description: Lists all the projects in the system
 # responses:
@@ -193,6 +201,7 @@ GET     /projects/featured                          @org.maproulette.framework.c
 GET     /projects                                   @org.maproulette.framework.controller.ProjectController.find(search:String ?= "", limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= false)
 ###
 # tags: [ Project ]
+# operationId: project_list_all_the_managed_projects
 # summary: List all the managed projects.
 # description: Lists all the managed projects in the system for the authenticated user
 # responses:
@@ -230,6 +239,7 @@ GET     /projects                                   @org.maproulette.framework.c
 GET     /projects/managed                           @org.maproulette.framework.controller.ProjectController.listManagedProjects(limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= false, onlyOwned:Boolean ?= false, searchString:String ?= "", sort:String ?= "display_name")
 ###
 # tags: [ Project ]
+# operationId: project_retrieves_clustered_challenge_points
 # summary: Retrieves clustered challenge points
 # description: Retrieves all the challenges for a specific project as clustered points to potentially display on a map
 # responses:
@@ -256,6 +266,7 @@ GET     /projects/managed                           @org.maproulette.framework.c
 GET     /project/clustered/:id                      @org.maproulette.framework.controller.ProjectController.getClusteredPoints(id:Long, challenges:String ?= "", limit:Int ?= 0, page:Int ?= 0)
 ###
 # tags: [ Project ]
+# operationId: project_retrieves_clustered_challenge_points_post
 # summary: Retrieves clustered challenge points
 # description: Retrieves all the challenges as clustered points to potentially display on a map
 # responses:
@@ -279,6 +290,7 @@ GET     /project/clustered/:id                      @org.maproulette.framework.c
 GET     /project/search/clustered                   @org.maproulette.framework.controller.ProjectController.getSearchedClusteredPoints(limit:Int ?= 0, page:Int ?= 0)
 ###
 # tags: [ Project ]
+# operationId: project_list_all_the_projects_challenges
 # summary: List all the projects challenges.
 # description: Lists all the challenges that are children of the supplied project.
 # responses:
@@ -304,6 +316,7 @@ GET     /project/search/clustered                   @org.maproulette.framework.c
 GET     /project/:id/challenges                     @org.maproulette.framework.controller.ProjectController.listChildren(id:Long, limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ Project ]
+# operationId: project_retrieve_all_comments_for_project
 # summary: Retrieve all comments for Project
 # description: This will retrieve all the comments of the descendent tasks of a given Project
 # responses:
@@ -330,6 +343,7 @@ GET     /project/:id/challenges                     @org.maproulette.framework.c
 GET     /project/:id/comments                     @org.maproulette.framework.controller.ProjectController.retrieveComments(id:Long, limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ Project ]
+# operationId: project_retrieve_summaries_of_all_tasks_in_a_project
 # summary: Retrieve summaries of all tasks in a Project
 # description: This will retrieve summaries of all the tasks of a given project and respond with a csv
 # responses:
@@ -354,6 +368,7 @@ GET     /project/:id/comments                     @org.maproulette.framework.con
 GET     /project/:projectId/tasks/extract             @org.maproulette.controllers.api.ChallengeController.extractAllTaskSummaries(projectId:Long, cId:Option[String], timezone:String ?= "")
 ###
 # tags: [ Project ]
+# operationId: project_retrieves_random_task
 # summary: Retrieves random Task
 # description: Retrieves random tasks based on the search criteria and contained within the current project
 # responses:
@@ -382,6 +397,7 @@ GET     /project/:projectId/tasks/extract             @org.maproulette.controlle
 GET     /project/:id/tasks                          @org.maproulette.framework.controller.ProjectController.getRandomTasks(id:Long, limit:Int ?= 1, proximity:Long ?= -1)
 ###
 # tags: [ Project ]
+# operationId: project_find_project_matching_search_criteria_use_get_proj
 # summary: Find project matching search criteria. Use GET /projects to find instead.
 # deprecated: true
 # responses:

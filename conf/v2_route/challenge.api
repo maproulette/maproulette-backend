@@ -1,5 +1,6 @@
 ###
 # tags: [ Challenge ]
+# operationId: challenge_create
 # summary: Create a Challenge
 # description: Will create a new challenge from the supplied JSON in the body. When creating the Challenge, leave the ID field
 #               out of the body json, if updating (generally use the PUT method) include the ID field.
@@ -31,6 +32,7 @@
 POST    /challenge                                  @org.maproulette.controllers.api.ChallengeController.create
 ###
 # tags: [ Challenge ]
+# operationId: challenge_task_markers
 # summary: Retrieves Task Marker Data
 # description: Retrieves task marker data.
 # responses:
@@ -50,6 +52,7 @@ POST    /challenge                                  @org.maproulette.controllers
 GET     /challenge/:id/taskMarkers        @org.maproulette.controllers.api.ChallengeController.getChallengeTaskMarkers(id:Long)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_update
 # summary: Updates a Challenge
 # description: Will update an already existing challenge from the supplied JSON in the body.
 #               When updating the Challenge object you can within the same json body include Task
@@ -82,6 +85,7 @@ GET     /challenge/:id/taskMarkers        @org.maproulette.controllers.api.Chall
 PUT     /challenge/:id                              @org.maproulette.controllers.api.ChallengeController.update(id:Long)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_read
 # summary: Retrieves an already existing Challenge
 # description: Retrieves an already existing Challenge based on the supplied ID in the URL.
 # responses:
@@ -100,6 +104,7 @@ PUT     /challenge/:id                              @org.maproulette.controllers
 GET     /challenge/:id                              @org.maproulette.controllers.api.ChallengeController.read(id:Long)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_readByName
 # summary: Retrieves an already existing Challenge
 # description: Retrieves an already existing Challenge based on the name of the Challenge rather than an ID
 # responses:
@@ -122,6 +127,7 @@ GET     /challenge/:id                              @org.maproulette.controllers
 GET     /project/:id/challenge/:name                @org.maproulette.controllers.api.ChallengeController.readByName(id:Long, name:String)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_delete
 # summary: Deletes an existing Challenge
 # description: Deletes an existing Challenge based on the supplied ID. This will delete all children Tasks under the Challenge.
 # responses:
@@ -146,6 +152,7 @@ GET     /project/:id/challenge/:name                @org.maproulette.controllers
 DELETE  /challenge/:id                              @org.maproulette.controllers.api.ChallengeController.delete(id:Long, immediate:Boolean ?= false)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_deletes_all_challenge_tasks
 # summary: Deletes all Challenge Tasks
 # description: Deletes all the existing tasks within a challenge. This API will also give the option to delete tasks based on the tasks current status.
 #               So can delete all "false positive" tasks, or all "fixed and created" tasks.
@@ -167,6 +174,7 @@ DELETE  /challenge/:id                              @org.maproulette.controllers
 DELETE  /challenge/:id/tasks                        @org.maproulette.controllers.api.ChallengeController.deleteTasks(id:Long, statusFilters ?= "")
 ###
 # tags: [ Challenge ]
+# operationId: challenge_find
 # summary: Find Challenge matching search criteria
 # description: Finds a list of Challenges that match a specific search criteria. The search criteria is simply a string that is contained in the Challenge name. String case sensitivity is ignored.
 # responses:
@@ -198,6 +206,7 @@ DELETE  /challenge/:id/tasks                        @org.maproulette.controllers
 GET     /challenges/find                            @org.maproulette.controllers.api.ChallengeController.find(q:String ?= "", parentId:Long ?= -1, limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= true)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_extendedFind
 # summary: Extended Find Challenge matching search criteria
 # description: Finds a list of Challenges that match a specific search criteria. The search criteria is uses multiple values from the query string
 # responses:
@@ -273,6 +282,7 @@ GET     /challenges/find                            @org.maproulette.controllers
 GET     /challenges/extendedFind                    @org.maproulette.controllers.api.ChallengeController.extendedFind(limit:Int ?= 10, page:Int ?= 0, sort:String ?= "", order:String ?= "ASC")
 ###
 # tags: [ Challenge ]
+# operationId: explore_challenge_list_challenges
 # summary: Explore Challenges with specific filtering and sorting
 # description: Efficiently finds challenges with bounding box filtering, global toggle, sorting, and result limiting
 # parameters:
@@ -318,6 +328,7 @@ GET     /challenges/extendedFind                    @org.maproulette.controllers
 GET     /challenges/exploreChallenges                    @org.maproulette.controllers.api.ChallengeController.exploreChallenges(global:Boolean ?= true, bounds:Option[String] ?= None, sortBy:String ?= "name", limit:Int ?= 50)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_list_challenges_in_specified_projects
 # summary: List challenges in specified projects
 # description: Retrieves a lightweight listing of challenges, with just a few basic fields for each, that belong to the specified project(s).
 # responses:
@@ -351,6 +362,7 @@ GET     /challenges/exploreChallenges                    @org.maproulette.contro
 GET     /challenges/listing                         @org.maproulette.controllers.api.ChallengeController.listing(projectIds:String ?= "", limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= true)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_move_challenge_to_another_project
 # summary: Move Challenge to another Project
 # description: Will move a challenge into another project
 # responses:
@@ -373,6 +385,7 @@ GET     /challenges/listing                         @org.maproulette.controllers
 POST     /challenge/:id/project/:projectId           @org.maproulette.controllers.api.ChallengeController.moveChallenge(projectId:Long, id:Long)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_move_challenges_to_another_project
 # summary: Move Challenges to another Project
 # description: Will move a list of challenges into another project
 # responses:
@@ -405,6 +418,7 @@ POST     /challenge/:id/project/:projectId           @org.maproulette.controller
 POST     /challenges/project/:projectId           @org.maproulette.controllers.api.ChallengeController.moveChallenges(projectId:Long)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_getTags
 # summary: Retrieve tags for Challenge
 # description: Retrieves all the Tags that have been added to the specified Challenge
 # responses:
@@ -424,6 +438,7 @@ POST     /challenges/project/:projectId           @org.maproulette.controllers.a
 GET     /challenge/:id/tags                         @org.maproulette.controllers.api.ChallengeController.getTagsForChallenge(id:Long)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_getItemsBasedOnTags
 # summary: Retrieve challenges based on provided tags
 # description: Retrieves all the challenges that contain at least one of the supplied tags.
 # responses:
@@ -451,6 +466,7 @@ GET     /challenge/:id/tags                         @org.maproulette.controllers
 GET     /challenges/tags                            @org.maproulette.controllers.api.ChallengeController.getItemsBasedOnTags(tags:String ?= "", limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_deleteTagsFromItem
 # summary: Delete Challenge Tags
 # description: Deletes all the supplied tags from the Challenge
 # responses:
@@ -471,6 +487,7 @@ GET     /challenges/tags                            @org.maproulette.controllers
 DELETE  /challenge/:id/tags                         @org.maproulette.controllers.api.ChallengeController.deleteTagsFromItem(id:Long, tags:String ?= "")
 ###
 # tags: [ Challenge ]
+# operationId: challenge_featured_challenges
 # summary: Featured Challenges.
 # description: Get all the currently featured challenges
 # responses:
@@ -493,6 +510,7 @@ DELETE  /challenge/:id/tags                         @org.maproulette.controllers
 GET     /challenges/featured                        @org.maproulette.controllers.api.ChallengeController.getFeaturedChallenges(limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_hottest_challenges
 # summary: Hottest Challenges.
 # description: Get the hottest (recently popular) challenges
 # responses:
@@ -515,6 +533,7 @@ GET     /challenges/featured                        @org.maproulette.controllers
 GET     /challenges/hot                             @org.maproulette.controllers.api.ChallengeController.getHotChallenges(limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_preferred_challenges
 # summary: Preferred Challenges.
 # description: Get the preferred challenges which include popular, featured, and newest
 # responses:
@@ -532,6 +551,7 @@ GET     /challenges/hot                             @org.maproulette.controllers
 GET     /challenges/preferred                             @org.maproulette.controllers.api.ChallengeController.getPreferredChallenges(limit:Int ?= 10)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_list
 # summary: List all the Challenges.
 # description: Lists all the Challenges in the system
 # responses:
@@ -557,6 +577,7 @@ GET     /challenges/preferred                             @org.maproulette.contr
 GET     /challenges                                 @org.maproulette.controllers.api.ChallengeController.list(limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= false)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_bulk_archive_challenges
 # summary: Bulk Archive Challenges.
 # description: Archive or unarchive a list of challenges
 # responses:
@@ -582,6 +603,7 @@ GET     /challenges                                 @org.maproulette.controllers
 POST     /challenges/bulkArchive                    @org.maproulette.controllers.api.ChallengeController.bulkArchive()
 ###
 # tags: [ Challenge ]
+# operationId: challenge_list_all_the_challenges_with_review_tasks
 # summary: List all the Challenges with review tasks.
 # description: Lists all the Challenges in the system with review tasks.
 # responses:
@@ -613,6 +635,7 @@ POST     /challenges/bulkArchive                    @org.maproulette.controllers
 GET     /review/challenges                                 @org.maproulette.framework.controller.TaskReviewController.listChallenges(reviewTasksType:Int, tStatus:String ?= "", excludeOtherReviewers:Boolean ?= false, limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_listChildren
 # summary: List all the Challenges Tasks.
 # description: Lists all the Tasks that are children of the supplied Challenge.
 # responses:
@@ -638,6 +661,7 @@ GET     /review/challenges                                 @org.maproulette.fram
 GET     /challenge/:id/tasks                        @org.maproulette.controllers.api.ChallengeController.listChildren(id:Long, limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_add_tasks_to_a_challenge
 # summary: Add tasks to a challenge
 # description: This will create tasks within a challenge based on the provided geojson in the body of the PUT request
 # responses:
@@ -662,6 +686,7 @@ GET     /challenge/:id/tasks                        @org.maproulette.controllers
 PUT     /challenge/:id/addTasks                     @org.maproulette.controllers.api.ChallengeController.addTasksToChallenge(id:Long)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_add_tasks_from_file
 # summary: Add tasks to a challenge
 # description: This will create tasks within a challenge based on the provided file uploaded as part of the PUT request.
 # responses:
@@ -702,6 +727,7 @@ PUT     /challenge/:id/addTasks                     @org.maproulette.controllers
 PUT     /challenge/:id/addFileTasks                 @org.maproulette.controllers.api.ChallengeController.addTasksToChallengeFromFile(id:Long, lineByLine:Boolean ?= true, removeUnmatched:Boolean ?= false, dataOriginDate:Option[String], skipSnapshot:Boolean ?= false)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_retrieves_children_for_challenge
 # summary: Retrieves children for Challenge
 # description: Retrieves all the children for a Challenge in an expanded list. Unlike the GET
 #               request /challenge/{id}/tasks, this function will wrap the json array list
@@ -729,6 +755,7 @@ PUT     /challenge/:id/addFileTasks                 @org.maproulette.controllers
 GET     /challenge/:id/children                     @org.maproulette.controllers.api.ChallengeController.expandedList(id:Long, limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_clones_a_challenge
 # summary: Clones a Challenge
 # description: Clones a challenge
 # responses:
@@ -753,6 +780,7 @@ GET     /challenge/:id/children                     @org.maproulette.controllers
 PUT     /challenge/:id/clone/:name                  @org.maproulette.controllers.api.ChallengeController.cloneChallenge(id:Long, name:String)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_rebuild_a_challenge
 # summary: Rebuild a Challenge
 # description: Rebuilds a challenge that was originally built by an overpass query or remote geojson.
 # responses:
@@ -783,6 +811,7 @@ PUT     /challenge/:id/clone/:name                  @org.maproulette.controllers
 PUT     /challenge/:id/rebuild                      @org.maproulette.controllers.api.ChallengeController.rebuildChallenge(id:Long, removeUnmatched:Boolean ?= false, skipSnapshot:Boolean ?= false)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_getRandomTasks
 # summary: Retrieves random Task
 # description: Retrieves a random Task based on the search criteria and contained within the current Challenge
 # responses:
@@ -814,6 +843,7 @@ PUT     /challenge/:id/rebuild                      @org.maproulette.controllers
 GET     /challenge/:cid/tasks/random                @org.maproulette.controllers.api.ChallengeController.getRandomTasks(cid:Long, s:String ?= "", tags:String ?= "", limit:Int ?= 1, proximity:Long ?= -1)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_getRandomTasksAlias
 # summary: Retrieves random Task
 # description: Retrieves a random Task based on the search criteria and contained within the current Challenge
 # responses:
@@ -845,6 +875,7 @@ GET     /challenge/:cid/tasks/random                @org.maproulette.controllers
 GET     /challenge/:cid/tasks/randomTasks           @org.maproulette.controllers.api.ChallengeController.getRandomTasks(cid:Long, s:String ?= "", tags:String ?= "", limit:Int ?= 1, proximity:Long ?= -1)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_getNearbyTasks
 # summary: Retrieves nearby Tasks
 # description: Retrieves tasks geographically closest to the specified task within the same Challenge
 # responses:
@@ -873,6 +904,7 @@ GET     /challenge/:cid/tasks/randomTasks           @org.maproulette.controllers
 GET     /challenge/:cid/tasksNearby/:proximityId           @org.maproulette.controllers.api.ChallengeController.getNearbyTasks(cid:Long, proximityId:Long, excludeSelfLocked:Boolean ?=false, limit:Int ?= 5)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_getNearbyTasksWithinBoundingBox
 # summary: Retrieves available Tasks within a bounding box
 # description: Retrieves available tasks within a bounding box
 # responses:
@@ -938,6 +970,7 @@ GET     /challenge/:cid/nearby/box/:left/:bottom/:right/:top @org.maproulette.co
 GET     /challenge/:cid/tasks/prioritizedTasks      @org.maproulette.controllers.api.ChallengeController.getRandomTasksWithPriority(cid:Long, s:String ?= "", tags:String ?= "", limit:Int ?= 1, proximity:Long ?= -1)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_getSequentialNextTask
 # summary: Retrieves next Task
 # description: Retrieves the next sequential Task based on the task ordering within the Challenge. If it is currently on the last task it will response with the first task in the challenge.
 # responses:
@@ -961,6 +994,7 @@ GET     /challenge/:cid/tasks/prioritizedTasks      @org.maproulette.controllers
 GET     /challenge/:cid/nextTask/:id                @org.maproulette.controllers.api.ChallengeController.getSequentialNextTask(cid:Long, id:Long, statusList:String ?= "")
 ###
 # tags: [ Challenge ]
+# operationId: challenge_getSequentialPreviousTask
 # summary: Retrieves previous Task
 # description: Retrieves the previous sequential Task based on the task ordering within the Challenge. If it is currently on the first task it will response with the last task in the challenge.
 # responses:
@@ -984,6 +1018,7 @@ GET     /challenge/:cid/nextTask/:id                @org.maproulette.controllers
 GET     /challenge/:cid/previousTask/:id            @org.maproulette.controllers.api.ChallengeController.getSequentialPreviousTask(cid:Long, id:Long, statusList:String ?= "")
 ###
 # tags: [ Challenge ]
+# operationId: challenge_getChallengeGeoJSON
 # summary: Retrieves Challenge GeoJSON
 # description: Retrieves the GeoJSON for the Challenge that represents all the Task children of the Challenge.
 # responses:
@@ -1026,6 +1061,7 @@ GET     /challenge/:cid/previousTask/:id            @org.maproulette.controllers
 GET     /challenge/view/:id                         @org.maproulette.controllers.api.ChallengeController.getChallengeGeoJSON(id:Long, status:String ?= "", reviewStatus:String ?= "", priority:String ?= "", timezone:String ?= "", bbox:String ?= "", filename:String ?= "")
 ###
 # tags: [ Challenge ]
+# operationId: challenge_getChallengeGeoJSONPost
 # summary: Retrieves Challenge GeoJSON
 # description: Retrieves the GeoJSON for the Challenge that represents all the Task children of the Challenge.
 # responses:
@@ -1065,6 +1101,7 @@ GET     /challenge/view/:id                         @org.maproulette.controllers
 POST    /challenge/view/:id                         @org.maproulette.controllers.api.ChallengeController.getChallengeGeoJSON(id:Long, status:String ?= "", reviewStatus:String ?= "", priority:String ?= "", timezone:String ?= "", bbox:String ?= "", filename:String ?= "")
 ###
 # tags: [ Challenge ]
+# operationId: challenge_getClusteredPoints
 # summary: Retrieves clustered Task points
 # description: Retrieves all the Tasks for a specific Challenge as clustered points to potentially display on a map
 # responses:
@@ -1087,6 +1124,7 @@ POST    /challenge/view/:id                         @org.maproulette.controllers
 GET     /challenge/clustered/:id                    @org.maproulette.controllers.api.ChallengeController.getClusteredPoints(id:Long, filter:String ?= "", limit:Int ?= 2500, excludeLocked:Boolean ?= false)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_update_task_priorities
 # summary: Update Task Priorities
 # description: Updates all the Task priorities in a Challenge based on the priority rules setup in the Challenge
 # responses:
@@ -1106,6 +1144,7 @@ GET     /challenge/clustered/:id                    @org.maproulette.controllers
 PUT     /challenge/:id/updateTaskPriorities         @org.maproulette.controllers.api.ChallengeController.updateTaskPriorities(id:Long)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_reset_task_instructions
 # summary: Reset Task Instructions
 # description: This will reset all the task instructions so that the task instructions revert to the Challenge instruction.
 # responses:
@@ -1125,6 +1164,7 @@ PUT     /challenge/:id/updateTaskPriorities         @org.maproulette.controllers
 PUT     /challenge/:id/resetTaskInstructions        @org.maproulette.controllers.api.ChallengeController.resetTaskInstructions(id:Long)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_retrieveComments
 # summary: Retrieve all comments for Challenge
 # description: This will retrieve all the comments for all the children tasks of a given challenge
 # responses:
@@ -1151,6 +1191,7 @@ PUT     /challenge/:id/resetTaskInstructions        @org.maproulette.controllers
 GET     /challenge/:id/comments                     @org.maproulette.controllers.api.ChallengeController.retrieveComments(id:Long, limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_retrieve_all_comments_for_challenge
 # summary: Retrieve all comments for Challenge
 # description: This will retrieve all the comments for all the children tasks of a given challenge and respond with a csv
 # responses:
@@ -1173,6 +1214,7 @@ GET     /challenge/:id/comments                     @org.maproulette.controllers
 GET     /challenge/:id/comments/extract             @org.maproulette.controllers.api.ChallengeController.extractComments(id:Long, limit:Int ?= -1, page:Int ?= 0)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_extractTaskSummaries
 # summary: Retrieve summaries of all tasks for Challenge
 # description: This will retrieve summaries of all the tasks of a given challenge and respond with a csv
 # responses:
@@ -1213,6 +1255,7 @@ GET     /challenge/:id/comments/extract             @org.maproulette.controllers
 GET     /challenge/:id/tasks/extract             @org.maproulette.controllers.api.ChallengeController.extractTaskSummaries(id:Long, limit:Int ?= -1, page:Int ?= 0, status:String ?= "", reviewStatus:String ?= "", priority:String ?= "", exportProperties:String ?= "", timezone:String ?= "")
 ###
 # tags: [ Challenge ]
+# operationId: challenge_retrieve_task_review_history_of_a_challenge
 # summary: Retrieve task review history of a Challenge
 # description: This will retrieve review history of all the tasks of a given challenge and respond with a csv
 # responses:
@@ -1229,6 +1272,7 @@ GET     /challenge/:id/tasks/extract             @org.maproulette.controllers.ap
 GET     /challenge/:id/extractReviewHistory             @org.maproulette.controllers.api.ChallengeController.extractChallengeReviewHistory(id:Long)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_extractTaskSummariesPost
 # summary: Retrieve summaries of all tasks for Challenge
 # description: This will retrieve summaries of all the tasks of a given challenge and respond with a csv
 # responses:
@@ -1269,6 +1313,7 @@ GET     /challenge/:id/extractReviewHistory             @org.maproulette.control
 POST     /challenge/:id/tasks/extract             @org.maproulette.controllers.api.ChallengeController.extractTaskSummaries(id:Long, limit:Int ?= -1, page:Int ?= 0, status:String ?= "", reviewStatus:String ?= "", priority:String ?= "", exportProperties:String ?= "", timezone:String ?= "")
 ###
 # tags: [ Challenge ]
+# operationId: challenge_match_osm_changesets
 # summary: Match OSM Changesets
 # description: This will go through every task and try to match an OSM changeset with the task
 # responses:
@@ -1293,6 +1338,7 @@ POST     /challenge/:id/tasks/extract             @org.maproulette.controllers.a
 GET     /challenge/:id/matchChangesets          @org.maproulette.controllers.api.ChallengeController.matchChangeSets(id:Long, skipSet:Boolean ?= false)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_create_challenge_from_github
 # summary: Create Challenge from Github
 # description: This will pull the following files from Github, ${name}_create.json, ${name}_geojson.json, ${name}_info.md, and create a Challenge from it. The create file will be the json used to create the challenge. Similarly to if you supplied json in the create method. The info.md file is just an informational file that can be used later for challenge information to the user. And geojson.json which is used to generate the tasks. If the challenge has been previously created, it will just update the tasks from the geojson
 # responses:
@@ -1327,6 +1373,7 @@ GET     /challenge/:id/matchChangesets          @org.maproulette.controllers.api
 POST     /project/:projectId/challenge/:username/:repo/:name   @org.maproulette.controllers.api.ChallengeController.createFromGithub(projectId:Long, username:String, repo:String, name:String, rebuild:Boolean ?= false)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_extracts_a_challenge_package
 # summary: Extracts a Challenge Package
 # description: This will retrieve a package of the challenge, which will contain json to recreate the challenge, geojson to recreate the tasks, info page in md format if any, all the comments extracted from for the challenge and any metrics and the time the challenge was extracted.
 # responses:
@@ -1345,6 +1392,7 @@ POST     /project/:projectId/challenge/:username/:repo/:name   @org.maproulette.
 GET     /challenge/:id/extract                      @org.maproulette.controllers.api.ChallengeController.extractPackage(id:Long)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_batchUploadPost
 # summary: Create a batch of Challenges
 # deprecated: true
 # responses:
@@ -1354,6 +1402,7 @@ GET     /challenge/:id/extract                      @org.maproulette.controllers
 POST    /challenges                                 @org.maproulette.controllers.api.ChallengeController.batchUploadPost
 ###
 # tags: [ Challenge ]
+# operationId: challenge_batchUploadPut
 # summary: Update a batch of Challenges
 # responses:
 #   '200':
@@ -1362,6 +1411,7 @@ POST    /challenges                                 @org.maproulette.controllers
 PUT     /challenges                                 @org.maproulette.controllers.api.ChallengeController.batchUploadPut
 ###
 # tags: [ Challenge ]
+# operationId: challenge_undeletes_a_challenge
 # summary: Undeletes a Challenge
 # deprecated: true
 # responses:
@@ -1371,6 +1421,7 @@ PUT     /challenges                                 @org.maproulette.controllers
 PUT  /challenge/:id/undelete                         @org.maproulette.controllers.api.ChallengeController.undelete(id:Long)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_createChildren
 # summary: Create Tasks for Challenge
 # deprecated: true
 # responses:
@@ -1380,6 +1431,7 @@ PUT  /challenge/:id/undelete                         @org.maproulette.controller
 POST    /challenge/:id/tasks                        @org.maproulette.controllers.api.ChallengeController.createChildren(id:Long)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_updateChildren
 # summary: Create Tasks for Challenge
 # deprecated: true
 # responses:
@@ -1389,6 +1441,7 @@ POST    /challenge/:id/tasks                        @org.maproulette.controllers
 PUT     /challenge/:id/tasks                        @org.maproulette.controllers.api.ChallengeController.updateChildren(id:Long)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_update_archive_status
 # summary: Update archive status
 # description: This will update the archive status of the challenge
 # responses:
@@ -1417,6 +1470,7 @@ PUT     /challenge/:id/tasks                        @org.maproulette.controllers
 POST     /challenge/:challengeId/archive   @org.maproulette.controllers.api.ChallengeController.archiveChallenge(challengeId: Long)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_get_tag_metrics_for_challenge
 # summary: Get Tag Metrics for Challenge
 # description: This will retrieve the tag metrics for a challenge
 # responses:

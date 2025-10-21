@@ -1,5 +1,6 @@
 ###
 # tags: [ Changes ]
+# operationId: changes_test_changes
 # summary: Test Changes
 # description: Takes in a group of changes and instead of submitting them to OSM will return a standard OSMChange XML that would have been submitted to the OSM servers
 # responses:
@@ -28,6 +29,7 @@
 POST    /change/tag/test                            @org.maproulette.controllers.OSMChangesetController.testTagChange(changeType:String ?= "delta")
 ###
 # tags: [ Changes ]
+# operationId: changes_test_osm_changes_currently_only_node_creation_or_t
 # summary: Test OSM changes (currently only node creation or tag changes)
 # description: Takes in a set of changes and, instead of submitting them to OSM, will return a standard OSMChange XML that would have been submitted to the OSM servers
 # responses:
@@ -52,6 +54,7 @@ POST    /change/tag/test                            @org.maproulette.controllers
 POST    /change/test                        @org.maproulette.controllers.OSMChangesetController.testChange()
 ###
 # tags: [ Changes ]
+# operationId: changes_apply_tag_changes_for_task
 # summary: Apply Tag Changes for task
 # description: Submit a group of changes to OSM. Will return a standard OSMChange XML that has been applied to the OSM servers standard OSMChange XML that would have been submitted to the OSM servers
 # responses:

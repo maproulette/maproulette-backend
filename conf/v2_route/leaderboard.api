@@ -1,5 +1,6 @@
 ###
 # tags: [ Leaderboard ]
+# operationId: leaderboard_fetches_the_mapper_leaderboard_stats
 # summary: Fetches the mapper leaderboard stats
 # description: Fetches the mapper leaderboard stats
 # responses:
@@ -68,6 +69,7 @@
 GET     /data/user/leaderboard                      @org.maproulette.framework.controller.LeaderboardController.getMapperLeaderboard(limit:Int ?= 20, offset:Int ?= 0)
 ###
 # tags: [ Leaderboard ]
+# operationId: leaderboard_fetches_leaderboard_for_a_specific_challenge
 # summary: Fetches leaderboard for a specific challenge
 # description: Fetches the top mappers for a specific challenge within a time period
 # responses:
@@ -137,6 +139,7 @@ GET     /data/user/challengeLeaderboard                @org.maproulette.framewor
 GET     /data/user/:userId/challengeLeaderboard              @org.maproulette.framework.controller.LeaderboardController.getChallengeLeaderboardForUser(userId:Int, challengeId:Int, monthDuration: Int ?= 1, bracket:Int ?= 0)
 ###
 # tags: [ Leaderboard ]
+# operationId: leaderboard_fetches_leaderboard_for_a_specific_project
 # summary: Fetches leaderboard for a specific project
 # description: Fetches the top mappers for a specific project within a time period
 # responses:
@@ -206,6 +209,7 @@ GET     /data/user/projectLeaderboard                @org.maproulette.framework.
 GET     /data/user/:userId/projectLeaderboard              @org.maproulette.framework.controller.LeaderboardController.getProjectLeaderboardForUser(userId:Int, projectId:Int, monthDuration: Int ?= 1, bracket:Int ?= 0)
 ###
 # tags: [ Leaderboard ]
+# operationId: leaderboard_fetches_leaderboard_stats_with_ranking_for_the_use
 # summary: Fetches leaderboard stats with ranking for the user
 # description: Fetches user's current ranking and stats in the leaderboard along with a number of mappers above and below in the rankings.
 # responses:
@@ -273,6 +277,7 @@ GET     /data/user/:userId/projectLeaderboard              @org.maproulette.fram
 GET     /data/user/:userId/leaderboard              @org.maproulette.framework.controller.LeaderboardController.getLeaderboardForUser(userId:Long, bracket:Int ?= 0)
 ###
 # tags: [ Leaderboard ]
+# operationId: leaderboard_gets_the_top_challenges_worked_on_by_the_user
 # summary: Gets the top challenges worked on by the user
 # description: Gets the top challenges worked on by the user
 # responses:
@@ -335,6 +340,7 @@ GET     /data/user/:userId/leaderboard              @org.maproulette.framework.c
 GET     /data/user/:userId/topChallenges            @org.maproulette.framework.controller.LeaderboardController.getUserTopChallenges(userId:Long, limit:Int ?= 20, offset:Int ?= 0)
 ###
 # tags: [ Leaderboard ]
+# operationId: leaderboard_fetches_the_reviewer_leaderboard_stats
 # summary: Fetches the reviewer leaderboard stats
 # description: Fetches the reviewer leaderboard stats
 # responses:

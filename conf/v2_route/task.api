@@ -1,5 +1,6 @@
 ###
 # tags: [ Task ]
+# operationId: task_retrieves_a_history_for_the_task
 # summary: Retrieves a history for the task
 # description: Retrieves list of task history log entries. This includes comments,
 #              status actions, and review actions.
@@ -18,6 +19,7 @@
 GET     /task/:id/history                       @org.maproulette.framework.controller.TaskHistoryController.getTaskHistoryLog(id:Long)
 ###
 # tags: [ Task ]
+# operationId: task_create_a_task
 # summary: Create a Task
 # description: Will create a new Task from the supplied JSON in the body. When creating the Task, leave the ID field
 #               out of the body json, if updating (generally use the PUT method) include the ID field.
@@ -45,6 +47,7 @@ GET     /task/:id/history                       @org.maproulette.framework.contr
 POST    /task                                       @org.maproulette.controllers.api.TaskController.create
 ###
 # tags: [ Task ]
+# operationId: task_create_a_batch_of_tasks
 # summary: Create a batch of Tasks
 # description: Will create multiple new Tasks from the JSONArray supplied in the body. Each JSON object
 #               is basically a Task object that is processed similarly to the singular /sask POST. If
@@ -71,6 +74,7 @@ POST    /task                                       @org.maproulette.controllers
 POST    /tasks                                      @org.maproulette.controllers.api.TaskController.batchUploadPost
 ###
 # tags: [ Task ]
+# operationId: task_updates_a_task
 # summary: Updates a Task
 # description: Will update an already existing Task from the supplied JSON in the body.
 # responses:
@@ -101,6 +105,7 @@ POST    /tasks                                      @org.maproulette.controllers
 PUT     /task/:id                                   @org.maproulette.controllers.api.TaskController.update(id:Long)
 ###
 # tags: [ Task ]
+# operationId: task_update_a_batch_of_tasks
 # summary: Update a batch of Tasks
 # description: Will update multiple already existing Tasks from the JSONArray supplied in the body. Each JSON object
 #               is basically a Task object that is processed similarly to the singular /task POST. If a Task
@@ -127,6 +132,7 @@ PUT     /task/:id                                   @org.maproulette.controllers
 PUT     /tasks                                      @org.maproulette.controllers.api.TaskController.batchUploadPut
 ###
 # tags: [ Task ]
+# operationId: task_changes_status_on_tasks_matching_criteria
 # summary: Changes status on tasks matching criteria
 # description: Will changes status on tasks that match the given search parameters.
 # responses:
@@ -138,6 +144,7 @@ PUT     /tasks                                      @org.maproulette.controllers
 PUT     /tasks/changeStatus                        @org.maproulette.controllers.api.TaskController.bulkStatusChange(newStatus:Int)
 ###
 # tags: [ Task ]
+# operationId: task_retrieves_an_already_existing_task
 # summary: Retrieves an already existing Task
 # description: Retrieves an already existing Task based on the supplied ID in the URL.
 # responses:
@@ -157,6 +164,7 @@ PUT     /tasks/changeStatus                        @org.maproulette.controllers.
 GET     /task/:id                                   @org.maproulette.controllers.api.TaskController.read(id:Long)
 ###
 # tags: [ Task ]
+# operationId: task_start_working_on_a_task_locks_it_for_the_user
 # summary: Start working on a Task (locks it for the user)
 # description: Locks a Task based on the supplied ID in the URL.
 # responses:
@@ -177,6 +185,7 @@ GET     /task/:id/start                               @org.maproulette.controlle
 
 ###
 # tags: [ Task ]
+# operationId: task_retrieve_any_change_xml_that_is_part_of_this_tasks
 # summary: Retrieve any change XML that is part of this task's cooperative work
 # description: Retrieve change XML that is part of this task's cooperative work.
 #              The cooperative work on the task should be consulted to determine
@@ -206,6 +215,7 @@ GET     /task/:id/cooperative/change/$filename<\w[\w\d-_\.]*>            @org.ma
 
 ###
 # tags: [ Task ]
+# operationId: task_retrieve_task_attachment
 # summary: Retrieve task attachment
 # description: Retrieve attachment identified by attachmentId on specified task
 #
@@ -226,6 +236,7 @@ GET     /task/:id/attachment/$attachmentId<[\w\d-_~\.]+>                 @org.ma
 
 ###
 # tags: [ Task ]
+# operationId: task_download_task_attachment_data_as_file
 # summary: Download task attachment data as file
 # description: Download attachment attachment data as file
 #
@@ -252,6 +263,7 @@ GET     /task/:id/attachment/$attachmentId<[\w\d-_~\.]+>/data/$filename<[\w\d-_\
 
 ###
 # tags: [ Task ]
+# operationId: task_release_a_task_unlocks_it
 # summary: Release a Task (unlocks it)
 # description: Unlocks a Task based on the supplied ID in the URL.
 # responses:
@@ -271,6 +283,7 @@ GET     /task/:id/attachment/$attachmentId<[\w\d-_~\.]+>/data/$filename<[\w\d-_\
 GET     /task/:id/release                               @org.maproulette.controllers.api.TaskController.releaseTask(id:Long)
 ###
 # tags: [ Task ]
+# operationId: task_refresh_an_existing_lock_on_a_task
 # summary: Refresh an existing lock on a Task
 # description: Refreshes an existing lock, extending its allowed duration, on the
 #              task with the supplied ID. The requesting user must already own an
@@ -295,6 +308,7 @@ GET     /task/:id/release                               @org.maproulette.control
 GET     /task/:id/refreshLock                           @org.maproulette.controllers.api.TaskController.refreshTaskLock(id:Long)
 ###
 # tags: [ Task ]
+# operationId: task_retrieves_task_by_name
 # summary: Retrieves an already existing Task
 # description: Retrieves an already existing Task based on the name of the Task rather than an ID
 # responses:
@@ -317,6 +331,7 @@ GET     /task/:id/refreshLock                           @org.maproulette.control
 GET     /challenge/:id/task/:name                   @org.maproulette.controllers.api.TaskController.readByName(id:Long, name:String)
 ###
 # tags: [ Task ]
+# operationId: task_deletes_an_existing_task
 # summary: Deletes an existing Task
 # description: Deletes an existing Task based on the supplied ID.
 # responses:
@@ -338,6 +353,7 @@ GET     /challenge/:id/task/:name                   @org.maproulette.controllers
 DELETE  /task/:id                                   @org.maproulette.controllers.api.TaskController.delete(id:Long, immediate:Boolean ?= true)
 ###
 # tags: [ Task ]
+# operationId: task_find_task_matching_search_criteria
 # summary: Find Task matching search criteria
 # description: Finds a list of Tasks that match a specific search criteria. The search criteria is simply a string that is contained in the Task name. String case sensitivity is ignored.
 # responses:
@@ -369,6 +385,7 @@ DELETE  /task/:id                                   @org.maproulette.controllers
 GET     /tasks/find                                 @org.maproulette.controllers.api.TaskController.find(q:String ?= "", parentId:Long ?= -1, limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= true)
 ###
 # tags: [ Task ]
+# operationId: task_retrieve_tags_for_task
 # summary: Retrieve tags for Task
 # description: Retrieves all the Tags that have been added to the specified Task
 # responses:
@@ -388,6 +405,7 @@ GET     /tasks/find                                 @org.maproulette.controllers
 GET     /task/:id/tags                              @org.maproulette.controllers.api.TaskController.getTagsForTask(id:Long)
 ###
 # tags: [ Task ]
+# operationId: task_retrieve_tasks_based_on_provided_tags
 # summary: Retrieve Tasks based on provided tags
 # description: Retrieves all the Tasks that contain at least one of the supplied tags.
 # responses:
@@ -415,6 +433,7 @@ GET     /task/:id/tags                              @org.maproulette.controllers
 GET     /tasks/tags                                 @org.maproulette.controllers.api.TaskController.getItemsBasedOnTags(tags:String ?= "", limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ Task ]
+# operationId: task_updates_task_tags
 # summary: Updates Task Tags
 # description: Updates the tags on the Task
 # responses:
@@ -436,6 +455,7 @@ GET     /tasks/tags                                 @org.maproulette.controllers
 GET  /task/:id/tags/update                              @org.maproulette.controllers.api.TaskController.updateItemTags(id:Long, tags:String ?= "")
 ###
 # tags: [ Task ]
+# operationId: task_delete_task_tags
 # summary: Delete Task Tags
 # description: Deletes all the supplied tags from the Task
 # responses:
@@ -457,6 +477,7 @@ GET  /task/:id/tags/update                              @org.maproulette.control
 DELETE  /task/:id/tags                              @org.maproulette.controllers.api.TaskController.deleteTagsFromItem(id:Long, tags:String ?= "")
 ###
 # tags: [ Task ]
+# operationId: task_retrieves_random_task
 # summary: Retrieves random Task
 # description: Retrieves a random Task based on the search criteria.
 # responses:
@@ -494,6 +515,7 @@ DELETE  /task/:id/tags                              @org.maproulette.controllers
 GET     /tasks/random                               @org.maproulette.controllers.api.TaskController.getRandomTasks(ps:String ?= "", cs:String ?= "", ct:String ?= "", tags:String ?= "", ts:String ?= "", limit:Int ?= 1, proximity:Long ?= -1)
 ###
 # tags: [ Task ]
+# operationId: task_retrieves_tasks_within_a_bounding_box
 # summary: Retrieves Tasks within a bounding box
 # description: Retrieves tasks within a given bounding box.
 # responses:
@@ -537,6 +559,7 @@ GET     /tasks/random                               @org.maproulette.controllers
 PUT     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.controller.TaskController.getTasksInBoundingBox(left:Double, bottom:Double, right:Double, top:Double, limit:Int ?= 10000, page:Int ?= 0, excludeLocked:Boolean ?= false, sort:String ?= "", order:String ?= "ASC", includeTotal:Boolean ?= false, includeGeometries:Boolean ?=false, includeTags:Boolean ?= false)
 ###
 # tags: [ Task ]
+# operationId: task_retrieves_task_marker_data_within_a_bounding_box
 # summary: Retrieves Task Marker Data within a bounding box
 # description: Retrieves task marker data within a given bounding box.
 # responses:
@@ -574,6 +597,7 @@ PUT     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.c
 PUT     /markers/box/:left/:bottom/:right/:top        @org.maproulette.framework.controller.TaskController.getTaskMarkerDataInBoundingBox(left:Double, bottom:Double, right:Double, top:Double, limit:Int ?= 500, excludeLocked:Boolean ?= false, includeGeometries:Boolean ?= false, includeTags:Boolean ?= false)
 ###
 # tags: [ Task ]
+# operationId: task_marker_Data
 # summary: Retrieves Task Marker Data
 # description: Retrieves task marker data with total count. When there are more than 10000 tasks, returns only the count. When clustering is enabled or there are more than 1000 tasks, returns cluster objects. Otherwise returns individual task markers. All responses include the total task count.
 # responses:
@@ -609,6 +633,7 @@ PUT     /markers/box/:left/:bottom/:right/:top        @org.maproulette.framework
 GET     /taskMarkers        @org.maproulette.framework.controller.TaskController.getTaskMarkers(statuses: String, global:Boolean ?= false, cluster:Boolean ?= false, bounds: Option[String])
 ###
 # tags: [ Task ]
+# operationId: task_update_task_changeset
 # summary: Update Task Changeset
 # description: Will update the changeset of the task. It will do this by attempting to match the OSM changeset to the Task based on the geometry and the time that the changeset was executed.
 # responses:
@@ -630,6 +655,7 @@ GET     /taskMarkers        @org.maproulette.framework.controller.TaskController
 PUT     /task/:id/changeset                         @org.maproulette.controllers.api.TaskController.matchToOSMChangeSet(id:Long)
 ###
 # tags: [ Task ]
+# operationId: task_update_completion_responses
 # summary: Update Completion Responses
 # description: Will update the completion responses on the Task.
 # responses:
@@ -653,6 +679,7 @@ PUT     /task/:id/changeset                         @org.maproulette.controllers
 PUT     /task/:id/responses                           @org.maproulette.framework.controller.TaskController.updateCompletionResponses(id:Long)
 ###
 # tags: [ Task ]
+# operationId: task_update_task_status
 # summary: Update Task Status
 # description: Will update a Tasks status to one of the following. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Can't Complete
 # responses:
@@ -686,6 +713,7 @@ PUT     /task/:id/responses                           @org.maproulette.framework
 PUT     /task/:id/:status                           @org.maproulette.controllers.api.TaskController.setTaskStatus(id:Long, status:Int, tags:String ?="")
 ###
 # tags: [ Task ]
+# operationId: task_update_bundle_task_status
 # summary: Update Bundle Task Status
 # description: Will update a Bundled list of Tasks statuses to one of the following. 0 - Created, 1 - Fixed, 2 - False Positive, 3 - Skipped, 4 - Deleted, 5 - Already Fixed, 6 - Can't Complete
 # responses:
@@ -714,6 +742,7 @@ PUT     /task/:id/:status                           @org.maproulette.controllers
 PUT     /taskBundle/:bundleId/:status                           @org.maproulette.framework.controller.TaskBundleController.setBundleTaskStatus(bundleId:Long, primaryId:Long, status:Int, tags:String ?="")
 ###
 # tags: [ Task ]
+# operationId: task_update_task_review_status
 # summary: Update Task Review Status
 # description: Will update a Tasks review status to one of the following. 0 - Requested, 1 - Approved, 2 - Rejected, 3 - Assisted
 # responses:
@@ -757,6 +786,7 @@ PUT     /taskBundle/:bundleId/:status                           @org.maproulette
 PUT     /task/:id/review/:status                           @org.maproulette.framework.controller.TaskReviewController.setTaskReviewStatus(id:Long, status:Int, tags:String ?="", newTaskStatus:String ?= "", errorTags:String ?= "")
 ###
 # tags: [ Task ]
+# operationId: task_changes_review_status_to_unnecessary_on_tasks_matc
 # summary: Changes review status to "Unnecessary" on tasks matching criteria
 # description: Will change review status on tasks that match the given search parameters
 #              indicating the tasks do not need a review.
@@ -773,6 +803,7 @@ PUT     /task/:id/review/:status                           @org.maproulette.fram
 PUT     /tasks/review/remove                               @org.maproulette.framework.controller.TaskReviewController.removeReviewRequest(ids:String?="", asMetaReview:Boolean ?= false)
 ###
 # tags: [ Task ]
+# operationId: task_update_task_review_status_for_a_bundle
 # summary: Update Task Review Status for a Bundle
 # description: Will update a Tasks review status to one of the following. 0 - Requested, 1 - Approved, 2 - Rejected, 3 - Assisted
 # responses:
@@ -813,6 +844,7 @@ PUT     /tasks/review/remove                               @org.maproulette.fram
 PUT     /taskBundle/:id/review/:status                     @org.maproulette.framework.controller.TaskBundleController.setBundleTaskReviewStatus(id:Long, status:Int, tags:String ?="", newTaskStatus:String ?= "", errorTags:String ?= "")
 ###
 # tags: [ Task ]
+# operationId: task_update_task_meta_review_status
 # summary: Update Task Meta Review Status
 # description: Will update a Tasks meta review status to one of the following. 0 - (re)Requested, 1 - Approved, 2 - Rejected, 3 - Assisted
 # responses:
@@ -852,6 +884,7 @@ PUT     /taskBundle/:id/review/:status                     @org.maproulette.fram
 PUT     /task/:id/metareview/:status                           @org.maproulette.framework.controller.TaskReviewController.setMetaReviewStatus(id:Long, status:Int, tags:String ?="", errorTags:String ?= "")
 ###
 # tags: [ Task ]
+# operationId: task_update_meta_review_status_for_a_bundle
 # summary: Update Meta Review Status for a Bundle
 # description: Will update Tasks meta review status to one of the following. 0 - Requested, 1 - Approved, 2 - Rejected, 3 - Assisted
 # responses:
@@ -891,6 +924,7 @@ PUT     /task/:id/metareview/:status                           @org.maproulette.
 PUT     /taskBundle/:id/metareview/:status                     @org.maproulette.framework.controller.TaskBundleController.setBundleMetaReviewStatus(id:Long, status:Int, tags:String ?="", errorTags:String ?= "")
 ###
 # tags: [ Task ]
+# operationId: task_retrieves_task_clusters
 # summary: Retrieves task clusters.
 # description: Retrieves task clusters that contain the centroid location for a group of tasks
 # responses:
@@ -910,6 +944,7 @@ PUT     /taskBundle/:id/metareview/:status                     @org.maproulette.
 PUT     /taskCluster                                @org.maproulette.framework.controller.TaskController.getTaskClusters(points:Int ?= 100)
 ###
 # tags: [ Task ]
+# operationId: task_retrieves_tasks_in_a_cluster
 # summary: Retrieves tasks in a cluster
 # description: Retrieves tasks contained in a cluster retrieved from api /api/v2/challenge/:id/taskCluster
 # responses:
@@ -935,6 +970,7 @@ PUT     /taskCluster                                @org.maproulette.framework.c
 GET     /tasksInCluster/:clusterId                  @org.maproulette.framework.controller.TaskController.getTasksInCluster(clusterId:Int, points:Int ?= 100)
 ###
 # tags: [ Task ]
+# operationId: task_retrieves_tasks_within_a_bounding_box_deprecated
 # summary: Retrieves Tasks within a bounding box
 # deprecated: true
 # responses:
@@ -944,6 +980,7 @@ GET     /tasksInCluster/:clusterId                  @org.maproulette.framework.c
 GET     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.controller.TaskController.getTasksInBoundingBox(left:Double, bottom:Double, right:Double, top:Double, limit:Int ?= 10000, page:Int ?= 0, excludeLocked:Boolean ?= false, sort:String ?= "", order:String ?= "ASC", includeTotal:Boolean ?= false, includeGeometries:Boolean ?=false, includeTags:Boolean ?= false)
 ###
 # tags: [ Task ]
+# operationId: task_retrieves_task_clusters_use_put_method
 # summary: Retrieves task clusters. USE PUT METHOD
 # deprecated: true
 # responses:
@@ -951,6 +988,7 @@ GET     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.c
 #     description: Success
 ###
 # tags: [ Task ]
+# operationId: task_request_task_unlock
 # summary: Request task unlock
 # description: Sends a notification to the user who has locked a task requesting them to unlock it
 # responses:
@@ -974,6 +1012,7 @@ PUT     /task/:taskId/unlock/request                @org.maproulette.framework.c
 GET     /taskCluster                                @org.maproulette.framework.controller.TaskController.getTaskClusters(points:Int ?= 100)
 ###
 # tags: [ Task ]
+# operationId: task_locks_a_bundle_of_tasks
 # summary: Locks a bundle of tasks
 # description: Attempts to lock a set of tasks. If successful, returns the tasks that were locked. If not successful, returns the tasks that were not locked.
 # responses:
@@ -994,6 +1033,7 @@ GET     /taskCluster                                @org.maproulette.framework.c
 POST    /task/bundle/lock                         @org.maproulette.controllers.api.TaskController.lockTaskBundle(taskIds:List[Long])
 ###
 # tags: [ Task ]
+# operationId: task_unlocks_a_bundle_of_tasks
 # summary: Unlocks a bundle of tasks
 # description: Unlocks the specified tasks in the bundle.
 # responses:

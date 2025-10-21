@@ -1,5 +1,6 @@
 ###
 # tags: [ Virtual Project ]
+# operationId: virtual_project_add_challenge_to_a_virtual_project
 # summary: Add Challenge to a virtual Project
 # description: Will add a challenge into a virtual project
 # responses:
@@ -18,6 +19,7 @@
 POST     /project/:projectId/challenge/:id/add           @org.maproulette.framework.controller.VirtualProjectController.addChallenge(projectId:Long, id:Long)
 ###
 # tags: [ Virtual Project ]
+# operationId: virtual_project_remove_challenge_from_a_virtual_project
 # summary: Remove Challenge from a virtual Project
 # description: Will remove a challenge from a virtual project
 # responses:
