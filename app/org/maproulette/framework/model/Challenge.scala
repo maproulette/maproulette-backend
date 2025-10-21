@@ -596,7 +596,7 @@ object Challenge extends CommonField {
 
 object BaseChallenge {
   import org.maproulette.models.utils.BaseChallengeWrites
-  val writes = new Object with BaseChallengeWrites
+  val writes                                              = new Object with BaseChallengeWrites
   implicit val baseChallengeWrites: Writes[BaseChallenge] = writes.baseChallengeWrites
 }
 

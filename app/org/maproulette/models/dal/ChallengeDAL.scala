@@ -484,9 +484,7 @@ class ChallengeDAL @Inject() (
         val lpb = lowPriorityBounds.flatMap(b =>
           if (StringUtils.isEmpty(b) || StringUtils.equals(b, "[]")) None else Some(Json.parse(b))
         )
-        val ts = taskStyles.flatMap(s =>
-          if (StringUtils.isEmpty(s)) None else Some(Json.parse(s))
-        )
+        val ts = taskStyles.flatMap(s => if (StringUtils.isEmpty(s)) None else Some(Json.parse(s)))
 
         new BaseChallenge(
           id,
@@ -552,7 +550,10 @@ class ChallengeDAL @Inject() (
   /**
     * Retrieves a BaseChallenge by ID (flattened structure for API responses)
     */
-  def retrieveBaseChallengeById(implicit id: Long, c: Option[Connection] = None): Option[BaseChallenge] = {
+  def retrieveBaseChallengeById(
+      implicit id: Long,
+      c: Option[Connection] = None
+  ): Option[BaseChallenge] = {
     this.withMRConnection { implicit c =>
       val query =
         s"""
