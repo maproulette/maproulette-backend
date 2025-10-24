@@ -240,6 +240,14 @@ class TaskController @Inject() (
     }
   }
 
+// for getting more detailed task marker data on individul makrers
+  // def getTaskMarkerData(id: Long): Action[AnyContent] = Action.async { implicit request =>
+  //   this.sessionManager.userAwareRequest { implicit user =>
+  //     val task = this.taskService.getTask(id)
+  //     Ok(Json.toJson(task))
+  //   }
+  // }
+
   /**
     * Updates the completion responses asked in the task instructions. Request
     * body should include the reponse JSON.

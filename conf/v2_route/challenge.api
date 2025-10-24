@@ -45,7 +45,7 @@ POST    /challenge                                  @org.maproulette.controllers
 #           items:
 #             $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeTaskMarker'
 # parameters:
-#   - id: challenge id
+#   - name: id
 #     in: path
 #     description: Id of the challenge
 ###
