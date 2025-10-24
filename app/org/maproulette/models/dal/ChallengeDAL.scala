@@ -1303,7 +1303,7 @@ class ChallengeDAL @Inject() (
                                                   'YYYY-MM-DD"T"HH24:MI:SS#${tzOffset}'))
                                         ||
                                         hstore('mr_mapper',
-                                          (select name from users where id=t.completed_by)::text)) ||
+                                          (select name from users where id=t.completed_by)::text) ||
                                         hstore('mr_reviewStatus',
                                           (CASE
                                             WHEN t.review_status = #${Task.REVIEW_STATUS_REQUESTED} THEN ${Task.REVIEW_STATUS_REQUESTED_NAME}
