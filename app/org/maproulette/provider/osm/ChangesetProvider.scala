@@ -68,17 +68,21 @@ class ChangesetProvider @Inject() (
     *
     * @param changes       The changes to be submitted to OSM
     * @param changeSetComment The changeset comment to be associated with the change
+    * @param accessToken      The OAuth access token for authentication
+    * @param taskId           Optional taskId to associate with this changeset
+    * @param source           Optional source to be associated with the changeset
     * @return future that will return the OSMChange that was submitted to the OSM servers
     */
   def submitOsmChange(
       changes: OSMChange,
       changeSetComment: String,
       accessToken: String,
-      taskId: Option[Long] = None
+      taskId: Option[Long] = None,
+      source: Option[String] = None
   )(implicit c: Option[Connection] = None): Future[Elem] = {
     val p = Promise[Elem]()
     // create the new changeset
-    this.createChangeset(changeSetComment, accessToken) onComplete {
+    this.createChangeset(changeSetComment, accessToken, source) onComplete {
       case Success(changesetId) =>
         // retrieve the current version of the osm feature
         // conflate the current tags with provided tags
@@ -248,15 +252,21 @@ class ChangesetProvider @Inject() (
     *
     * @param comment     The comment to associate with the changeset
     * @param accessToken The access token for the user
+    * @param source      Optional source to be associated with the changeset
     * @return
     */
-  def createChangeset(comment: String, accessToken: String): Future[Int] = {
+  def createChangeset(
+      comment: String,
+      accessToken: String,
+      source: Option[String] = None
+  ): Future[Int] = {
     // Changeset XML Element
     val newChangeSet =
       <osm>
         <changeset>
           <tag k="created_by" v="MapRoulette"/>
           <tag k="comment" v={comment}/>
+          {source.filter(_.nonEmpty).map(s => <tag k="source" v={s}/>).getOrElse(NodeSeq.Empty)}
         </changeset>
       </osm>
     implicit val url = s"${config.getOSMServer}/api/0.6/changeset/create"
