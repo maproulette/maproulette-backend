@@ -316,6 +316,57 @@ class TaskReviewServiceSpec(implicit val application: Application) extends Frame
       finalTask.review.reviewedBy.getOrElse(-2) mustEqual reviewUser.id
       finalTask.review.reviewStatus.getOrElse(-2) mustEqual Task.REVIEW_STATUS_APPROVED
     }
+
+    "send notification when task is contested/disputed" taggedAs (TaskReviewTag) in {
+      // Create a new task
+      val newTask = this.taskDAL.insert(
+        this.getTestTask(UUID.randomUUID().toString, randomChallenge.id),
+        User.superUser
+      )
+
+      // Mapper completes the task
+      this.taskDAL.setTaskStatus(List(newTask), Task.STATUS_FIXED, randomUser, Some(true))
+
+      // Get the task with review data
+      var taskWithReview = this.serviceManager.task.retrieve(newTask.id).get
+
+      // Reviewer rejects the task
+      taskWithReview = this.service.startTaskReview(reviewUser, taskWithReview).get
+      this.service.setTaskReviewStatus(
+        taskWithReview,
+        Task.REVIEW_STATUS_REJECTED,
+        reviewUser,
+        None
+      )
+
+      // Get the reviewer's notifications before contest
+      val notificationsBefore =
+        this.serviceManager.notification.getUserNotifications(reviewUser.id, reviewUser)
+
+      // Mapper contests the review (sets status to disputed)
+      taskWithReview = this.serviceManager.task.retrieve(newTask.id).get
+      this.service.setTaskReviewStatus(
+        taskWithReview,
+        Task.REVIEW_STATUS_DISPUTED,
+        randomUser,
+        None
+      )
+
+      // Verify the task is now disputed
+      val disputedTask = this.serviceManager.task.retrieve(newTask.id).get
+      disputedTask.review.reviewStatus.getOrElse(-1) mustEqual Task.REVIEW_STATUS_DISPUTED
+
+      // Verify the reviewer received a notification
+      val notificationsAfter =
+        this.serviceManager.notification.getUserNotifications(reviewUser.id, reviewUser)
+      notificationsAfter.length mustEqual (notificationsBefore.length + 1)
+
+      // Verify the notification is of the correct type (REVIEW_AGAIN)
+      val contestNotification = notificationsAfter.head
+      contestNotification.notificationType mustEqual UserNotification.NOTIFICATION_TYPE_REVIEW_AGAIN
+      contestNotification.taskId.get mustEqual newTask.id
+      contestNotification.fromUsername.get mustEqual randomUser.osmProfile.displayName
+    }
   }
 
   override implicit val projectTestName: String = "TaskReviewSpecProject"
