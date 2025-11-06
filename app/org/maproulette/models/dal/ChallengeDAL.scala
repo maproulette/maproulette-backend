@@ -527,7 +527,7 @@ class ChallengeDAL @Inject() (
     }
 
     this.permission.hasObjectWriteAccess(challenge, user)
-    
+
     // Check for existing non-deleted challenge with same name in same project
     this.withMRConnection { implicit c =>
       val existingChallenge = SQL"""
@@ -537,14 +537,14 @@ class ChallengeDAL @Inject() (
         AND (deleted = false OR deleted IS NULL)
         LIMIT 1
       """.as(SqlParser.long("id").singleOpt)
-      
+
       if (existingChallenge.isDefined) {
         throw new UniqueViolationException(
           s"Challenge with name ${challenge.name} already exists in the database"
         )
       }
     }
-    
+
     this.cacheManager.withOptionCaching { () =>
       val insertedChallenge =
         this.withMRTransaction { implicit c =>
@@ -674,7 +674,7 @@ class ChallengeDAL @Inject() (
           val name     = (updates \ "name").asOpt[String].getOrElse(cachedItem.name)
           val ownerId  = (updates \ "ownerId").asOpt[Long].getOrElse(cachedItem.general.owner)
           val parentId = (updates \ "parentId").asOpt[Long].getOrElse(cachedItem.general.parent)
-          
+
           // Check if name or parent changed and if so, validate uniqueness
           if (name != cachedItem.name || parentId != cachedItem.general.parent) {
             val existingChallenge = SQL"""
@@ -685,14 +685,14 @@ class ChallengeDAL @Inject() (
               AND id != $id
               LIMIT 1
             """.as(SqlParser.long("id").singleOpt)
-            
+
             if (existingChallenge.isDefined) {
               throw new UniqueViolationException(
                 s"Challenge with name $name already exists in the database"
               )
             }
           }
-          
+
           val difficulty =
             (updates \ "difficulty").asOpt[Int].getOrElse(cachedItem.general.difficulty)
           val description =
