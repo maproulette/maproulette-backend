@@ -527,6 +527,24 @@ class ChallengeDAL @Inject() (
     }
 
     this.permission.hasObjectWriteAccess(challenge, user)
+
+    // Check for existing non-deleted challenge with same name in same project
+    this.withMRConnection { implicit c =>
+      val existingChallenge = SQL"""
+        SELECT id FROM challenges 
+        WHERE parent_id = ${challenge.general.parent} 
+        AND LOWER(name) = LOWER(${challenge.name})
+        AND (deleted = false OR deleted IS NULL)
+        LIMIT 1
+      """.as(SqlParser.long("id").singleOpt)
+
+      if (existingChallenge.isDefined) {
+        throw new UniqueViolationException(
+          s"Challenge with name ${challenge.name} already exists in the database"
+        )
+      }
+    }
+
     this.cacheManager.withOptionCaching { () =>
       val insertedChallenge =
         this.withMRTransaction { implicit c =>
@@ -553,7 +571,7 @@ class ChallengeDAL @Inject() (
                       ${challenge.extra.limitReviewTags}, ${challenge.extra.taskStyles}, ${challenge.general.requiresLocal}, ${challenge.extra.isArchived},
                       ${challenge.extra.reviewSetting}, ${challenge.extra.datasetUrl}, ${challenge.requireConfirmation}, ${challenge.requireRejectReason},
                       ${asJson(challenge.extra.taskWidgetLayout.getOrElse(Json.parse("{}")))}
-                      ) ON CONFLICT(parent_id, LOWER(name)) DO NOTHING RETURNING #${this.retrieveColumns}"""
+                      ) RETURNING #${this.retrieveColumns}"""
             .as(this.parser.*)
             .headOption
         }
@@ -656,6 +674,25 @@ class ChallengeDAL @Inject() (
           val name     = (updates \ "name").asOpt[String].getOrElse(cachedItem.name)
           val ownerId  = (updates \ "ownerId").asOpt[Long].getOrElse(cachedItem.general.owner)
           val parentId = (updates \ "parentId").asOpt[Long].getOrElse(cachedItem.general.parent)
+
+          // Check if name or parent changed and if so, validate uniqueness
+          if (name != cachedItem.name || parentId != cachedItem.general.parent) {
+            val existingChallenge = SQL"""
+              SELECT id FROM challenges 
+              WHERE parent_id = $parentId 
+              AND LOWER(name) = LOWER($name)
+              AND (deleted = false OR deleted IS NULL)
+              AND id != $id
+              LIMIT 1
+            """.as(SqlParser.long("id").singleOpt)
+
+            if (existingChallenge.isDefined) {
+              throw new UniqueViolationException(
+                s"Challenge with name $name already exists in the database"
+              )
+            }
+          }
+
           val difficulty =
             (updates \ "difficulty").asOpt[Int].getOrElse(cachedItem.general.difficulty)
           val description =
