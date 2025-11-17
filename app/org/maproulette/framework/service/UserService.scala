@@ -462,6 +462,9 @@ class UserService @Inject() (
       val disableTaskConfirm = (value \ "settings" \ "disableTaskConfirm")
         .asOpt[Boolean]
         .getOrElse(cachedItem.settings.disableTaskConfirm.getOrElse(false))
+      val showPriorityMarkerColors = (value \ "settings" \ "showPriorityMarkerColors")
+        .asOpt[Boolean]
+        .getOrElse(cachedItem.settings.showPriorityMarkerColors.getOrElse(false))
       val theme = (value \ "settings" \ "theme")
         .asOpt[Int]
         .getOrElse(cachedItem.settings.theme.getOrElse(-1))
@@ -506,7 +509,8 @@ class UserService @Inject() (
               Some(theme),
               customBasemaps,
               Some(seeTagFixSuggestions),
-              Some(disableTaskConfirm)
+              Some(disableTaskConfirm),
+              Some(showPriorityMarkerColors)
             ),
             properties = Some(properties)
           ),

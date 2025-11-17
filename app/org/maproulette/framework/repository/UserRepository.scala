@@ -109,33 +109,35 @@ class UserRepository @Inject() (
                                           default_basemap = {defaultBasemap}, default_basemap_id = {defaultBasemapId},
                                           locale = {locale}, email = {email}, email_opt_in = {emailOptIn}, leaderboard_opt_out = {leaderboardOptOut},
                                           needs_review = {needsReview}, is_reviewer = {isReviewer}, theme = {theme}, allow_following = {allowFollowing},
-                                          properties = {properties}, see_tag_fix_suggestions = {seeTagFixSuggestions}, disable_task_confirm = {disableTaskConfirm}
+                                          properties = {properties}, see_tag_fix_suggestions = {seeTagFixSuggestions}, disable_task_confirm = {disableTaskConfirm},
+                                          show_priority_marker_colors = {showPriorityMarkerColors}
                         WHERE id = {id} RETURNING ${UserRepository.standardColumns},
                         (SELECT score FROM user_metrics um WHERE um.user_id = ${user.id}) as score,
                         (SELECT achievements FROM user_metrics um WHERE um.user_id = ${user.id}) as achievements"""
       SQL(query)
         .on(
-          Symbol("name")                 -> user.osmProfile.displayName,
-          Symbol("description")          -> user.osmProfile.description,
-          Symbol("avatarURL")            -> user.osmProfile.avatarURL,
-          Symbol("token")                -> user.osmProfile.requestToken,
-          Symbol("secret")               -> "",
-          Symbol("wkt")                  -> s"SRID=4326;$ewkt",
-          Symbol("id")                   -> user.id,
-          Symbol("defaultEditor")        -> user.settings.defaultEditor,
-          Symbol("defaultBasemap")       -> user.settings.defaultBasemap,
-          Symbol("defaultBasemapId")     -> user.settings.defaultBasemapId,
-          Symbol("locale")               -> user.settings.locale,
-          Symbol("email")                -> user.settings.email,
-          Symbol("emailOptIn")           -> user.settings.emailOptIn,
-          Symbol("leaderboardOptOut")    -> user.settings.leaderboardOptOut,
-          Symbol("needsReview")          -> user.settings.needsReview,
-          Symbol("isReviewer")           -> user.settings.isReviewer,
-          Symbol("theme")                -> user.settings.theme,
-          Symbol("allowFollowing")       -> user.settings.allowFollowing,
-          Symbol("properties")           -> user.properties,
-          Symbol("seeTagFixSuggestions") -> user.settings.seeTagFixSuggestions,
-          Symbol("disableTaskConfirm")   -> user.settings.disableTaskConfirm
+          Symbol("name")                     -> user.osmProfile.displayName,
+          Symbol("description")              -> user.osmProfile.description,
+          Symbol("avatarURL")                -> user.osmProfile.avatarURL,
+          Symbol("token")                    -> user.osmProfile.requestToken,
+          Symbol("secret")                   -> "",
+          Symbol("wkt")                      -> s"SRID=4326;$ewkt",
+          Symbol("id")                       -> user.id,
+          Symbol("defaultEditor")            -> user.settings.defaultEditor,
+          Symbol("defaultBasemap")           -> user.settings.defaultBasemap,
+          Symbol("defaultBasemapId")         -> user.settings.defaultBasemapId,
+          Symbol("locale")                   -> user.settings.locale,
+          Symbol("email")                    -> user.settings.email,
+          Symbol("emailOptIn")               -> user.settings.emailOptIn,
+          Symbol("leaderboardOptOut")        -> user.settings.leaderboardOptOut,
+          Symbol("needsReview")              -> user.settings.needsReview,
+          Symbol("isReviewer")               -> user.settings.isReviewer,
+          Symbol("theme")                    -> user.settings.theme,
+          Symbol("allowFollowing")           -> user.settings.allowFollowing,
+          Symbol("properties")               -> user.properties,
+          Symbol("seeTagFixSuggestions")     -> user.settings.seeTagFixSuggestions,
+          Symbol("disableTaskConfirm")       -> user.settings.disableTaskConfirm,
+          Symbol("showPriorityMarkerColors") -> user.settings.showPriorityMarkerColors
         )
         .as(this.parser().*)
         .head
@@ -516,13 +518,14 @@ object UserRepository {
       get[Option[Long]]("users.following_group") ~
       get[Option[Long]]("users.followers_group") ~
       get[Option[Boolean]]("users.see_tag_fix_suggestions") ~
-      get[Option[Boolean]]("users.disable_task_confirm") map {
+      get[Option[Boolean]]("users.disable_task_confirm") ~
+      get[Option[Boolean]]("users.show_priority_marker_colors") map {
       case id ~ osmId ~ created ~ modified ~ osmCreated ~ displayName ~ description ~ avatarURL ~
             homeLocation ~ apiKey ~ oauthToken ~ defaultEditor ~ defaultBasemap ~
             defaultBasemapId ~ customBasemapList ~
             email ~ emailOptIn ~ leaderboardOptOut ~ needsReview ~ isReviewer ~ locale ~ theme ~
             properties ~ score ~ achievements ~ allowFollowing ~ followingGroupId ~ followersGroupId ~
-            seeTagFixSuggestions ~ disableTaskConfirm =>
+            seeTagFixSuggestions ~ disableTaskConfirm ~ showPriorityMarkerColors =>
         val locationWKT = homeLocation match {
           case Some(wkt) => new WKTReader().read(wkt).asInstanceOf[Point]
           case None      => new GeometryFactory().createPoint(new Coordinate(0, 0))
@@ -569,7 +572,8 @@ object UserRepository {
             theme,
             customBasemaps,
             seeTagFixSuggestions,
-            disableTaskConfirm
+            disableTaskConfirm,
+            showPriorityMarkerColors
           ),
           properties,
           score,
