@@ -469,6 +469,9 @@ class UserService @Inject() (
         (value \ "properties").asOpt[String].getOrElse(cachedItem.properties.getOrElse("{}"))
 
       val customBasemaps = (value \ "settings" \ "customBasemaps").asOpt[List[CustomBasemap]]
+      val plugins = (value \ "settings" \ "plugins")
+        .asOpt[String]
+        .orElse(cachedItem.settings.plugins)
 
       // If this user always requires a review, then they are not allowed to change it (except super users)
       if (user.settings.needsReview.getOrElse(0) == User.REVIEW_MANDATORY) {
@@ -506,7 +509,8 @@ class UserService @Inject() (
               Some(theme),
               customBasemaps,
               Some(seeTagFixSuggestions),
-              Some(disableTaskConfirm)
+              Some(disableTaskConfirm),
+              plugins
             ),
             properties = Some(properties)
           ),

@@ -164,6 +164,7 @@ object Follower {
   *                          2=skin-blue, 3=skin-blue-light, 4=skin-green, 5=skin-green-light,
   *                          6=skin-purple, 7=skin-purple-light, 8=skin-red, 9=skin-red-light, 10=skin-yellow, 11=skin-yellow-light
   * @param customBasemaps    Custom basemaps defined by user, which basemap to show is the name selected by the defaultBasemap.
+  * @param plugins           User's installed plugins configuration stored as JSON string
   */
 case class UserSettings(
     defaultEditor: Option[Int] = None,
@@ -179,7 +180,8 @@ case class UserSettings(
     theme: Option[Int] = None,
     customBasemaps: Option[List[CustomBasemap]] = None,
     seeTagFixSuggestions: Option[Boolean] = None,
-    disableTaskConfirm: Option[Boolean] = None
+    disableTaskConfirm: Option[Boolean] = None,
+    plugins: Option[String] = None
 ) {
   def getTheme: String = theme match {
     case Some(t) =>

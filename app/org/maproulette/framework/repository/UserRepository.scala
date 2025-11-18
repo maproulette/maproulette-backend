@@ -516,13 +516,14 @@ object UserRepository {
       get[Option[Long]]("users.following_group") ~
       get[Option[Long]]("users.followers_group") ~
       get[Option[Boolean]]("users.see_tag_fix_suggestions") ~
-      get[Option[Boolean]]("users.disable_task_confirm") map {
+      get[Option[Boolean]]("users.disable_task_confirm") ~
+      get[Option[String]]("users.plugins").? map {
       case id ~ osmId ~ created ~ modified ~ osmCreated ~ displayName ~ description ~ avatarURL ~
             homeLocation ~ apiKey ~ oauthToken ~ defaultEditor ~ defaultBasemap ~
             defaultBasemapId ~ customBasemapList ~
             email ~ emailOptIn ~ leaderboardOptOut ~ needsReview ~ isReviewer ~ locale ~ theme ~
             properties ~ score ~ achievements ~ allowFollowing ~ followingGroupId ~ followersGroupId ~
-            seeTagFixSuggestions ~ disableTaskConfirm =>
+            seeTagFixSuggestions ~ disableTaskConfirm ~ plugins =>
         val locationWKT = homeLocation match {
           case Some(wkt) => new WKTReader().read(wkt).asInstanceOf[Point]
           case None      => new GeometryFactory().createPoint(new Coordinate(0, 0))
@@ -569,7 +570,8 @@ object UserRepository {
             theme,
             customBasemaps,
             seeTagFixSuggestions,
-            disableTaskConfirm
+            disableTaskConfirm,
+            plugins.flatten
           ),
           properties,
           score,
