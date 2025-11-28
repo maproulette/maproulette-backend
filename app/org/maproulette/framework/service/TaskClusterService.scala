@@ -151,15 +151,28 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
     *
     * @param statuses List of task status filters
     * @param global   Whether to include global challenges
-    * @param params   Search parameters including bounding box
+    * @param boundingBox   Search parameters including bounding box
+    * @param locationId Optional Nominatim place_id for polygon filtering
+    * @param keywords Optional comma-separated list of keywords to filter by
+    * @param difficulty Optional difficulty level to filter by
     * @return List of task markers
     */
   def getTaskMarkersWithBoundingBox(
       statuses: List[Int],
       global: Boolean,
-      boundingBox: SearchLocation
+      boundingBox: SearchLocation,
+      locationId: Option[Long] = None,
+      keywords: Option[String] = None,
+      difficulty: Option[Int] = None
   ): List[TaskMarker] = {
-    this.repository.queryTaskMarkersWithBoundingBox(statuses, global, boundingBox)
+    this.repository.queryTaskMarkersWithBoundingBox(
+      statuses,
+      global,
+      boundingBox,
+      locationId,
+      keywords,
+      difficulty
+    )
   }
 
   /**
@@ -168,14 +181,27 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
     * @param statuses List of task status filters
     * @param global   Whether to include global challenges
     * @param boundingBox   Search parameters including bounding box
+    * @param locationId Optional Nominatim place_id for polygon filtering
+    * @param keywords Optional comma-separated list of keywords to filter by
+    * @param difficulty Optional difficulty level to filter by
     * @return List of task cluster summaries
     */
   def getTaskMarkersClustered(
       statuses: List[Int],
       global: Boolean,
-      boundingBox: SearchLocation
+      boundingBox: SearchLocation,
+      locationId: Option[Long] = None,
+      keywords: Option[String] = None,
+      difficulty: Option[Int] = None
   ): List[TaskClusterSummary] = {
-    this.repository.queryTaskMarkersClustered(statuses, global, boundingBox)
+    this.repository.queryTaskMarkersClustered(
+      statuses,
+      global,
+      boundingBox,
+      locationId,
+      keywords,
+      difficulty
+    )
   }
 
   /**
@@ -184,14 +210,27 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
     * @param statuses List of task status filters
     * @param global   Whether to include global challenges
     * @param boundingBox   Search parameters including bounding box
+    * @param locationId Optional Nominatim place_id for polygon filtering
+    * @param keywords Optional comma-separated list of keywords to filter by
+    * @param difficulty Optional difficulty level to filter by
     * @return Count of task markers
     */
   def countTaskMarkers(
       statuses: List[Int],
       global: Boolean,
-      boundingBox: SearchLocation
+      boundingBox: SearchLocation,
+      locationId: Option[Long] = None,
+      keywords: Option[String] = None,
+      difficulty: Option[Int] = None
   ): Int = {
-    this.repository.queryCountTaskMarkers(statuses, global, boundingBox)
+    this.repository.queryCountTaskMarkers(
+      statuses,
+      global,
+      boundingBox,
+      locationId,
+      keywords,
+      difficulty
+    )
   }
 
   /**

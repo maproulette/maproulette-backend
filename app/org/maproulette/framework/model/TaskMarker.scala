@@ -23,14 +23,16 @@ object TaskMarkerLocation {
 /**
   * A lightweight task marker model containing only essential data for map display
   *
-  * @param id       The id of the task
-  * @param location The latitude and longitude of the task
-  * @param status   The status of the task
+  * @param id         The id of the task
+  * @param location   The latitude and longitude of the task
+  * @param status     The status of the task
+  * @param priority The priority level of the task (1=Easy, 2=Normal, 3=Expert)
   */
 case class TaskMarker(
     id: Long,
     location: TaskMarkerLocation,
-    status: Int
+    status: Int,
+    priority: Int
 )
 
 object TaskMarker {

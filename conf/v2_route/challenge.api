@@ -300,6 +300,12 @@ GET     /challenges/extendedFind                    @org.maproulette.controllers
 #     schema:
 #       type: string
 #       example: "40.7128,-74.0060,40.7000,-74.0200"
+#   - name: location_id
+#     in: query
+#     description: parent id of location filter
+#     required: false
+#     schema:
+#       type: integer
 #   - name: sortBy
 #     in: query
 #     description: Column to sort results by
@@ -315,6 +321,20 @@ GET     /challenges/extendedFind                    @org.maproulette.controllers
 #     schema:
 #       type: integer
 #       default: 50
+#   - name: keywords
+#     in: query
+#     description: Comma-separated list of keywords/categories to filter challenges by
+#     required: false
+#     schema:
+#       type: string
+#       example: "roads,signs"
+#   - name: difficulty
+#     in: query
+#     description: Filter by difficulty (1=Easy, 2=Normal, 3=Expert)
+#     required: false
+#     schema:
+#       type: integer
+#       enum: [1, 2, 3]
 # responses:
 #   '200':
 #     description: A list of Challenges matching the criteria
@@ -325,7 +345,7 @@ GET     /challenges/extendedFind                    @org.maproulette.controllers
 #           items:
 #             $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 ###
-GET     /challenges/exploreChallenges                    @org.maproulette.controllers.api.ChallengeController.exploreChallenges(global:Boolean ?= true, bounds:Option[String] ?= None, sortBy:String ?= "name", limit:Int ?= 50)
+GET     /challenges/exploreChallenges                    @org.maproulette.controllers.api.ChallengeController.exploreChallenges(global:Boolean ?= true, bounds:Option[String] ?= None, location_id:Option[Long] ?= None, sortBy:String ?= "name", limit:Int ?= 50, keywords:Option[String] ?= None, difficulty:Option[Int] ?= None)
 ###
 # tags: [ Challenge ]
 # operationId: challenge_list_challenges_in_specified_projects

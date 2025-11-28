@@ -1155,18 +1155,19 @@ class ChallengeDAL @Inject() (
   )(implicit c: Option[Connection] = None): List[ChallengeTaskMarker] = {
     this.withMRConnection { implicit c =>
       var query =
-        s"""SELECT tasks.id, ST_AsGeoJSON(tasks.location) AS location, tasks.status
+        s"""SELECT tasks.id, ST_AsGeoJSON(tasks.location) AS location, tasks.status, tasks.priority
                       FROM tasks
                       WHERE tasks.parent_id = $id"""
 
-      SQL(query).as((int("id") ~ str("location") ~ int("status")).map {
-        case id ~ location ~ status =>
+      SQL(query).as((int("id") ~ str("location") ~ int("status") ~ int("priority")).map {
+        case id ~ location ~ status ~ priority =>
           val locationJSON = Json.parse(location)
           val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
           ChallengeTaskMarker(
             id,
             TaskMarkerLocation(coordinates(1), coordinates.head),
-            status
+            status,
+            priority
           )
       }.*)
     }
@@ -2249,6 +2250,7 @@ class ChallengeDAL @Inject() (
     *
     * @param includeGlobal Whether to include challenges marked as global
     * @param boundingBox Optional bounding box to filter by challenge location (left, bottom, right, top)
+    * @param locationId Optional Nominatim place_id to filter by location polygon
     * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
     * @param limit Maximum number of results to return
     * @param c Optional database connection
@@ -2257,15 +2259,60 @@ class ChallengeDAL @Inject() (
   def exploreChallenges(
       includeGlobal: Boolean,
       boundingBox: Option[(Double, Double, Double, Double)],
+      locationId: Option[Long],
       sortBy: String,
-      limit: Int
+      limit: Int,
+      keywords: Option[String] = None,
+      difficulty: Option[Int] = None
   )(implicit c: Option[Connection] = None): List[Challenge] = {
     this.withMRConnection { implicit c =>
       var query =
-        s"""SELECT *, ST_AsGeoJSON(location) AS locationJSON, ST_AsGeoJSON(bounding) AS boundingJSON FROM challenges c WHERE c.deleted = false AND c.enabled = true AND c.is_archived = false"""
+        s"""SELECT DISTINCT c.*, ST_AsGeoJSON(c.location) AS locationJSON, ST_AsGeoJSON(c.bounding) AS boundingJSON FROM challenges c"""
+
+      // Add LEFT JOIN for keywords filtering if keywords are provided
+      keywords match {
+        case Some(kws) if kws.trim.nonEmpty =>
+          query += " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id"
+          query += " INNER JOIN tags t ON toc.tag_id = t.id"
+        case _ =>
+      }
+
+      query += " WHERE c.deleted = false AND c.enabled = true AND c.is_archived = false"
 
       if (!includeGlobal) {
         query += " AND c.is_global = false"
+      }
+
+      // Filter by keywords if provided
+      keywords match {
+        case Some(kws) if kws.trim.nonEmpty =>
+          val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
+          if (keywordList.nonEmpty) {
+            val keywordConditions = keywordList.map(kw => s"LOWER(t.name) = '$kw'").mkString(" OR ")
+            query += s" AND ($keywordConditions)"
+          }
+        case _ =>
+      }
+
+      // Filter by difficulty if provided
+      difficulty match {
+        case Some(diff) => query += s" AND c.difficulty = $diff"
+        case None       =>
+      }
+
+      // If location_id is provided, fetch polygon from Nominatim and use it for filtering
+      locationId match {
+        case Some(placeId) =>
+          val nominatimService = serviceManager.nominatim
+          nominatimService.getLocationPolygon(placeId) match {
+            case Some(wkt) =>
+              // Use && operator for fast bounding box overlap check (uses spatial index efficiently)
+              // This is much faster than ST_Intersects and sufficient for location filtering
+              query += s" AND c.bounding && ST_GeomFromText('$wkt', 4326)"
+            case None =>
+            // If we can't get the polygon, ignore this filter
+          }
+        case None =>
       }
 
       boundingBox match {

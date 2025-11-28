@@ -25,10 +25,14 @@ import play.api.db.Database
 import play.api.libs.json._
 
 import org.maproulette.models.dal.ChallengeDAL
+import org.maproulette.framework.service.ServiceManager
 
 @Singleton
-class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: ChallengeDAL)
-    extends RepositoryMixin {
+class TaskClusterRepository @Inject() (
+    override val db: Database,
+    challengeDAL: ChallengeDAL,
+    serviceManager: ServiceManager
+) extends RepositoryMixin {
   implicit val baseTable: String = "tasks"
 
   val DEFAULT_NUMBER_OF_POINTS = 100
@@ -282,7 +286,10 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
   def queryTaskMarkersClustered(
       statuses: List[Int],
       global: Boolean,
-      boundingBox: SearchLocation
+      boundingBox: SearchLocation,
+      locationId: Option[Long] = None,
+      keywords: Option[String] = None,
+      difficulty: Option[Int] = None
   ): List[TaskClusterSummary] = {
     this.withMRTransaction { implicit c =>
       var left       = boundingBox.left
@@ -290,7 +297,15 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
       var right      = boundingBox.right
       var top        = boundingBox.top
       var statusList = statuses.mkString(",")
-      var filters    = s"""
+
+      var joins = ""
+      // Add joins for keywords filtering if keywords are provided
+      if (keywords.isDefined && keywords.get.trim.nonEmpty) {
+        joins += " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id"
+        joins += " INNER JOIN tags tags_table ON toc.tag_id = tags_table.id"
+      }
+
+      var filters = s"""
   WHERE t.location && ST_MakeEnvelope($left, $bottom, $right, $top, 4326)
     """
       filters += s" AND c.deleted = false"
@@ -304,14 +319,41 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
       }
       filters += s" AND t.location IS NOT NULL"
 
+      // Filter by keywords if provided
+      keywords.foreach { kws =>
+        if (kws.trim.nonEmpty) {
+          val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
+          if (keywordList.nonEmpty) {
+            val keywordConditions =
+              keywordList.map(kw => s"LOWER(tags_table.name) = '$kw'").mkString(" OR ")
+            filters += s" AND ($keywordConditions)"
+          }
+        }
+      }
+
+      // Filter by difficulty if provided
+      difficulty.foreach { diff =>
+        filters += s" AND c.difficulty = $diff"
+      }
+
+      // Add location polygon filter if location_id is provided
+      locationId.foreach { placeId =>
+        serviceManager.nominatim.getLocationPolygon(placeId).foreach { wkt =>
+          // Use && operator for fast bounding box overlap check (uses spatial index efficiently)
+          // This is much faster than ST_Intersects and sufficient for location filtering
+          filters += s" AND t.location && ST_GeomFromText('$wkt', 4326)"
+        }
+      }
+
       var query = s"""
 WITH filtered_tasks AS (
-  SELECT 
+  SELECT DISTINCT
     t.id AS taskId,
     t.status AS taskStatus,
     t.location AS taskLocation
   FROM tasks t
   INNER JOIN challenges c ON c.id = t.parent_id
+  ${joins}
   ${filters}
 ),
 cluster_input AS (
@@ -350,19 +392,32 @@ ORDER BY kmeans;
     * @param statuses List of task status filters
     * @param global   Whether to include global challenges
     * @param boundingBox   Search parameters including bounding box
+    * @param locationId Optional Nominatim place_id for polygon filtering
     * @return List of task markers within the bounding box
     */
   def queryTaskMarkersWithBoundingBox(
       statuses: List[Int],
       global: Boolean,
-      boundingBox: SearchLocation
+      boundingBox: SearchLocation,
+      locationId: Option[Long] = None,
+      keywords: Option[String] = None,
+      difficulty: Option[Int] = None
   ): List[TaskMarker] = {
     this.withMRTransaction { implicit c =>
       var query =
         """
-    SELECT tasks.id, ST_AsGeoJSON(tasks.location) AS location, tasks.status
+    SELECT DISTINCT tasks.id, ST_AsGeoJSON(tasks.location) AS location, tasks.status, tasks.priority
         FROM tasks
         INNER JOIN challenges c ON c.id = tasks.parent_id
+    """
+
+      // Add joins for keywords filtering if keywords are provided
+      if (keywords.isDefined && keywords.get.trim.nonEmpty) {
+        query += " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id"
+        query += " INNER JOIN tags t ON toc.tag_id = t.id"
+      }
+
+      query += """
         WHERE c.deleted = false
         AND c.enabled = true
         AND c.is_archived = false
@@ -377,21 +432,45 @@ ORDER BY kmeans;
         query += s" AND tasks.status IN (${statuses.mkString(",")})"
       }
 
+      // Filter by keywords if provided
+      keywords.foreach { kws =>
+        if (kws.trim.nonEmpty) {
+          val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
+          if (keywordList.nonEmpty) {
+            val keywordConditions = keywordList.map(kw => s"LOWER(t.name) = '$kw'").mkString(" OR ")
+            query += s" AND ($keywordConditions)"
+          }
+        }
+      }
+
+      // Filter by difficulty if provided
+      difficulty.foreach { diff =>
+        query += s" AND c.difficulty = $diff"
+      }
+
       var left   = boundingBox.left
       var bottom = boundingBox.bottom
       var right  = boundingBox.right
       var top    = boundingBox.top
       query += s" AND ST_Intersects(tasks.location, ST_MakeEnvelope($left, $bottom, $right, $top, 4326))"
 
+      // Add location polygon filter if location_id is provided
+      locationId.foreach { placeId =>
+        serviceManager.nominatim.getLocationPolygon(placeId).foreach { wkt =>
+          query += s" AND ST_Intersects(tasks.location, ST_GeomFromText('$wkt', 4326))"
+        }
+      }
+
       SQL(query)
-        .as((int("id") ~ str("location") ~ int("status")).map {
-          case id ~ location ~ status =>
+        .as((int("id") ~ str("location") ~ int("status") ~ int("priority")).map {
+          case id ~ location ~ status ~ priority =>
             val locationJSON = Json.parse(location)
             val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
             TaskMarker(
               id,
               TaskMarkerLocation(coordinates(1), coordinates.head),
-              status
+              status,
+              priority
             )
         }.*)
     }
@@ -403,19 +482,32 @@ ORDER BY kmeans;
     * @param statuses List of task status filters
     * @param global   Whether to include global challenges
     * @param boundingBox   Search parameters including bounding box
+    * @param locationId Optional Nominatim place_id for polygon filtering
     * @return Count of task markers
     */
   def queryCountTaskMarkers(
       statuses: List[Int],
       global: Boolean,
-      boundingBox: SearchLocation
+      boundingBox: SearchLocation,
+      locationId: Option[Long] = None,
+      keywords: Option[String] = None,
+      difficulty: Option[Int] = None
   ): Int = {
     this.withMRTransaction { implicit c =>
       var query =
         """
-    SELECT COUNT(*) as count
+    SELECT COUNT(DISTINCT tasks.id) as count
         FROM tasks
         INNER JOIN challenges c ON c.id = tasks.parent_id
+    """
+
+      // Add joins for keywords filtering if keywords are provided
+      if (keywords.isDefined && keywords.get.trim.nonEmpty) {
+        query += " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id"
+        query += " INNER JOIN tags t ON toc.tag_id = t.id"
+      }
+
+      query += """
         WHERE c.deleted = false
         AND c.enabled = true
         AND c.is_archived = false
@@ -430,11 +522,34 @@ ORDER BY kmeans;
         query += s" AND tasks.status IN (${statuses.mkString(",")})"
       }
 
+      // Filter by keywords if provided
+      keywords.foreach { kws =>
+        if (kws.trim.nonEmpty) {
+          val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
+          if (keywordList.nonEmpty) {
+            val keywordConditions = keywordList.map(kw => s"LOWER(t.name) = '$kw'").mkString(" OR ")
+            query += s" AND ($keywordConditions)"
+          }
+        }
+      }
+
+      // Filter by difficulty if provided
+      difficulty.foreach { diff =>
+        query += s" AND c.difficulty = $diff"
+      }
+
       var left   = boundingBox.left
       var bottom = boundingBox.bottom
       var right  = boundingBox.right
       var top    = boundingBox.top
       query += s" AND ST_Intersects(tasks.location, ST_MakeEnvelope($left, $bottom, $right, $top, 4326))"
+
+      // Add location polygon filter if location_id is provided
+      locationId.foreach { placeId =>
+        serviceManager.nominatim.getLocationPolygon(placeId).foreach { wkt =>
+          query += s" AND ST_Intersects(tasks.location, ST_GeomFromText('$wkt', 4326))"
+        }
+      }
 
       SQL(query).as(int("count").single)
     }

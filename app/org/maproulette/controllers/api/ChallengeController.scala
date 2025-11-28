@@ -1111,6 +1111,7 @@ class ChallengeController @Inject() (
     *
     * @param global Whether to include global challenges (default: true)
     * @param bounds Bounding box as [left,bottom,right,top] to filter challenges by location
+    * @param location Nominatim place_id to filter by location polygon
     * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
     * @param limit Maximum number of results to return
     * @return A list of challenges matching the criteria
@@ -1118,8 +1119,11 @@ class ChallengeController @Inject() (
   def exploreChallenges(
       global: Boolean,
       bounds: Option[String],
+      location: Option[Long],
       sortBy: String,
-      limit: Int
+      limit: Int,
+      keywords: Option[String],
+      difficulty: Option[Int]
   ): Action[AnyContent] =
     Action.async { implicit request =>
       this.sessionManager.userAwareRequest { implicit user =>
@@ -1134,8 +1138,11 @@ class ChallengeController @Inject() (
         val challenges = this.dal.exploreChallenges(
           includeGlobal = global,
           boundingBox = boundingBox,
+          locationId = location,
           sortBy = sortBy,
-          limit = limit
+          limit = limit,
+          keywords = keywords,
+          difficulty = difficulty
         )
 
         Ok(Json.toJson(challenges))

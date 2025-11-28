@@ -13,7 +13,8 @@ import org.maproulette.framework.model.TaskMarkerLocation
 case class ChallengeTaskMarker(
     id: Long,
     location: TaskMarkerLocation,
-    status: Int
+    status: Int,
+    priority: Int
 )
 
 object ChallengeTaskMarker {

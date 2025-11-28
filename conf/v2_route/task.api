@@ -629,8 +629,28 @@ PUT     /markers/box/:left/:bottom/:right/:top        @org.maproulette.framework
 #     schema:
 #       type: string
 #       example: "-122.5,37.7,-122.3,37.8"
+#   - name: location_id
+#     in: query
+#     description: Parent id of the location filter
+#     required: false
+#     schema:
+#       type: integer
+#   - name: keywords
+#     in: query
+#     description: Comma-separated list of keywords/categories to filter task markers by
+#     required: false
+#     schema:
+#       type: string
+#       example: "roads,signs"
+#   - name: difficulty
+#     in: query
+#     description: Filter by difficulty (1=Easy, 2=Normal, 3=Expert)
+#     required: false
+#     schema:
+#       type: integer
+#       enum: [1, 2, 3]
 ###
-GET     /taskMarkers        @org.maproulette.framework.controller.TaskController.getTaskMarkers(statuses: String, global:Boolean ?= false, cluster:Boolean ?= false, bounds: Option[String])
+GET     /taskMarkers        @org.maproulette.framework.controller.TaskController.getTaskMarkers(statuses: String, global:Boolean ?= false, cluster:Boolean ?= false, bounds: Option[String], location_id: Option[Long] ?= None, keywords:Option[String] ?= None, difficulty:Option[Int] ?= None)
 ###
 # tags: [ Task ]
 # operationId: task_update_task_changeset

@@ -169,7 +169,10 @@ class TaskController @Inject() (
       statuses: String,
       global: Boolean,
       cluster: Boolean,
-      bounds: Option[String]
+      bounds: Option[String],
+      location_id: Option[Long],
+      keywords: Option[String],
+      difficulty: Option[Int]
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       SearchParameters.withSearch { p =>
@@ -192,7 +195,10 @@ class TaskController @Inject() (
         val taskCount = this.taskClusterService.countTaskMarkers(
           statusList,
           global,
-          boundingBox
+          boundingBox,
+          location_id,
+          keywords,
+          difficulty
         )
 
         if (taskCount > 5000) {
@@ -209,7 +215,10 @@ class TaskController @Inject() (
           val clusters = this.taskClusterService.getTaskMarkersClustered(
             statusList,
             global,
-            boundingBox
+            boundingBox,
+            location_id,
+            keywords,
+            difficulty
           )
           Ok(
             Json.toJson(
@@ -224,7 +233,10 @@ class TaskController @Inject() (
           val markers = this.taskClusterService.getTaskMarkersWithBoundingBox(
             statusList,
             global,
-            boundingBox
+            boundingBox,
+            location_id,
+            keywords,
+            difficulty
           )
           Ok(
             Json.toJson(
