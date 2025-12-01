@@ -226,6 +226,39 @@ GET     /users/find                                    @org.maproulette.framewor
 GET     /users                                         @org.maproulette.framework.controller.UserController.extendedFind(limit:Int ?= 10, page:Int ?= 0, sort:String ?= "")
 ###
 # tags: [ User ]
+# operationId: superadmin_get_all_users
+# summary: Super Admin - Get all users with pagination
+# description: Retrieves a paginated list of all users in the system. Only accessible to super admins.
+# responses:
+#   '200':
+#     description: The retrieved users
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.User'
+#   '401':
+#     description: The user is not authorized to make this request
+#   '403':
+#     description: Only super admins can access this endpoint
+# parameters:
+#   - name: limit
+#     in: query
+#     description: Limit the number of results returned in the response. Default value is 50.
+#     schema:
+#       type: integer
+#       default: 50
+#   - name: page
+#     in: query
+#     description: Used in conjunction with the limit parameter to page through X number of responses. Default value is 0.
+#     schema:
+#       type: integer
+#       default: 0
+###
+GET     /super-admin/users                             @org.maproulette.framework.controller.UserController.getAllUsersForSuperAdmin(limit:Int ?= 50, page:Int ?= 0)
+###
+# tags: [ User ]
 # operationId: user_retrieves_users_saved_challenged
 # summary: Retrieves Users Saved Challenged
 # description: Retrieves that list of challenges that has been saved by the User
