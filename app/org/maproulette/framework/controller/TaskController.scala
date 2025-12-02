@@ -129,6 +129,72 @@ class TaskController @Inject() (
   }
 
   /**
+    * Gets challenge tasks within a bounding box (simplified endpoint)
+    *
+    * @param bounds       Comma-separated bounding box coordinates: "left,bottom,right,top"
+    * @param challengeIds Comma-separated list of challenge IDs to filter by
+    * @param limit        Maximum number of tasks to return per page
+    * @param page         Page number for pagination (0-indexed)
+    * @return Paginated list of tasks with total count
+    */
+  def getChallengeTasksInBounds(
+      bounds: String,
+      challengeIds: String,
+      limit: Int,
+      page: Int
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      // Parse bounds string (format: "left,bottom,right,top")
+      val location = if (bounds.nonEmpty) {
+        try {
+          val coords = bounds.split(",").map(_.trim.toDouble)
+          if (coords.length == 4) {
+            Some(SearchLocation(coords(0), coords(1), coords(2), coords(3)))
+          } else {
+            None
+          }
+        } catch {
+          case _: Exception => None
+        }
+      } else {
+        None
+      }
+
+      // Parse challenge IDs
+      val challenges = if (challengeIds.nonEmpty) {
+        try {
+          Some(challengeIds.split(",").map(_.trim.toLong).toList)
+        } catch {
+          case _: Exception => None
+        }
+      } else {
+        None
+      }
+
+      // Get tasks using simplified method
+      val (count, result) = this.taskClusterService.getChallengeTasksInBounds(
+        location,
+        challenges,
+        Paging(limit, page)
+      )
+
+      // Convert result to JSON (without extra geometries/tags for performance)
+      val resultJson =
+        this.insertExtraTaskJSON(result, includeGeometries = false, includeTags = false)
+
+      // Return paginated response
+      Ok(
+        Json.obj(
+          "data"  -> resultJson,
+          "total" -> count,
+          "page"  -> page,
+          "limit" -> limit
+        )
+      )
+    }
+  }
+
+  /**
     * Gets all the task markers within a bounding box
     *
     * @param left   The minimum longitude for the bounding box

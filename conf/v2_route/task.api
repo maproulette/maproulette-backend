@@ -1000,6 +1000,65 @@ GET     /tasksInCluster/:clusterId                  @org.maproulette.framework.c
 GET     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.controller.TaskController.getTasksInBoundingBox(left:Double, bottom:Double, right:Double, top:Double, limit:Int ?= 10000, page:Int ?= 0, excludeLocked:Boolean ?= false, sort:String ?= "", order:String ?= "ASC", includeTotal:Boolean ?= false, includeGeometries:Boolean ?=false, includeTags:Boolean ?= false)
 ###
 # tags: [ Task ]
+# operationId: task_get_challenge_tasks_in_bounds
+# summary: Get challenge tasks in bounding box
+# description: Retrieves tasks within a bounding box for specified challenges. This is a simplified endpoint that returns paginated task data based on the visible map area. Useful for displaying tasks in a table or list view based on the current map viewport.
+# responses:
+#   '200':
+#     description: Paginated list of tasks within the bounding box
+#     content:
+#       application/json:
+#         schema:
+#           type: object
+#           properties:
+#             data:
+#               type: array
+#               items:
+#                 $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#             total:
+#               type: integer
+#               description: Total number of tasks matching the criteria
+#             page:
+#               type: integer
+#               description: Current page number
+#             limit:
+#               type: integer
+#               description: Number of items per page
+#   '400':
+#     description: Invalid parameters provided
+#   '401':
+#     description: The user is not authorized to make this request
+# parameters:
+#   - name: bounds
+#     in: query
+#     description: Comma-separated bounding box coordinates in format "left,bottom,right,top" (e.g., "-122.5,37.7,-122.3,37.9"). If not provided, returns tasks without geographic filtering.
+#     required: false
+#     schema:
+#       type: string
+#   - name: challengeIds
+#     in: query
+#     description: Comma-separated list of challenge IDs to filter tasks by (e.g., "123,456,789")
+#     required: false
+#     schema:
+#       type: string
+#   - name: limit
+#     in: query
+#     description: Maximum number of tasks to return per page
+#     required: false
+#     schema:
+#       type: integer
+#       default: 10
+#   - name: page
+#     in: query
+#     description: Page number for pagination (0-indexed)
+#     required: false
+#     schema:
+#       type: integer
+#       default: 0
+###
+GET     /tasks/bounds     @org.maproulette.framework.controller.TaskController.getChallengeTasksInBounds(bounds:String ?= "", challengeIds:String ?= "", limit:Int ?= 10, page:Int ?= 0)
+###
+# tags: [ Task ]
 # operationId: task_retrieves_task_clusters_use_put_method
 # summary: Retrieves task clusters. USE PUT METHOD
 # deprecated: true

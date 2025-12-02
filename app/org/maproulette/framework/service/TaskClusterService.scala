@@ -99,6 +99,27 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
     this.repository.queryTaskMarkerDataInBoundingBox(query, limit)
   }
 
+  /**
+    * Simplified method to get challenge tasks in a bounding box
+    *
+    * @param bounds       Optional bounding box to search within
+    * @param challengeIds Optional list of challenge IDs to filter by
+    * @param paging       Pagination settings
+    * @return Tuple of (total count, list of tasks)
+    */
+  def getChallengeTasksInBounds(
+      bounds: Option[SearchLocation],
+      challengeIds: Option[List[Long]],
+      paging: Paging = Paging(Config.DEFAULT_LIST_SIZE, 0)
+  ): (Int, List[ClusteredPoint]) = {
+    this.repository.queryChallengeTasksInBounds(
+      bounds,
+      challengeIds,
+      paging.limit,
+      paging.limit * paging.page
+    )
+  }
+
   def getTaskMarkers(
       statuses: List[Int],
       global: Boolean

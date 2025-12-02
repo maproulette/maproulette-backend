@@ -213,6 +213,83 @@ class TaskClusterRepository @Inject() (
     }
   }
 
+  /**
+    * Simple query for challenge tasks in a bounding box with pagination
+    *
+    * @param bounds       The bounding box to search within
+    * @param challengeIds List of challenge IDs to filter by (optional)
+    * @param limit        Maximum number of results per page
+    * @param offset       Offset for pagination
+    * @return Tuple of (total count, list of tasks)
+    */
+  def queryChallengeTasksInBounds(
+      bounds: Option[SearchLocation],
+      challengeIds: Option[List[Long]],
+      limit: Int,
+      offset: Int
+  ): (Int, List[ClusteredPoint]) = {
+    this.withMRTransaction { implicit c =>
+      var whereConditions = List(
+        "c.deleted = false",
+        "c.enabled = true",
+        "c.is_archived = false",
+        "tasks.location IS NOT NULL"
+      )
+
+      // Add bounding box filter
+      bounds.foreach { b =>
+        whereConditions = whereConditions :+
+          s"ST_Intersects(tasks.location, ST_MakeEnvelope(${b.left}, ${b.bottom}, ${b.right}, ${b.top}, 4326))"
+      }
+
+      // Add challenge ID filter
+      challengeIds.foreach { ids =>
+        if (ids.nonEmpty) {
+          whereConditions = whereConditions :+ s"c.id IN (${ids.mkString(",")})"
+        }
+      }
+
+      val whereClause = whereConditions.mkString(" AND ")
+
+      // Count query
+      val countQuery = s"""
+        SELECT COUNT(DISTINCT tasks.id) as count
+        FROM tasks
+        INNER JOIN challenges c ON c.id = tasks.parent_id
+        WHERE $whereClause
+      """
+      val count      = SQL(countQuery).as(int("count").single)
+
+      // Data query with pagination
+      val dataQuery = s"""
+        SELECT tasks.id, tasks.name, tasks.parent_id, c.name, tasks.instruction, tasks.status, 
+               tasks.mapped_on, tasks.completed_time_spent, tasks.completed_by,
+               tasks.bundle_id, tasks.is_bundle_primary, tasks.cooperative_work_json::TEXT as cooperative_work,
+               NULL::INTEGER as "task_review.review_status",
+               NULL::BIGINT as "task_review.review_requested_by",
+               NULL::BIGINT as "task_review.reviewed_by",
+               NULL::TIMESTAMP as "task_review.reviewed_at",
+               NULL::TIMESTAMP as "task_review.review_started_at",
+               NULL::BIGINT[] as "task_review.additional_reviewers",
+               NULL::INTEGER as "task_review.meta_review_status",
+               NULL::BIGINT as "task_review.meta_reviewed_by",
+               NULL::TIMESTAMP as "task_review.meta_reviewed_at",
+               ST_AsGeoJSON(tasks.location) AS location, 
+               tasks.priority, 
+               l.user_id as locked_by
+        FROM tasks
+        INNER JOIN challenges c ON c.id = tasks.parent_id
+        LEFT JOIN locked l ON l.item_id = tasks.id AND l.item_type = 2
+        WHERE $whereClause
+        ORDER BY tasks.id
+        LIMIT $limit OFFSET $offset
+      """
+      val results   = SQL(dataQuery).as(this.pointParser.*)
+
+      (count, results)
+    }
+  }
+
   private def getTaskClusterParser(params: SearchParameters): anorm.RowParser[Serializable] = {
     int("kmeans") ~ int("numberOfPoints") ~ get[Option[Long]]("taskId") ~
       get[Option[Int]]("taskStatus") ~ get[Option[Int]]("taskPriority") ~ get[Option[String]](
