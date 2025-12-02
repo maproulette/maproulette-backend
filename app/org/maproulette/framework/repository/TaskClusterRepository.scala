@@ -416,9 +416,8 @@ class TaskClusterRepository @Inject() (
       // Add location polygon filter if location_id is provided
       locationId.foreach { placeId =>
         serviceManager.nominatim.getLocationPolygon(placeId).foreach { wkt =>
-          // Use && operator for fast bounding box overlap check (uses spatial index efficiently)
-          // This is much faster than ST_Intersects and sufficient for location filtering
-          filters += s" AND t.location && ST_GeomFromText('$wkt', 4326)"
+          // Use ST_Intersects for accurate geometric intersection
+          filters += s" AND ST_Intersects(t.location, ST_GeomFromText('$wkt', 4326))"
         }
       }
 
