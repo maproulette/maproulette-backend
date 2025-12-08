@@ -1114,6 +1114,7 @@ class ChallengeController @Inject() (
     * @param location Nominatim place_id to filter by location polygon
     * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
     * @param limit Maximum number of results to return
+    * @param offset Number of results to skip for pagination
     * @return A list of challenges matching the criteria
     */
   def exploreChallenges(
@@ -1122,6 +1123,7 @@ class ChallengeController @Inject() (
       location: Option[Long],
       sortBy: String,
       limit: Int,
+      offset: Int,
       keywords: Option[String],
       difficulty: Option[Int]
   ): Action[AnyContent] =
@@ -1141,6 +1143,7 @@ class ChallengeController @Inject() (
           locationId = location,
           sortBy = sortBy,
           limit = limit,
+          offset = offset,
           keywords = keywords,
           difficulty = difficulty
         )

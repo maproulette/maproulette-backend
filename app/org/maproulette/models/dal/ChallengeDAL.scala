@@ -2253,6 +2253,7 @@ class ChallengeDAL @Inject() (
     * @param locationId Optional Nominatim place_id to filter by location polygon
     * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
     * @param limit Maximum number of results to return
+    * @param offset Number of results to skip for pagination
     * @param c Optional database connection
     * @return List of challenges matching the criteria
     */
@@ -2262,6 +2263,7 @@ class ChallengeDAL @Inject() (
       locationId: Option[Long],
       sortBy: String,
       limit: Int,
+      offset: Int = 0,
       keywords: Option[String] = None,
       difficulty: Option[Int] = None
   )(implicit c: Option[Connection] = None): List[Challenge] = {
@@ -2334,6 +2336,10 @@ class ChallengeDAL @Inject() (
 
       if (limit > 0) {
         query += s" LIMIT ${this.sqlLimit(limit)}"
+      }
+
+      if (offset > 0) {
+        query += s" OFFSET $offset"
       }
 
       SQL(query).as(this.parser.*)

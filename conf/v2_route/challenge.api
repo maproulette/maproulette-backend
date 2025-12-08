@@ -321,6 +321,13 @@ GET     /challenges/extendedFind                    @org.maproulette.controllers
 #     schema:
 #       type: integer
 #       default: 50
+#   - name: offset
+#     in: query
+#     description: Number of results to skip for pagination
+#     required: false
+#     schema:
+#       type: integer
+#       default: 0
 #   - name: keywords
 #     in: query
 #     description: Comma-separated list of keywords/categories to filter challenges by
@@ -345,7 +352,7 @@ GET     /challenges/extendedFind                    @org.maproulette.controllers
 #           items:
 #             $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 ###
-GET     /challenges/exploreChallenges                    @org.maproulette.controllers.api.ChallengeController.exploreChallenges(global:Boolean ?= true, bounds:Option[String] ?= None, location_id:Option[Long] ?= None, sortBy:String ?= "name", limit:Int ?= 50, keywords:Option[String] ?= None, difficulty:Option[Int] ?= None)
+GET     /challenges/exploreChallenges                    @org.maproulette.controllers.api.ChallengeController.exploreChallenges(global:Boolean ?= true, bounds:Option[String] ?= None, location_id:Option[Long] ?= None, sortBy:String ?= "name", limit:Int ?= 50, offset:Int ?= 0, keywords:Option[String] ?= None, difficulty:Option[Int] ?= None)
 ###
 # tags: [ Challenge ]
 # operationId: challenge_list_challenges_in_specified_projects
