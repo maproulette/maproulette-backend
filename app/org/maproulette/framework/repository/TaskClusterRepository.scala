@@ -369,82 +369,65 @@ class TaskClusterRepository @Inject() (
       difficulty: Option[Int] = None
   ): List[TaskClusterSummary] = {
     this.withMRTransaction { implicit c =>
-      var left       = boundingBox.left
-      var bottom     = boundingBox.bottom
-      var right      = boundingBox.right
-      var top        = boundingBox.top
-      var statusList = statuses.mkString(",")
+      val left       = boundingBox.left
+      val bottom     = boundingBox.bottom
+      val right      = boundingBox.right
+      val top        = boundingBox.top
+      val statusList = statuses.mkString(",")
 
-      var joins = ""
-      // Add joins for keywords filtering if keywords are provided
-      if (keywords.isDefined && keywords.get.trim.nonEmpty) {
-        joins += " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id"
-        joins += " INNER JOIN tags tags_table ON toc.tag_id = tags_table.id"
-      }
+      // Build joins for keywords filtering if keywords are provided
+      val joins = if (keywords.isDefined && keywords.get.trim.nonEmpty) {
+        " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id" +
+        " INNER JOIN tags tags_table ON toc.tag_id = tags_table.id"
+      } else ""
 
-      var filters = s"""
-  WHERE t.location && ST_MakeEnvelope($left, $bottom, $right, $top, 4326)
-    """
-      filters += s" AND c.deleted = false"
-      filters += s" AND c.enabled = true"
-      filters += s" AND c.is_archived = false"
-      if (!global) {
-        filters += s" AND c.is_global = false"
-      }
-      if (statuses.nonEmpty) {
-        filters += s" AND t.status IN ($statusList)"
-      }
-      filters += s" AND t.location IS NOT NULL"
-
-      // Filter by keywords if provided
-      keywords.foreach { kws =>
-        if (kws.trim.nonEmpty) {
-          val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
-          if (keywordList.nonEmpty) {
-            val keywordConditions =
-              keywordList.map(kw => s"LOWER(tags_table.name) = '$kw'").mkString(" OR ")
-            filters += s" AND ($keywordConditions)"
-          }
-        }
-      }
-
-      // Filter by difficulty if provided
-      difficulty.foreach { diff =>
-        filters += s" AND c.difficulty = $diff"
-      }
-
-      // Add location polygon filter if location_id is provided
-      locationId.foreach { placeId =>
-        serviceManager.nominatim.getLocationPolygon(placeId).foreach { wkt =>
-          // Use ST_Intersects for accurate geometric intersection
-          filters += s" AND ST_Intersects(t.location, ST_GeomFromText('$wkt', 4326))"
-        }
-      }
-
-      var query = s"""
-WITH filtered_tasks AS (
+      val query = s"""
+WITH eligible_challenges AS MATERIALIZED (
+  SELECT c.id
+  FROM challenges c
+  ${joins}
+  WHERE c.deleted = false
+    AND c.enabled = true
+    AND c.is_archived = false
+    ${if (!global) "AND c.is_global = false" else ""}
+    ${difficulty.map(d => s"AND c.difficulty = $d").getOrElse("")}
+    ${keywords.filter(_.trim.nonEmpty).map { kws =>
+      val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
+      if (keywordList.nonEmpty) {
+        val keywordConditions = keywordList.map(kw => s"LOWER(tags_table.name) = '$kw'").mkString(" OR ")
+        s"AND ($keywordConditions)"
+      } else ""
+    }.getOrElse("")}
+),
+filtered_tasks AS MATERIALIZED (
   SELECT DISTINCT
     t.id AS taskId,
     t.status AS taskStatus,
     t.location AS taskLocation
   FROM tasks t
-  INNER JOIN challenges c ON c.id = t.parent_id
-  ${joins}
-  ${filters}
+  WHERE t.parent_id IN (SELECT id FROM eligible_challenges)
+    AND t.location && ST_MakeEnvelope($left, $bottom, $right, $top, 4326)
+    ${if (statuses.nonEmpty) s"AND t.status IN ($statusList)" else ""}
+    AND t.location IS NOT NULL
+    ${locationId.flatMap(placeId => 
+      serviceManager.nominatim.getLocationPolygon(placeId).map(wkt =>
+        s"AND ST_Intersects(t.location, ST_GeomFromText('$wkt', 4326))"
+      )
+    ).getOrElse("")}
 ),
 cluster_input AS (
-  SELECT 
+  SELECT
     *,
     LEAST(COUNT(*) OVER (), 50) AS cluster_count
   FROM filtered_tasks
 ),
 task_clusters AS (
-  SELECT 
+  SELECT
     *,
     ST_ClusterKMeans(taskLocation, cluster_count::int) OVER () AS kmeans
   FROM cluster_input
 )
-SELECT 
+SELECT
   kmeans,
   COUNT(*) AS numberOfPoints,
   CASE WHEN COUNT(*) = 1 THEN (ARRAY_AGG(taskId))[1] END AS taskId,
