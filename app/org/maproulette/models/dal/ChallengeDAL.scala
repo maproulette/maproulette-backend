@@ -27,6 +27,7 @@ import org.maproulette.models.dal.mixin.{OwnerMixin, TagDALMixin}
 import org.maproulette.permissions.Permission
 import org.maproulette.session.SearchParameters
 import org.maproulette.utils.Utils
+import org.maproulette.framework.psql.SQLUtils
 import play.api.db.Database
 import play.api.libs.json.JodaReads._
 import play.api.libs.json.{JsString, JsValue, Json}
@@ -1142,7 +1143,7 @@ class ChallengeDAL @Inject() (
                       LIMIT ${this.sqlLimit(limit)} OFFSET {offset}"""
       SQL(query)
         .on(
-          Symbol("ss")     -> this.search(searchString),
+          Symbol("ss")     -> SQLUtils.search(searchString),
           Symbol("id")     -> ToParameterValue.apply[Long](p = keyToStatement).apply(id),
           Symbol("offset") -> offset
         )
@@ -1206,6 +1207,53 @@ class ChallengeDAL @Inject() (
     }
   }
 
+  def search(
+      search: String,
+  )(implicit c: Option[Connection] = None): List[Challenge] = {
+    this.withMRConnection { implicit c =>
+      val isNumeric = search.matches("^\\d+$")
+      val searchLong = if (isNumeric) Some(search.toLong) else None
+      val searchPattern = if (search.nonEmpty) s"%${search.replace("'", "''")}%" else "%"
+      val searchLower = if (search.nonEmpty) search.toLowerCase.replace("'", "''") else ""
+
+      if (isNumeric && searchLong.isDefined) {
+        SQL(s"""SELECT ${this.retrieveColumns} FROM challenges c
+               INNER JOIN projects p ON p.id = c.parent_id
+               WHERE c.deleted = false AND p.deleted = false AND c.id = {id}""")
+          .on("id" -> searchLong.get)
+          .as(this.parser.*)
+      } else if (search.nonEmpty) {
+        SQL(s"""SELECT ${this.retrieveColumns} FROM challenges c
+               INNER JOIN projects p ON p.id = c.parent_id
+               WHERE c.deleted = false AND p.deleted = false 
+               AND (
+                 LOWER(c.name) LIKE LOWER({search})
+                 OR (c.name <> '' AND (
+                   LEVENSHTEIN(LOWER(LEFT(c.name, 255)), LOWER({exact})) < 3 OR
+                   METAPHONE(LOWER(LEFT(c.name, 255)), 4) = METAPHONE(LOWER({exact}), 4) OR
+                   SOUNDEX(LOWER(c.name)) = SOUNDEX(LOWER({exact}))
+                 ))
+               )
+               ORDER BY 
+                 CASE 
+                   WHEN LOWER(c.name) = LOWER({exact}) THEN 0
+                   WHEN LOWER(c.name) LIKE LOWER({prefix}) THEN 1
+                   WHEN LOWER(c.name) LIKE LOWER({search}) THEN 2
+                   ELSE CASE WHEN c.name <> '' THEN LEVENSHTEIN(LOWER(LEFT(c.name, 255)), LOWER({exact})) ELSE 999 END + 3
+                 END ASC, 
+                 c.name ASC""")
+          .on(
+            "search" -> searchPattern,
+            "exact" -> search,
+            "prefix" -> (search + "%")
+          )
+          .as(this.parser.*)
+      } else {
+        List.empty
+      }
+    }
+  }
+
   def listing(
       projectList: Option[List[Long]] = None,
       limit: Int = Config.DEFAULT_LIST_SIZE,
@@ -1258,7 +1306,7 @@ class ChallengeDAL @Inject() (
                         LIMIT ${this.sqlLimit(limit)} OFFSET {offset}"""
         SQL(query)
           .on(
-            Symbol("ss")     -> this.search(searchString),
+            Symbol("ss")     -> SQLUtils.search(searchString),
             Symbol("offset") -> ToParameterValue.apply[Int].apply(offset)
           )
           .as(this.parser.*)

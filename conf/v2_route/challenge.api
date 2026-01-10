@@ -189,7 +189,7 @@ DELETE  /challenge/:id/tasks                        @org.maproulette.controllers
 # parameters:
 #   - name: q
 #     in: query
-#     description: The search string used to match the Challenge names. Default value is empty string, ie. will match everything.
+#     description: The search string used to match the Challenge names (fuzzy/contains matching). Default value is empty string, ie. will match everything.
 #   - name: parentId
 #     in: query
 #     description: This field will be ignored for this request
@@ -204,6 +204,27 @@ DELETE  /challenge/:id/tasks                        @org.maproulette.controllers
 #     description: Flag to set if only wanting enabled Challenges returned. Default value is true.
 ###
 GET     /challenges/find                            @org.maproulette.controllers.api.ChallengeController.find(q:String ?= "", parentId:Long ?= -1, limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= true)
+###
+# tags: [ Challenge ]
+# operationId: challenge_search_fuzzy
+# summary: Fuzzy search for challenges by ID or name
+# description: Searches for a single challenge by ID (if search string is numeric) or by name using fuzzy matching. Returns the first match if found. Supports typos and partial matches (e.g., "afri" or "afreca tourny" will find "african tourney").
+# responses:
+#   '200':
+#     description: A list containing at most one challenge matching the search criteria
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+# parameters:
+#   - name: search
+#     in: query
+#     description: The search string (can be challenge ID or name). Supports fuzzy matching for names.
+#     required: true
+###
+GET     /challenges/search                          @org.maproulette.controllers.api.ChallengeController.search(search:String)
 ###
 # tags: [ Challenge ]
 # operationId: challenge_extendedFind

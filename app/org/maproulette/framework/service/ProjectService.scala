@@ -14,6 +14,7 @@ import org.maproulette.framework.model._
 import org.maproulette.framework.psql._
 import org.maproulette.framework.psql.filter._
 import org.maproulette.framework.repository.{ChallengeRepository, ProjectRepository}
+import anorm._
 import org.maproulette.permissions.Permission
 import org.maproulette.session.SearchParameters
 import org.slf4j.LoggerFactory
@@ -236,6 +237,60 @@ class ProjectService @Inject() (
       order = order
     )
     this.query(query)
+  }
+
+  def search(
+      search: String
+  ): List[Project] = {
+    val isNumeric = search.matches("^\\d+$")
+    val searchLong = if (isNumeric) Some(search.toLong) else None
+    val searchPattern = if (search.nonEmpty) s"%${search.replace("'", "''")}%" else "%"
+    val searchLower = if (search.nonEmpty) search.toLowerCase.replace("'", "''") else ""
+
+    repository.withMRConnection { implicit c =>
+      val parser = ProjectRepository.parser(id =>
+        this.serviceManager.grant.retrieveGrantsOn(GrantTarget.project(id), User.superUser)
+      )
+
+      if (isNumeric && searchLong.isDefined) {
+        SQL("SELECT * FROM projects WHERE id = {id}")
+          .on("id" -> searchLong.get)
+          .as(parser.*)
+      } else if (search.nonEmpty) {
+        SQL("""SELECT * FROM projects 
+              WHERE LOWER(name) LIKE LOWER({search}) 
+              OR LOWER(display_name) LIKE LOWER({search})
+              OR (name <> '' AND (
+                LEVENSHTEIN(LOWER(LEFT(name, 255)), LOWER({exact})) < 3 OR
+                METAPHONE(LOWER(LEFT(name, 255)), 4) = METAPHONE(LOWER({exact}), 4) OR
+                SOUNDEX(LOWER(name)) = SOUNDEX(LOWER({exact}))
+              ))
+              OR (display_name <> '' AND (
+                LEVENSHTEIN(LOWER(LEFT(display_name, 255)), LOWER({exact})) < 3 OR
+                METAPHONE(LOWER(LEFT(display_name, 255)), 4) = METAPHONE(LOWER({exact}), 4) OR
+                SOUNDEX(LOWER(display_name)) = SOUNDEX(LOWER({exact}))
+              ))
+              ORDER BY 
+                CASE 
+                  WHEN LOWER(name) = LOWER({exact}) OR LOWER(display_name) = LOWER({exact}) THEN 0
+                  WHEN LOWER(name) LIKE LOWER({prefix}) OR LOWER(display_name) LIKE LOWER({prefix}) THEN 1
+                  WHEN LOWER(name) LIKE LOWER({search}) OR LOWER(display_name) LIKE LOWER({search}) THEN 2
+                  ELSE LEAST(
+                    CASE WHEN name <> '' THEN LEVENSHTEIN(LOWER(LEFT(name, 255)), LOWER({exact})) ELSE 999 END,
+                    CASE WHEN display_name <> '' THEN LEVENSHTEIN(LOWER(LEFT(display_name, 255)), LOWER({exact})) ELSE 999 END
+                  ) + 3
+                END ASC, 
+                name ASC""")
+          .on(
+            "search" -> searchPattern,
+            "exact" -> search,
+            "prefix" -> (search + "%")
+          )
+          .as(parser.*)
+      } else {
+        List.empty
+      }
+    }
   }
 
   /**

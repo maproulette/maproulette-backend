@@ -385,10 +385,13 @@ class TaskClusterRepository @Inject() (
 WITH eligible_challenges AS MATERIALIZED (
   SELECT c.id
   FROM challenges c
+  INNER JOIN projects p ON p.id = c.parent_id
   ${joins}
   WHERE c.deleted = false
     AND c.enabled = true
     AND c.is_archived = false
+    AND p.deleted = false
+    AND p.enabled = true
     ${if (!global) "AND c.is_global = false" else ""}
     ${difficulty.map(d => s"AND c.difficulty = $d").getOrElse("")}
     ${keywords.filter(_.trim.nonEmpty).map { kws =>
@@ -468,6 +471,7 @@ ORDER BY kmeans;
     SELECT DISTINCT tasks.id, ST_AsGeoJSON(tasks.location) AS location, tasks.status, tasks.priority
         FROM tasks
         INNER JOIN challenges c ON c.id = tasks.parent_id
+        INNER JOIN projects p ON p.id = c.parent_id
     """
 
       // Add joins for keywords filtering if keywords are provided
@@ -480,6 +484,8 @@ ORDER BY kmeans;
         WHERE c.deleted = false
         AND c.enabled = true
         AND c.is_archived = false
+        AND p.deleted = false
+        AND p.enabled = true
         AND tasks.location IS NOT NULL
     """
 
@@ -558,6 +564,7 @@ ORDER BY kmeans;
     SELECT COUNT(DISTINCT tasks.id) as count
         FROM tasks
         INNER JOIN challenges c ON c.id = tasks.parent_id
+        INNER JOIN projects p ON p.id = c.parent_id
     """
 
       // Add joins for keywords filtering if keywords are provided
@@ -570,6 +577,8 @@ ORDER BY kmeans;
         WHERE c.deleted = false
         AND c.enabled = true
         AND c.is_archived = false
+        AND p.deleted = false
+        AND p.enabled = true
         AND tasks.location IS NOT NULL
     """
 

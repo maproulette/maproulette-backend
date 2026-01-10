@@ -1152,6 +1152,27 @@ class ChallengeController @Inject() (
       }
     }
 
+  /**
+    * Fuzzy search for challenges by ID or name
+    * Returns a single challenge if found (first match)
+    * Searches by ID if the search string is numeric, otherwise searches by name using fuzzy matching
+    *
+    * @param search The search string (can be ID or name)
+    * @param onlyEnabled Only include enabled challenges
+    * @return A single challenge matching the search criteria, or empty list if not found
+    */
+  def search(
+      search: String,
+      onlyEnabled: Boolean = false
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      val results = this.dal.search(
+        search,
+      )
+      Ok(Json.toJson(results))
+    }
+  }
+
   def healthCheck(): Action[AnyContent] =
     Action { implicit request =>
       Ok(Json.toJson(StatusMessage("OK", JsString("We good"))))

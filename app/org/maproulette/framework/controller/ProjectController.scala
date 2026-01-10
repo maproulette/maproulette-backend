@@ -212,6 +212,27 @@ class ProjectController @Inject() (
   }
 
   /**
+    * Fuzzy search for projects by ID or name
+    * Returns a single project if found (first match)
+    * Searches by ID if the search string is numeric, otherwise searches by name using fuzzy matching
+    *
+    * @param search The search string (can be ID or name)
+    * @param onlyEnabled Only include enabled projects
+    * @return A single project matching the search criteria, or empty list if not found
+    */
+  def search(
+      search: String,
+      onlyEnabled: Boolean = false
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      val results = this.projectService.search(
+        search
+      )
+      Ok(Json.toJson(results))
+    }
+  }
+
+  /**
     * Retrieves the list of projects managed
     *
     * @param limit        Limit of how many tasks should be returned

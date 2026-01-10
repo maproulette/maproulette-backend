@@ -201,6 +201,27 @@ GET     /projects/featured                          @org.maproulette.framework.c
 GET     /projects                                   @org.maproulette.framework.controller.ProjectController.find(search:String ?= "", limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= false)
 ###
 # tags: [ Project ]
+# operationId: project_search_fuzzy
+# summary: Fuzzy search for projects by ID or name
+# description: Searches for a single project by ID (if search string is numeric) or by name using fuzzy matching. Returns the first match if found. Supports typos and partial matches (e.g., "afri" or "afreca tourny" will find "african tourney").
+# responses:
+#   '200':
+#     description: A list containing at most one project matching the search criteria
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/Project'
+# parameters:
+#   - name: search
+#     in: query
+#     description: The search string (can be project ID or name). Supports fuzzy matching for names.
+#     required: true
+###
+GET     /projects/search                            @org.maproulette.framework.controller.ProjectController.search(search:String)
+###
+# tags: [ Project ]
 # operationId: project_list_all_the_managed_projects
 # summary: List all the managed projects.
 # description: Lists all the managed projects in the system for the authenticated user
