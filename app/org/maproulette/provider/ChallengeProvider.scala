@@ -102,6 +102,7 @@ class ChallengeProvider @Inject() (
                   challenge.id
                 )
                 this.challengeDAL.markTasksRefreshed()(challenge.id)
+                this.challengeDAL.updateBoundingBox()(challenge.id)
               }
             } else {
               this.createTasksFromJson(user, challenge, value)
@@ -110,6 +111,7 @@ class ChallengeProvider @Inject() (
             //we need to reapply task priority rules since task locations were updated
             Future {
               this.challengeDAL.updateTaskPriorities(user)(challenge.id)
+              this.challengeDAL.updateBoundingBox()(challenge.id)
             }
           }
           true
@@ -247,6 +249,7 @@ class ChallengeProvider @Inject() (
               )
 
               this.challengeDAL.markTasksRefreshed()(challenge.id)
+              this.challengeDAL.updateBoundingBox()(challenge.id)
             }
           } else {
             this.createTasksFromFeatures(user, challenge, Json.parse(resp.body))
@@ -267,12 +270,14 @@ class ChallengeProvider @Inject() (
           //we need to reapply task priority rules since task locations were updated
           Future {
             this.challengeDAL.updateTaskPriorities(user)(challenge.id)
+            this.challengeDAL.updateBoundingBox()(challenge.id)
           }
         }
       case Failure(f) =>
         if (fileNumber > 1) {
           // todo need to figure out if actual failure or if not finding the next file
           this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(challenge.id)
+          this.challengeDAL.updateBoundingBox()(challenge.id)
         } else {
           this.challengeDAL.update(
             Json.obj("status" -> Challenge.STATUS_FAILED, "StatusMessage" -> f.getMessage),
@@ -425,6 +430,7 @@ class ChallengeProvider @Inject() (
 
         this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(parent.id)
         this.challengeDAL.markTasksRefreshed()(parent.id)
+        this.challengeDAL.updateBoundingBox()(parent.id)
         if (single) {
           this.createNewTask(user, taskNameFromJsValue(jsonData, parent), parent, jsonData) match {
             case Some(t) => List(t)
@@ -654,6 +660,7 @@ class ChallengeProvider @Inject() (
                         challenge.id
                       )
                       this.challengeDAL.markTasksRefreshed(true)(challenge.id)
+                      this.challengeDAL.updateBoundingBox()(challenge.id)
                       // If no tasks were created by this overpass query or all tasks are
                       // fixed, then we need to update the status to finished.
                       this.challengeDAL.updateFinishedStatus(true, user = user)(challenge.id)
@@ -671,18 +678,46 @@ class ChallengeProvider @Inject() (
                 }
               }
             } else {
+              // Handle non-OK responses (timeouts, errors, etc.)
+              val errorMessage = extractOverpassErrorMessage(result.body, result.status)
+              val statusMessage = result.status match {
+                case 504 | 502 => // Gateway Timeout or Bad Gateway
+                  "The Overpass API server is too busy or timed out. Please try again later or reduce the scope of your query."
+                case 429 => // Too Many Requests
+                  "Too many requests to the Overpass API. Please wait a moment and try again."
+                case _ =>
+                  errorMessage
+              }
+              
               this.challengeDAL.update(
                 Json.obj(
                   "status"        -> Challenge.STATUS_FAILED,
-                  "statusMessage" -> s"${result.statusText}:${result.body}"
+                  "statusMessage" -> statusMessage
                 ),
                 user
               )(challenge.id)
-              throw new InvalidException(s"${result.statusText}: ${result.body}")
+              throw new InvalidException(s"${result.statusText}: $statusMessage")
             }
           case Failure(f) =>
+            val errorMessage = f match {
+              case e: java.util.concurrent.TimeoutException =>
+                "The Overpass API request timed out. The server may be too busy. Please try again later or reduce the scope of your query."
+              case e: java.net.SocketTimeoutException =>
+                "The Overpass API request timed out. The server may be too busy. Please try again later or reduce the scope of your query."
+              case e: java.net.ConnectException =>
+                "Failed to connect to the Overpass API. Please check your network connection and try again."
+              case e: Exception =>
+                val msg = e.getMessage
+                if (msg != null && (msg.contains("timeout") || msg.contains("Timeout"))) {
+                  "The Overpass API request timed out. The server may be too busy. Please try again later or reduce the scope of your query."
+                } else {
+                  s"Overpass API error: ${msg}"
+                }
+              case _ =>
+                if (f.getMessage != null) f.getMessage else "Unknown error occurred while contacting the Overpass API"
+            }
             this.challengeDAL.update(
-              Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> f.getMessage),
+              Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> errorMessage),
               user
             )(challenge.id)
             throw f
@@ -852,4 +887,46 @@ class ChallengeProvider @Inject() (
     */
   private def normalizeRFC7464Sequence(line: String): String =
     line.replaceAll(s"^${RS}+", "")
+
+  /**
+    * Extracts a user-friendly error message from Overpass API error responses.
+    * Handles both XML/HTML error responses and plain text errors.
+    *
+    * @param body   The response body from the Overpass API
+    * @param status The HTTP status code
+    * @return A user-friendly error message
+    */
+  private def extractOverpassErrorMessage(body: String, status: Int): String = {
+    // Check if the response is XML/HTML (common for Overpass errors)
+    if (body.contains("<html") || body.contains("<?xml")) {
+      // Try to extract error message from XML/HTML
+      val errorPattern = "<strong[^>]*>Error</strong>.*?<p[^>]*>([^<]+)</p>".r
+      errorPattern.findFirstMatchIn(body) match {
+        case Some(m) =>
+          val errorText = m.group(1).trim
+          // Clean up common Overpass error messages
+          if (errorText.contains("timeout")) {
+            "The Overpass API server timed out. The server may be too busy. Please try again later or reduce the scope of your query."
+          } else if (errorText.contains("too busy")) {
+            "The Overpass API server is too busy to handle your request. Please try again later."
+          } else {
+            errorText
+          }
+        case None =>
+          // Fallback: check for common error patterns
+          if (body.contains("timeout") || body.contains("too busy")) {
+            "The Overpass API server timed out or is too busy. Please try again later or reduce the scope of your query."
+          } else {
+            s"Overpass API error (HTTP $status). Please check your query and try again."
+          }
+      }
+    } else {
+      // Plain text or JSON error
+      if (body.length > 500) {
+        body.substring(0, 500) + "..."
+      } else {
+        body
+      }
+    }
+  }
 }

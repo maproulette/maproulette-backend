@@ -378,7 +378,7 @@ class TaskClusterRepository @Inject() (
       // Build joins for keywords filtering if keywords are provided
       val joins = if (keywords.isDefined && keywords.get.trim.nonEmpty) {
         " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id" +
-        " INNER JOIN tags tags_table ON toc.tag_id = tags_table.id"
+          " INNER JOIN tags tags_table ON toc.tag_id = tags_table.id"
       } else ""
 
       val query = s"""
@@ -394,13 +394,17 @@ WITH eligible_challenges AS MATERIALIZED (
     AND p.enabled = true
     ${if (!global) "AND c.is_global = false" else ""}
     ${difficulty.map(d => s"AND c.difficulty = $d").getOrElse("")}
-    ${keywords.filter(_.trim.nonEmpty).map { kws =>
-      val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
-      if (keywordList.nonEmpty) {
-        val keywordConditions = keywordList.map(kw => s"LOWER(tags_table.name) = '$kw'").mkString(" OR ")
-        s"AND ($keywordConditions)"
-      } else ""
-    }.getOrElse("")}
+    ${keywords
+        .filter(_.trim.nonEmpty)
+        .map { kws =>
+          val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
+          if (keywordList.nonEmpty) {
+            val keywordConditions =
+              keywordList.map(kw => s"LOWER(tags_table.name) = '$kw'").mkString(" OR ")
+            s"AND ($keywordConditions)"
+          } else ""
+        }
+        .getOrElse("")}
 ),
 filtered_tasks AS MATERIALIZED (
   SELECT DISTINCT
@@ -412,11 +416,13 @@ filtered_tasks AS MATERIALIZED (
     AND t.location && ST_MakeEnvelope($left, $bottom, $right, $top, 4326)
     ${if (statuses.nonEmpty) s"AND t.status IN ($statusList)" else ""}
     AND t.location IS NOT NULL
-    ${locationId.flatMap(placeId => 
-      serviceManager.nominatim.getLocationPolygon(placeId).map(wkt =>
-        s"AND ST_Intersects(t.location, ST_GeomFromText('$wkt', 4326))"
-      )
-    ).getOrElse("")}
+    ${locationId
+        .flatMap(placeId =>
+          serviceManager.nominatim
+            .getLocationPolygon(placeId)
+            .map(wkt => s"AND ST_Intersects(t.location, ST_GeomFromText('$wkt', 4326))")
+        )
+        .getOrElse("")}
 ),
 cluster_input AS (
   SELECT

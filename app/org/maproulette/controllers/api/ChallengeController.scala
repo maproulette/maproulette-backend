@@ -1167,7 +1167,7 @@ class ChallengeController @Inject() (
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       val results = this.dal.search(
-        search,
+        search
       )
       Ok(Json.toJson(results))
     }
@@ -1768,5 +1768,111 @@ class ChallengeController @Inject() (
             throw new NotFoundException(s"No challenge found with id $id")
         }
       }
+  }
+
+  /**
+    * Favorites (saves) a challenge for the current user
+    *
+    * @param challengeId The id of the challenge to favorite
+    * @return 200 OK with success message
+    */
+  def favoriteChallenge(challengeId: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      this.serviceManager.user.saveChallenge(user.id, challengeId, user)
+      Ok(
+        Json.toJson(
+          StatusMessage("OK", JsString(s"Challenge $challengeId favorited"))
+        )
+      )
+    }
+  }
+
+  /**
+    * Unfavorites (unsaves) a challenge for the current user
+    *
+    * @param challengeId The id of the challenge to unfavorite
+    * @return 200 OK with success message
+    */
+  def unfavoriteChallenge(challengeId: Long): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        this.serviceManager.user.unsaveChallenge(user.id, challengeId, user)
+        Ok(
+          Json.toJson(
+            StatusMessage("OK", JsString(s"Challenge $challengeId unfavorited"))
+          )
+        )
+      }
+  }
+
+  /**
+    * Checks if a challenge is favorited by the current user
+    *
+    * @param challengeId The id of the challenge to check
+    * @return 200 OK with boolean indicating if favorited
+    */
+  def isChallengeFavorited(challengeId: Long): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        user match {
+          case Some(u) =>
+            val isFavorited = this.serviceManager.user.isChallengeSaved(u.id, challengeId, u)
+            Ok(Json.toJson(Json.obj("isFavorited" -> isFavorited)))
+          case None =>
+            Ok(Json.toJson(Json.obj("isFavorited" -> false)))
+        }
+      }
+  }
+
+  /**
+    * Likes a challenge for the current user
+    *
+    * @param challengeId The id of the challenge to like
+    * @return 200 OK with success message
+    */
+  def likeChallenge(challengeId: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      this.serviceManager.user.likeChallenge(user.id, challengeId, user)
+      Ok(
+        Json.toJson(
+          StatusMessage("OK", JsString(s"Challenge $challengeId liked"))
+        )
+      )
+    }
+  }
+
+  /**
+    * Unlikes a challenge for the current user
+    *
+    * @param challengeId The id of the challenge to unlike
+    * @return 200 OK with success message
+    */
+  def unlikeChallenge(challengeId: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      this.serviceManager.user.unlikeChallenge(user.id, challengeId, user)
+      Ok(
+        Json.toJson(
+          StatusMessage("OK", JsString(s"Challenge $challengeId unliked"))
+        )
+      )
+    }
+  }
+
+  /**
+    * Checks if a challenge is liked by the current user
+    *
+    * @param challengeId The id of the challenge to check
+    * @return 200 OK with boolean indicating if liked
+    */
+  def isChallengeLiked(challengeId: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      user match {
+        case Some(u) =>
+          val isLiked = this.serviceManager.user.isChallengeLiked(u.id, challengeId, u)
+          Ok(Json.toJson(Json.obj("isLiked" -> isLiked)))
+        case None =>
+          Ok(Json.toJson(Json.obj("isLiked" -> false)))
+      }
+    }
   }
 }

@@ -831,6 +831,56 @@ class UserService @Inject() (
   }
 
   /**
+    * Checks if a challenge is saved (favorited) by a user
+    *
+    * @param userId The id of the user
+    * @param challengeId The id of the challenge
+    * @param user The user making the actual request
+    * @return true if the challenge is saved by the user
+    */
+  def isChallengeSaved(userId: Long, challengeId: Long, user: User): Boolean = {
+    this.permission.hasReadAccess(UserType(), user)(userId)
+    this.savedObjectsRepository.isChallengeSaved(userId, challengeId)
+  }
+
+  /**
+    * Likes a challenge for a user
+    *
+    * @param userId The id of the user to like the challenge for
+    * @param challengeId The id of the challenge to like
+    * @param user The user making the actual request
+    */
+  def likeChallenge(userId: Long, challengeId: Long, user: User): Unit = {
+    this.permission.hasWriteAccess(UserType(), user)(userId)
+    this.savedObjectsRepository.likeChallenge(userId, challengeId)
+  }
+
+  /**
+    * "Unlike" a challenge from a users profile
+    *
+    * @param userId The id of the user to unlike the challenge from
+    * @param challengeId The id of the challenge to unlike
+    * @param user The user making the actual request
+    */
+  def unlikeChallenge(userId: Long, challengeId: Long, user: User): Unit = {
+    this.permission.hasWriteAccess(UserType(), user)(userId)
+    this.savedObjectsRepository.unlikeChallenge(userId, challengeId)
+  }
+
+  /**
+    * Checks if a challenge is liked by a user
+    *
+    * @param userId The id of the user
+    * @param challengeId The id of the challenge
+    * @param user The user making the actual request
+    * @return true if the challenge is liked by the user
+    */
+  def isChallengeLiked(userId: Long, challengeId: Long, user: User): Boolean = {
+    this.permission.hasReadAccess(UserType(), user)(userId)
+    this.savedObjectsRepository.isChallengeLiked(userId, challengeId)
+  }
+
+  /**
     * Retrieve all the tasks that have been saved
     *
     * @param userId The id of the user to get all the tasks for

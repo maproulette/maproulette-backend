@@ -1208,13 +1208,13 @@ class ChallengeDAL @Inject() (
   }
 
   def search(
-      search: String,
+      search: String
   )(implicit c: Option[Connection] = None): List[Challenge] = {
     this.withMRConnection { implicit c =>
-      val isNumeric = search.matches("^\\d+$")
-      val searchLong = if (isNumeric) Some(search.toLong) else None
+      val isNumeric     = search.matches("^\\d+$")
+      val searchLong    = if (isNumeric) Some(search.toLong) else None
       val searchPattern = if (search.nonEmpty) s"%${search.replace("'", "''")}%" else "%"
-      val searchLower = if (search.nonEmpty) search.toLowerCase.replace("'", "''") else ""
+      val searchLower   = if (search.nonEmpty) search.toLowerCase.replace("'", "''") else ""
 
       if (isNumeric && searchLong.isDefined) {
         SQL(s"""SELECT ${this.retrieveColumns} FROM challenges c
@@ -1244,7 +1244,7 @@ class ChallengeDAL @Inject() (
                  c.name ASC""")
           .on(
             "search" -> searchPattern,
-            "exact" -> search,
+            "exact"  -> search,
             "prefix" -> (search + "%")
           )
           .as(this.parser.*)
@@ -2055,6 +2055,32 @@ class ChallengeDAL @Inject() (
                 WHERE id = $id RETURNING #${this.retrieveColumns}""".as(this.parser.*).headOption
         }
       }
+    }
+  }
+
+  /**
+    * Updates the bounding box for a challenge based on all its tasks.
+    * This should be called after tasks are built or updated.
+    *
+    * @param id The id of the challenge
+    * @param c  an implicit connection
+    */
+  def updateBoundingBox()(implicit id: Long, c: Option[Connection] = None): Unit = {
+    this.withMRConnection { implicit c =>
+      SQL"""
+        UPDATE challenges SET bounding = (
+          SELECT ST_Envelope(ST_Buffer((ST_SetSRID(ST_Extent(location), 4326))::geography, 2)::geometry)
+          FROM tasks
+          WHERE parent_id = $id
+          AND location IS NOT NULL
+        )
+        WHERE id = $id
+        AND EXISTS (
+          SELECT 1 FROM tasks 
+          WHERE parent_id = $id 
+          AND location IS NOT NULL
+        )
+      """.executeUpdate()
     }
   }
 

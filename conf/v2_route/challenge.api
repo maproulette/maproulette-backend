@@ -1545,5 +1545,145 @@ POST     /challenge/:challengeId/archive   @org.maproulette.controllers.api.Chal
 #       default: 3
 ###
 GET     /challenge/:id/topTags                   @org.maproulette.controllers.api.ChallengeController.getTagMetrics(id:Long, limit:Int ?= 3)
+###
+# tags: [ Challenge ]
+# operationId: challenge_favorite
+# summary: Favorite a Challenge
+# description: Favorites (saves) a challenge for the current user
+# responses:
+#   '200':
+#     description: Success message
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
+#   '401':
+#     description: The user is not authorized to make this request
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the challenge to favorite
+#     required: true
+#     schema:
+#       type: integer
+###
+POST    /challenge/:id/favorite                  @org.maproulette.controllers.api.ChallengeController.favoriteChallenge(id:Long)
+###
+# tags: [ Challenge ]
+# operationId: challenge_unfavorite
+# summary: Unfavorite a Challenge
+# description: Unfavorites (unsaves) a challenge for the current user
+# responses:
+#   '200':
+#     description: Success message
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
+#   '401':
+#     description: The user is not authorized to make this request
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the challenge to unfavorite
+#     required: true
+#     schema:
+#       type: integer
+###
+DELETE  /challenge/:id/favorite                  @org.maproulette.controllers.api.ChallengeController.unfavoriteChallenge(id:Long)
+###
+# tags: [ Challenge ]
+# operationId: challenge_is_favorited
+# summary: Check if Challenge is Favorited
+# description: Checks if a challenge is favorited by the current user
+# responses:
+#   '200':
+#     description: Boolean indicating if the challenge is favorited
+#     content:
+#       application/json:
+#         schema:
+#           type: object
+#           properties:
+#             isFavorited:
+#               type: boolean
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the challenge to check
+#     required: true
+#     schema:
+#       type: integer
+###
+GET     /challenge/:id/favorite                  @org.maproulette.controllers.api.ChallengeController.isChallengeFavorited(id:Long)
+###
+# tags: [ Challenge ]
+# operationId: challenge_like
+# summary: Like a Challenge
+# description: Likes a challenge for the current user
+# responses:
+#   '200':
+#     description: Success message
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
+#   '401':
+#     description: The user is not authorized to make this request
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the challenge to like
+#     required: true
+#     schema:
+#       type: integer
+###
+POST    /challenge/:id/like                     @org.maproulette.controllers.api.ChallengeController.likeChallenge(id:Long)
+###
+# tags: [ Challenge ]
+# operationId: challenge_unlike
+# summary: Unlike a Challenge
+# description: Unlikes a challenge for the current user
+# responses:
+#   '200':
+#     description: Success message
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
+#   '401':
+#     description: The user is not authorized to make this request
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the challenge to unlike
+#     required: true
+#     schema:
+#       type: integer
+###
+DELETE  /challenge/:id/like                     @org.maproulette.controllers.api.ChallengeController.unlikeChallenge(id:Long)
+###
+# tags: [ Challenge ]
+# operationId: challenge_is_liked
+# summary: Check if Challenge is Liked
+# description: Checks if a challenge is liked by the current user
+# responses:
+#   '200':
+#     description: Boolean indicating if the challenge is liked
+#     content:
+#       application/json:
+#         schema:
+#           type: object
+#           properties:
+#             isLiked:
+#               type: boolean
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the challenge to check
+#     required: true
+#     schema:
+#       type: integer
+###
+GET     /challenge/:id/like                     @org.maproulette.controllers.api.ChallengeController.isChallengeLiked(id:Long)
 ### NoDocs ###
 GET     /healthCheck                                 @org.maproulette.controllers.api.ChallengeController.healthCheck()

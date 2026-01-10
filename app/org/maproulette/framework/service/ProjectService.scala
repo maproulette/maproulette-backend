@@ -242,10 +242,10 @@ class ProjectService @Inject() (
   def search(
       search: String
   ): List[Project] = {
-    val isNumeric = search.matches("^\\d+$")
-    val searchLong = if (isNumeric) Some(search.toLong) else None
+    val isNumeric     = search.matches("^\\d+$")
+    val searchLong    = if (isNumeric) Some(search.toLong) else None
     val searchPattern = if (search.nonEmpty) s"%${search.replace("'", "''")}%" else "%"
-    val searchLower = if (search.nonEmpty) search.toLowerCase.replace("'", "''") else ""
+    val searchLower   = if (search.nonEmpty) search.toLowerCase.replace("'", "''") else ""
 
     repository.withMRConnection { implicit c =>
       val parser = ProjectRepository.parser(id =>
@@ -283,7 +283,7 @@ class ProjectService @Inject() (
                 name ASC""")
           .on(
             "search" -> searchPattern,
-            "exact" -> search,
+            "exact"  -> search,
             "prefix" -> (search + "%")
           )
           .as(parser.*)
