@@ -688,7 +688,7 @@ class ChallengeProvider @Inject() (
                 case _ =>
                   errorMessage
               }
-              
+
               this.challengeDAL.update(
                 Json.obj(
                   "status"        -> Challenge.STATUS_FAILED,
@@ -714,7 +714,8 @@ class ChallengeProvider @Inject() (
                   s"Overpass API error: ${msg}"
                 }
               case _ =>
-                if (f.getMessage != null) f.getMessage else "Unknown error occurred while contacting the Overpass API"
+                if (f.getMessage != null) f.getMessage
+                else "Unknown error occurred while contacting the Overpass API"
             }
             this.challengeDAL.update(
               Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> errorMessage),
