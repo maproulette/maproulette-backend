@@ -881,6 +881,16 @@ class UserService @Inject() (
   }
 
   /**
+    * Gets the total like count for a challenge
+    *
+    * @param challengeId The id of the challenge
+    * @return The total number of likes for the challenge
+    */
+  def getChallengeLikeCount(challengeId: Long): Long = {
+    this.savedObjectsRepository.getChallengeLikeCount(challengeId)
+  }
+
+  /**
     * Retrieve all the tasks that have been saved
     *
     * @param userId The id of the user to get all the tasks for

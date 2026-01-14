@@ -300,7 +300,7 @@ class UserSavedObjectsRepository @Inject() (
     * @return true if the challenge is liked by the user
     */
   def isChallengeLiked(userId: Long, challengeId: Long)(
-      implicit c: Option[Connection] = None
+    implicit c: Option[Connection] = None
   ): Boolean = {
     this.withMRTransaction { implicit c =>
       SQL(
@@ -308,6 +308,25 @@ class UserSavedObjectsRepository @Inject() (
            |WHERE user_id = {uid} AND challenge_id = {cid}""".stripMargin
       ).on(Symbol("uid") -> userId, Symbol("cid") -> challengeId)
         .as(scalar[Long].single) > 0
+    }
+  }
+
+  /**
+    * Gets the total like count for a challenge
+    *
+    * @param challengeId The id of the challenge
+    * @param c           The existing connection if any
+    * @return The total number of likes for the challenge
+    */
+  def getChallengeLikeCount(challengeId: Long)(
+    implicit c: Option[Connection] = None
+  ): Long = {
+    this.withMRTransaction { implicit c =>
+      SQL(
+        s"""SELECT COUNT(*) FROM challenge_likes
+           |WHERE challenge_id = {cid}""".stripMargin
+      ).on(Symbol("cid") -> challengeId)
+        .as(scalar[Long].single)
     }
   }
 }

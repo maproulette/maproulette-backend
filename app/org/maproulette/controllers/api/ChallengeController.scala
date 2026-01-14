@@ -1875,4 +1875,18 @@ class ChallengeController @Inject() (
       }
     }
   }
+
+  /**
+    * Gets the total like count for a challenge
+    *
+    * @param challengeId The id of the challenge
+    * @return 200 OK with the like count
+    */
+  def getChallengeLikeCount(challengeId: Long): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        val likeCount = this.serviceManager.user.getChallengeLikeCount(challengeId)
+        Ok(Json.toJson(Json.obj("likeCount" -> likeCount)))
+      }
+  }
 }
