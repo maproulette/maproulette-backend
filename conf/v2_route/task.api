@@ -164,6 +164,31 @@ PUT     /tasks/changeStatus                        @org.maproulette.controllers.
 GET     /task/:id                                   @org.maproulette.controllers.api.TaskController.read(id:Long)
 ###
 # tags: [ Task ]
+# operationId: task_retrieves_multiple_tasks
+# summary: Retrieves multiple Tasks by their IDs
+# description: Retrieves multiple Tasks based on the supplied array of task IDs as query parameters (comma-separated).
+# responses:
+#   '200':
+#     description: Array of retrieved Tasks
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Task'
+#   '400':
+#     description: Invalid request parameters
+# parameters:
+#   - name: taskIds
+#     in: query
+#     description: Comma-separated list of task IDs to retrieve
+#     required: true
+#     schema:
+#       type: string
+###
+GET     /tasks                                      @org.maproulette.controllers.api.TaskController.getTasks(taskIds:String)
+###
+# tags: [ Task ]
 # operationId: task_start_working_on_a_task_locks_it_for_the_user
 # summary: Start working on a Task (locks it for the user)
 # description: Locks a Task based on the supplied ID in the URL.

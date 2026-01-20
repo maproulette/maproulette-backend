@@ -300,7 +300,7 @@ class UserSavedObjectsRepository @Inject() (
     * @return true if the challenge is liked by the user
     */
   def isChallengeLiked(userId: Long, challengeId: Long)(
-    implicit c: Option[Connection] = None
+      implicit c: Option[Connection] = None
   ): Boolean = {
     this.withMRTransaction { implicit c =>
       SQL(
@@ -319,7 +319,7 @@ class UserSavedObjectsRepository @Inject() (
     * @return The total number of likes for the challenge
     */
   def getChallengeLikeCount(challengeId: Long)(
-    implicit c: Option[Connection] = None
+      implicit c: Option[Connection] = None
   ): Long = {
     this.withMRTransaction { implicit c =>
       SQL(

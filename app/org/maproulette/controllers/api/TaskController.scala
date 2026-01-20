@@ -370,6 +370,27 @@ class TaskController @Inject() (
   }
 
   /**
+    * Retrieves multiple tasks by their IDs.
+    *
+    * @param taskIds Comma-separated string of task IDs to retrieve
+    * @return Array of Task objects
+    */
+  def getTasks(taskIds: String): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      val taskIdsList = Utils.toLongList(taskIds).getOrElse(List.empty[Long])
+      if (taskIdsList.isEmpty) {
+        BadRequest(Json.toJson(StatusMessage("KO", JsString("taskIds array cannot be empty"))))
+      } else {
+        val tasks = taskIdsList.flatMap(taskId => this.dal.retrieveById(taskId))
+        // Inject extra data (tags, mapillary) for each task, similar to the read method
+        // inject returns JsValue, so we collect them into a JsArray
+        val tasksWithInjectedData = tasks.map(task => this.inject(task))
+        Ok(JsArray(tasksWithInjectedData))
+      }
+    }
+  }
+
+  /**
     * Locks a bundle of tasks based on the provided task IDs.
     *
     * @param taskIds The IDs of the tasks to lock
