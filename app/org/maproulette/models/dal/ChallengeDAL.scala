@@ -1153,24 +1153,77 @@ class ChallengeDAL @Inject() (
 
   def getChallengeTaskMarkers(
       id: Long
-  )(implicit c: Option[Connection] = None): List[ChallengeTaskMarker] = {
+  )(implicit c: Option[Connection] = None): ChallengeTaskMarkersResponse = {
     this.withMRConnection { implicit c =>
-      var query =
+      val query =
         s"""SELECT tasks.id, ST_AsGeoJSON(tasks.location) AS location, tasks.status, tasks.priority
                       FROM tasks
                       WHERE tasks.parent_id = $id"""
 
-      SQL(query).as((int("id") ~ str("location") ~ int("status") ~ int("priority")).map {
-        case id ~ location ~ status ~ priority =>
-          val locationJSON = Json.parse(location)
-          val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
-          ChallengeTaskMarker(
-            id,
-            TaskMarkerLocation(coordinates(1), coordinates.head),
-            status,
-            priority
-          )
-      }.*)
+      val allTasks =
+        SQL(query).as((long("id") ~ str("location") ~ int("status") ~ int("priority")).map {
+          case taskId ~ location ~ status ~ priority =>
+            val locationJSON = Json.parse(location)
+            val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
+            (taskId, TaskMarkerLocation(coordinates(1), coordinates.head), status, priority)
+        }.*)
+
+      // Detect overlapping tasks (within 0.000001 degrees - roughly 0.1 meters)
+      val overlapThreshold = 0.000001
+      val processed        = scala.collection.mutable.Set[Long]()
+      val singleMarkers    = scala.collection.mutable.ListBuffer[SingleTaskMarker]()
+      val overlapMarkers   = scala.collection.mutable.ListBuffer[OverlapTaskMarker]()
+
+      allTasks.foreach {
+        case (taskId, location, status, priority) =>
+          if (!processed.contains(taskId)) {
+            // Find all tasks at the same location (within threshold)
+            val overlapping = allTasks.filter {
+              case (otherId, otherLoc, _, _) =>
+                !processed.contains(otherId) && {
+                  val latDiff = math.abs(location.lat - otherLoc.lat)
+                  val lngDiff = math.abs(location.lng - otherLoc.lng)
+                  latDiff <= overlapThreshold && lngDiff <= overlapThreshold
+                }
+            }
+
+            if (overlapping.length > 1) {
+              // Multiple tasks at same location - create overlap marker
+              val taskIds = overlapping.map(_._1).toList
+              taskIds.foreach(processed.add)
+
+              // Create SingleTaskMarker objects for each overlapping task
+              val overlappingTaskMarkers = overlapping.map {
+                case (tId, tLoc, tStatus, tPriority) =>
+                  SingleTaskMarker(
+                    id = tId,
+                    location = tLoc,
+                    status = tStatus,
+                    priority = tPriority
+                  )
+              }.toList
+
+              overlapMarkers += OverlapTaskMarker(
+                location = location,
+                tasks = overlappingTaskMarkers
+              )
+            } else {
+              // Single task - create regular marker
+              processed.add(taskId)
+              singleMarkers += SingleTaskMarker(
+                id = taskId,
+                location = location,
+                status = status,
+                priority = priority
+              )
+            }
+          }
+      }
+
+      ChallengeTaskMarkersResponse(
+        markers = singleMarkers.toList,
+        overlaps = overlapMarkers.toList
+      )
     }
   }
 

@@ -34,16 +34,15 @@ POST    /challenge                                  @org.maproulette.controllers
 # tags: [ Challenge ]
 # operationId: challenge_task_markers
 # summary: Retrieves Task Marker Data
-# description: Retrieves task marker data.
+# description: Retrieves task marker data with separate arrays for single markers and overlapping markers.
+#              Overlapping markers represent multiple tasks at the same location (within 0.1 meters).
 # responses:
 #   '200':
-#     description: The list of markers representing Tasks.
+#     description: Response containing separate arrays for single task markers and overlapping task markers.
 #     content:
 #       application/json:
 #         schema:
-#           type: array
-#           items:
-#             $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeTaskMarker'
+#           $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeTaskMarkersResponse'
 # parameters:
 #   - name: id
 #     in: path

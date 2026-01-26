@@ -10,16 +10,40 @@ import play.api.libs.json.JodaWrites._
 import play.api.libs.json.JodaReads._
 import org.maproulette.framework.model.TaskMarkerLocation
 
-case class ChallengeTaskMarker(
+case class SingleTaskMarker(
     id: Long,
     location: TaskMarkerLocation,
     status: Int,
     priority: Int
 )
 
-object ChallengeTaskMarker {
-  implicit val challengeTaskMarkerWrites: Writes[ChallengeTaskMarker] =
-    Json.writes[ChallengeTaskMarker]
-  implicit val challengeTaskMarkerReads: Reads[ChallengeTaskMarker] =
-    Json.reads[ChallengeTaskMarker]
+case class OverlapTaskMarker(
+    location: TaskMarkerLocation,
+    tasks: List[SingleTaskMarker]
+)
+
+case class ChallengeTaskMarkersResponse(
+    markers: List[SingleTaskMarker],
+    overlaps: List[OverlapTaskMarker]
+)
+
+object OverlapTaskMarker {
+  implicit val overlapTaskMarkerWrites: Writes[OverlapTaskMarker] =
+    Json.writes[OverlapTaskMarker]
+  implicit val overlapTaskMarkerReads: Reads[OverlapTaskMarker] =
+    Json.reads[OverlapTaskMarker]
+}
+
+object SingleTaskMarker {
+  implicit val singleTaskMarkerWrites: Writes[SingleTaskMarker] =
+    Json.writes[SingleTaskMarker]
+  implicit val singleTaskMarkerReads: Reads[SingleTaskMarker] =
+    Json.reads[SingleTaskMarker]
+}
+
+object ChallengeTaskMarkersResponse {
+  implicit val challengeTaskMarkersResponseWrites: Writes[ChallengeTaskMarkersResponse] =
+    Json.writes[ChallengeTaskMarkersResponse]
+  implicit val challengeTaskMarkersResponseReads: Reads[ChallengeTaskMarkersResponse] =
+    Json.reads[ChallengeTaskMarkersResponse]
 }
