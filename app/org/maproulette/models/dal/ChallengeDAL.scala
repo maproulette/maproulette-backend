@@ -1155,75 +1155,50 @@ class ChallengeDAL @Inject() (
       id: Long
   )(implicit c: Option[Connection] = None): ChallengeTaskMarkersResponse = {
     this.withMRConnection { implicit c =>
+      // Use PostGIS ST_ClusterDBSCAN for efficient overlap detection
+      // eps = 0.000001 degrees (~0.1 meters), minpoints = 1 to include all points
       val query =
-        s"""SELECT tasks.id, ST_AsGeoJSON(tasks.location) AS location, tasks.status, tasks.priority
-                      FROM tasks
-                      WHERE tasks.parent_id = $id"""
+        s"""SELECT
+              tasks.id,
+              ST_Y(tasks.location) as lat,
+              ST_X(tasks.location) as lng,
+              tasks.status,
+              tasks.priority,
+              ST_ClusterDBSCAN(tasks.location, eps := 0.000001, minpoints := 1) OVER () as cluster_id
+            FROM tasks
+            WHERE tasks.parent_id = $id"""
 
       val allTasks =
-        SQL(query).as((long("id") ~ str("location") ~ int("status") ~ int("priority")).map {
-          case taskId ~ location ~ status ~ priority =>
-            val locationJSON = Json.parse(location)
-            val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
-            (taskId, TaskMarkerLocation(coordinates(1), coordinates.head), status, priority)
-        }.*)
+        SQL(query).as(
+          (long("id") ~ double("lat") ~ double("lng") ~ int("status") ~ int("priority") ~ int(
+            "cluster_id"
+          )).map {
+            case taskId ~ lat ~ lng ~ status ~ priority ~ clusterId =>
+              (taskId, TaskMarkerLocation(lat, lng), status, priority, clusterId)
+          }.*
+        )
 
-      // Detect overlapping tasks (within 0.000001 degrees - roughly 0.1 meters)
-      val overlapThreshold = 0.000001
-      val processed        = scala.collection.mutable.Set[Long]()
-      val singleMarkers    = scala.collection.mutable.ListBuffer[SingleTaskMarker]()
-      val overlapMarkers   = scala.collection.mutable.ListBuffer[OverlapTaskMarker]()
+      // Group by cluster_id - O(n)
+      val clusters = allTasks.groupBy(_._5)
 
-      allTasks.foreach {
-        case (taskId, location, status, priority) =>
-          if (!processed.contains(taskId)) {
-            // Find all tasks at the same location (within threshold)
-            val overlapping = allTasks.filter {
-              case (otherId, otherLoc, _, _) =>
-                !processed.contains(otherId) && {
-                  val latDiff = math.abs(location.lat - otherLoc.lat)
-                  val lngDiff = math.abs(location.lng - otherLoc.lng)
-                  latDiff <= overlapThreshold && lngDiff <= overlapThreshold
-                }
-            }
+      val singleMarkers  = scala.collection.mutable.ListBuffer[SingleTaskMarker]()
+      val overlapMarkers = scala.collection.mutable.ListBuffer[OverlapTaskMarker]()
 
-            if (overlapping.length > 1) {
-              // Multiple tasks at same location - create overlap marker
-              val taskIds = overlapping.map(_._1).toList
-              taskIds.foreach(processed.add)
-
-              // Create SingleTaskMarker objects for each overlapping task
-              val overlappingTaskMarkers = overlapping.map {
-                case (tId, tLoc, tStatus, tPriority) =>
-                  SingleTaskMarker(
-                    id = tId,
-                    location = tLoc,
-                    status = tStatus,
-                    priority = tPriority
-                  )
-              }.toList
-
-              overlapMarkers += OverlapTaskMarker(
-                location = location,
-                tasks = overlappingTaskMarkers
-              )
-            } else {
-              // Single task - create regular marker
-              processed.add(taskId)
-              singleMarkers += SingleTaskMarker(
-                id = taskId,
-                location = location,
-                status = status,
-                priority = priority
-              )
-            }
-          }
+      clusters.values.foreach { clusterTasks =>
+        if (clusterTasks.length == 1) {
+          val (taskId, location, status, priority, _) = clusterTasks.head
+          singleMarkers += SingleTaskMarker(taskId, location, status, priority)
+        } else {
+          val location = clusterTasks.head._2
+          val overlappingTaskMarkers = clusterTasks.map {
+            case (tId, tLoc, tStatus, tPriority, _) =>
+              SingleTaskMarker(tId, tLoc, tStatus, tPriority)
+          }.toList
+          overlapMarkers += OverlapTaskMarker(location, overlappingTaskMarkers)
+        }
       }
 
-      ChallengeTaskMarkersResponse(
-        markers = singleMarkers.toList,
-        overlaps = overlapMarkers.toList
-      )
+      ChallengeTaskMarkersResponse(singleMarkers.toList, overlapMarkers.toList)
     }
   }
 
