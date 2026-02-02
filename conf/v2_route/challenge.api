@@ -1379,5 +1379,104 @@ POST     /challenge/:challengeId/archive   @org.maproulette.controllers.api.Chal
 #       default: 3
 ###
 GET     /challenge/:id/topTags                   @org.maproulette.controllers.api.ChallengeController.getTagMetrics(id:Long, limit:Int ?= 3)
+###
+# tags: [ Challenge Review ]
+# summary: Get personalized challenge recommendations
+# description: Returns challenges ranked by a relevance algorithm considering reviews, proximity, difficulty match, and activity.
+# responses:
+#   '200':
+#     description: List of recommended challenges with relevance scores
+# parameters:
+#   - name: lon
+#     in: query
+#     description: User longitude for proximity scoring
+#   - name: lat
+#     in: query
+#     description: User latitude for proximity scoring
+#   - name: difficulty
+#     in: query
+#     description: Preferred difficulty (easy, moderate, challenging)
+#   - name: limit
+#     in: query
+#     description: Number of results to return
+#   - name: offset
+#     in: query
+#     description: Paging offset
+###
+GET     /challenges/recommended                       @org.maproulette.framework.controller.ChallengeReviewController.getRecommended(lon:Option[Double], lat:Option[Double], difficulty:Option[String], limit:Int ?= 20, offset:Int ?= 0)
+###
+# tags: [ Challenge Review ]
+# summary: Submit or update a review for a challenge
+# description: Submits a star rating (1-5) with optional categorical feedback. One review per user per challenge.
+# responses:
+#   '201':
+#     description: The created or updated review
+#   '400':
+#     description: Invalid JSON payload
+#   '401':
+#     description: Unauthorized
+# parameters:
+#   - name: id
+#     in: path
+#     description: The ID of the challenge
+###
+POST    /challenge/:id/review                         @org.maproulette.framework.controller.ChallengeReviewController.submitReview(id:Long)
+###
+# tags: [ Challenge Review ]
+# summary: Remove user's review from a challenge
+# responses:
+#   '200':
+#     description: Review deleted
+# parameters:
+#   - name: id
+#     in: path
+#     description: The ID of the challenge
+###
+DELETE  /challenge/:id/review                         @org.maproulette.framework.controller.ChallengeReviewController.removeReview(id:Long)
+###
+# tags: [ Challenge Review ]
+# summary: Get user's review for a challenge
+# responses:
+#   '200':
+#     description: The user's review
+#   '404':
+#     description: No review found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The ID of the challenge
+###
+GET     /challenge/:id/review                         @org.maproulette.framework.controller.ChallengeReviewController.getUserReview(id:Long)
+###
+# tags: [ Challenge Review ]
+# summary: Get all reviews for a challenge
+# responses:
+#   '200':
+#     description: List of reviews
+# parameters:
+#   - name: id
+#     in: path
+#     description: The ID of the challenge
+#   - name: limit
+#     in: query
+#     description: Number of results to return. Default 10.
+#   - name: offset
+#     in: query
+#     description: Paging offset. Default 0.
+###
+GET     /challenge/:id/reviews                        @org.maproulette.framework.controller.ChallengeReviewController.getReviewsForChallenge(id:Long, limit:Int ?= 10, offset:Int ?= 0)
+###
+# tags: [ Challenge Review ]
+# summary: Get aggregate review summary for a challenge
+# description: Returns average rating, category averages, most common difficulty and estimated time.
+# responses:
+#   '200':
+#     description: Review summary with aggregate scores
+# parameters:
+#   - name: id
+#     in: path
+#     description: The ID of the challenge
+###
+GET     /challenge/:id/review/summary                 @org.maproulette.framework.controller.ChallengeReviewController.getReviewSummary(id:Long)
 ### NoDocs ###
 GET     /healthCheck                                 @org.maproulette.controllers.api.ChallengeController.healthCheck()
