@@ -14,7 +14,13 @@ import org.maproulette.framework.service.{
   NotificationService
 }
 import org.maproulette.framework.psql.Paging
-import org.maproulette.framework.model.{User, TaskMarker, TaskMarkerLocation, TaskMarkerResponse}
+import org.maproulette.framework.model.{
+  User,
+  TaskMarker,
+  TaskMarkerLocation,
+  TaskMarkerResponse,
+  OverlappingTaskMarker
+}
 import org.maproulette.framework.mixins.TaskJSONMixin
 import org.maproulette.session.{SessionManager, SearchParameters, SearchLocation}
 import play.api.mvc._
@@ -296,19 +302,22 @@ class TaskController @Inject() (
             )
           )
         } else {
-          val markers = this.taskClusterService.getTaskMarkersWithBoundingBox(
-            statusList,
-            global,
-            boundingBox,
-            location_id,
-            keywords,
-            difficulty
-          )
+          val (singleMarkers, overlappingMarkers) =
+            this.taskClusterService.getTaskMarkersWithOverlaps(
+              statusList,
+              global,
+              boundingBox,
+              location_id,
+              keywords,
+              difficulty
+            )
           Ok(
             Json.toJson(
               TaskMarkerResponse(
                 totalCount = taskCount,
-                tasks = Some(markers),
+                tasks = Some(singleMarkers),
+                overlappingTasks =
+                  if (overlappingMarkers.nonEmpty) Some(overlappingMarkers) else None,
                 clusters = None
               )
             )

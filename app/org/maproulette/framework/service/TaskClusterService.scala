@@ -197,6 +197,36 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
   }
 
   /**
+    * Retrieves task markers with bounding box filtering and overlap detection.
+    * Groups tasks that share the same location together.
+    *
+    * @param statuses List of task status filters
+    * @param global   Whether to include global challenges
+    * @param boundingBox   Search parameters including bounding box
+    * @param locationId Optional Nominatim place_id for polygon filtering
+    * @param keywords Optional comma-separated list of keywords to filter by
+    * @param difficulty Optional difficulty level to filter by
+    * @return Tuple of (single task markers, overlapping task markers)
+    */
+  def getTaskMarkersWithOverlaps(
+      statuses: List[Int],
+      global: Boolean,
+      boundingBox: SearchLocation,
+      locationId: Option[Long] = None,
+      keywords: Option[String] = None,
+      difficulty: Option[Int] = None
+  ): (List[TaskMarker], List[OverlappingTaskMarker]) = {
+    this.repository.queryTaskMarkersWithOverlaps(
+      statuses,
+      global,
+      boundingBox,
+      locationId,
+      keywords,
+      difficulty
+    )
+  }
+
+  /**
     * Retrieves clustered task markers
     *
     * @param statuses List of task status filters

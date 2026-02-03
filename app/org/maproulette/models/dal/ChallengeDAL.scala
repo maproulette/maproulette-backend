@@ -1164,35 +1164,48 @@ class ChallengeDAL @Inject() (
               ST_X(tasks.location) as lng,
               tasks.status,
               tasks.priority,
+              tasks.bundle_id,
+              l.user_id as locked_by,
               ST_ClusterDBSCAN(tasks.location, eps := 0.000001, minpoints := 1) OVER () as cluster_id
             FROM tasks
+            LEFT JOIN locked l ON l.item_id = tasks.id AND l.item_type = 2
             WHERE tasks.parent_id = $id"""
 
       val allTasks =
         SQL(query).as(
-          (long("id") ~ double("lat") ~ double("lng") ~ int("status") ~ int("priority") ~ int(
+          (long("id") ~ double("lat") ~ double("lng") ~ int("status") ~ int("priority") ~ get[
+            Option[Long]
+          ]("bundle_id") ~ get[Option[Long]]("locked_by") ~ int(
             "cluster_id"
           )).map {
-            case taskId ~ lat ~ lng ~ status ~ priority ~ clusterId =>
-              (taskId, TaskMarkerLocation(lat, lng), status, priority, clusterId)
+            case taskId ~ lat ~ lng ~ status ~ priority ~ bundleId ~ lockedBy ~ clusterId =>
+              (
+                taskId,
+                TaskMarkerLocation(lat, lng),
+                status,
+                priority,
+                bundleId,
+                lockedBy,
+                clusterId
+              )
           }.*
         )
 
       // Group by cluster_id - O(n)
-      val clusters = allTasks.groupBy(_._5)
+      val clusters = allTasks.groupBy(_._7)
 
       val singleMarkers  = scala.collection.mutable.ListBuffer[SingleTaskMarker]()
       val overlapMarkers = scala.collection.mutable.ListBuffer[OverlapTaskMarker]()
 
       clusters.values.foreach { clusterTasks =>
         if (clusterTasks.length == 1) {
-          val (taskId, location, status, priority, _) = clusterTasks.head
-          singleMarkers += SingleTaskMarker(taskId, location, status, priority)
+          val (taskId, location, status, priority, bundleId, lockedBy, _) = clusterTasks.head
+          singleMarkers += SingleTaskMarker(taskId, location, status, priority, bundleId, lockedBy)
         } else {
           val location = clusterTasks.head._2
           val overlappingTaskMarkers = clusterTasks.map {
-            case (tId, tLoc, tStatus, tPriority, _) =>
-              SingleTaskMarker(tId, tLoc, tStatus, tPriority)
+            case (tId, tLoc, tStatus, tPriority, tBundleId, tLockedBy, _) =>
+              SingleTaskMarker(tId, tLoc, tStatus, tPriority, tBundleId, tLockedBy)
           }.toList
           overlapMarkers += OverlapTaskMarker(location, overlappingTaskMarkers)
         }

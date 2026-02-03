@@ -14,7 +14,9 @@ case class SingleTaskMarker(
     id: Long,
     location: TaskMarkerLocation,
     status: Int,
-    priority: Int
+    priority: Int,
+    bundleId: Option[Long] = None,
+    lockedBy: Option[Long] = None
 )
 
 case class OverlapTaskMarker(
