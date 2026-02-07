@@ -348,6 +348,8 @@ object Config {
   val KEY_SCHEDULER_SNAPSHOT_CHALLENGES_INTERVAL =
     s"$SUB_GROUP_SCHEDULER.challengesSnapshot.interval"
   val KEY_SCHEDULER_SNAPSHOT_CHALLENGES_START = s"$SUB_GROUP_SCHEDULER.challengesSnapshot.startTime"
+  val KEY_SCHEDULER_TILE_REFRESH_INTERVAL     = s"$SUB_GROUP_SCHEDULER.tileRefresh.interval"
+  val KEY_SCHEDULER_TILE_REFRESH_BATCH_SIZE   = s"$SUB_GROUP_SCHEDULER.tileRefresh.batchSize"
 
   val KEY_MAPROULETTE_FRONTEND = s"$GROUP_MAPROULETTE.frontend"
   val SUB_GROUP_MAPILLARY      = s"$GROUP_MAPROULETTE.mapillary"
@@ -392,6 +394,7 @@ object Config {
   val DEFAULT_MR3_HOST                                = "/external"
   val DEFAULT_VIRTUAL_CHALLENGE_LIMIT                 = 100
   val DEFAULT_VIRTUAL_CHALLENGE_BATCH_SIZE            = 500
+  val DEFAULT_TILE_REFRESH_BATCH_SIZE                 = 1000
   val DEFAULT_VIRTUAL_CHALLENGE_EXPIRY                = "6 hours"
   val DEFAULT_CHANGESET_HOUR_LIMIT                    = "1 hour"
   val DEFAULT_CHANGESET_ENABLED                       = false

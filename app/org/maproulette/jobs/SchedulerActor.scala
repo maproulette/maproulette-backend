@@ -92,6 +92,8 @@ class SchedulerActor @Inject() (
       this.handleArchiveChallenges(action)
     case RunJob("updateChallengeCompletionMetrics", action) =>
       this.handleUpdateChallengeCompletionMetrics(action)
+    case RunJob("refreshTileAggregates", action) =>
+      this.refreshTileAggregates(action)
   }
 
   /**
@@ -875,6 +877,30 @@ class SchedulerActor @Inject() (
         // something went wrong, we should bail out immediately
         logger.warn(s"The KeepRight challenge creation failed. ${f.getMessage}")
     }
+  }
+
+  /**
+    * Processes the tile refresh queue to update pre-computed tile aggregates.
+    * Tiles are used for efficient map display of tasks at scale.
+    *
+    * @param action - action string
+    */
+  def refreshTileAggregates(action: String): Unit = {
+    val start = System.currentTimeMillis
+    logger.info(s"Scheduled Task '$action': Starting run")
+
+    val batchSize = appConfig
+      .getOptional[Int](Config.KEY_SCHEDULER_TILE_REFRESH_BATCH_SIZE)
+      .getOrElse(Config.DEFAULT_TILE_REFRESH_BATCH_SIZE)
+
+    val processed      = serviceManager.tileAggregate.processRefreshQueue(batchSize)
+    val queueRemaining = serviceManager.tileAggregate.getQueueSize()
+
+    val totalTime = System.currentTimeMillis - start
+    logger.info(
+      s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms. " +
+        s"Tiles processed: $processed. Queue remaining: $queueRemaining"
+    )
   }
 }
 
