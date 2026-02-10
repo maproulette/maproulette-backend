@@ -590,7 +590,10 @@ class TaskDAL @Inject() (
     }
 
     val reviewNeeded = requestReview match {
-      case Some(r) => r
+      case Some(r) =>
+        r && status != Task.STATUS_SKIPPED &&
+          status != Task.STATUS_DELETED &&
+          status != Task.STATUS_DISABLED
       case None =>
         user.settings.needsReview.getOrElse(config.defaultNeedsReview) != User.REVIEW_NOT_NEEDED &&
           status != Task.STATUS_SKIPPED &&
