@@ -37,4 +37,4 @@ COPY --from=builder --chown=1001:0 /MapRouletteAPI /MapRouletteAPI
 USER maproulette
 WORKDIR /MapRouletteAPI
 
-CMD /MapRouletteAPI/bin/maprouletteapi -Dhttp.port=80
+CMD ["/MapRouletteAPI/bin/maprouletteapi", "-Dhttp.port=80", "-Dpidfile.path=/dev/null"]
