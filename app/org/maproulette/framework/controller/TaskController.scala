@@ -327,6 +327,71 @@ class TaskController @Inject() (
     }
   }
 
+  /**
+    * Gets task data using pre-computed tile aggregates for efficient map display at scale.
+    * Uses a tile pyramid system with pre-computed counts broken down by difficulty × global.
+    *
+    * Behavior by filter:
+    * - difficulty & global: Filtered from pre-computed tile data (fast)
+    * - location_id: Recursive tile drilling until within polygon or < 2000 tasks
+    * - keywords: Falls back to dynamic query (challenge-level filter, not pre-computed)
+    *
+    * All fetched data is re-clustered into ~80 clusters for display.
+    * When total tasks < 2000, returns individual task markers instead of clusters.
+    *
+    * @param z           Zoom level (0-14 for pre-computed tiles)
+    * @param bounds      Comma-separated bounding box: left,bottom,right,top
+    * @param global      Whether to include global challenges
+    * @param location_id Optional Nominatim place_id for polygon filtering
+    * @param keywords    Optional keywords filter (triggers fallback to dynamic query)
+    * @param difficulty  Optional difficulty filter (1=Easy, 2=Normal, 3=Expert)
+    * @return TaskMarkerResponse with totalCount and either clusters or tasks (with overlaps)
+    */
+  def getTaskTiles(
+      z: Int,
+      bounds: String,
+      global: Boolean,
+      location_id: Option[Long],
+      keywords: Option[String],
+      difficulty: Option[Int]
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      // Clamp zoom to valid range
+      val validZoom = math.max(0, math.min(20, z))
+
+      // Only allow valid difficulty values (1, 2, 3)
+      val validDifficulty = difficulty.filter(d => d >= 1 && d <= 3)
+
+      // Parse and validate bounding box
+      val boundingBox = try {
+        bounds.split(",").map(_.trim.toDouble).toList match {
+          case List(left, bottom, right, top) =>
+            // Clamp coordinates to valid ranges
+            val clampedLeft   = math.max(-180.0, math.min(180.0, left))
+            val clampedRight  = math.max(-180.0, math.min(180.0, right))
+            val clampedBottom = math.max(-90.0, math.min(90.0, bottom))
+            val clampedTop    = math.max(-90.0, math.min(90.0, top))
+            SearchLocation(clampedLeft, clampedBottom, clampedRight, clampedTop)
+          case _ =>
+            SearchLocation(-180.0, -90.0, 180.0, 90.0)
+        }
+      } catch {
+        case _: NumberFormatException =>
+          SearchLocation(-180.0, -90.0, 180.0, 90.0)
+      }
+
+      val response = this.serviceManager.tileAggregate.getTileData(
+        validZoom,
+        boundingBox,
+        validDifficulty,
+        global,
+        location_id,
+        keywords
+      )
+      Ok(Json.toJson(response))
+    }
+  }
+
 // for getting more detailed task marker data on individul makrers
   // def getTaskMarkerData(id: Long): Action[AnyContent] = Action.async { implicit request =>
   //   this.sessionManager.userAwareRequest { implicit user =>

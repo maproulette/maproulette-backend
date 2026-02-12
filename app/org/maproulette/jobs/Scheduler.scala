@@ -115,6 +115,13 @@ class Scheduler @Inject() (
     Config.KEY_SCHEDULER_UPDATE_CHALLENGE_COMPLETION_INTERVAL
   )
 
+  schedule(
+    "refreshTileAggregates",
+    "Rebuilding tile aggregates",
+    1.minute,
+    Config.KEY_SCHEDULER_TILE_REFRESH_INTERVAL
+  )
+
   scheduleAtTime(
     "sendCountNotificationDailyEmails",
     "Sending Count Notification Daily Emails",

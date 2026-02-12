@@ -92,6 +92,8 @@ class SchedulerActor @Inject() (
       this.handleArchiveChallenges(action)
     case RunJob("updateChallengeCompletionMetrics", action) =>
       this.handleUpdateChallengeCompletionMetrics(action)
+    case RunJob("refreshTileAggregates", action) =>
+      this.refreshTileAggregates(action)
   }
 
   /**
@@ -875,6 +877,25 @@ class SchedulerActor @Inject() (
         // something went wrong, we should bail out immediately
         logger.warn(s"The KeepRight challenge creation failed. ${f.getMessage}")
     }
+  }
+
+  /**
+    * Rebuilds all pre-computed tile aggregates.
+    * Tiles are used for efficient map display of tasks at scale.
+    *
+    * @param action - action string
+    */
+  def refreshTileAggregates(action: String): Unit = {
+    val start = System.currentTimeMillis
+    logger.info(s"Scheduled Task '$action': Starting full tile rebuild")
+
+    val totalTiles = serviceManager.tileAggregate.rebuildAllTiles()
+
+    val totalTime = System.currentTimeMillis - start
+    logger.info(
+      s"Scheduled Task '$action': Finished run. Time spent: ${totalTime}ms. " +
+        s"Total tiles: $totalTiles"
+    )
   }
 }
 

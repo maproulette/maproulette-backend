@@ -47,6 +47,7 @@ class NominatimService @Inject() (wsClient: WSClient)(implicit ec: ExecutionCont
 
   /**
     * Fetches polygon geometry from Nominatim API (not cached)
+    * Note: Uses blocking call - consider using async version for high-throughput scenarios.
     *
     * @param placeId The Nominatim place_id
     * @return Option containing the WKT polygon string
@@ -57,6 +58,7 @@ class NominatimService @Inject() (wsClient: WSClient)(implicit ec: ExecutionCont
 
       val futureResponse = wsClient
         .url(url)
+        .withRequestTimeout(REQUEST_TIMEOUT)
         .addQueryStringParameters(
           "place_id"        -> placeId.toString,
           "format"          -> "json",
@@ -68,7 +70,7 @@ class NominatimService @Inject() (wsClient: WSClient)(implicit ec: ExecutionCont
         )
         .get()
 
-      val response = Await.result(futureResponse, REQUEST_TIMEOUT)
+      val response = Await.result(futureResponse, REQUEST_TIMEOUT + 1.second)
 
       if (response.status == 200) {
         val json = response.json
@@ -79,35 +81,54 @@ class NominatimService @Inject() (wsClient: WSClient)(implicit ec: ExecutionCont
             // Convert the GeoJSON geometry to a WKT string for PostGIS
             convertGeoJSONToWKT(geometry)
           case None =>
+           
             None
         }
       } else {
+       
         None
       }
     } catch {
-      case e: Exception =>
+      case _: java.util.concurrent.TimeoutException =>
+       
+        None
+      case _: Exception =>
+       
         None
     }
   }
 
   /**
-    * Converts a GeoJSON geometry object to WKT (Well-Known Text) format for PostGIS
+    * Converts a GeoJSON geometry object to WKT (Well-Known Text) format for PostGIS.
+    * Handles Polygon, MultiPolygon, Point, and LineString geometry types.
     *
     * @param geometry The GeoJSON geometry object
-    * @return Option containing the WKT string, or None if conversion fails
+    * @return Option containing the WKT string, or None if conversion fails or type unsupported
     */
   private def convertGeoJSONToWKT(geometry: JsObject): Option[String] = {
-    val geometryType = (geometry \ "type").asOpt[String]
-    val coordinates  = (geometry \ "coordinates").asOpt[JsArray]
+    try {
+      val geometryType = (geometry \ "type").asOpt[String]
+      val coordinates  = (geometry \ "coordinates").asOpt[JsArray]
 
-    (geometryType, coordinates) match {
-      case (Some("Polygon"), Some(coords)) =>
-        Some(polygonToWKT(coords))
-      case (Some("MultiPolygon"), Some(coords)) =>
-        Some(multiPolygonToWKT(coords))
-      case (Some("Point"), Some(coords)) =>
-        Some(pointToWKT(coords))
-      case _ =>
+      (geometryType, coordinates) match {
+        case (Some("Polygon"), Some(coords)) if coords.value.nonEmpty =>
+          Some(polygonToWKT(coords))
+        case (Some("MultiPolygon"), Some(coords)) if coords.value.nonEmpty =>
+          Some(multiPolygonToWKT(coords))
+        case (Some("Point"), Some(coords)) if coords.value.size >= 2 =>
+          Some(pointToWKT(coords))
+        case (Some("LineString"), Some(coords)) if coords.value.size >= 2 =>
+       
+       
+          None
+        case (Some("GeometryCollection"), _) =>
+       
+          None
+        case _ =>
+          None
+      }
+    } catch {
+      case _: Exception =>
         None
     }
   }

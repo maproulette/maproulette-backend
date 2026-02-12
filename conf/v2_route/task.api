@@ -678,6 +678,70 @@ PUT     /markers/box/:left/:bottom/:right/:top        @org.maproulette.framework
 GET     /taskMarkers        @org.maproulette.framework.controller.TaskController.getTaskMarkers(statuses: String, global:Boolean ?= false, cluster:Boolean ?= false, bounds: Option[String], location_id: Option[Long] ?= None, keywords:Option[String] ?= None, difficulty:Option[Int] ?= None)
 ###
 # tags: [ Task ]
+# operationId: task_get_task_tiles
+# summary: Get Task Tiles
+# description: |
+#   Returns pre-computed tile aggregates for efficient map display at scale.
+#   Only includes tasks with status 0 (Created), 3 (Skipped), or 6 (Too Hard).
+#   For >= 2000 tasks, returns clusters. For < 2000 tasks, returns individual markers.
+#
+#   Filter behavior:
+#   - difficulty & global: Filtered from pre-computed tile data (fast)
+#   - location_id: Queries tasks within polygon, clusters if > 2000
+#   - keywords: Falls back to dynamic query (not pre-computed)
+# responses:
+#   '200':
+#     description: Task markers with clusters and/or individual tasks (including overlaps)
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.TaskMarkerResponse'
+# parameters:
+#   - name: z
+#     in: path
+#     description: Zoom level (0-14 for pre-computed tiles)
+#     required: true
+#     schema:
+#       type: integer
+#       minimum: 0
+#       maximum: 20
+#   - name: bounds
+#     in: query
+#     description: Comma-separated bounding box coordinates (left,bottom,right,top)
+#     required: true
+#     schema:
+#       type: string
+#       example: "-122.5,37.5,-122.0,38.0"
+#   - name: global
+#     in: query
+#     description: Include global challenges (filtered from pre-computed data)
+#     required: false
+#     schema:
+#       type: boolean
+#       default: false
+#   - name: location_id
+#     in: query
+#     description: Nominatim place_id for polygon filtering
+#     required: false
+#     schema:
+#       type: integer
+#   - name: keywords
+#     in: query
+#     description: Comma-separated keywords to filter by (triggers dynamic query)
+#     required: false
+#     schema:
+#       type: string
+#   - name: difficulty
+#     in: query
+#     description: Filter by difficulty (filtered from pre-computed data)
+#     required: false
+#     schema:
+#       type: integer
+#       enum: [1, 2, 3]
+###
+GET     /taskTiles/:z       @org.maproulette.framework.controller.TaskController.getTaskTiles(z: Int, bounds: String, global: Boolean ?= false, location_id: Option[Long] ?= None, keywords: Option[String] ?= None, difficulty: Option[Int] ?= None)
+###
+# tags: [ Task ]
 # operationId: task_update_task_changeset
 # summary: Update Task Changeset
 # description: Will update the changeset of the task. It will do this by attempting to match the OSM changeset to the Task based on the geometry and the time that the changeset was executed.
