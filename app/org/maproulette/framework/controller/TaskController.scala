@@ -363,22 +363,23 @@ class TaskController @Inject() (
       val validDifficulty = difficulty.filter(d => d >= 1 && d <= 3)
 
       // Parse and validate bounding box
-      val boundingBox = try {
-        bounds.split(",").map(_.trim.toDouble).toList match {
-          case List(left, bottom, right, top) =>
-            // Clamp coordinates to valid ranges
-            val clampedLeft   = math.max(-180.0, math.min(180.0, left))
-            val clampedRight  = math.max(-180.0, math.min(180.0, right))
-            val clampedBottom = math.max(-90.0, math.min(90.0, bottom))
-            val clampedTop    = math.max(-90.0, math.min(90.0, top))
-            SearchLocation(clampedLeft, clampedBottom, clampedRight, clampedTop)
-          case _ =>
+      val boundingBox =
+        try {
+          bounds.split(",").map(_.trim.toDouble).toList match {
+            case List(left, bottom, right, top) =>
+              // Clamp coordinates to valid ranges
+              val clampedLeft   = math.max(-180.0, math.min(180.0, left))
+              val clampedRight  = math.max(-180.0, math.min(180.0, right))
+              val clampedBottom = math.max(-90.0, math.min(90.0, bottom))
+              val clampedTop    = math.max(-90.0, math.min(90.0, top))
+              SearchLocation(clampedLeft, clampedBottom, clampedRight, clampedTop)
+            case _ =>
+              SearchLocation(-180.0, -90.0, 180.0, 90.0)
+          }
+        } catch {
+          case _: NumberFormatException =>
             SearchLocation(-180.0, -90.0, 180.0, 90.0)
         }
-      } catch {
-        case _: NumberFormatException =>
-          SearchLocation(-180.0, -90.0, 180.0, 90.0)
-      }
 
       val response = this.serviceManager.tileAggregate.getTileData(
         validZoom,

@@ -11,7 +11,13 @@ import anorm._
 import anorm.SqlParser.{get, int, double}
 import anorm.postgresql._
 import javax.inject.{Inject, Singleton}
-import org.maproulette.framework.model.{TileTaskGroup, FilterCounts, TaskMarker, TaskMarkerLocation, ClusterPoint}
+import org.maproulette.framework.model.{
+  TileTaskGroup,
+  FilterCounts,
+  TaskMarker,
+  TaskMarkerLocation,
+  ClusterPoint
+}
 import org.maproulette.session.SearchLocation
 import play.api.db.Database
 import play.api.libs.json.Json
@@ -50,7 +56,18 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
           }
           .getOrElse(FilterCounts())
 
-        TileTaskGroup(id, z, x, y, groupType, centroidLat, centroidLng, taskIds, taskCount, filterCounts)
+        TileTaskGroup(
+          id,
+          z,
+          x,
+          y,
+          groupType,
+          centroidLat,
+          centroidLng,
+          taskIds,
+          taskCount,
+          filterCounts
+        )
     }
   }
 
@@ -91,10 +108,10 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
       if (bounds.left > bounds.right) {
         // Anti-meridian crossing
         val effectiveZoom = if (zoom < 14) zoom + ZOOM_OFFSET else zoom
-        val leftMinX  = lngToTileX(bounds.left, zoom)
-        val leftMaxX  = (1 << effectiveZoom) - 1
-        val rightMinX = 0
-        val rightMaxX = lngToTileX(bounds.right, zoom)
+        val leftMinX      = lngToTileX(bounds.left, zoom)
+        val leftMaxX      = (1 << effectiveZoom) - 1
+        val rightMinX     = 0
+        val rightMaxX     = lngToTileX(bounds.right, zoom)
 
         val leftGroups = SQL"""
           SELECT id, z, x, y, group_type, centroid_lat, centroid_lng,
@@ -277,11 +294,12 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
 
   def latToTileY(lat: Double, zoom: Int): Int = {
     val effectiveZoom = if (zoom < 14) zoom + ZOOM_OFFSET else zoom
-    val latClamped = math.max(-85.0511, math.min(85.0511, lat))
-    val latRad     = math.toRadians(latClamped)
+    val latClamped    = math.max(-85.0511, math.min(85.0511, lat))
+    val latRad        = math.toRadians(latClamped)
     math
       .floor(
-        (1.0 - math.log(math.tan(latRad) + 1.0 / math.cos(latRad)) / math.Pi) / 2.0 * (1 << effectiveZoom)
+        (1.0 - math
+          .log(math.tan(latRad) + 1.0 / math.cos(latRad)) / math.Pi) / 2.0 * (1 << effectiveZoom)
       )
       .toInt
   }
@@ -293,7 +311,7 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
 
   def tileToLat(y: Int, zoom: Int): Double = {
     val effectiveZoom = if (zoom < 14) zoom + ZOOM_OFFSET else zoom
-    val n = math.Pi - 2.0 * math.Pi * y.toDouble / (1 << effectiveZoom)
+    val n             = math.Pi - 2.0 * math.Pi * y.toDouble / (1 << effectiveZoom)
     math.toDegrees(math.atan(math.sinh(n)))
   }
 }

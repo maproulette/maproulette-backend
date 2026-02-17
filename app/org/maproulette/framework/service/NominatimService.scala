@@ -81,19 +81,16 @@ class NominatimService @Inject() (wsClient: WSClient)(implicit ec: ExecutionCont
             // Convert the GeoJSON geometry to a WKT string for PostGIS
             convertGeoJSONToWKT(geometry)
           case None =>
-           
             None
         }
       } else {
-       
+
         None
       }
     } catch {
       case _: java.util.concurrent.TimeoutException =>
-       
         None
       case _: Exception =>
-       
         None
     }
   }
@@ -118,11 +115,8 @@ class NominatimService @Inject() (wsClient: WSClient)(implicit ec: ExecutionCont
         case (Some("Point"), Some(coords)) if coords.value.size >= 2 =>
           Some(pointToWKT(coords))
         case (Some("LineString"), Some(coords)) if coords.value.size >= 2 =>
-       
-       
           None
         case (Some("GeometryCollection"), _) =>
-       
           None
         case _ =>
           None
