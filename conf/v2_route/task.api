@@ -742,6 +742,15 @@ GET     /taskMarkers        @org.maproulette.framework.controller.TaskController
 GET     /taskTiles/:z       @org.maproulette.framework.controller.TaskController.getTaskTiles(z: Int, bounds: String, global: Boolean ?= false, location_id: Option[Long] ?= None, keywords: Option[String] ?= None, difficulty: Option[Int] ?= None)
 ###
 # tags: [ Task ]
+# summary: Get Task Tile Data by Coordinates
+# description: Returns task data for a specific tile (z/x/y). Used for zoom 14+ where individual tiles can be cached.
+# responses:
+#   '200':
+#     description: Task marker response for the tile
+###
+GET     /taskTile/:z/:x/:y  @org.maproulette.framework.controller.TaskController.getTaskTile(z: Int, x: Int, y: Int, global: Boolean ?= false, difficulty: Option[Int] ?= None)
+###
+# tags: [ Task ]
 # operationId: task_update_task_changeset
 # summary: Update Task Changeset
 # description: Will update the changeset of the task. It will do this by attempting to match the OSM changeset to the Task based on the geometry and the time that the changeset was executed.

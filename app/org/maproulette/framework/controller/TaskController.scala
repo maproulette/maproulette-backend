@@ -393,6 +393,39 @@ class TaskController @Inject() (
     }
   }
 
+  /**
+    * Get task data for a specific tile (z/x/y).
+    * Used for zoom 14+ where frontend requests individual tiles for caching.
+    *
+    * @param z          Zoom level
+    * @param x          Tile X coordinate
+    * @param y          Tile Y coordinate
+    * @param global     Include global challenges
+    * @param difficulty Optional difficulty filter (1=Easy, 2=Normal, 3=Expert)
+    * @return TaskMarkerResponse with tasks for this tile
+    */
+  def getTaskTile(
+      z: Int,
+      x: Int,
+      y: Int,
+      global: Boolean,
+      difficulty: Option[Int]
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      val validZoom       = math.max(0, math.min(22, z))
+      val validDifficulty = difficulty.filter(d => d >= 1 && d <= 3)
+
+      val response = this.serviceManager.tileAggregate.getTileDataByCoords(
+        validZoom,
+        x,
+        y,
+        validDifficulty,
+        global
+      )
+      Ok(Json.toJson(response))
+    }
+  }
+
 // for getting more detailed task marker data on individul makrers
   // def getTaskMarkerData(id: Long): Action[AnyContent] = Action.async { implicit request =>
   //   this.sessionManager.userAwareRequest { implicit user =>

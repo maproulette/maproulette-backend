@@ -152,6 +152,26 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
   }
 
   /**
+    * Get pre-computed task groups for a specific tile (z, x, y).
+    * Used for zoom 14+ where frontend requests individual tiles for caching.
+    */
+  def getTaskGroupsByTile(
+      z: Int,
+      x: Int,
+      y: Int
+  )(implicit c: Option[Connection] = None): List[TileTaskGroup] = {
+    this.withMRConnection { implicit c =>
+      SQL"""
+        SELECT id, z, x, y, group_type, centroid_lat, centroid_lng,
+               task_ids, task_count, counts_by_filter::text as counts_by_filter
+        FROM tile_task_groups
+        WHERE z = $z AND x = $x AND y = $y
+          AND task_count > 0
+      """.as(tileTaskGroupParser.*)
+    }
+  }
+
+  /**
     * Get pre-computed task groups within a polygon at a specific zoom level.
     * Filters groups whose centroids fall within the polygon.
     */

@@ -223,6 +223,44 @@ class TileAggregateService @Inject() (
   }
 
   /**
+    * Get tile data for a specific tile (z, x, y).
+    * Used for zoom 14+ where frontend requests individual tiles for caching.
+    */
+  def getTileDataByCoords(
+      z: Int,
+      x: Int,
+      y: Int,
+      difficulty: Option[Int] = None,
+      global: Boolean = false
+  ): TaskMarkerResponse = {
+    // For zoom > 14, convert tile coords to zoom 14 and query that tile
+    // Zoom 16 has 4x the tiles per dimension as zoom 14, so divide by 2^(z-14)
+    val (queryZoom, queryX, queryY) = if (z > MAX_PRECOMPUTED_ZOOM) {
+      val zoomDiff = z - MAX_PRECOMPUTED_ZOOM
+      val scale = 1 << zoomDiff  // 2^zoomDiff
+      (MAX_PRECOMPUTED_ZOOM, x / scale, y / scale)
+    } else {
+      (z, x, y)
+    }
+
+    val taskGroups = repository.getTaskGroupsByTile(queryZoom, queryX, queryY)
+
+    // Apply difficulty/global filters
+    val filteredGroups = taskGroups.flatMap { group =>
+      val filteredCount = group.getFilteredCount(difficulty, global)
+      if (filteredCount > 0) Some((group, filteredCount)) else None
+    }
+
+    val totalCount = filteredGroups.map(_._2).sum
+
+    if (totalCount == 0) {
+      return TaskMarkerResponse(totalCount = 0)
+    }
+
+    returnMixedResponse(filteredGroups, totalCount)
+  }
+
+  /**
     * Full rebuild of a specific zoom level
     */
   def rebuildZoomLevel(zoom: Int): Int = {
