@@ -90,8 +90,9 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
 
       if (bounds.left > bounds.right) {
         // Anti-meridian crossing
+        val effectiveZoom = if (zoom < 14) zoom + ZOOM_OFFSET else zoom
         val leftMinX  = lngToTileX(bounds.left, zoom)
-        val leftMaxX  = (1 << zoom) - 1
+        val leftMaxX  = (1 << effectiveZoom) - 1
         val rightMinX = 0
         val rightMaxX = lngToTileX(bounds.right, zoom)
 
@@ -263,27 +264,36 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
     }
   }
 
+  // Offset for tile coordinate calculations (zoom 0 uses zoom 2 grid, etc.)
+  // Must match the offset in rebuild_zoom_level() SQL function
+  private val ZOOM_OFFSET = 2
+
   // Web Mercator coordinate conversion functions
+  // For zoom 0-13, we use effectiveZoom = zoom + ZOOM_OFFSET for more granular tiles
   def lngToTileX(lng: Double, zoom: Int): Int = {
-    math.floor((lng + 180.0) / 360.0 * (1 << zoom)).toInt
+    val effectiveZoom = if (zoom < 14) zoom + ZOOM_OFFSET else zoom
+    math.floor((lng + 180.0) / 360.0 * (1 << effectiveZoom)).toInt
   }
 
   def latToTileY(lat: Double, zoom: Int): Int = {
+    val effectiveZoom = if (zoom < 14) zoom + ZOOM_OFFSET else zoom
     val latClamped = math.max(-85.0511, math.min(85.0511, lat))
     val latRad     = math.toRadians(latClamped)
     math
       .floor(
-        (1.0 - math.log(math.tan(latRad) + 1.0 / math.cos(latRad)) / math.Pi) / 2.0 * (1 << zoom)
+        (1.0 - math.log(math.tan(latRad) + 1.0 / math.cos(latRad)) / math.Pi) / 2.0 * (1 << effectiveZoom)
       )
       .toInt
   }
 
   def tileToLng(x: Int, zoom: Int): Double = {
-    x.toDouble / (1 << zoom) * 360.0 - 180.0
+    val effectiveZoom = if (zoom < 14) zoom + ZOOM_OFFSET else zoom
+    x.toDouble / (1 << effectiveZoom) * 360.0 - 180.0
   }
 
   def tileToLat(y: Int, zoom: Int): Double = {
-    val n = math.Pi - 2.0 * math.Pi * y.toDouble / (1 << zoom)
+    val effectiveZoom = if (zoom < 14) zoom + ZOOM_OFFSET else zoom
+    val n = math.Pi - 2.0 * math.Pi * y.toDouble / (1 << effectiveZoom)
     math.toDegrees(math.atan(math.sinh(n)))
   }
 }

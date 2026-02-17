@@ -41,7 +41,10 @@ DECLARE
     groups_created INTEGER;;
     start_time TIMESTAMP;;
     deleted_count INTEGER;;
+    effective_zoom INTEGER;;
 BEGIN
+    -- Offset zoom by +2 for tile calculations (zoom 0 uses zoom 2 grid, etc.)
+    effective_zoom := p_zoom + 2;;
     start_time := clock_timestamp();;
     RAISE NOTICE 'Zoom %: Starting rebuild...', p_zoom;;
 
@@ -121,13 +124,13 @@ BEGIN
                 t.id as task_id,
                 ST_Y(t.location) as lat,
                 ST_X(t.location) as lng,
-                lng_to_tile_x(ST_X(t.location), p_zoom) as tile_x,
-                lat_to_tile_y(ST_Y(t.location), p_zoom) as tile_y,
+                lng_to_tile_x(ST_X(t.location), effective_zoom) as tile_x,
+                lat_to_tile_y(ST_Y(t.location), effective_zoom) as tile_y,
                 COALESCE(c.difficulty, 0) as difficulty,
                 COALESCE(c.is_global, false) as is_global,
                 -- Detect overlaps within the tile (~0.1 meter precision)
                 ST_ClusterDBSCAN(t.location, eps := 0.000001, minpoints := 1) OVER (
-                    PARTITION BY lng_to_tile_x(ST_X(t.location), p_zoom), lat_to_tile_y(ST_Y(t.location), p_zoom)
+                    PARTITION BY lng_to_tile_x(ST_X(t.location), effective_zoom), lat_to_tile_y(ST_Y(t.location), effective_zoom)
                 ) as overlap_cluster_id
             FROM tasks t
             INNER JOIN challenges c ON c.id = t.parent_id
