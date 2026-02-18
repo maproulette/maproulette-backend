@@ -237,7 +237,7 @@ class TileAggregateService @Inject() (
     // Zoom 16 has 4x the tiles per dimension as zoom 14, so divide by 2^(z-14)
     val (queryZoom, queryX, queryY) = if (z > MAX_PRECOMPUTED_ZOOM) {
       val zoomDiff = z - MAX_PRECOMPUTED_ZOOM
-      val scale = 1 << zoomDiff  // 2^zoomDiff
+      val scale    = 1 << zoomDiff // 2^zoomDiff
       (MAX_PRECOMPUTED_ZOOM, x / scale, y / scale)
     } else {
       (z, x, y)
