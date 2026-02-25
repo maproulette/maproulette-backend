@@ -46,52 +46,82 @@ class NominatimService @Inject() (wsClient: WSClient)(implicit ec: ExecutionCont
   }
 
   /**
-    * Fetches polygon geometry from Nominatim API (not cached)
-    * Note: Uses blocking call - consider using async version for high-throughput scenarios.
+    * Fetches polygon geometry from Nominatim API using a two-step lookup (not cached).
+    *
+    * Step 1: Call /details to get the osm_type and osm_id for the place_id
+    * Step 2: Call /lookup with the osm_ids to get the actual polygon geometry
+    *
+    * This two-step approach is necessary because the /details endpoint's polygon_geojson
+    * can return incorrect geometry (e.g. a building instead of the searched region),
+    * while /lookup reliably returns the correct polygon for the OSM object.
     *
     * @param placeId The Nominatim place_id
     * @return Option containing the WKT polygon string
     */
   private def fetchFromNominatim(placeId: Long): Option[String] = {
     try {
-      val url = s"$NOMINATIM_BASE_URL/details.php"
+      // Step 1: Get osm_type and osm_id from /details
+      val detailsResponse = Await.result(
+        wsClient
+          .url(s"$NOMINATIM_BASE_URL/details.php")
+          .withRequestTimeout(REQUEST_TIMEOUT)
+          .addQueryStringParameters(
+            "place_id"    -> placeId.toString,
+            "format"      -> "json",
+            "addressdetails" -> "0"
+          )
+          .addHttpHeaders("User-Agent" -> "MapRoulette/1.0")
+          .get(),
+        REQUEST_TIMEOUT + 1.second
+      )
 
-      val futureResponse = wsClient
-        .url(url)
-        .withRequestTimeout(REQUEST_TIMEOUT)
-        .addQueryStringParameters(
-          "place_id"        -> placeId.toString,
-          "format"          -> "json",
-          "polygon_geojson" -> "1",
-          "addressdetails"  -> "0"
-        )
-        .addHttpHeaders(
-          "User-Agent" -> "MapRoulette/1.0"
-        )
-        .get()
+      if (detailsResponse.status != 200) return None
 
-      val response = Await.result(futureResponse, REQUEST_TIMEOUT + 1.second)
+      val detailsJson = detailsResponse.json
+      val osmType = (detailsJson \ "osm_type").asOpt[String]
+      val osmId   = (detailsJson \ "osm_id").asOpt[Long]
 
-      if (response.status == 200) {
-        val json = response.json
+      (osmType, osmId) match {
+        case (Some(ot), Some(oid)) =>
+          // Build OSM ID prefix: N for node, W for way, R for relation
+          val prefix = ot match {
+            case "node"     => "N"
+            case "way"      => "W"
+            case "relation" => "R"
+            case _          => return None
+          }
 
-        // Extract the geometry from the response
-        (json \ "geometry").asOpt[JsObject] match {
-          case Some(geometry) =>
-            // Convert the GeoJSON geometry to a WKT string for PostGIS
-            convertGeoJSONToWKT(geometry)
-          case None =>
-            None
-        }
-      } else {
+          // Step 2: Get polygon geometry from /lookup
+          val lookupResponse = Await.result(
+            wsClient
+              .url(s"$NOMINATIM_BASE_URL/lookup")
+              .withRequestTimeout(REQUEST_TIMEOUT)
+              .addQueryStringParameters(
+                "osm_ids"         -> s"$prefix$oid",
+                "format"          -> "json",
+                "polygon_geojson" -> "1"
+              )
+              .addHttpHeaders("User-Agent" -> "MapRoulette/1.0")
+              .get(),
+            REQUEST_TIMEOUT + 1.second
+          )
 
-        None
+          if (lookupResponse.status != 200) return None
+
+          val lookupJson = lookupResponse.json.as[JsArray]
+          if (lookupJson.value.isEmpty) return None
+
+          val place = lookupJson.value.head
+          (place \ "geojson").asOpt[JsObject] match {
+            case Some(geometry) => convertGeoJSONToWKT(geometry)
+            case None           => None
+          }
+
+        case _ => None
       }
     } catch {
-      case _: java.util.concurrent.TimeoutException =>
-        None
-      case _: Exception =>
-        None
+      case _: java.util.concurrent.TimeoutException => None
+      case _: Exception                             => None
     }
   }
 

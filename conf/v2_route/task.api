@@ -751,6 +751,48 @@ GET     /taskTiles/:z       @org.maproulette.framework.controller.TaskController
 GET     /taskTile/:z/:x/:y  @org.maproulette.framework.controller.TaskController.getTaskTile(z: Int, x: Int, y: Int, global: Boolean ?= false, difficulty: Option[Int] ?= None)
 ###
 # tags: [ Task ]
+# summary: Get Task Tiles as MVT
+# description: Returns a Mapbox Vector Tile (MVT) for the given tile coordinates. Features include group_type (0=single, 1=overlap, 2=cluster), task_count, and task properties for singles.
+# responses:
+#   '200':
+#     description: Binary MVT data
+#     content:
+#       application/vnd.mapbox-vector-tile:
+#         schema:
+#           type: string
+#           format: binary
+# parameters:
+#   - name: z
+#     in: path
+#     required: true
+#     schema:
+#       type: integer
+#   - name: x
+#     in: path
+#     required: true
+#     schema:
+#       type: integer
+#   - name: y
+#     in: path
+#     required: true
+#     schema:
+#       type: integer
+#   - name: global
+#     in: query
+#     required: false
+#     schema:
+#       type: boolean
+#       default: false
+#   - name: difficulty
+#     in: query
+#     required: false
+#     schema:
+#       type: integer
+#       enum: [1, 2, 3]
+###
+GET     /taskTilesMvt/:z/:x/:y  @org.maproulette.framework.controller.TaskController.getTaskTilesMvt(z: Int, x: Int, y: Int, global: Boolean ?= false, difficulty: Option[Int] ?= None, keywords: Option[String] ?= None, location_id: Option[Long] ?= None)
+###
+# tags: [ Task ]
 # operationId: task_update_task_changeset
 # summary: Update Task Changeset
 # description: Will update the changeset of the task. It will do this by attempting to match the OSM changeset to the Task based on the geometry and the time that the changeset was executed.

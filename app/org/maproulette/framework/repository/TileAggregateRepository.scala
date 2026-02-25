@@ -282,6 +282,220 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
   }
 
   /**
+    * Get MVT (Mapbox Vector Tile) binary for a specific tile.
+    * Uses PostGIS ST_AsMVT to encode features directly in the database.
+    *
+    * @param z          Standard zoom level (0-22, but MapLibre maxzoom=14)
+    * @param x          Standard tile X coordinate
+    * @param y          Standard tile Y coordinate
+    * @param difficulty Optional difficulty filter
+    * @param global     Whether to include global challenges
+    * @return MVT binary data (empty array if no features)
+    */
+  def getMvtTile(
+      z: Int,
+      x: Int,
+      y: Int,
+      difficulty: Option[Int] = None,
+      global: Boolean = false
+  )(implicit c: Option[Connection] = None): Array[Byte] = {
+    this.withMRConnection { implicit c =>
+      // Map standard z/x/y to tile_task_groups coordinates
+      // Zoom 0-13: DB uses effective_zoom (z+2) for x/y coordinates
+      // Zoom 14: direct mapping
+      val (queryZ, queryMinX, queryMaxX, queryMinY, queryMaxY) = if (z < 14) {
+        val factor = 1 << ZOOM_OFFSET // 4
+        (z, x * factor, (x + 1) * factor - 1, y * factor, (y + 1) * factor - 1)
+      } else {
+        (14, x, x, y, y)
+      }
+
+      // Compute tile bounds in Web Mercator (SRID 3857) for MVT geometry clipping
+      val (xMin3857, yMin3857, xMax3857, yMax3857) = tileBounds3857(z, x, y)
+
+      // Build filtered count SQL expression from difficulty/global params
+      // SQL SAFETY: buildFilterCountKeys returns hardcoded string literals only
+      val countKeys        = buildFilterCountKeys(difficulty, global)
+      val filteredCountExpr = countKeys
+        .map(k => s"COALESCE((ttg.counts_by_filter->>'$k')::int, 0)")
+        .mkString(" + ")
+
+      SQL"""
+        SELECT COALESCE(ST_AsMVT(tile, 'default', 4096, 'geom'), ''::bytea) AS mvt
+        FROM (
+          SELECT
+            ST_AsMVTGeom(
+              ST_Transform(ST_SetSRID(ST_MakePoint(ttg.centroid_lng, ttg.centroid_lat), 4326), 3857),
+              ST_MakeEnvelope($xMin3857, $yMin3857, $xMax3857, $yMax3857, 3857),
+              4096, 64, true
+            ) AS geom,
+            ttg.group_type,
+            (#$filteredCountExpr) as task_count,
+            CASE WHEN ttg.group_type = 0 THEN ttg.task_ids[1] ELSE NULL END as id,
+            CASE WHEN ttg.group_type = 0 THEN t.status ELSE NULL END as status,
+            CASE WHEN ttg.group_type = 0 THEN t.priority ELSE NULL END as priority,
+            CASE WHEN ttg.group_type = 1 THEN array_to_string(ttg.task_ids, ',') ELSE NULL END as task_ids_str
+          FROM tile_task_groups ttg
+          LEFT JOIN tasks t ON ttg.group_type = 0 AND t.id = ttg.task_ids[1]
+          WHERE ttg.z = $queryZ
+            AND ttg.x >= $queryMinX AND ttg.x <= $queryMaxX
+            AND ttg.y >= $queryMinY AND ttg.y <= $queryMaxY
+            AND ttg.task_count > 0
+            AND (#$filteredCountExpr) > 0
+        ) AS tile
+      """.as(get[Array[Byte]]("mvt").single)
+    }
+  }
+
+  /**
+    * Get MVT binary for a specific tile using a dynamic SQL query.
+    * Used when keyword or location filters are active (cannot use pre-computed tiles).
+    * Includes overlap detection via ST_ClusterDBSCAN.
+    *
+    * @param z           Standard zoom level (14+)
+    * @param x           Standard tile X coordinate
+    * @param y           Standard tile Y coordinate
+    * @param difficulty  Optional difficulty filter
+    * @param global      Whether to include global challenges
+    * @param keywords    Optional comma-separated keywords to filter by
+    * @param polygonWkt  Optional WKT polygon for location filtering
+    * @return MVT binary data (empty array if no features)
+    */
+  def getMvtTileFiltered(
+      z: Int,
+      x: Int,
+      y: Int,
+      difficulty: Option[Int] = None,
+      global: Boolean = false,
+      keywords: Option[String] = None,
+      polygonWkt: Option[String] = None
+  )(implicit c: Option[Connection] = None): Array[Byte] = {
+    this.withMRConnection { implicit c =>
+      val (xMin3857, yMin3857, xMax3857, yMax3857) = tileBounds3857(z, x, y)
+
+      // Build dynamic filter clauses
+      // SQL SAFETY: All #$ interpolated values are built from validated inputs (hardcoded strings or validated ints)
+      val keywordJoins = keywords
+        .filter(_.trim.nonEmpty)
+        .map(_ =>
+          "INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id " +
+            "INNER JOIN tags tags_table ON toc.tag_id = tags_table.id"
+        )
+        .getOrElse("")
+
+      val keywordFilter = keywords
+        .filter(_.trim.nonEmpty)
+        .map { kws =>
+          val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
+          if (keywordList.nonEmpty) {
+            val conditions = keywordList.map(kw => s"LOWER(tags_table.name) = '$kw'").mkString(" OR ")
+            s"AND ($conditions)"
+          } else ""
+        }
+        .getOrElse("")
+
+      val difficultyFilter = difficulty.map(d => s"AND c.difficulty = $d").getOrElse("")
+      val globalFilter     = if (!global) "AND c.is_global = false" else ""
+      val polygonFilter = polygonWkt
+        .map(wkt => s"AND ST_Intersects(tasks.location, ST_GeomFromText('$wkt', 4326))")
+        .getOrElse("")
+
+      val query = s"""
+        WITH filtered_tasks AS (
+          SELECT DISTINCT
+            tasks.id,
+            tasks.location,
+            tasks.status,
+            tasks.priority
+          FROM tasks
+          INNER JOIN challenges c ON c.id = tasks.parent_id
+          INNER JOIN projects p ON p.id = c.parent_id
+          $keywordJoins
+          WHERE tasks.location && ST_Transform(ST_MakeEnvelope($xMin3857, $yMin3857, $xMax3857, $yMax3857, 3857), 4326)
+            AND tasks.status IN (0, 3, 6)
+            AND c.deleted = false AND c.enabled = true AND c.is_archived = false
+            AND p.deleted = false AND p.enabled = true
+            $globalFilter
+            $keywordFilter
+            $difficultyFilter
+            $polygonFilter
+        ),
+        clustered AS (
+          SELECT
+            *,
+            ST_ClusterDBSCAN(location, eps := 0.000001, minpoints := 1) OVER () as cluster_id
+          FROM filtered_tasks
+        ),
+        grouped AS (
+          SELECT
+            cluster_id,
+            COUNT(*) as task_count,
+            CASE WHEN COUNT(*) = 1 THEN 0 ELSE 1 END as group_type,
+            CASE WHEN COUNT(*) = 1 THEN (ARRAY_AGG(id))[1] ELSE NULL END as single_id,
+            CASE WHEN COUNT(*) = 1 THEN (ARRAY_AGG(status))[1] ELSE NULL END as single_status,
+            CASE WHEN COUNT(*) = 1 THEN (ARRAY_AGG(priority))[1] ELSE NULL END as single_priority,
+            CASE WHEN COUNT(*) > 1 THEN array_to_string(ARRAY_AGG(id), ',') ELSE NULL END as task_ids_str,
+            ST_Y(ST_Centroid(ST_Collect(location))) as lat,
+            ST_X(ST_Centroid(ST_Collect(location))) as lng
+          FROM clustered
+          GROUP BY cluster_id
+        )
+        SELECT COALESCE(ST_AsMVT(tile, 'default', 4096, 'geom'), ''::bytea) AS mvt
+        FROM (
+          SELECT
+            ST_AsMVTGeom(
+              ST_Transform(ST_SetSRID(ST_MakePoint(lng, lat), 4326), 3857),
+              ST_MakeEnvelope($xMin3857, $yMin3857, $xMax3857, $yMax3857, 3857),
+              4096, 64, true
+            ) AS geom,
+            group_type,
+            task_count::int as task_count,
+            single_id as id,
+            single_status as status,
+            single_priority as priority,
+            task_ids_str
+          FROM grouped
+        ) AS tile
+      """
+
+      SQL(query).as(get[Array[Byte]]("mvt").single)
+    }
+  }
+
+  /**
+    * Build list of counts_by_filter JSONB keys to sum for the given filters.
+    * Returns hardcoded string values only (safe for SQL interpolation).
+    */
+  private def buildFilterCountKeys(difficulty: Option[Int], global: Boolean): List[String] = {
+    val difficulties = difficulty match {
+      case Some(d) if d >= 1 && d <= 3 => List(s"d$d")
+      case _                           => List("d1", "d2", "d3", "d0")
+    }
+    val globals = if (global) List("gf", "gt") else List("gf")
+    for {
+      d <- difficulties
+      g <- globals
+    } yield s"${d}_${g}"
+  }
+
+  // Web Mercator world extent in meters (half of total extent)
+  private val WEB_MERCATOR_EXTENT = 20037508.342789244
+
+  /**
+    * Compute tile bounds in Web Mercator (SRID 3857) for standard z/x/y.
+    * Returns (xMin, yMin, xMax, yMax) in meters.
+    */
+  private def tileBounds3857(z: Int, x: Int, y: Int): (Double, Double, Double, Double) = {
+    val worldSize = WEB_MERCATOR_EXTENT * 2
+    val tileSize  = worldSize / (1 << z)
+    val xMin      = -WEB_MERCATOR_EXTENT + x * tileSize
+    val xMax      = -WEB_MERCATOR_EXTENT + (x + 1) * tileSize
+    val yMax      = WEB_MERCATOR_EXTENT - y * tileSize
+    val yMin      = WEB_MERCATOR_EXTENT - (y + 1) * tileSize
+    (xMin, yMin, xMax, yMax)
+  }
+
+  /**
     * Rebuild a specific zoom level with overlap detection
     */
   def rebuildZoomLevel(zoom: Int)(implicit c: Option[Connection] = None): Int = {

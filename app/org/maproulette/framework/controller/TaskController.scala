@@ -426,13 +426,42 @@ class TaskController @Inject() (
     }
   }
 
-// for getting more detailed task marker data on individul makrers
-  // def getTaskMarkerData(id: Long): Action[AnyContent] = Action.async { implicit request =>
-  //   this.sessionManager.userAwareRequest { implicit user =>
-  //     val task = this.taskService.getTask(id)
-  //     Ok(Json.toJson(task))
-  //   }
-  // }
+  /**
+    * Get MVT (Mapbox Vector Tile) for a specific tile.
+    * Returns binary protobuf data for use with MapLibre vector tile sources.
+    *
+    * @param z          Zoom level (0-14, MapLibre handles overzooming for 15+)
+    * @param x          Tile X coordinate
+    * @param y          Tile Y coordinate
+    * @param global     Include global challenges
+    * @param difficulty Optional difficulty filter (1=Easy, 2=Normal, 3=Expert)
+    * @return Binary MVT data
+    */
+  def getTaskTilesMvt(
+      z: Int,
+      x: Int,
+      y: Int,
+      global: Boolean,
+      difficulty: Option[Int],
+      keywords: Option[String],
+      location_id: Option[Long]
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      val validZoom       = math.max(0, math.min(22, z))
+      val validDifficulty = difficulty.filter(d => d >= 1 && d <= 3)
+
+      val mvtBytes = this.serviceManager.tileAggregate.getMvtTile(
+        validZoom,
+        x,
+        y,
+        validDifficulty,
+        global,
+        keywords,
+        location_id
+      )
+      Ok(mvtBytes).as("application/vnd.mapbox-vector-tile")
+    }
+  }
 
   /**
     * Updates the completion responses asked in the task instructions. Request

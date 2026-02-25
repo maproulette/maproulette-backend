@@ -63,8 +63,16 @@ class TileAggregateService @Inject() (
       keywords: Option[String] = None
   ): TaskMarkerResponse = {
 
+    val hasKeywords = keywords.exists(_.trim.nonEmpty)
+    val hasLocation = locationId.isDefined
+
+    // Keywords and location filters require zoom 14+ (too expensive at low zoom)
+    if ((hasKeywords || hasLocation) && zoom < MAX_PRECOMPUTED_ZOOM) {
+      return TaskMarkerResponse(totalCount = 0)
+    }
+
     // Keywords filter requires fallback (challenge-level filter, not pre-computed)
-    if (keywords.exists(_.trim.nonEmpty)) {
+    if (hasKeywords) {
       return getFallbackData(bounds, difficulty, global, locationId, keywords)
     }
 
@@ -258,6 +266,51 @@ class TileAggregateService @Inject() (
     }
 
     returnMixedResponse(filteredGroups, totalCount)
+  }
+
+  /**
+    * Get MVT (Mapbox Vector Tile) binary for a specific tile.
+    * Handles all filtering logic in one place:
+    *   - No keywords/location: use pre-computed tiles (fast)
+    *   - Keywords/location at zoom < 14: return empty MVT (frontend shows zoom notice)
+    *   - Keywords/location at zoom 14+: dynamic SQL query with ST_AsMVT
+    *
+    * @param z          Standard zoom level (0-22)
+    * @param x          Standard tile X coordinate
+    * @param y          Standard tile Y coordinate
+    * @param difficulty Optional difficulty filter
+    * @param global     Whether to include global challenges
+    * @param keywords   Optional comma-separated keywords (triggers dynamic query)
+    * @param locationId Optional Nominatim place_id for polygon filtering
+    * @return MVT binary data
+    */
+  def getMvtTile(
+      z: Int,
+      x: Int,
+      y: Int,
+      difficulty: Option[Int] = None,
+      global: Boolean = false,
+      keywords: Option[String] = None,
+      locationId: Option[Long] = None
+  ): Array[Byte] = {
+    val hasKeywords = keywords.exists(_.trim.nonEmpty)
+    val hasLocation = locationId.isDefined
+    val hasAdvancedFilters = hasKeywords || hasLocation
+
+    // Advanced filters require zoom 14+
+    if (hasAdvancedFilters && z < MAX_PRECOMPUTED_ZOOM) {
+      return Array.empty[Byte]
+    }
+
+    if (hasAdvancedFilters) {
+      // Dynamic query path: filter tasks live and encode as MVT
+      val polygonWkt = locationId.flatMap(id => nominatimService.getPolygonByPlaceId(id))
+      repository.getMvtTileFiltered(z, x, y, difficulty, global, keywords, polygonWkt)
+    } else {
+      // Pre-computed tile path (fast)
+      val clampedZoom = math.max(0, math.min(z, MAX_PRECOMPUTED_ZOOM))
+      repository.getMvtTile(clampedZoom, x, y, difficulty, global)
+    }
   }
 
   /**
