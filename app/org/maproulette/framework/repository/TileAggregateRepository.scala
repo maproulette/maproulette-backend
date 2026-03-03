@@ -315,7 +315,7 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
 
       // Build filtered count SQL expression from difficulty/global params
       // SQL SAFETY: buildFilterCountKeys returns hardcoded string literals only
-      val countKeys        = buildFilterCountKeys(difficulty, global)
+      val countKeys = buildFilterCountKeys(difficulty, global)
       val filteredCountExpr = countKeys
         .map(k => s"COALESCE((ttg.counts_by_filter->>'$k')::int, 0)")
         .mkString(" + ")
@@ -388,7 +388,8 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
         .map { kws =>
           val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
           if (keywordList.nonEmpty) {
-            val conditions = keywordList.map(kw => s"LOWER(tags_table.name) = '$kw'").mkString(" OR ")
+            val conditions =
+              keywordList.map(kw => s"LOWER(tags_table.name) = '$kw'").mkString(" OR ")
             s"AND ($conditions)"
           } else ""
         }

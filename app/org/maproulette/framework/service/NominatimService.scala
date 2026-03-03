@@ -66,8 +66,8 @@ class NominatimService @Inject() (wsClient: WSClient)(implicit ec: ExecutionCont
           .url(s"$NOMINATIM_BASE_URL/details.php")
           .withRequestTimeout(REQUEST_TIMEOUT)
           .addQueryStringParameters(
-            "place_id"    -> placeId.toString,
-            "format"      -> "json",
+            "place_id"       -> placeId.toString,
+            "format"         -> "json",
             "addressdetails" -> "0"
           )
           .addHttpHeaders("User-Agent" -> "MapRoulette/1.0")
@@ -78,8 +78,8 @@ class NominatimService @Inject() (wsClient: WSClient)(implicit ec: ExecutionCont
       if (detailsResponse.status != 200) return None
 
       val detailsJson = detailsResponse.json
-      val osmType = (detailsJson \ "osm_type").asOpt[String]
-      val osmId   = (detailsJson \ "osm_id").asOpt[Long]
+      val osmType     = (detailsJson \ "osm_type").asOpt[String]
+      val osmId       = (detailsJson \ "osm_id").asOpt[Long]
 
       (osmType, osmId) match {
         case (Some(ot), Some(oid)) =>
