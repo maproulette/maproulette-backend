@@ -9,7 +9,7 @@ import java.sql.Connection
 
 import anorm.~
 import anorm._
-import anorm.SqlParser.{double, get, int, long, str}
+import anorm.SqlParser.{get, int, str}
 import javax.inject.{Inject, Singleton}
 import org.maproulette.session.{SearchParameters, SearchLocation}
 import org.maproulette.framework.psql.{Query, Order, Paging}
