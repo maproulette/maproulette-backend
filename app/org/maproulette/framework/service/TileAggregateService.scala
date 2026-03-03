@@ -6,22 +6,8 @@
 package org.maproulette.framework.service
 
 import javax.inject.{Inject, Singleton}
-import org.maproulette.framework.model.{
-  TaskMarker,
-  TaskMarkerLocation,
-  TileTaskGroup,
-  ClusterPoint,
-  TaskMarkerResponse,
-  TaskClusterSummary,
-  OverlappingTaskMarker,
-  Point
-}
 import org.maproulette.framework.repository.{TileAggregateRepository, TaskClusterRepository}
-import org.maproulette.session.SearchLocation
 import org.slf4j.LoggerFactory
-import play.api.libs.json.Json
-
-import scala.collection.mutable.ListBuffer
 
 /**
   * Service layer for tile-based task aggregation.

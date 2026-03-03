@@ -8,7 +8,7 @@ package org.maproulette.framework.service
 import javax.inject.{Inject, Singleton}
 import play.api.libs.json._
 import play.api.libs.ws.WSClient
-import scala.concurrent.{ExecutionContext, Future, Await}
+import scala.concurrent.{ExecutionContext, Await}
 import scala.concurrent.duration._
 import scala.collection.concurrent.TrieMap
 
