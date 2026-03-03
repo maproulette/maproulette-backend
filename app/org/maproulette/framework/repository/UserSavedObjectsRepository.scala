@@ -11,14 +11,7 @@ import anorm.SqlParser._
 import org.joda.time.DateTime
 
 import javax.inject.{Inject, Singleton}
-import org.maproulette.framework.model.{
-  Challenge,
-  ChallengeLike,
-  LockedTaskData,
-  SavedChallenge,
-  SavedTasks,
-  Task
-}
+import org.maproulette.framework.model.{Challenge, LockedTaskData, SavedChallenge, SavedTasks, Task}
 import org.maproulette.framework.psql.filter.{
   BaseParameter,
   FilterParameter,

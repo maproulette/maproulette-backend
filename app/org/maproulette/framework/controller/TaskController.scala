@@ -14,13 +14,7 @@ import org.maproulette.framework.service.{
   NotificationService
 }
 import org.maproulette.framework.psql.Paging
-import org.maproulette.framework.model.{
-  User,
-  TaskMarker,
-  TaskMarkerLocation,
-  TaskMarkerResponse,
-  OverlappingTaskMarker
-}
+import org.maproulette.framework.model.{User, TaskMarkerResponse}
 import org.maproulette.framework.mixins.TaskJSONMixin
 import org.maproulette.session.{SessionManager, SearchParameters, SearchLocation}
 import play.api.mvc._

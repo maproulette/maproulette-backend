@@ -8,8 +8,7 @@ package org.maproulette.framework.repository
 import java.sql.Connection
 
 import anorm._
-import anorm.SqlParser.{get, int, double}
-import anorm.postgresql._
+import anorm.SqlParser.get
 import javax.inject.{Inject, Singleton}
 import org.maproulette.framework.model.{
   TileTaskGroup,
