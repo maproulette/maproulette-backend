@@ -408,6 +408,7 @@ DELETE  /task/:id                                   @org.maproulette.controllers
 #     description: Flag to set if only want to see Tasks from enabled Challenges returned. Default value is true.
 ###
 GET     /tasks/find                                 @org.maproulette.controllers.api.TaskController.find(q:String ?= "", parentId:Long ?= -1, limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= true)
+GET     /tasks/search                               @org.maproulette.controllers.api.TaskController.search(q:String, limit:Int ?= 25)
 ###
 # tags: [ Task ]
 # operationId: task_retrieve_tags_for_task

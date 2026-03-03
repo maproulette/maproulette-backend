@@ -257,29 +257,31 @@ class ProjectService @Inject() (
           .on("id" -> searchLong.get)
           .as(parser.*)
       } else if (search.nonEmpty) {
-        SQL("""SELECT * FROM projects 
-              WHERE LOWER(name) LIKE LOWER({search}) 
+        SQL("""SELECT * FROM projects
+              WHERE LOWER(name) LIKE LOWER({search})
               OR LOWER(display_name) LIKE LOWER({search})
-              OR (name <> '' AND (
-                LEVENSHTEIN(LOWER(LEFT(name, 255)), LOWER({exact})) < 3 OR
-                METAPHONE(LOWER(LEFT(name, 255)), 4) = METAPHONE(LOWER({exact}), 4) OR
-                SOUNDEX(LOWER(name)) = SOUNDEX(LOWER({exact}))
+              OR (name <> '' AND octet_length(LEFT(name, 255)) <= 255 AND octet_length({exact}) <= 255 AND (
+                LEVENSHTEIN(LOWER(LEFT(name, 255)), LOWER(LEFT({exact}, 255))) < 3 OR
+                METAPHONE(LOWER(LEFT(name, 255)), 4) = METAPHONE(LOWER(LEFT({exact}, 255)), 4)
               ))
-              OR (display_name <> '' AND (
-                LEVENSHTEIN(LOWER(LEFT(display_name, 255)), LOWER({exact})) < 3 OR
-                METAPHONE(LOWER(LEFT(display_name, 255)), 4) = METAPHONE(LOWER({exact}), 4) OR
-                SOUNDEX(LOWER(display_name)) = SOUNDEX(LOWER({exact}))
+              OR (name <> '' AND SOUNDEX(LOWER(name)) = SOUNDEX(LOWER({exact})))
+              OR (display_name <> '' AND octet_length(LEFT(display_name, 255)) <= 255 AND octet_length({exact}) <= 255 AND (
+                LEVENSHTEIN(LOWER(LEFT(display_name, 255)), LOWER(LEFT({exact}, 255))) < 3 OR
+                METAPHONE(LOWER(LEFT(display_name, 255)), 4) = METAPHONE(LOWER(LEFT({exact}, 255)), 4)
               ))
-              ORDER BY 
-                CASE 
+              OR (display_name <> '' AND SOUNDEX(LOWER(display_name)) = SOUNDEX(LOWER({exact})))
+              ORDER BY
+                CASE
                   WHEN LOWER(name) = LOWER({exact}) OR LOWER(display_name) = LOWER({exact}) THEN 0
                   WHEN LOWER(name) LIKE LOWER({prefix}) OR LOWER(display_name) LIKE LOWER({prefix}) THEN 1
                   WHEN LOWER(name) LIKE LOWER({search}) OR LOWER(display_name) LIKE LOWER({search}) THEN 2
                   ELSE LEAST(
-                    CASE WHEN name <> '' THEN LEVENSHTEIN(LOWER(LEFT(name, 255)), LOWER({exact})) ELSE 999 END,
-                    CASE WHEN display_name <> '' THEN LEVENSHTEIN(LOWER(LEFT(display_name, 255)), LOWER({exact})) ELSE 999 END
+                    CASE WHEN name <> '' AND octet_length(LEFT(name, 255)) <= 255 AND octet_length({exact}) <= 255
+                         THEN LEVENSHTEIN(LOWER(LEFT(name, 255)), LOWER(LEFT({exact}, 255))) ELSE 999 END,
+                    CASE WHEN display_name <> '' AND octet_length(LEFT(display_name, 255)) <= 255 AND octet_length({exact}) <= 255
+                         THEN LEVENSHTEIN(LOWER(LEFT(display_name, 255)), LOWER(LEFT({exact}, 255))) ELSE 999 END
                   ) + 3
-                END ASC, 
+                END ASC,
                 name ASC""")
           .on(
             "search" -> searchPattern,

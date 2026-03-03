@@ -1266,22 +1266,25 @@ class ChallengeDAL @Inject() (
       } else if (search.nonEmpty) {
         SQL(s"""SELECT ${this.retrieveColumns} FROM challenges c
                INNER JOIN projects p ON p.id = c.parent_id
-               WHERE c.deleted = false AND p.deleted = false 
+               WHERE c.deleted = false AND p.deleted = false
                AND (
                  LOWER(c.name) LIKE LOWER({search})
+                 OR (c.name <> '' AND octet_length(LEFT(c.name, 255)) <= 255 AND octet_length({exact}) <= 255 AND (
+                   LEVENSHTEIN(LOWER(LEFT(c.name, 255)), LOWER(LEFT({exact}, 255))) < 3 OR
+                   METAPHONE(LOWER(LEFT(c.name, 255)), 4) = METAPHONE(LOWER(LEFT({exact}, 255)), 4)
+                 ))
                  OR (c.name <> '' AND (
-                   LEVENSHTEIN(LOWER(LEFT(c.name, 255)), LOWER({exact})) < 3 OR
-                   METAPHONE(LOWER(LEFT(c.name, 255)), 4) = METAPHONE(LOWER({exact}), 4) OR
                    SOUNDEX(LOWER(c.name)) = SOUNDEX(LOWER({exact}))
                  ))
                )
-               ORDER BY 
-                 CASE 
+               ORDER BY
+                 CASE
                    WHEN LOWER(c.name) = LOWER({exact}) THEN 0
                    WHEN LOWER(c.name) LIKE LOWER({prefix}) THEN 1
                    WHEN LOWER(c.name) LIKE LOWER({search}) THEN 2
-                   ELSE CASE WHEN c.name <> '' THEN LEVENSHTEIN(LOWER(LEFT(c.name, 255)), LOWER({exact})) ELSE 999 END + 3
-                 END ASC, 
+                   ELSE CASE WHEN c.name <> '' AND octet_length(LEFT(c.name, 255)) <= 255 AND octet_length({exact}) <= 255
+                        THEN LEVENSHTEIN(LOWER(LEFT(c.name, 255)), LOWER(LEFT({exact}, 255))) ELSE 999 END + 3
+                 END ASC,
                  c.name ASC""")
           .on(
             "search" -> searchPattern,

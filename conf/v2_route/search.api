@@ -1,0 +1,16 @@
+###
+# tags: [ Search ]
+# summary: Unified search across projects, challenges, and tasks by name
+# responses:
+#   '200':
+#     description: Search results grouped by type
+###
+GET     /search                                     @org.maproulette.framework.controller.SearchController.search(q:String, limit:Int ?= 25)
+###
+# tags: [ Search ]
+# summary: Look up a project, challenge, and task by ID
+# responses:
+#   '200':
+#     description: Matching items by ID
+###
+GET     /search/byId                                @org.maproulette.framework.controller.SearchController.searchById(id:Long)

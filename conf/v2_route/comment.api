@@ -79,6 +79,32 @@ GET     /task/:id/comments                          @org.maproulette.framework.c
 GET     /comments/user/:id                          @org.maproulette.framework.controller.CommentController.findUserComments(id:Long, searchTerm:Option[String], sort:String ?= "created", order:String ?= "DESC", limit:Int ?= 25, page:Int ?= 0)
 ###
 # tags: [ Comment ]
+# operationId: comment_search_task_comments
+# summary: Search task comments
+# description: Searches all task comments by a text search term
+# responses:
+#   '200':
+#     description: A list of matching task comments
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Comment'
+# parameters:
+#   - name: q
+#     in: query
+#     description: The search term to match against comment text
+#   - name: limit
+#     in: query
+#     description: The maximum number of comments to return (default is 25)
+#   - name: page
+#     in: query
+#     description: The page number for pagination (default is 0)
+###
+GET     /comments/search                            @org.maproulette.framework.controller.CommentController.searchComments(q:String, limit:Int ?= 25, page:Int ?= 0)
+###
+# tags: [ Comment ]
 # operationId: comment_retrieves_comments_sent_by_user_id
 # summary: Retrieves comments sent by a User
 # produces: [ application/json ]
@@ -114,6 +140,32 @@ GET     /comments/user/:id                          @org.maproulette.framework.c
 #     description: The page number for pagination (default is 0)
 ###
 GET     /challengeComments/user/:id                          @org.maproulette.framework.controller.CommentController.findUserChallengeComments(id:Long, searchTerm:Option[String], sort:String ?= "created", order:String ?= "DESC", limit:Int ?= 25, page:Int ?= 0)
+###
+# tags: [ Comment ]
+# operationId: comment_search_challenge_comments
+# summary: Search challenge comments
+# description: Searches all challenge comments by a text search term
+# responses:
+#   '200':
+#     description: A list of matching challenge comments
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeComment'
+# parameters:
+#   - name: q
+#     in: query
+#     description: The search term to match against comment text
+#   - name: limit
+#     in: query
+#     description: The maximum number of comments to return (default is 25)
+#   - name: page
+#     in: query
+#     description: The page number for pagination (default is 0)
+###
+GET     /challengeComments/search                   @org.maproulette.framework.controller.CommentController.searchChallengeComments(q:String, limit:Int ?= 25, page:Int ?= 0)
 ###
 # tags: [ Comment ]
 # operationId: comment_adds_comment_to_task

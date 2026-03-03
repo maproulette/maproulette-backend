@@ -99,6 +99,45 @@ class ChallengeCommentRepository @Inject() (override val db: Database) extends R
   }
 
   /**
+    * Searches all challenge comments by a search term
+    *
+    * @param searchTerm The term to search within the comments
+    * @param limit The maximum number of comments to return
+    * @param page The page number for pagination
+    * @return A list of matching ChallengeComments
+    */
+  def searchComments(
+      searchTerm: String,
+      limit: Int = 25,
+      page: Int = 0
+  )(implicit c: Option[Connection] = None): List[ChallengeComment] = {
+    withMRConnection { implicit c =>
+      val searchFilter =
+        if (searchTerm.nonEmpty) "WHERE c.comment ILIKE {searchTerm}"
+        else ""
+      val query =
+        s"""
+        SELECT c.id, c.project_id, c.challenge_id, c.created, c.comment, c.osm_id,
+        u.name, u.avatar_url
+        FROM challenge_comments c
+        INNER JOIN users AS u ON c.osm_id = u.osm_id
+        $searchFilter
+        ORDER BY c.created DESC
+        LIMIT {limit}
+        OFFSET {offset}
+        """
+
+      SQL(query)
+        .on(
+          "searchTerm" -> s"%$searchTerm%",
+          "limit"      -> limit,
+          "offset"     -> (limit * page).toLong
+        )
+        .as(ChallengeCommentRepository.parser.*)
+    }
+  }
+
+  /**
     * Add comment to a challenge
     *
     * @param user     The user adding the comment

@@ -1510,6 +1510,58 @@ class TaskDAL @Inject() (
       isBundlePrimary: Option[Boolean]
   )
 
+  /**
+    * Searches for tasks by name using ILIKE. Returns lightweight JSON results
+    * (no geometry data) for performance on large task tables.
+    *
+    * @param searchString The string to search for in task names
+    * @param limit The maximum number of results to return
+    * @return A list of JsObjects with task id, name, status, and parent challenge info
+    */
+  def search(
+      searchString: String,
+      limit: Int = 25
+  )(implicit c: Option[Connection] = None): List[JsObject] = {
+    if (searchString.isEmpty) {
+      List.empty
+    } else {
+      this.withMRConnection { implicit c =>
+        val searchPattern = s"%${searchString.replace("'", "''")}%"
+        val query =
+          """SELECT t.id, t.name, t.status, t.parent_id,
+                    c.name AS challenge_name
+             FROM tasks t
+             INNER JOIN challenges c ON c.id = t.parent_id
+             INNER JOIN projects p ON p.id = c.parent_id
+             WHERE c.deleted = false AND p.deleted = false
+             AND t.name ILIKE {search}
+             ORDER BY t.name ASC
+             LIMIT {limit}"""
+        SQL(query)
+          .on(
+            "search" -> searchPattern,
+            "limit"  -> limit
+          )
+          .as(
+            (get[Long]("id") ~
+              get[String]("name") ~
+              get[Option[Int]]("status") ~
+              get[Long]("parent_id") ~
+              get[String]("challenge_name")).map {
+              case id ~ name ~ status ~ parentId ~ challengeName =>
+                Json.obj(
+                  "id"            -> id,
+                  "name"          -> name,
+                  "status"        -> status,
+                  "parent"        -> parentId,
+                  "challengeName" -> challengeName
+                )
+            }.*
+          )
+      }
+    }
+  }
+
 }
 
 object TaskDAL {

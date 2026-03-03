@@ -103,6 +103,46 @@ class CommentRepository @Inject() (override val db: Database) extends Repository
   }
 
   /**
+    * Searches all task comments by a search term
+    *
+    * @param searchTerm The term to search within the comments
+    * @param limit The maximum number of comments to return
+    * @param page The page number for pagination
+    * @return A list of matching Comments
+    */
+  def searchComments(
+      searchTerm: String,
+      limit: Int = 25,
+      page: Int = 0
+  )(implicit c: Option[Connection] = None): List[Comment] = {
+    withMRConnection { implicit c =>
+      val searchFilter =
+        if (searchTerm.nonEmpty) "WHERE task_comments.comment ILIKE {searchTerm}"
+        else ""
+      val query =
+        s"""
+        SELECT task_comments.id, task_comments.osm_id, users.name, users.avatar_url,
+        task_comments.task_id, task_comments.challenge_id, task_comments.project_id,
+        task_comments.created, task_comments.comment, task_comments.action_id, task_comments.edited
+        FROM task_comments
+        INNER JOIN users ON users.osm_id = task_comments.osm_id
+        $searchFilter
+        ORDER BY task_comments.created DESC
+        LIMIT {limit}
+        OFFSET {offset}
+        """
+
+      SQL(query)
+        .on(
+          "searchTerm" -> s"%$searchTerm%",
+          "limit"      -> limit,
+          "offset"     -> (limit * page).toLong
+        )
+        .as(CommentRepository.parser.*)
+    }
+  }
+
+  /**
     * Add comment to a task
     *
     * @param user     The user adding the comment

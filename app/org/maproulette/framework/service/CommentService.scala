@@ -247,6 +247,38 @@ class CommentService @Inject() (
   }
 
   /**
+    * Searches all task comments by a search term
+    *
+    * @param searchTerm The term to search within the comments
+    * @param limit The maximum number of comments to return
+    * @param page The page number for pagination
+    * @return a list of matching comments
+    */
+  def searchComments(
+      searchTerm: String,
+      limit: Int = 25,
+      page: Int = 0
+  ): List[Comment] = {
+    this.repository.searchComments(searchTerm, limit, page)
+  }
+
+  /**
+    * Searches all challenge comments by a search term
+    *
+    * @param searchTerm The term to search within the comments
+    * @param limit The maximum number of comments to return
+    * @param page The page number for pagination
+    * @return a list of matching challenge comments
+    */
+  def searchChallengeComments(
+      searchTerm: String,
+      limit: Int = 25,
+      page: Int = 0
+  ): List[ChallengeComment] = {
+    this.challengeCommentRepository.searchComments(searchTerm, limit, page)
+  }
+
+  /**
     * Retrieves the comments based on the input criteria
     *
     * @param projectIdList Filter by any projects in the project id list

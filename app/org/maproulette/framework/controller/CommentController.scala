@@ -125,6 +125,42 @@ class CommentController @Inject() (
   }
 
   /**
+    * Searches all task comments by a search term
+    *
+    * @param q The search term
+    * @param limit The maximum number of comments to return
+    * @param page The page number for pagination
+    * @return A list of matching comments
+    */
+  def searchComments(
+      q: String,
+      limit: Int = 25,
+      page: Int = 0
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      Ok(Json.toJson(this.commentService.searchComments(q, limit, page)))
+    }
+  }
+
+  /**
+    * Searches all challenge comments by a search term
+    *
+    * @param q The search term
+    * @param limit The maximum number of comments to return
+    * @param page The page number for pagination
+    * @return A list of matching challenge comments
+    */
+  def searchChallengeComments(
+      q: String,
+      limit: Int = 25,
+      page: Int = 0
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      Ok(Json.toJson(this.commentService.searchChallengeComments(q, limit, page)))
+    }
+  }
+
+  /**
     * Adds a comment for a specific task
     *
     * @param taskId   The id for a task

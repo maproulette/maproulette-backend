@@ -835,4 +835,14 @@ class TaskController @Inject() (
       this.addTagstoItem(taskId, tagList.map(new Tag(-1, _, tagType = this.dal.tableName)), user)
     }
   }
+
+  def search(
+      search: String,
+      limit: Int = 25
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      val results = this.dal.search(search, limit)
+      Ok(Json.toJson(results))
+    }
+  }
 }
