@@ -118,7 +118,7 @@ class Scheduler @Inject() (
   schedule(
     "refreshTileAggregates",
     "Rebuilding tile aggregates",
-    1.hour,
+    1.minute,
     Config.KEY_SCHEDULER_TILE_REFRESH_INTERVAL
   )
 
