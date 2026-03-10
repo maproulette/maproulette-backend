@@ -812,7 +812,7 @@ class ChallengeDAL @Inject() (
 
           val datasetUrl = (updates \ "datasetUrl")
             .asOpt[String]
-            .getOrElse(cachedItem.extra.datasetUrl)
+            .orElse(cachedItem.extra.datasetUrl)
 
           val requireConfirmation = (updates \ "requireConfirmation")
             .asOpt[Boolean]
@@ -871,7 +871,7 @@ class ChallengeDAL @Inject() (
                   custom_basemap = $customBasemap, updatetasks = $updateTasks, exportable_properties = $exportableProperties,
                   osm_id_property = $osmIdProperty, task_bundle_id_property = $taskBundleIdProperty, preferred_tags = $preferredTags, preferred_review_tags = $preferredReviewTags,
                   limit_tags = $limitTags, limit_review_tags = $limitReviewTags, task_styles = $taskStyles,
-                  requires_local = $requiresLocal, is_archived = $isArchived, review_setting = $reviewSetting, task_widget_layout = ${asJson(
+                  requires_local = $requiresLocal, is_archived = $isArchived, review_setting = $reviewSetting, dataset_url = $datasetUrl, task_widget_layout = ${asJson(
               taskWidgetLayout
             )}
                 WHERE id = $id RETURNING #${this.retrieveColumns}""".as(parser.*).headOption
