@@ -72,6 +72,14 @@ class LeaderboardService @Inject() (
         ),
         CustomParameter("users.id = task_review_history.reviewed_by"),
         CustomParameter("tasks.id = task_review_history.task_id"),
+        BaseParameter(
+          "leaderboard_opt_out",
+          None,
+          Operator.BOOL,
+          negate = true,
+          useValueDirectly = true,
+          table = Some("users")
+        ),
         FilterParameter.conditional(
           "parent_id",
           challengeList.getOrElse(List()).mkString(","),
@@ -213,6 +221,14 @@ class LeaderboardService @Inject() (
             Operator.NULL,
             useValueDirectly = true,
             table = Some("utc")
+          ),
+          BaseParameter(
+            "leaderboard_opt_out",
+            None,
+            Operator.BOOL,
+            negate = true,
+            useValueDirectly = true,
+            table = Some("u")
           )
         ),
         paging = Paging(limit, offset),
@@ -280,6 +296,14 @@ class LeaderboardService @Inject() (
             Operator.NULL,
             useValueDirectly = true,
             table = Some("utc")
+          ),
+          BaseParameter(
+            "leaderboard_opt_out",
+            None,
+            Operator.BOOL,
+            negate = true,
+            useValueDirectly = true,
+            table = Some("u")
           )
         )
       )
@@ -338,6 +362,14 @@ class LeaderboardService @Inject() (
             Operator.NULL,
             useValueDirectly = true,
             table = Some("utc")
+          ),
+          BaseParameter(
+            "leaderboard_opt_out",
+            None,
+            Operator.BOOL,
+            negate = true,
+            useValueDirectly = true,
+            table = Some("u")
           )
         ),
         grouping = Grouping(
