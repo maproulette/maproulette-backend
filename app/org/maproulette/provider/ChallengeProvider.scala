@@ -59,6 +59,13 @@ class ChallengeProvider @Inject() (
         }
 
         this.buildOverpassQLTasks(challenge, user)
+      }.recover {
+        case e: Exception =>
+          logger.error(s"Failed to build overpass tasks for challenge ${challenge.id}", e)
+          this.challengeDAL.update(
+            Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> e.getMessage),
+            user
+          )(challenge.id)
       }
       true
     } else {
@@ -111,6 +118,13 @@ class ChallengeProvider @Inject() (
             Future {
               this.challengeDAL.updateTaskPriorities(user)(challenge.id)
             }
+          }.recover {
+            case e: Exception =>
+              logger.error(s"Failed to build tasks from JSON for challenge ${challenge.id}", e)
+              this.challengeDAL.update(
+                Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> e.getMessage),
+                user
+              )(challenge.id)
           }
           true
         case _ => false
