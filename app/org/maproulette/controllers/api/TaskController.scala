@@ -756,24 +756,35 @@ class TaskController @Inject() (
                 )
                 p success Ok(Json.toJson(true))
               case _ =>
-                None
-                changeService.submitOsmChange(
-                  change,
-                  element.comment,
-                  user.osmProfile.requestToken,
-                  Some(taskId)
-                ) onComplete {
-                  case Success(res) => {
-                    this.customTaskStatus(
-                      taskId,
-                      TaskStatusSet(Task.STATUS_FIXED),
-                      user,
-                      tags,
-                      requestReview
-                    )
-                    p success Ok(res)
-                  }
-                  case Failure(f) => p failure f
+                // Get the parent challenge to retrieve the changeset source
+                this.dal.retrieveById(taskId) match {
+                  case Some(task) =>
+                    val challengeSource = this.dalManager.challenge
+                      .retrieveById(task.parent)
+                      .map(_.general.checkinSource)
+                      .getOrElse("")
+
+                    changeService.submitOsmChange(
+                      change,
+                      element.comment,
+                      user.osmProfile.requestToken,
+                      Some(taskId),
+                      Some(challengeSource)
+                    ) onComplete {
+                      case Success(res) => {
+                        this.customTaskStatus(
+                          taskId,
+                          TaskStatusSet(Task.STATUS_FIXED),
+                          user,
+                          tags,
+                          requestReview
+                        )
+                        p success Ok(res)
+                      }
+                      case Failure(f) => p failure f
+                    }
+                  case None =>
+                    p failure new NotFoundException(s"Task with $taskId not found")
                 }
             }
             p.future
