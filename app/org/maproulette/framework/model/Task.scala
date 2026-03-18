@@ -324,9 +324,15 @@ object Task extends CommonField {
           if (allowChange)
             toSet == STATUS_FIXED || toSet == STATUS_FALSE_POSITIVE || toSet == STATUS_TOO_HARD
           else false
-        case STATUS_ANSWERED  => false
-        case STATUS_VALIDATED => false
-        case STATUS_DISABLED  => toSet == STATUS_CREATED
+        case STATUS_ANSWERED =>
+          if (allowChange)
+            toSet == STATUS_FIXED || toSet == STATUS_FALSE_POSITIVE || toSet == STATUS_ALREADY_FIXED || toSet == STATUS_TOO_HARD
+          else false
+        case STATUS_VALIDATED =>
+          if (allowChange)
+            toSet == STATUS_FIXED || toSet == STATUS_FALSE_POSITIVE || toSet == STATUS_ALREADY_FIXED || toSet == STATUS_TOO_HARD
+          else false
+        case STATUS_DISABLED => toSet == STATUS_CREATED
       }
     }
   }

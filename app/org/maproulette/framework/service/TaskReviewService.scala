@@ -940,7 +940,7 @@ class TaskReviewService @Inject() (
       excludeOtherReviewers
     )
 
-    addClaimedByFilter(query, user.id)
+    addLockedFilter(addClaimedByFilter(query, user.id))
   }
 
   private def addClaimedByFilter(query: Query, userId: Long): Query = {
