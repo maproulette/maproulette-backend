@@ -429,7 +429,11 @@ class ChallengeDAL @Inject() (
             metaReviewStatus ~ metaReviewedBy ~ metaReviewedAt ~ lockedBy =>
         val locationJSON = Json.parse(location)
         val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
-        val point        = Point(coordinates(1), coordinates.head)
+        val point = if (coordinates.length >= 2) {
+          Point(coordinates(1), coordinates.head)
+        } else {
+          Point(0.0, 0.0)
+        }
         val pointReview =
           PointReview(
             reviewStatus,
