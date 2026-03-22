@@ -409,6 +409,19 @@ object SearchParameters {
       }
     }
 
+    val boundingGeometries: Option[List[JsObject]] = (request.body.asJson) match {
+      case Some(v) =>
+        (v \ "boundingGeometries").toOption match {
+          case Some(result) =>
+            Json.fromJson[List[JsObject]](result) match {
+              case JsSuccess(bg, _) => Some(bg)
+              case _: JsError       => None
+            }
+          case None => None
+        }
+      case None => None
+    }
+
     block(SearchParameters(
       //projectID
       projectIds,
@@ -558,8 +571,8 @@ object SearchParameters {
           }
         case _ => None
       },
-      // boundingGeometries (not supported on URL)
-      None,
+      // boundingGeometries (parsed from PUT/POST body JSON)
+      boundingGeometries,
       //FuzzySearch
       this.getIntParameter(request.getQueryString("fuzzy"), params.fuzzySearch),
       //CompletedBy
