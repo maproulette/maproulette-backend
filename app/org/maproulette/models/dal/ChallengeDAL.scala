@@ -928,7 +928,8 @@ class ChallengeDAL @Inject() (
   )(implicit id: Long, c: Option[Connection] = None): Unit = {
     this.permission.hasWriteAccess(ChallengeType(), user)
     this.withMRConnection { implicit c =>
-      val challenge = this.retrieveById(id) match {
+      // Bypass cache to ensure we get the latest bounds from the DB
+      val challenge = this._retrieveById(caching = false)(id) match {
         case Some(c) => c
         case None =>
           throw new NotFoundException(
