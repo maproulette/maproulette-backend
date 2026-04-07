@@ -628,8 +628,6 @@ class LeaderboardService @Inject() (
           useValueDirectly = true
         ),
         CustomParameter("sa.old_status <> sa.status"),
-        CustomParameter("users.osm_id = sa.osm_user_id"),
-        CustomParameter("tasks.id = sa.task_id"),
         CustomParameter(boundingSearch),
         BaseParameter(
           "leaderboard_opt_out",
@@ -670,7 +668,9 @@ class LeaderboardService @Inject() (
                  ${this.tasksSumSQL()} AS completed_tasks, ${this.timeSpentSQL()} AS avg_time_spent,
                  ROW_NUMBER() OVER( ORDER BY ${this
         .scoreSumSQL(config)} DESC, sa.osm_user_id ASC) as user_ranking
-          FROM status_actions sa, users, tasks
+          FROM status_actions sa
+          INNER JOIN users ON users.osm_id = sa.osm_user_id
+          LEFT JOIN tasks ON tasks.id = sa.task_id
           $taskTableIfNeeded
         """
     )
