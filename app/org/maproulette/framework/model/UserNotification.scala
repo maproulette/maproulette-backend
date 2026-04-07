@@ -140,7 +140,10 @@ case class UserNotificationEmail(
     val notificationType: Int,
     val extra: Option[String],
     val created: DateTime,
-    val emailStatus: Int
+    val emailStatus: Int,
+    val fromUsername: Option[String] = None,
+    val challengeId: Option[Long] = None,
+    val challengeName: Option[String] = None
 )
 
 case class UserNotificationEmailDigest(
