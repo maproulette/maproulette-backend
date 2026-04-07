@@ -297,17 +297,26 @@ case class Challenge(
       (geometry \ "type").asOpt[String] match {
         case Some("Point") =>
           val coordinates = (geometry \ "coordinates").as[List[Double]]
-          if (coordinates.length == 2) {
+          if (coordinates.length >= 2) {
             val x = coordinates(0) // longitude
             val y = coordinates(1) // latitude
             boundingPolygons.exists(polygon => isPointInPolygon(x, y, polygon))
           } else {
             false
           }
+        case Some("MultiPoint") =>
+          val points = (geometry \ "coordinates").as[List[List[Double]]]
+          points.exists(coord => {
+            if (coord.length >= 2) {
+              boundingPolygons.exists(polygon => isPointInPolygon(coord(0), coord(1), polygon))
+            } else {
+              false
+            }
+          })
         case Some("LineString") =>
           val coordinates = (geometry \ "coordinates").as[List[List[Double]]]
           coordinates.exists(coord => {
-            if (coord.length == 2) {
+            if (coord.length >= 2) {
               val x = coord(0) // longitude
               val y = coord(1) // latitude
               boundingPolygons.exists(polygon => isPointInPolygon(x, y, polygon))
@@ -315,6 +324,17 @@ case class Challenge(
               false
             }
           })
+        case Some("MultiLineString") =>
+          val lines = (geometry \ "coordinates").as[List[List[List[Double]]]]
+          lines.exists(line =>
+            line.exists(coord => {
+              if (coord.length >= 2) {
+                boundingPolygons.exists(polygon => isPointInPolygon(coord(0), coord(1), polygon))
+              } else {
+                false
+              }
+            })
+          )
         case Some("Polygon") =>
           // Check if any vertex of the polygon's exterior ring is within bounds
           val rings = (geometry \ "coordinates").as[List[List[List[Double]]]]
@@ -326,6 +346,19 @@ case class Challenge(
                 false
               }
             })
+          )
+        case Some("MultiPolygon") =>
+          val polygons = (geometry \ "coordinates").as[List[List[List[List[Double]]]]]
+          polygons.exists(polygon =>
+            polygon.headOption.exists(ring =>
+              ring.exists(coord => {
+                if (coord.length >= 2) {
+                  boundingPolygons.exists(bp => isPointInPolygon(coord(0), coord(1), bp))
+                } else {
+                  false
+                }
+              })
+            )
           )
         case Some("GeometryCollection") =>
           val geometries = (geometry \ "geometries").as[List[JsValue]]
