@@ -229,7 +229,7 @@ class NotificationRepository @Inject() (override val db: Database) extends Repos
               operator = Operator.IN
             )
           ),
-          finalClause = "RETURNING *"
+          finalClause = "RETURNING *, (SELECT name FROM challenges WHERE challenges.id = user_notifications.challenge_id) as challenge_name"
         )
         .build(
           s"""
@@ -343,7 +343,7 @@ object NotificationRepository {
       get[Int]("user_notifications.email_status") ~
       get[Option[String]]("user_notifications.from_username") ~
       get[Option[Long]]("user_notifications.challenge_id") ~
-      get[Option[String]]("user_notifications.challenge_name") map {
+      get[Option[String]]("challenge_name") map {
       case id ~ userId ~ notificationType ~ extra ~ created ~ emailStatus ~ fromUsername ~ challengeId ~ challengeName =>
         new UserNotificationEmail(
           id,
