@@ -345,7 +345,17 @@ object NotificationRepository {
       get[Option[Long]]("user_notifications.challenge_id") ~
       get[Option[String]]("user_notifications.challenge_name") map {
       case id ~ userId ~ notificationType ~ extra ~ created ~ emailStatus ~ fromUsername ~ challengeId ~ challengeName =>
-        new UserNotificationEmail(id, userId, notificationType, extra, created, emailStatus, fromUsername, challengeId, challengeName)
+        new UserNotificationEmail(
+          id,
+          userId,
+          notificationType,
+          extra,
+          created,
+          emailStatus,
+          fromUsername,
+          challengeId,
+          challengeName
+        )
     }
   }
 
