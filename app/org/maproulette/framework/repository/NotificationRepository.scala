@@ -229,7 +229,8 @@ class NotificationRepository @Inject() (override val db: Database) extends Repos
               operator = Operator.IN
             )
           ),
-          finalClause = "RETURNING *, (SELECT name FROM challenges WHERE challenges.id = user_notifications.challenge_id) as challenge_name"
+          finalClause =
+            "RETURNING *, (SELECT name FROM challenges WHERE challenges.id = user_notifications.challenge_id) as challenge_name"
         )
         .build(
           s"""
