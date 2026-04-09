@@ -56,19 +56,6 @@ case class FilterCounts(
 
 object FilterCounts {
   implicit val filterCountsFormat: Format[FilterCounts] = Json.format[FilterCounts]
-
-  def fromJson(json: JsValue): FilterCounts = {
-    FilterCounts(
-      d1_gf = (json \ "d1_gf").asOpt[Int].getOrElse(0),
-      d1_gt = (json \ "d1_gt").asOpt[Int].getOrElse(0),
-      d2_gf = (json \ "d2_gf").asOpt[Int].getOrElse(0),
-      d2_gt = (json \ "d2_gt").asOpt[Int].getOrElse(0),
-      d3_gf = (json \ "d3_gf").asOpt[Int].getOrElse(0),
-      d3_gt = (json \ "d3_gt").asOpt[Int].getOrElse(0),
-      d0_gf = (json \ "d0_gf").asOpt[Int].getOrElse(0),
-      d0_gt = (json \ "d0_gt").asOpt[Int].getOrElse(0)
-    )
-  }
 }
 
 /**

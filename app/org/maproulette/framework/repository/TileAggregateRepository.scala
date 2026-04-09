@@ -46,12 +46,8 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
       get[Option[String]]("counts_by_filter") map {
       case id ~ z ~ x ~ y ~ groupType ~ centroidLat ~ centroidLng ~ taskIds ~ taskCount ~ countsJson =>
         val filterCounts = countsJson
-          .map { json =>
-            try {
-              FilterCounts.fromJson(Json.parse(json))
-            } catch {
-              case _: Exception => FilterCounts()
-            }
+          .flatMap { json =>
+            Json.parse(json).asOpt[FilterCounts]
           }
           .getOrElse(FilterCounts())
 
@@ -231,8 +227,7 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
         INNER JOIN challenges c ON c.id = tasks.parent_id
         INNER JOIN projects p ON p.id = c.parent_id
         LEFT JOIN locked l ON l.item_id = tasks.id AND l.item_type = 2
-        WHERE tasks.location && ST_MakeEnvelope($left, $bottom, $right, $top, 4326)
-          AND ST_Intersects(tasks.location, ST_MakeEnvelope($left, $bottom, $right, $top, 4326))
+        WHERE ST_Intersects(tasks.location, ST_MakeEnvelope($left, $bottom, $right, $top, 4326))
           AND tasks.status IN (0, 3, 6)
           AND c.deleted = false AND c.enabled = true AND c.is_archived = false
           AND p.deleted = false AND p.enabled = true
@@ -388,7 +383,7 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
           val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
           if (keywordList.nonEmpty) {
             val conditions =
-              keywordList.map(kw => s"LOWER(tags_table.name) = '$kw'").mkString(" OR ")
+              keywordList.map(kw => s"LOWER(tags_table.name) = '${kw.replace("'", "''")}'").mkString(" OR ")
             s"AND ($conditions)"
           } else ""
         }

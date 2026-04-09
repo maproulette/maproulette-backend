@@ -29,8 +29,8 @@ class SearchController @Inject() (
 
   def search(q: String, limit: Int = 25): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
-      val projects   = Json.toJson(projectService.search(q).take(limit))
-      val challenges = Json.toJson(challengeDAL.search(q).take(limit))
+      val projects   = Json.toJson(projectService.search(q, limit))
+      val challenges = Json.toJson(challengeDAL.search(q, limit))
       val tasks      = Json.toJson(taskDAL.search(q, limit))
       Ok(
         Json.obj(

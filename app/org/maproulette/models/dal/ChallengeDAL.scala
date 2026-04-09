@@ -1249,7 +1249,8 @@ class ChallengeDAL @Inject() (
   }
 
   def search(
-      search: String
+      search: String,
+      limit: Int = 25
   )(implicit c: Option[Connection] = None): List[Challenge] = {
     this.withMRConnection { implicit c =>
       val isNumeric     = search.matches("^\\d+$")
@@ -1285,11 +1286,13 @@ class ChallengeDAL @Inject() (
                    ELSE CASE WHEN c.name <> '' AND octet_length(LEFT(c.name, 255)) <= 255 AND octet_length({exact}) <= 255
                         THEN LEVENSHTEIN(LOWER(LEFT(c.name, 255)), LOWER(LEFT({exact}, 255))) ELSE 999 END + 3
                  END ASC,
-                 c.name ASC""")
+                 c.name ASC
+               LIMIT {limit}""")
           .on(
             "search" -> searchPattern,
             "exact"  -> search,
-            "prefix" -> (search + "%")
+            "prefix" -> (search + "%"),
+            "limit"  -> limit
           )
           .as(this.parser.*)
       } else {

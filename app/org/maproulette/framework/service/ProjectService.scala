@@ -240,7 +240,8 @@ class ProjectService @Inject() (
   }
 
   def search(
-      search: String
+      search: String,
+      limit: Int = 25
   ): List[Project] = {
     val isNumeric     = search.matches("^\\d+$")
     val searchLong    = if (isNumeric) Some(search.toLong) else None
@@ -282,11 +283,13 @@ class ProjectService @Inject() (
                          THEN LEVENSHTEIN(LOWER(LEFT(display_name, 255)), LOWER(LEFT({exact}, 255))) ELSE 999 END
                   ) + 3
                 END ASC,
-                name ASC""")
+                name ASC
+              LIMIT {limit}""")
           .on(
             "search" -> searchPattern,
             "exact"  -> search,
-            "prefix" -> (search + "%")
+            "prefix" -> (search + "%"),
+            "limit"  -> limit
           )
           .as(parser.*)
       } else {
