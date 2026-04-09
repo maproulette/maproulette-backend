@@ -401,7 +401,9 @@ WITH eligible_challenges AS MATERIALIZED (
           val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
           if (keywordList.nonEmpty) {
             val keywordConditions =
-              keywordList.map(kw => s"LOWER(tags_table.name) = '${kw.replace("'", "''")}'").mkString(" OR ")
+              keywordList
+                .map(kw => s"LOWER(tags_table.name) = '${kw.replace("'", "''")}'")
+                .mkString(" OR ")
             s"AND ($keywordConditions)"
           } else ""
         }
@@ -511,7 +513,8 @@ ORDER BY kmeans;
         if (kws.trim.nonEmpty) {
           val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
           if (keywordList.nonEmpty) {
-            val keywordConditions = keywordList.map(kw => s"LOWER(t.name) = '${kw.replace("'", "''")}'").mkString(" OR ")
+            val keywordConditions =
+              keywordList.map(kw => s"LOWER(t.name) = '${kw.replace("'", "''")}'").mkString(" OR ")
             query += s" AND ($keywordConditions)"
           }
         }
@@ -595,7 +598,9 @@ ORDER BY kmeans;
           val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
           if (keywordList.nonEmpty) {
             val keywordConditions =
-              keywordList.map(kw => s"LOWER(tags_table.name) = '${kw.replace("'", "''")}'").mkString(" OR ")
+              keywordList
+                .map(kw => s"LOWER(tags_table.name) = '${kw.replace("'", "''")}'")
+                .mkString(" OR ")
             s"AND ($keywordConditions)"
           } else ""
         }
@@ -746,7 +751,8 @@ ORDER BY kmeans;
         if (kws.trim.nonEmpty) {
           val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
           if (keywordList.nonEmpty) {
-            val keywordConditions = keywordList.map(kw => s"LOWER(t.name) = '${kw.replace("'", "''")}'").mkString(" OR ")
+            val keywordConditions =
+              keywordList.map(kw => s"LOWER(t.name) = '${kw.replace("'", "''")}'").mkString(" OR ")
             query += s" AND ($keywordConditions)"
           }
         }

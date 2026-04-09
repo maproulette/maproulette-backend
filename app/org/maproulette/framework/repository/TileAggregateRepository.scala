@@ -383,7 +383,9 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
           val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
           if (keywordList.nonEmpty) {
             val conditions =
-              keywordList.map(kw => s"LOWER(tags_table.name) = '${kw.replace("'", "''")}'").mkString(" OR ")
+              keywordList
+                .map(kw => s"LOWER(tags_table.name) = '${kw.replace("'", "''")}'")
+                .mkString(" OR ")
             s"AND ($conditions)"
           } else ""
         }
