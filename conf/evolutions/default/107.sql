@@ -8,7 +8,7 @@
 -- Zoom 14: One entry per overlap group (for frontend clustering at 14-22)
 --   - Single: group_type=0, has task_ids
 --   - Overlapping: group_type=1, has task_ids
-CREATE TABLE tile_task_groups (
+CREATE TABLE IF NOT EXISTS tile_task_groups (
     id SERIAL PRIMARY KEY,
     z SMALLINT NOT NULL,
     x INTEGER NOT NULL,
@@ -22,21 +22,21 @@ CREATE TABLE tile_task_groups (
     last_updated TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
 );;
 
-CREATE INDEX idx_tile_task_groups_coords ON tile_task_groups (z, x, y);;
-CREATE INDEX idx_tile_task_groups_zoom ON tile_task_groups (z) WHERE task_count > 0;;
+CREATE INDEX IF NOT EXISTS idx_tile_task_groups_coords ON tile_task_groups (z, x, y);;
+CREATE INDEX IF NOT EXISTS idx_tile_task_groups_zoom ON tile_task_groups (z) WHERE task_count > 0;;
 
 -- Coordinate conversion functions
-CREATE FUNCTION lng_to_tile_x(lng DOUBLE PRECISION, zoom INTEGER) RETURNS INTEGER AS $$
+CREATE OR REPLACE FUNCTION lng_to_tile_x(lng DOUBLE PRECISION, zoom INTEGER) RETURNS INTEGER AS $$
     SELECT FLOOR((lng + 180.0) / 360.0 * (1 << zoom))::INTEGER
 $$ LANGUAGE SQL IMMUTABLE PARALLEL SAFE;;
 
-CREATE FUNCTION lat_to_tile_y(lat DOUBLE PRECISION, zoom INTEGER) RETURNS INTEGER AS $$
+CREATE OR REPLACE FUNCTION lat_to_tile_y(lat DOUBLE PRECISION, zoom INTEGER) RETURNS INTEGER AS $$
     SELECT FLOOR((1.0 - LN(TAN(RADIANS(GREATEST(-85.0511, LEAST(85.0511, lat)))) +
            1.0 / COS(RADIANS(GREATEST(-85.0511, LEAST(85.0511, lat))))) / PI()) / 2.0 * (1 << zoom))::INTEGER
 $$ LANGUAGE SQL IMMUTABLE PARALLEL SAFE;;
 
 -- Function to rebuild a specific zoom level
-CREATE FUNCTION rebuild_zoom_level(p_zoom INTEGER) RETURNS INTEGER AS $$
+CREATE OR REPLACE FUNCTION rebuild_zoom_level(p_zoom INTEGER) RETURNS INTEGER AS $$
 DECLARE
     groups_created INTEGER;;
     start_time TIMESTAMP;;
@@ -194,7 +194,7 @@ END
 $$ LANGUAGE plpgsql;;
 
 -- Function to rebuild all zoom levels
-CREATE FUNCTION rebuild_all_tile_aggregates() RETURNS TABLE(zoom_level INTEGER, tiles_created INTEGER) AS $$
+CREATE OR REPLACE FUNCTION rebuild_all_tile_aggregates() RETURNS TABLE(zoom_level INTEGER, tiles_created INTEGER) AS $$
 DECLARE
     total_start TIMESTAMP;;
     total_groups INTEGER := 0;;
