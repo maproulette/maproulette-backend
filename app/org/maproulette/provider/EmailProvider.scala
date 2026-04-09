@@ -26,11 +26,27 @@ class EmailProvider @Inject() (mailerClient: MailerClient, config: Config) {
       case None          => ""
     }
 
+    val fromLine = notification.fromUsername match {
+      case Some(username) => s"\nFrom: ${username}"
+      case None           => ""
+    }
+
+    val challengeLine = notification.challengeName match {
+      case Some(name) => s"\nChallenge: ${name}"
+      case None       => ""
+    }
+
+    val conversationLink = (notification.notificationType, notification.challengeId) match {
+      case (UserNotification.NOTIFICATION_TYPE_CHALLENGE_COMMENT, Some(cId)) =>
+        s"\n\nView and reply to this conversation at:\n${config.getPublicOrigin.get}/browse/challenges/${cId}?tab=conversation"
+      case _ => ""
+    }
+
     val emailBody = s"""
       |You have received a new MapRoulette notification:
       |
-      |${notificationName}
-      |${notificationDetails}
+      |${notificationName}${fromLine}${challengeLine}
+      |${notificationDetails}${conversationLink}
       |${this.notificationFooter}""".stripMargin
 
     val email =

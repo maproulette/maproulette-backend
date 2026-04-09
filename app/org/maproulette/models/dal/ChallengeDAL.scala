@@ -600,7 +600,11 @@ class ChallengeDAL @Inject() (
             metaReviewStatus ~ metaReviewedBy ~ metaReviewedAt ~ lockedBy =>
         val locationJSON = Json.parse(location)
         val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
-        val point        = Point(coordinates(1), coordinates.head)
+        val point = if (coordinates.length >= 2) {
+          Point(coordinates(1), coordinates.head)
+        } else {
+          Point(0.0, 0.0)
+        }
         val pointReview =
           PointReview(
             reviewStatus,
@@ -698,6 +702,24 @@ class ChallengeDAL @Inject() (
     }
 
     this.permission.hasObjectWriteAccess(challenge, user)
+
+    // Check for existing non-deleted challenge with same name in same project
+    this.withMRConnection { implicit c =>
+      val existingChallenge = SQL"""
+        SELECT id FROM challenges 
+        WHERE parent_id = ${challenge.general.parent} 
+        AND LOWER(name) = LOWER(${challenge.name})
+        AND (deleted = false OR deleted IS NULL)
+        LIMIT 1
+      """.as(SqlParser.long("id").singleOpt)
+
+      if (existingChallenge.isDefined) {
+        throw new UniqueViolationException(
+          s"Challenge with name ${challenge.name} already exists in the database"
+        )
+      }
+    }
+
     this.cacheManager.withOptionCaching { () =>
       val insertedChallenge =
         this.withMRTransaction { implicit c =>
@@ -724,7 +746,7 @@ class ChallengeDAL @Inject() (
                       ${challenge.extra.limitReviewTags}, ${challenge.extra.taskStyles}, ${challenge.general.requiresLocal}, ${challenge.extra.isArchived},
                       ${challenge.extra.reviewSetting}, ${challenge.extra.datasetUrl}, ${challenge.requireConfirmation}, ${challenge.requireRejectReason},
                       ${asJson(challenge.extra.taskWidgetLayout.getOrElse(Json.parse("{}")))}
-                      ) ON CONFLICT(parent_id, LOWER(name)) DO NOTHING RETURNING #${this.retrieveColumns}"""
+                      ) RETURNING #${this.retrieveColumns}"""
             .as(this.parser.*)
             .headOption
         }
@@ -827,6 +849,25 @@ class ChallengeDAL @Inject() (
           val name     = (updates \ "name").asOpt[String].getOrElse(cachedItem.name)
           val ownerId  = (updates \ "ownerId").asOpt[Long].getOrElse(cachedItem.general.owner)
           val parentId = (updates \ "parentId").asOpt[Long].getOrElse(cachedItem.general.parent)
+
+          // Check if name or parent changed and if so, validate uniqueness
+          if (name != cachedItem.name || parentId != cachedItem.general.parent) {
+            val existingChallenge = SQL"""
+              SELECT id FROM challenges 
+              WHERE parent_id = $parentId 
+              AND LOWER(name) = LOWER($name)
+              AND (deleted = false OR deleted IS NULL)
+              AND id != $id
+              LIMIT 1
+            """.as(SqlParser.long("id").singleOpt)
+
+            if (existingChallenge.isDefined) {
+              throw new UniqueViolationException(
+                s"Challenge with name $name already exists in the database"
+              )
+            }
+          }
+
           val difficulty =
             (updates \ "difficulty").asOpt[Int].getOrElse(cachedItem.general.difficulty)
           val description =
@@ -946,7 +987,7 @@ class ChallengeDAL @Inject() (
 
           val datasetUrl = (updates \ "datasetUrl")
             .asOpt[String]
-            .getOrElse(cachedItem.extra.datasetUrl)
+            .orElse(cachedItem.extra.datasetUrl)
 
           val requireConfirmation = (updates \ "requireConfirmation")
             .asOpt[Boolean]
@@ -1005,7 +1046,7 @@ class ChallengeDAL @Inject() (
                   custom_basemap = $customBasemap, updatetasks = $updateTasks, exportable_properties = $exportableProperties,
                   osm_id_property = $osmIdProperty, task_bundle_id_property = $taskBundleIdProperty, preferred_tags = $preferredTags, preferred_review_tags = $preferredReviewTags,
                   limit_tags = $limitTags, limit_review_tags = $limitReviewTags, task_styles = $taskStyles,
-                  requires_local = $requiresLocal, is_archived = $isArchived, review_setting = $reviewSetting, task_widget_layout = ${asJson(
+                  requires_local = $requiresLocal, is_archived = $isArchived, review_setting = $reviewSetting, dataset_url = $datasetUrl, task_widget_layout = ${asJson(
               taskWidgetLayout
             )}
                 WHERE id = $id RETURNING #${this.retrieveColumns}""".as(parser.*).headOption
@@ -1591,10 +1632,7 @@ class ChallengeDAL @Inject() (
                                                   'YYYY-MM-DD"T"HH24:MI:SS#${tzOffset}'))
                                         ||
                                         hstore('mr_mapper',
-                                          (CASE WHEN t.review_requested_by = NULL
-                                           THEN (select name from users where osm_id=t.osm_user_id)::text
-                                           ELSE (select name from users where id=t.review_requested_by)::text
-                                           END)) ||
+                                          (select name from users where id=t.completed_by)::text) ||
                                         hstore('mr_reviewStatus',
                                           (CASE
                                             WHEN t.review_status = #${Task.REVIEW_STATUS_REQUESTED} THEN ${Task.REVIEW_STATUS_REQUESTED_NAME}

@@ -590,7 +590,10 @@ class TaskDAL @Inject() (
     }
 
     val reviewNeeded = requestReview match {
-      case Some(r) => r
+      case Some(r) =>
+        r && status != Task.STATUS_SKIPPED &&
+          status != Task.STATUS_DELETED &&
+          status != Task.STATUS_DISABLED
       case None =>
         user.settings.needsReview.getOrElse(config.defaultNeedsReview) != User.REVIEW_NOT_NEEDED &&
           status != Task.STATUS_SKIPPED &&
@@ -1066,36 +1069,44 @@ class TaskDAL @Inject() (
       limit: Int = -1,
       proximityId: Option[Long] = None
   )(implicit c: Option[Connection] = None): List[Task] = {
-    val highPriorityTasks = Try(
-      this.getRandomTasks(user, params, limit, Some(Challenge.PRIORITY_HIGH), proximityId)
-    ) match {
-      case Success(res) => res
-      case Failure(f)   => List.empty
-    }
-    if (highPriorityTasks.isEmpty) {
-      val mediumPriorityTasks = Try(
-        this.getRandomTasks(user, params, limit, Some(Challenge.PRIORITY_MEDIUM), proximityId)
-      ) match {
-        case Success(res) => res
-        case Failure(f)   => List.empty
-      }
-      if (mediumPriorityTasks.isEmpty) {
-        val lowPriorityTasks = Try(
-          this.getRandomTasks(user, params, limit, Some(Challenge.PRIORITY_LOW), proximityId)
+    // When proximity is requested, skip priority cascade and return the nearest
+    // task regardless of priority. This honors the mapper's preference for nearby
+    // tasks over the challenge author's priority settings (see issue #1857).
+    proximityId match {
+      case Some(_) =>
+        this.getRandomTasks(user, params, limit, None, proximityId)
+      case None =>
+        val highPriorityTasks = Try(
+          this.getRandomTasks(user, params, limit, Some(Challenge.PRIORITY_HIGH), proximityId)
         ) match {
           case Success(res) => res
           case Failure(f)   => List.empty
         }
-        if (lowPriorityTasks.isEmpty) {
-          this.getRandomTasks(user, params, limit, None, proximityId)
+        if (highPriorityTasks.isEmpty) {
+          val mediumPriorityTasks = Try(
+            this.getRandomTasks(user, params, limit, Some(Challenge.PRIORITY_MEDIUM), proximityId)
+          ) match {
+            case Success(res) => res
+            case Failure(f)   => List.empty
+          }
+          if (mediumPriorityTasks.isEmpty) {
+            val lowPriorityTasks = Try(
+              this.getRandomTasks(user, params, limit, Some(Challenge.PRIORITY_LOW), proximityId)
+            ) match {
+              case Success(res) => res
+              case Failure(f)   => List.empty
+            }
+            if (lowPriorityTasks.isEmpty) {
+              this.getRandomTasks(user, params, limit, None, proximityId)
+            } else {
+              lowPriorityTasks
+            }
+          } else {
+            mediumPriorityTasks
+          }
         } else {
-          lowPriorityTasks
+          highPriorityTasks
         }
-      } else {
-        mediumPriorityTasks
-      }
-    } else {
-      highPriorityTasks
     }
   }
 

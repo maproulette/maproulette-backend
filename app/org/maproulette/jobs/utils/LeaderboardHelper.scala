@@ -26,6 +26,11 @@ object LeaderboardHelper extends LeaderboardMixin {
   def rebuildChallengesLeaderboardSQL(monthDuration: Int, config: Config): String = {
     val timeClause = monthDuration match {
       case -1 => ""
+      case 0 =>
+        val today = LocalDate.now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+        val startOfMonth =
+          LocalDate.now.withDayOfMonth(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+        s"""sa.created::DATE BETWEEN '$startOfMonth' AND '$today' AND"""
       case default =>
         val today = LocalDate.now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
         val startMonth = LocalDate.now
@@ -42,12 +47,12 @@ object LeaderboardHelper extends LeaderboardMixin {
                 ${this.scoreSumSQL(config)} AS score,
                 ${this.tasksSumSQL()} AS completed_tasks,
                 ${this.timeSpentSQL()} AS avg_time_spent
-                FROM status_actions sa, users, tasks
+                FROM status_actions sa
+                INNER JOIN users ON users.osm_id = sa.osm_user_id
+                LEFT JOIN tasks ON tasks.id = sa.task_id
                 WHERE $timeClause
                       sa.old_status <> sa.status AND
-                      users.osm_id = sa.osm_user_id AND
-                      users.leaderboard_opt_out = FALSE AND
-                      tasks.id = sa.task_id
+                      users.leaderboard_opt_out = FALSE
                 GROUP BY sa.osm_user_id, users.id
                 ORDER BY score DESC, sa.osm_user_id ASC"""
   }
@@ -68,6 +73,11 @@ object LeaderboardHelper extends LeaderboardMixin {
   ): String = {
     val timeClause = monthDuration match {
       case -1 => ""
+      case 0 =>
+        val today = LocalDate.now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+        val startOfMonth =
+          LocalDate.now.withDayOfMonth(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+        s"""sa.created::DATE BETWEEN '$startOfMonth' AND '$today' AND"""
       case default =>
         val today = LocalDate.now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
         val startMonth = LocalDate.now
@@ -84,12 +94,12 @@ object LeaderboardHelper extends LeaderboardMixin {
                 ${this.scoreSumSQL(config)} AS score,
                 ${this.tasksSumSQL()} AS completed_tasks,
                 ${this.timeSpentSQL()} AS avg_time_spent
-                FROM status_actions sa, users, tasks
+                FROM status_actions sa
+                INNER JOIN users ON users.osm_id = sa.osm_user_id
+                INNER JOIN tasks ON tasks.id = sa.task_id
                 WHERE $timeClause
                       sa.old_status <> sa.status AND
-                      users.osm_id = sa.osm_user_id AND
                       users.leaderboard_opt_out = FALSE AND
-                      tasks.id = sa.task_id AND
                       ST_Intersects(tasks.location, ST_MakeEnvelope($boundingBox, 4326))
                 GROUP BY sa.osm_user_id, users.id
                 ORDER BY score DESC, sa.osm_user_id ASC"""
@@ -105,6 +115,11 @@ object LeaderboardHelper extends LeaderboardMixin {
   def rebuildTopChallengesSQL(monthDuration: Int, config: Config): String = {
     val timeClause = monthDuration match {
       case -1 => ""
+      case 0 =>
+        val today = LocalDate.now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+        val startOfMonth =
+          LocalDate.now.withDayOfMonth(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+        s"""sa.created::DATE BETWEEN '$startOfMonth' AND '$today' AND"""
       case default =>
         val today = LocalDate.now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
         val startMonth = LocalDate.now
@@ -138,6 +153,11 @@ object LeaderboardHelper extends LeaderboardMixin {
   ): String = {
     val timeClause = monthDuration match {
       case -1 => ""
+      case 0 =>
+        val today = LocalDate.now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+        val startOfMonth =
+          LocalDate.now.withDayOfMonth(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+        s"""sa.created::DATE BETWEEN '$startOfMonth' AND '$today' AND"""
       case default =>
         val today = LocalDate.now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
         val startMonth = LocalDate.now

@@ -646,6 +646,19 @@ class TaskReviewService @Inject() (
         reviewStatus,
         null
       )
+
+      // Don't send a notifications for every task in a bundle
+      if (task.bundleId.isEmpty || task.isBundlePrimary.getOrElse(false)) {
+        // Notify the reviewer that the task has been contested
+        this.serviceManager.notification.createReviewNotification(
+          user,
+          task.review.reviewedBy.getOrElse(-1),
+          reviewStatus,
+          task,
+          comment,
+          errorTags = errorTags
+        )
+      }
     }
 
     this.taskRepository.cacheManager.withOptionCaching { () =>
@@ -927,7 +940,7 @@ class TaskReviewService @Inject() (
       excludeOtherReviewers
     )
 
-    addClaimedByFilter(query, user.id)
+    addLockedFilter(addClaimedByFilter(query, user.id))
   }
 
   private def addClaimedByFilter(query: Query, userId: Long): Query = {

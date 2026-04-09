@@ -92,16 +92,8 @@ class VirtualChallengeDAL @Inject() (
         val validParameters = element.taskIdList match {
           case Some(ids) => ids.nonEmpty
           case None =>
-            element.searchParameters.location match {
-              case Some(box)
-                  if (box.right - box.left) * (box.top - box.bottom) < config.virtualChallengeLimit =>
-                true
-              case None =>
-                element.searchParameters.boundingGeometries match {
-                  case Some(bp) => true
-                  case None     => false
-                }
-            }
+            element.searchParameters.location.nonEmpty ||
+              element.searchParameters.boundingGeometries.nonEmpty
         }
 
         if (validParameters) {
@@ -121,10 +113,21 @@ class VirtualChallengeDAL @Inject() (
             )
             .as(this.parser.single)
           c.commit()
-          element.taskIdList match {
-            case Some(ids) => this.createVirtualChallengeFromIds(newChallenge.id, ids)
-            case None =>
-              this.rebuildVirtualChallenge(newChallenge.id, element.searchParameters, user)
+          try {
+            element.taskIdList match {
+              case Some(ids) => this.createVirtualChallengeFromIds(newChallenge.id, ids)
+              case None =>
+                this.rebuildVirtualChallenge(newChallenge.id, element.searchParameters, user)
+            }
+          } catch {
+            case e: Exception =>
+              logger.error(
+                s"Failed to populate tasks for virtual challenge ${newChallenge.id}: ${e.getClass.getName}: ${e.getMessage}",
+                e
+              )
+              throw new InvalidException(
+                s"Failed to populate tasks for virtual challenge: ${e.getClass.getName}: ${e.getMessage}"
+              )
           }
           Some(newChallenge)
         } else {
@@ -534,7 +537,11 @@ class VirtualChallengeDAL @Inject() (
               priority ~ bundleId ~ isBundlePrimary ~ lockedBy =>
           val locationJSON = Json.parse(location)
           val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
-          val point        = Point(coordinates(1), coordinates.head)
+          val point = if (coordinates.length >= 2) {
+            Point(coordinates(1), coordinates.head)
+          } else {
+            Point(0.0, 0.0)
+          }
           val pointReview =
             PointReview(
               reviewStatus,

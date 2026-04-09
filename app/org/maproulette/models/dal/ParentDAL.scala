@@ -118,6 +118,7 @@ trait ParentDAL[Key, T <: BaseObject[Key], C <: BaseObject[Key]]
       val query =
         s"""SELECT ${this.childColumns} FROM ${this.childTable}
                       WHERE parent_id = {id} ${this.enabled(onlyEnabled)}
+                      AND (deleted = false OR deleted IS NULL)
                       ${this.searchField("name")}
                       ${this.order(Some(orderColumn), orderDirection)}
                       LIMIT ${this.sqlLimit(limit)} OFFSET {offset}"""
@@ -155,6 +156,7 @@ trait ParentDAL[Key, T <: BaseObject[Key], C <: BaseObject[Key]]
         s"""SELECT ${this.childColumns} FROM ${this.childTable} c
                       INNER JOIN ${this.tableName} p ON p.id = c.parent_id
                       WHERE p.name = LOWER({name}) ${this.enabled(onlyEnabled, "p")}
+                      AND (c.deleted = false OR c.deleted IS NULL)
                       ${this.searchField("c.name")}
                       ${this.order(Some(orderColumn), orderDirection, "c")}
                       LIMIT ${this.sqlLimit(limit)} OFFSET {offset}"""
@@ -183,6 +185,7 @@ trait ParentDAL[Key, T <: BaseObject[Key], C <: BaseObject[Key]]
       val query =
         s"""SELECT COUNT(*) as TotalChildren FROM ${this.childTable}
            |WHERE parent_id = {id} ${this.searchField("name")}
+           |AND (deleted = false OR deleted IS NULL)
            |${this.enabled(onlyEnabled)}""".stripMargin
       SQL(query)
         .on(

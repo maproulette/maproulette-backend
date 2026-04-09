@@ -384,6 +384,18 @@ case class Challenge(
               false
             }
           })
+        case Some("Polygon") =>
+          // Check if any vertex of the polygon's exterior ring is within bounds
+          val rings = (geometry \ "coordinates").as[List[List[List[Double]]]]
+          rings.headOption.exists(ring =>
+            ring.exists(coord => {
+              if (coord.length >= 2) {
+                boundingPolygons.exists(polygon => isPointInPolygon(coord(0), coord(1), polygon))
+              } else {
+                false
+              }
+            })
+          )
         case Some("GeometryCollection") =>
           val geometries = (geometry \ "geometries").as[List[JsValue]]
           geometries.exists(subGeometry => checkGeometryWithinBounds(subGeometry, boundingPolygons))

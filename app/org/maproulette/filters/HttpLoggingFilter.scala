@@ -2,7 +2,7 @@ package org.maproulette.filters
 
 import javax.inject.Inject
 import akka.stream.Materializer
-import org.slf4j.{LoggerFactory, MarkerFactory}
+import org.slf4j.LoggerFactory
 import play.api.mvc.Result
 import play.api.mvc.RequestHeader
 import play.api.mvc.Filter
@@ -25,9 +25,7 @@ class HttpLoggingFilter @Inject() (
       nextFilter: RequestHeader => Future[Result]
   )(requestHeader: RequestHeader): Future[Result] = {
     val startTime = System.currentTimeMillis
-    // Create a uuid and associate it with a Marker
-    val uuid   = java.util.UUID.randomUUID.toString
-    val marker = MarkerFactory.getMarker(uuid)
+    val uuid      = java.util.UUID.randomUUID.toString
 
     nextFilter(requestHeader).map { result =>
       val endTime          = System.currentTimeMillis
@@ -39,8 +37,8 @@ class HttpLoggingFilter @Inject() (
       }
 
       accessLogger.info(
-        marker,
-        "Request '{}' [{}] {}ms - Response {}",
+        "Request {} '{}' [{}] {}ms - Response {}",
+        uuid,
         requestHeader.toString(),
         action,
         requestTotalTime,
@@ -49,9 +47,8 @@ class HttpLoggingFilter @Inject() (
 
       if (logger.isTraceEnabled()) {
         logger.trace(
-          marker,
-          "id={} Request Headers: {}",
-          requestHeader.id,
+          "Request {} Headers: {}",
+          uuid,
           requestHeader.headers.headers
             .map({ case (k, v) => s"${k}=${v}" })
             .mkString("  ;; ")

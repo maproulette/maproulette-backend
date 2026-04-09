@@ -900,6 +900,7 @@ class SchedulerActor @Inject() (
 }
 
 object SchedulerActor {
+  private val CURRENT_MONTH = 0
   private val ONE_MONTH     = 1
   private val THREE_MONTHS  = 3
   private val SIX_MONTHS    = 6
@@ -907,6 +908,7 @@ object SchedulerActor {
   private val ALL_TIME      = -1
 
   private val MONTH_DURATIONS = List(
+    SchedulerActor.CURRENT_MONTH,
     SchedulerActor.ONE_MONTH,
     SchedulerActor.THREE_MONTHS,
     SchedulerActor.SIX_MONTHS,

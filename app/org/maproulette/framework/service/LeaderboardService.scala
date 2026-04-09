@@ -72,6 +72,14 @@ class LeaderboardService @Inject() (
         ),
         CustomParameter("users.id = task_review_history.reviewed_by"),
         CustomParameter("tasks.id = task_review_history.task_id"),
+        BaseParameter(
+          "leaderboard_opt_out",
+          None,
+          Operator.BOOL,
+          negate = true,
+          useValueDirectly = true,
+          table = Some("users")
+        ),
         FilterParameter.conditional(
           "parent_id",
           challengeList.getOrElse(List()).mkString(","),
@@ -213,6 +221,14 @@ class LeaderboardService @Inject() (
             Operator.NULL,
             useValueDirectly = true,
             table = Some("utc")
+          ),
+          BaseParameter(
+            "leaderboard_opt_out",
+            None,
+            Operator.BOOL,
+            negate = true,
+            useValueDirectly = true,
+            table = Some("u")
           )
         ),
         paging = Paging(limit, offset),
@@ -280,6 +296,14 @@ class LeaderboardService @Inject() (
             Operator.NULL,
             useValueDirectly = true,
             table = Some("utc")
+          ),
+          BaseParameter(
+            "leaderboard_opt_out",
+            None,
+            Operator.BOOL,
+            negate = true,
+            useValueDirectly = true,
+            table = Some("u")
           )
         )
       )
@@ -338,6 +362,14 @@ class LeaderboardService @Inject() (
             Operator.NULL,
             useValueDirectly = true,
             table = Some("utc")
+          ),
+          BaseParameter(
+            "leaderboard_opt_out",
+            None,
+            Operator.BOOL,
+            negate = true,
+            useValueDirectly = true,
+            table = Some("u")
           )
         ),
         grouping = Grouping(
@@ -596,8 +628,6 @@ class LeaderboardService @Inject() (
           useValueDirectly = true
         ),
         CustomParameter("sa.old_status <> sa.status"),
-        CustomParameter("users.osm_id = sa.osm_user_id"),
-        CustomParameter("tasks.id = sa.task_id"),
         CustomParameter(boundingSearch),
         BaseParameter(
           "leaderboard_opt_out",
@@ -638,7 +668,9 @@ class LeaderboardService @Inject() (
                  ${this.tasksSumSQL()} AS completed_tasks, ${this.timeSpentSQL()} AS avg_time_spent,
                  ROW_NUMBER() OVER( ORDER BY ${this
         .scoreSumSQL(config)} DESC, sa.osm_user_id ASC) as user_ranking
-          FROM status_actions sa, users, tasks
+          FROM status_actions sa
+          INNER JOIN users ON users.osm_id = sa.osm_user_id
+          LEFT JOIN tasks ON tasks.id = sa.task_id
           $taskTableIfNeeded
         """
     )
