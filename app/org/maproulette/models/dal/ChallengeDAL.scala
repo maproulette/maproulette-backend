@@ -928,7 +928,9 @@ class ChallengeDAL @Inject() (
   )(implicit id: Long, c: Option[Connection] = None): Unit = {
     this.permission.hasWriteAccess(ChallengeType(), user)
     this.withMRConnection { implicit c =>
-      val challenge = this.retrieveById(id) match {
+      // Bypass the challenge cache so freshly-updated priority rules/bounds are
+      // always used when recalculating task priorities.
+      val challenge = this._retrieveById(caching = false)(id, Some(c)) match {
         case Some(c) => c
         case None =>
           throw new NotFoundException(
