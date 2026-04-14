@@ -51,6 +51,7 @@ object Utils extends DefaultWrites {
           } else {
             try {
               val strValue = kv._2 match {
+                case JsNull      => ""
                 case v: JsNumber => v.toString
                 case v: JsArray  => v.as[Seq[String]].mkString(",")
                 case v           => v.as[String]
