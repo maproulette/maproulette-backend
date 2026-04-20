@@ -457,7 +457,7 @@ class ChallengeDAL @Inject() (
       get[Option[String]]("locationJSON") ~
       get[Option[String]]("boundingJSON") ~
       get[Option[Int]]("challenges.completion_percentage") ~
-      get[Option[Int]]("challenges.tasks_remaining") map {
+      get[Option[JsValue]]("challenges.completion_metrics") map {
       case id ~ name ~ created ~ modified ~ description ~ deleted ~ isGlobal ~ requireConfirmation ~ requireRejectReason ~
             infoLink ~ ownerId ~ parentId ~ instruction ~ difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~
             popularity ~ checkin_comment ~ checkin_source ~ requiresLocal ~ overpassQL ~ remoteGeoJson ~ overpassTargetType ~
@@ -465,7 +465,8 @@ class ChallengeDAL @Inject() (
             mediumPriorityBounds ~ lowPriorityBounds ~ defaultZoom ~ minZoom ~ maxZoom ~ updateTasks ~ limitTags ~
             limitReviewTags ~ isArchived ~ reviewSetting ~ defaultBasemap ~ defaultBasemapId ~ customBasemap ~
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ taskWidgetLayout ~ taskStyles ~ status ~
-            statusMessage ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~ completionPercentage ~ tasksRemaining =>
+            statusMessage ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~ completionPercentage ~
+            completionMetricsJson =>
         // Parse JSON strings for priority rules and bounds
         val hpr = highPriorityRule.flatMap(r =>
           if (StringUtils.isEmpty(r) || StringUtils.equals(r, "{}")) None else Some(Json.parse(r))
@@ -543,7 +544,9 @@ class ChallengeDAL @Inject() (
           location.map(Json.parse),
           bounding.map(Json.parse),
           completionPercentage,
-          tasksRemaining
+          completionMetricsJson
+            .flatMap(_.asOpt[CompletionMetrics])
+            .getOrElse(CompletionMetrics())
         )
     }
   }
@@ -2428,7 +2431,9 @@ class ChallengeDAL @Inject() (
   )(implicit c: Option[Connection] = None): List[Challenge] = {
     this.withMRConnection { implicit c =>
       var query =
-        s"""SELECT DISTINCT c.*, ST_AsGeoJSON(c.location) AS locationJSON, ST_AsGeoJSON(c.bounding) AS boundingJSON FROM challenges c"""
+        s"""SELECT DISTINCT c.*, ST_AsGeoJSON(c.location) AS locationJSON, ST_AsGeoJSON(c.bounding) AS boundingJSON
+            FROM challenges c
+            INNER JOIN projects p ON p.id = c.parent_id"""
 
       // Add LEFT JOIN for keywords filtering if keywords are provided
       keywords match {
@@ -2439,6 +2444,7 @@ class ChallengeDAL @Inject() (
       }
 
       query += " WHERE c.deleted = false AND c.enabled = true AND c.is_archived = false"
+      query += " AND p.deleted = false AND p.enabled = true"
 
       if (!includeGlobal) {
         query += " AND c.is_global = false"

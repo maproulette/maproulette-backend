@@ -222,7 +222,7 @@ case class BaseChallenge(
     location: Option[JsValue] = None,
     bounding: Option[JsValue] = None,
     completionPercentage: Option[Int] = Some(0),
-    tasksRemaining: Option[Int] = Some(0)
+    completionMetrics: CompletionMetrics = CompletionMetrics()
 ) extends DefaultWrites
 
 /**

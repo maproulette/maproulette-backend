@@ -1,5 +1,6 @@
 ###
 # tags: [ Search ]
+# operationId: unified_search
 # summary: Unified search across projects, challenges, and tasks by name
 # responses:
 #   '200':
@@ -8,6 +9,7 @@
 GET     /search                                     @org.maproulette.framework.controller.SearchController.search(q:String, limit:Int ?= 25)
 ###
 # tags: [ Search ]
+# operationId: unified_search_by_id
 # summary: Look up a project, challenge, and task by ID
 # responses:
 #   '200':

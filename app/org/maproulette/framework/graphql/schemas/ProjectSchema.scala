@@ -105,7 +105,7 @@ object ProjectSchema {
   implicit val ProjectInputType: InputObjectType[Project] = deriveInputObjectType[Project](
     InputObjectTypeName("ProjectInput"),
     InputObjectTypeDescription("A project in MapRoulette"),
-    ExcludeInputFields("created", "modified", "grants")
+    ExcludeInputFields("created", "modified", "grants", "completionMetrics")
   )
 
   val projectIdArg: Argument[Long]  = Argument("projectId", LongType, "The project identifier")

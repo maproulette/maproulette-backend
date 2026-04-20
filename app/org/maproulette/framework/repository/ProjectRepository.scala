@@ -9,6 +9,7 @@ import java.sql.Connection
 
 import anorm.SqlParser._
 import anorm._
+import anorm.postgresql.jsValueColumn
 import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
 import org.maproulette.data.Actions
@@ -405,8 +406,10 @@ object ProjectRepository extends Readers {
       get[Boolean]("projects.is_virtual") ~
       get[Boolean]("projects.featured") ~
       get[Boolean]("projects.is_archived") ~
-      get[Boolean]("projects.require_confirmation") map {
-      case id ~ ownerId ~ name ~ created ~ modified ~ description ~ enabled ~ displayName ~ deleted ~ isVirtual ~ featured ~ isArchived ~ requireConfirmation =>
+      get[Boolean]("projects.require_confirmation") ~
+      get[Option[play.api.libs.json.JsValue]]("projects.completion_metrics") map {
+      case id ~ ownerId ~ name ~ created ~ modified ~ description ~ enabled ~ displayName ~ deleted ~
+            isVirtual ~ featured ~ isArchived ~ requireConfirmation ~ completionMetricsJson =>
         new Project(
           id,
           ownerId,
@@ -421,7 +424,10 @@ object ProjectRepository extends Readers {
           Some(isVirtual),
           featured,
           isArchived,
-          requireConfirmation
+          requireConfirmation,
+          completionMetricsJson
+            .flatMap(_.asOpt[CompletionMetrics])
+            .getOrElse(CompletionMetrics())
         )
     }
   }

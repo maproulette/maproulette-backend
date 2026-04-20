@@ -408,6 +408,14 @@ DELETE  /task/:id                                   @org.maproulette.controllers
 #     description: Flag to set if only want to see Tasks from enabled Challenges returned. Default value is true.
 ###
 GET     /tasks/find                                 @org.maproulette.controllers.api.TaskController.find(q:String ?= "", parentId:Long ?= -1, limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= true)
+###
+# tags: [ Task ]
+# operationId: task_search
+# summary: Search for tasks by name
+# responses:
+#   '200':
+#     description: A list of tasks matching the search string
+###
 GET     /tasks/search                               @org.maproulette.controllers.api.TaskController.search(q:String, limit:Int ?= 25)
 ###
 # tags: [ Task ]
@@ -623,6 +631,43 @@ PUT     /tasks/box/:left/:bottom/:right/:top        @org.maproulette.framework.c
 PUT     /markers/box/:left/:bottom/:right/:top        @org.maproulette.framework.controller.TaskController.getTaskMarkerDataInBoundingBox(left:Double, bottom:Double, right:Double, top:Double, limit:Int ?= 500, excludeLocked:Boolean ?= false, includeGeometries:Boolean ?= false, includeTags:Boolean ?= false)
 ###
 # tags: [ Task ]
+# operationId: task_marker_Data
+# summary: Retrieves task markers for map display
+# description: Returns task markers, overlapping marker groups, or cluster summaries depending on the number of matching tasks. If totalCount exceeds 5000, neither tasks nor clusters are returned. Between 100 and 5000, clusters are returned. Under 100, individual markers and overlaps are returned.
+# responses:
+#   '200':
+#     description: Task marker response with totalCount and optional tasks/clusters
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.TaskMarkerResponse'
+# parameters:
+#   - name: statuses
+#     in: query
+#     description: Comma-separated task statuses to include (e.g. "0,3,6")
+#   - name: global
+#     in: query
+#     description: Whether to include only global challenges
+#   - name: cluster
+#     in: query
+#     description: Whether to force cluster mode
+#   - name: bounds
+#     in: query
+#     description: Comma-separated bounding box (left,bottom,right,top)
+#   - name: location_id
+#     in: query
+#     description: Optional location ID filter
+#   - name: keywords
+#     in: query
+#     description: Optional keyword filter
+#   - name: difficulty
+#     in: query
+#     description: Optional difficulty filter (1=Easy, 2=Normal, 3=Expert)
+###
+GET     /taskMarkers                                  @org.maproulette.framework.controller.TaskController.getTaskMarkers(statuses:String ?= "", global:Boolean ?= false, cluster:Boolean ?= false, bounds:Option[String], location_id:Option[Long], keywords:Option[String], difficulty:Option[Int])
+###
+# tags: [ Task ]
+# operationId: task_get_task_tiles
 # summary: Get Task Tiles as MVT
 # description: Returns a Mapbox Vector Tile (MVT) for the given tile coordinates. Features include group_type (0=single, 1=overlap, 2=cluster), task_count, and task properties for singles.
 # responses:

@@ -11,7 +11,8 @@ import org.maproulette.framework.model.{
   ChallengeCreation,
   ChallengeExtra,
   ChallengeGeneral,
-  ChallengePriority
+  ChallengePriority,
+  CompletionMetrics
 }
 import org.maproulette.utils.Utils
 import org.maproulette.utils.Utils.{jsonReads, jsonWrites}
@@ -237,7 +238,8 @@ trait BaseChallengeWrites extends DefaultWrites {
         "limitTags"           -> JsBoolean(bc.limitTags),
         "limitReviewTags"     -> JsBoolean(bc.limitReviewTags),
         "isArchived"          -> JsBoolean(bc.isArchived),
-        "reviewSetting"       -> JsNumber(bc.reviewSetting)
+        "reviewSetting"       -> JsNumber(bc.reviewSetting),
+        "completionMetrics"   -> Json.toJson(bc.completionMetrics)
       )
 
       val optionFields: Seq[Option[(String, JsValue)]] = Seq(
@@ -268,8 +270,7 @@ trait BaseChallengeWrites extends DefaultWrites {
         bc.dataOriginDate.map(dt => "dataOriginDate"            -> Json.toJson(dt)),
         bc.location.map(v => "location"                         -> v),
         bc.bounding.map(v => "bounding"                         -> v),
-        bc.completionPercentage.map(v => "completionPercentage" -> JsNumber(v)),
-        bc.tasksRemaining.map(v => "tasksRemaining"             -> JsNumber(v))
+        bc.completionPercentage.map(v => "completionPercentage" -> JsNumber(v))
       )
 
       JsObject(baseFields ++ optionFields.flatten)

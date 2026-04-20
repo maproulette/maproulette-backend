@@ -41,6 +41,8 @@ trait MRSchemaTypes {
     }
   )
 
+  implicit val CompletionMetricsType: ObjectType[Unit, CompletionMetrics] =
+    deriveObjectType[Unit, CompletionMetrics](ObjectTypeName("CompletionMetrics"))
   // Project Types
   implicit lazy val ProjectType: ObjectType[Unit, Project] =
     deriveObjectType[Unit, Project](ObjectTypeName("Project"))

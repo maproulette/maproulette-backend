@@ -325,7 +325,8 @@ class TaskController @Inject() (
     * Get MVT (Mapbox Vector Tile) for a specific tile.
     * Returns binary protobuf data for use with MapLibre vector tile sources.
     *
-    * @param z          Zoom level (0-14, MapLibre handles overzooming for 15+)
+    * @param z          Zoom level (0-22, MapLibre overzooms past the
+    *                   precomputed ceiling)
     * @param x          Tile X coordinate
     * @param y          Tile Y coordinate
     * @param global     Include global challenges
@@ -354,7 +355,26 @@ class TaskController @Inject() (
         keywords,
         location_id
       )
-      Ok(mvtBytes).as("application/vnd.mapbox-vector-tile")
+
+      // Unfiltered tiles are driven entirely by the pre-computed table and
+      // are safe to cache publicly. Filtered tiles depend on request params
+      // (keywords / location polygon) and must not leak between users.
+      //
+      // Keep the cache window short (matching the dirty-tile rebuild cadence)
+      // so task mutations become visible quickly. Empty tiles aren't cached
+      // at all — they may start containing data on the next rebuild.
+      val cacheControl =
+        if (mvtBytes.isEmpty)
+          "no-store"
+        else if (this.serviceManager.tileAggregate
+                   .isCacheable(validDifficulty, global, keywords, location_id))
+          "public, max-age=60, must-revalidate"
+        else
+          "private, no-store"
+
+      Ok(mvtBytes)
+        .as("application/vnd.mapbox-vector-tile")
+        .withHeaders("Cache-Control" -> cacheControl)
     }
   }
 

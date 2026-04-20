@@ -880,22 +880,21 @@ class SchedulerActor @Inject() (
   }
 
   /**
-    * Rebuilds all pre-computed tile aggregates.
-    * Tiles are used for efficient map display of tasks at scale.
-    *
-    * @param action - action string
+    * Drains the dirty-tile queue produced by task mutations and rebuilds
+    * just those tiles. This replaces the old "full rebuild every minute"
+    * pattern — triggers now mark affected tiles, and this job processes the
+    * queue incrementally so map updates stay responsive without reprocessing
+    * the entire task table every minute.
     */
   def refreshTileAggregates(action: String): Unit = {
-    val start = System.currentTimeMillis
-    logger.info(s"Scheduled Task '$action': Starting full tile rebuild")
-
-    val totalTiles = serviceManager.tileAggregate.rebuildAllTiles()
-
+    val start     = System.currentTimeMillis
+    val processed = serviceManager.tileAggregate.rebuildDirtyTiles(limit = 500)
     val totalTime = System.currentTimeMillis - start
-    logger.info(
-      s"Scheduled Task '$action': Finished run. Time spent: ${totalTime}ms. " +
-        s"Total tiles: $totalTiles"
-    )
+    if (processed > 0) {
+      logger.info(
+        s"Scheduled Task '$action': rebuilt $processed dirty tiles in ${totalTime}ms"
+      )
+    }
   }
 }
 
