@@ -998,6 +998,7 @@ class TaskDAL @Inject() (
                       LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                       WHERE tasks.id > $currentTaskId AND tasks.parent_id = $parentId
                       AND status IN ({statusList})
+                      AND NOT tasks.archived
                       ORDER BY tasks.id ASC LIMIT 1"""
       val slist = statusList.getOrElse(Task.statusMap.keys.toSeq) match {
         case Nil => Task.statusMap.keys.toSeq
@@ -1012,6 +1013,7 @@ class TaskDAL @Inject() (
                               LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                               WHERE tasks.parent_id = $parentId
                               AND status IN ({statusList})
+                              AND NOT tasks.archived
                               ORDER BY tasks.id ASC LIMIT 1"""
           SQL(loopQuery).on(Symbol("statusList") -> slist).as(lp.*).headOption
       }
@@ -1042,6 +1044,7 @@ class TaskDAL @Inject() (
                       LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                       WHERE tasks.id < $currentTaskId AND tasks.parent_id = $parentId
                       AND status IN ({statusList})
+                      AND NOT tasks.archived
                       ORDER BY tasks.id DESC LIMIT 1"""
       val slist = statusList.getOrElse(Task.statusMap.keys.toSeq) match {
         case Nil => Task.statusMap.keys.toSeq
@@ -1057,6 +1060,7 @@ class TaskDAL @Inject() (
                               LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                               WHERE tasks.parent_id = $parentId
                               AND status IN ({statusList})
+                              AND NOT tasks.archived
                               ORDER BY tasks.id DESC LIMIT 1"""
           SQL(loopQuery).on(Symbol("statusList") -> slist).as(lp.*).headOption
       }
@@ -1165,7 +1169,8 @@ class TaskDAL @Inject() (
         }
         val whereClause = new StringBuilder(s"""WHERE tasks.parent_id = $challengeId AND
               (l.id IS NULL OR l.user_id = ${user.id}) AND
-              tasks.status IN ({statusList})
+              tasks.status IN ({statusList}) AND
+              NOT tasks.archived
             """)
         parameters += (Symbol("statusList") -> ToParameterValue
           .apply[List[Int]]
@@ -1261,10 +1266,10 @@ class TaskDAL @Inject() (
           parameters ++= addChallengeTagMatchingToQuery(params, whereClause, joinClause)
           parameters ++= addSearchToQuery(params, whereClause)
 
-          //add a where clause that just makes sure that any random challenge retrieved actually has some tasks in it
+          //add a where clause that just makes sure that any random challenge retrieved actually has some non-archived tasks in it
           appendInWhereClause(
             whereClause,
-            "1 = (SELECT 1 FROM tasks WHERE parent_id = c.id LIMIT 1)"
+            "1 = (SELECT 1 FROM tasks WHERE parent_id = c.id AND NOT archived LIMIT 1)"
           )
 
           val query =
@@ -1305,6 +1310,7 @@ class TaskDAL @Inject() (
             tasks.parent_id = $challengeId AND
             (l.id IS NULL ${selfLockedClause}) AND
             tasks.status IN (0, 3, 6) AND
+            NOT tasks.archived AND
             NOT tasks.id IN (
                 SELECT task_id FROM status_actions
                 WHERE osm_user_id = ${user.osmProfile.id} AND created >= NOW() - '1 hour'::INTERVAL)

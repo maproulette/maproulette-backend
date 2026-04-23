@@ -339,14 +339,14 @@ $$ LANGUAGE SQL STABLE;;
 -- Mark every zoom 0..12 tile that a given point affects.
 CREATE OR REPLACE FUNCTION mark_tile_dirty_for_point(p_lng DOUBLE PRECISION, p_lat DOUBLE PRECISION) RETURNS VOID AS $$
 DECLARE
-  z INTEGER;;
+  i_z INTEGER;;
 BEGIN
   IF p_lng IS NULL OR p_lat IS NULL THEN
     RETURN;;
   END IF;;
-  FOR z IN 0..12 LOOP
+  FOR i_z IN 0..12 LOOP
     INSERT INTO tile_dirty_marks (z, x, y)
-    VALUES (z, lng_to_tile_x(p_lng, z), lat_to_tile_y(p_lat, z))
+    VALUES (i_z, lng_to_tile_x(p_lng, i_z), lat_to_tile_y(p_lat, i_z))
     ON CONFLICT (z, x, y) DO NOTHING;;
   END LOOP;;
 END;;

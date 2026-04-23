@@ -71,7 +71,9 @@ case class Task(
     bundleId: Option[Long] = None,
     isBundlePrimary: Option[Boolean] = None,
     mapillaryImages: Option[List[MapillaryImage]] = None,
-    errorTags: String = ""
+    errorTags: String = "",
+    skipCount: Int = 0,
+    archived: Boolean = false
 ) extends BaseObject[Long]
     with DefaultReads
     with LowPriorityDefaultReads
@@ -202,7 +204,13 @@ object Task extends CommonField {
       implicit val reviewReads: Reads[TaskReviewFields]  = Json.reads[TaskReviewFields]
 
       val jsonWithReview = Utils.insertIntoJson(json, "review", Map[String, String](), false)
-      Json.fromJson[Task](jsonWithReview)(Json.reads[Task])
+      // `skipCount` and `archived` are server-managed columns that default to 0 / false
+      // on first insert. Insert the defaults here so older clients (and existing
+      // POST bodies) that don't supply these fields still parse cleanly.
+      val withSkipDefault = Utils.insertIntoJson(jsonWithReview, "skipCount", 0, false)
+      val withArchivedDefault =
+        Utils.insertIntoJson(withSkipDefault, "archived", false, false)
+      Json.fromJson[Task](withArchivedDefault)(Json.reads[Task])
     }
   }
 

@@ -63,12 +63,15 @@ trait TaskParserMixin {
       get[Option[String]]("responses") ~
       get[Option[Long]]("tasks.bundle_id") ~
       get[Option[Boolean]]("tasks.is_bundle_primary") ~
-      get[Option[String]]("task_review.error_tags") map {
+      get[Option[String]]("task_review.error_tags") ~
+      get[Option[Int]]("tasks.skip_count") ~
+      get[Option[Boolean]]("tasks.archived") map {
       case id ~ name ~ created ~ modified ~ parent_id ~ instruction ~ location ~ status ~ geojson ~
             cooperativeWork ~ mappedOn ~ completedTimeSpent ~ completedBy ~ reviewStatus ~
             reviewRequestedBy ~ reviewedBy ~ reviewedAt ~ metaReviewedBy ~
             metaReviewStatus ~ metaReviewedAt ~ reviewStartedAt ~ reviewClaimedBy ~ reviewClaimedAt ~
-            additionalReviewers ~ priority ~ changesetId ~ responses ~ bundleId ~ isBundlePrimary ~ errorTags =>
+            additionalReviewers ~ priority ~ changesetId ~ responses ~ bundleId ~ isBundlePrimary ~ errorTags ~
+            skipCount ~ archived =>
         val values = updateAndRetrieve(id, geojson, location, cooperativeWork)
         Task(
           id,
@@ -102,7 +105,9 @@ trait TaskParserMixin {
           responses,
           bundleId,
           isBundlePrimary,
-          errorTags = errorTags.getOrElse("")
+          errorTags = errorTags.getOrElse(""),
+          skipCount = skipCount.getOrElse(0),
+          archived = archived.getOrElse(false)
         )
     }
   }
@@ -146,6 +151,8 @@ trait TaskParserMixin {
       get[Option[DateTime]]("task_review.review_claimed_at") ~
       get[Option[List[Long]]]("task_review.additional_reviewers") ~
       get[Option[String]]("task_review.error_tags") ~
+      get[Option[Int]]("tasks.skip_count") ~
+      get[Option[Boolean]]("tasks.archived") ~
       // challenges and projects fields
       get[Option[String]]("challenge_name") ~
       get[Option[String]]("project_name") ~
@@ -159,6 +166,7 @@ trait TaskParserMixin {
             reviewStatus ~ reviewRequestedBy ~
             reviewedBy ~ reviewedAt ~ metaReviewedBy ~ metaReviewStatus ~ metaReviewedAt ~ reviewStartedAt ~
             reviewClaimedBy ~ reviewClaimedAt ~ additionalReviewers ~ errorTags ~
+            skipCount ~ archived ~
             challengeName ~ projectName ~ projectId ~
             reviewRequestedByUsername ~ reviewedByUsername =>
         val values = updateAndRetrieve(id, geojson, location, cooperativeWork)
@@ -195,7 +203,9 @@ trait TaskParserMixin {
             responses,
             bundleId,
             isBundlePrimary,
-            errorTags = errorTags.getOrElse("")
+            errorTags = errorTags.getOrElse(""),
+            skipCount = skipCount.getOrElse(0),
+            archived = archived.getOrElse(false)
           ),
           TaskReview(
             -1,

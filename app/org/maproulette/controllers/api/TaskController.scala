@@ -25,6 +25,7 @@ import org.maproulette.framework.service.{ServiceManager, TagService, TaskCluste
 import org.maproulette.framework.mixins.TagsControllerMixin
 import org.maproulette.framework.repository.TaskRepository
 import org.maproulette.metrics.Metrics
+import org.maproulette.permissions.Permission
 import org.maproulette.models.dal.mixin.TagDALMixin
 import org.maproulette.models.dal.{DALManager, TaskDAL}
 import org.maproulette.provider.osm._
@@ -69,7 +70,8 @@ class TaskController @Inject() (
     changeService: ChangesetProvider,
     taskClusterService: TaskClusterService,
     override val bodyParsers: PlayBodyParsers,
-    taskRepository: TaskRepository
+    taskRepository: TaskRepository,
+    permission: Permission
 ) extends AbstractController(components)
     with CRUDController[Task]
     with TagsControllerMixin[Task] {
@@ -855,5 +857,121 @@ class TaskController @Inject() (
       val results = this.dal.search(search, limit)
       Ok(Json.toJson(results))
     }
+  }
+
+  /**
+    * Skip a task: increments skip_count, releases the caller's lock, and
+    * leaves status unchanged. Emits a task-released WebSocket event so
+    * map / table clients can update their lock view.
+    */
+  def skipTask(taskId: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      val task = this.dal.retrieveById(taskId) match {
+        case Some(t) => t
+        case None    => throw new NotFoundException(s"Task with $taskId not found, unable to skip.")
+      }
+
+      taskRepository.incrementSkipCount(taskId)
+
+      try {
+        this.dal.unlockItem(user, task)
+        webSocketProvider.sendMessage(
+          WebSocketMessages.taskReleased(task, Some(WebSocketMessages.userSummary(user)))
+        )
+      } catch {
+        case e: Exception => logger.warn(s"Skip unlock failed for task $taskId: ${e.getMessage}")
+      }
+
+      NoContent
+    }
+  }
+
+  /**
+    * Bulk delete: removes every task in the supplied `taskIds` list.
+    * Caller must have write access on each task's parent project; tasks
+    * the caller cannot access are skipped and reported in `denied`.
+    */
+  def bulkDelete: Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      val taskIds = (request.body \ "taskIds").asOpt[List[Long]].getOrElse(List.empty)
+      if (taskIds.isEmpty) {
+        BadRequest(Json.toJson(StatusMessage("KO", JsString("taskIds must be a non-empty array"))))
+      } else {
+        val (permitted, denied) = partitionTasksByWriteAccess(taskIds, user)
+        val deleted             = taskRepository.bulkDeleteTasks(permitted.map(_.id))
+        Ok(
+          Json.obj(
+            "requested" -> taskIds.length,
+            "deleted"   -> deleted,
+            "denied"    -> denied
+          )
+        )
+      }
+    }
+  }
+
+  /**
+    * Bulk archive / unarchive tasks. Respects per-task write-access checks
+    * identically to `bulkDelete`.
+    */
+  def bulkArchive: Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      val taskIds  = (request.body \ "taskIds").asOpt[List[Long]].getOrElse(List.empty)
+      val archived = (request.body \ "archived").asOpt[Boolean].getOrElse(true)
+      if (taskIds.isEmpty) {
+        BadRequest(Json.toJson(StatusMessage("KO", JsString("taskIds must be a non-empty array"))))
+      } else {
+        val (permitted, _) = partitionTasksByWriteAccess(taskIds, user)
+        taskRepository.bulkArchiveTasks(permitted.map(_.id), archived)
+        webSocketProvider.sendMessage(
+          WebSocketMessages.tasksUpdated(permitted, Some(WebSocketMessages.userSummary(user)))
+        )
+        NoContent
+      }
+    }
+  }
+
+  /**
+    * Bulk reassign the reviewer on each task in `taskIds` to `userId`.
+    * Only tasks whose reviews are still open (status 0 or 3) are updated.
+    */
+  def bulkReassign: Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      val taskIds = (request.body \ "taskIds").asOpt[List[Long]].getOrElse(List.empty)
+      val userId  = (request.body \ "userId").asOpt[Long].getOrElse(-1L)
+      if (taskIds.isEmpty || userId < 0) {
+        BadRequest(
+          Json.toJson(StatusMessage("KO", JsString("taskIds and userId are required")))
+        )
+      } else {
+        val (permitted, _) = partitionTasksByWriteAccess(taskIds, user)
+        val updated        = taskRepository.bulkReassignReviewer(permitted.map(_.id), userId)
+        Ok(Json.obj("requested" -> taskIds.length, "updated" -> updated))
+      }
+    }
+  }
+
+  /**
+    * Split a list of task ids into tasks whose parent project the caller
+    * can write to, and the ids that were denied.
+    */
+  private def partitionTasksByWriteAccess(
+      taskIds: List[Long],
+      user: User
+  ): (List[Task], List[Long]) = {
+    val (permitted, denied) =
+      taskIds.distinct.flatMap(this.dal.retrieveById(_)).partition { task =>
+        try {
+          dalManager.challenge.retrieveById(task.parent) match {
+            case Some(challenge) =>
+              permission.hasWriteAccess(ProjectType(), user)(challenge.general.parent)
+              true
+            case None => false
+          }
+        } catch {
+          case _: Exception => false
+        }
+      }
+    (permitted, denied.map(_.id))
   }
 }
