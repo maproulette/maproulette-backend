@@ -1897,4 +1897,70 @@ class ChallengeController @Inject() (
         Ok(Json.toJson(Json.obj("likeCount" -> likeCount)))
       }
   }
+
+  /**
+    * Create-or-update: if the JSON body includes a numeric `id`, delegate to
+    * update; otherwise delegate to create. Keeps clients from needing to pick
+    * between POST /challenge and PUT /challenge/:id based on whether they
+    * have a persisted id yet.
+    */
+  def saveOrUpdate: Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
+    val rawId = (request.body \ "id").asOpt[Long].getOrElse(-1L)
+    if (rawId > 0) {
+      this.update(rawId).apply(request)
+    } else {
+      this.create.apply(request)
+    }
+  }
+
+  /**
+    * Narrow update endpoint that accepts just the priority-related fields on
+    * a challenge and nothing else. Avoids the side effects (re-validation,
+    * task-rebuild triggers) that the full PUT /challenge/:id performs when
+    * unrelated fields are absent or differ.
+    */
+  def updatePriorities(id: Long): Action[JsValue] = Action.async(bodyParsers.json) {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        val challenge = this.dal.retrieveById(id) match {
+          case Some(c) => c
+          case None =>
+            throw new NotFoundException(s"Challenge with id $id not found, unable to update.")
+        }
+        permission.hasWriteAccess(ProjectType(), user)(challenge.general.parent)
+
+        val allowedKeys = Set(
+          "defaultPriority",
+          "highPriorityRule",
+          "highPriorityBounds",
+          "mediumPriorityRule",
+          "mediumPriorityBounds",
+          "lowPriorityRule",
+          "lowPriorityBounds"
+        )
+        val body = request.body.asOpt[JsObject].getOrElse(Json.obj())
+        val filtered = JsObject(
+          body.fields.filter { case (k, _) => allowedKeys.contains(k) }
+        )
+
+        if (filtered.fields.isEmpty) {
+          BadRequest(
+            Json.toJson(
+              StatusMessage(
+                "KO",
+                JsString(
+                  s"Body must include at least one of: ${allowedKeys.mkString(", ")}"
+                )
+              )
+            )
+          )
+        } else {
+          this.dal.update(filtered, user)(id) match {
+            case Some(updated) => Ok(Json.toJson(updated))
+            case None =>
+              InternalServerError(Json.toJson(StatusMessage("KO", JsString("Update failed"))))
+          }
+        }
+      }
+  }
 }

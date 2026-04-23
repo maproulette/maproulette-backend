@@ -71,7 +71,9 @@ case class Task(
     bundleId: Option[Long] = None,
     isBundlePrimary: Option[Boolean] = None,
     mapillaryImages: Option[List[MapillaryImage]] = None,
-    errorTags: String = ""
+    errorTags: String = "",
+    skipCount: Int = 0,
+    archived: Boolean = false
 ) extends BaseObject[Long]
     with DefaultReads
     with LowPriorityDefaultReads
@@ -131,12 +133,103 @@ object Task extends CommonField {
   val FIELD_BUNDLE_PRIMARY = "is_bundle_primary"
   val FIELD_MAPPED_ON      = "mapped_on"
 
+  // `Task` has 23 fields, which exceeds Scala 2's 22-element tuple/unapply cap,
+  // so `Json.writes[Task]` / `Json.reads[Task]` macros can't be used. The manual
+  // Writes/Reads below produce the same JSON shape the macros would.
+  private def taskObjectWrites(
+      o: Task
+  )(
+      implicit mapillaryWrites: Writes[MapillaryImage],
+      reviewWrites: Writes[TaskReviewFields]
+  ): JsObject =
+    Json.obj(
+      "id"                  -> o.id,
+      "name"                -> o.name,
+      "created"             -> o.created,
+      "modified"            -> o.modified,
+      "parent"              -> o.parent,
+      "instruction"         -> o.instruction,
+      "location"            -> o.location,
+      "geometries"          -> o.geometries,
+      "cooperativeWork"     -> o.cooperativeWork,
+      "status"              -> o.status,
+      "mappedOn"            -> o.mappedOn,
+      "completedTimeSpent"  -> o.completedTimeSpent,
+      "completedBy"         -> o.completedBy,
+      "review"              -> o.review,
+      "priority"            -> o.priority,
+      "changesetId"         -> o.changesetId,
+      "completionResponses" -> o.completionResponses,
+      "bundleId"            -> o.bundleId,
+      "isBundlePrimary"     -> o.isBundlePrimary,
+      "mapillaryImages"     -> o.mapillaryImages,
+      "errorTags"           -> o.errorTags,
+      "skipCount"           -> o.skipCount,
+      "archived"            -> o.archived
+    )
+
+  private def taskObjectReads(
+      json: JsValue
+  )(
+      implicit mapillaryReads: Reads[MapillaryImage],
+      reviewReads: Reads[TaskReviewFields]
+  ): JsResult[Task] =
+    for {
+      id                  <- (json \ "id").validate[Long]
+      name                <- (json \ "name").validate[String]
+      created             <- (json \ "created").validate[DateTime]
+      modified            <- (json \ "modified").validate[DateTime]
+      parent              <- (json \ "parent").validate[Long]
+      instruction         <- (json \ "instruction").validateOpt[String]
+      location            <- (json \ "location").validateOpt[String]
+      geometries          <- (json \ "geometries").validate[String]
+      cooperativeWork     <- (json \ "cooperativeWork").validateOpt[String]
+      status              <- (json \ "status").validateOpt[Int]
+      mappedOn            <- (json \ "mappedOn").validateOpt[DateTime]
+      completedTimeSpent  <- (json \ "completedTimeSpent").validateOpt[Long]
+      completedBy         <- (json \ "completedBy").validateOpt[Long]
+      review              <- (json \ "review").validate[TaskReviewFields]
+      priority            <- (json \ "priority").validate[Int]
+      changesetId         <- (json \ "changesetId").validateOpt[Long]
+      completionResponses <- (json \ "completionResponses").validateOpt[String]
+      bundleId            <- (json \ "bundleId").validateOpt[Long]
+      isBundlePrimary     <- (json \ "isBundlePrimary").validateOpt[Boolean]
+      mapillaryImages     <- (json \ "mapillaryImages").validateOpt[List[MapillaryImage]]
+      errorTags           <- (json \ "errorTags").validate[String]
+      skipCount           <- (json \ "skipCount").validate[Int]
+      archived            <- (json \ "archived").validate[Boolean]
+    } yield Task(
+      id,
+      name,
+      created,
+      modified,
+      parent,
+      instruction,
+      location,
+      geometries,
+      cooperativeWork,
+      status,
+      mappedOn,
+      completedTimeSpent,
+      completedBy,
+      review,
+      priority,
+      changesetId,
+      completionResponses,
+      bundleId,
+      isBundlePrimary,
+      mapillaryImages,
+      errorTags,
+      skipCount,
+      archived
+    )
+
   implicit object TaskFormat extends Format[Task] {
     override def writes(o: Task): JsValue = {
       implicit val mapillaryWrites: Writes[MapillaryImage] = Json.writes[MapillaryImage]
       implicit val reviewWrites: Writes[TaskReviewFields]  = Json.writes[TaskReviewFields]
-      implicit val taskWrites: Writes[Task]                = Json.writes[Task]
-      var original                                         = Json.toJson(o)(Json.writes[Task])
+      implicit val taskWrites: Writes[Task]                = Writes(taskObjectWrites)
+      var original                                         = Json.toJson(o)(taskWrites)
       var updatedLocation = o.location match {
         case Some(l) => Utils.insertIntoJson(original, "location", Json.parse(l), true)
         case None    => original
@@ -202,7 +295,13 @@ object Task extends CommonField {
       implicit val reviewReads: Reads[TaskReviewFields]  = Json.reads[TaskReviewFields]
 
       val jsonWithReview = Utils.insertIntoJson(json, "review", Map[String, String](), false)
-      Json.fromJson[Task](jsonWithReview)(Json.reads[Task])
+      // `skipCount` and `archived` are server-managed columns that default to 0 / false
+      // on first insert. Insert the defaults here so older clients (and existing
+      // POST bodies) that don't supply these fields still parse cleanly.
+      val withSkipDefault = Utils.insertIntoJson(jsonWithReview, "skipCount", 0, false)
+      val withArchivedDefault =
+        Utils.insertIntoJson(withSkipDefault, "archived", false, false)
+      taskObjectReads(withArchivedDefault)
     }
   }
 

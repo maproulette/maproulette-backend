@@ -84,6 +84,58 @@ GET     /challenge/:id/taskMarkers        @org.maproulette.controllers.api.Chall
 PUT     /challenge/:id                              @org.maproulette.controllers.api.ChallengeController.update(id:Long)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_save_or_update
+# summary: Create or update a Challenge
+# description: Convenience endpoint that creates a new Challenge when the JSON body
+#              has no `id`, or updates the existing Challenge when an `id` is
+#              supplied. Identical payload shape in both cases.
+# responses:
+#   '200':
+#     description: The persisted Challenge
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+#   '400':
+#     description: Invalid json payload for Challenge
+#   '401':
+#     description: The user is not authorized to make this request
+# requestBody:
+#   description: Full Challenge body, optionally including `id` for updates.
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+###
+POST    /challenge/saveOrUpdate                     @org.maproulette.controllers.api.ChallengeController.saveOrUpdate
+###
+# tags: [ Challenge ]
+# operationId: challenge_update_priorities
+# summary: Update priority rules on a Challenge (priority-only)
+# description: Narrow endpoint that only updates the defaultPriority plus the
+#              three priority rule groups and bounds on the challenge. Avoids
+#              re-validating unrelated fields. Body keys (all optional) —
+#              defaultPriority, highPriorityRule, highPriorityBounds,
+#              mediumPriorityRule, mediumPriorityBounds, lowPriorityRule,
+#              lowPriorityBounds.
+# responses:
+#   '200':
+#     description: The updated Challenge
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+#   '404':
+#     description: Challenge not found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The ID of the Challenge being updated
+###
+PUT     /challenge/:id/priorities                   @org.maproulette.controllers.api.ChallengeController.updatePriorities(id:Long)
+###
+# tags: [ Challenge ]
 # operationId: challenge_read
 # summary: Retrieves an already existing Challenge
 # description: Retrieves an already existing Challenge based on the supplied ID in the URL.

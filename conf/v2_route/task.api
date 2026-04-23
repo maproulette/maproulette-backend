@@ -144,6 +144,86 @@ PUT     /tasks                                      @org.maproulette.controllers
 PUT     /tasks/changeStatus                        @org.maproulette.controllers.api.TaskController.bulkStatusChange(newStatus:Int)
 ###
 # tags: [ Task ]
+# operationId: task_bulk_delete_tasks
+# summary: Bulk delete tasks by id list
+# description: Deletes every task in the supplied `taskIds` array. Callers must
+#              have write access on the parent project for each affected task;
+#              any task for which access is denied is skipped and reported in
+#              the response.
+# responses:
+#   '200':
+#     description: Deletion summary
+# requestBody:
+#   description: JSON body containing taskIds
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: object
+#         properties:
+#           taskIds:
+#             type: array
+#             items:
+#               type: integer
+#               format: int64
+###
+DELETE  /tasks                                     @org.maproulette.controllers.api.TaskController.bulkDelete
+###
+# tags: [ Task ]
+# operationId: task_bulk_archive_tasks
+# summary: Bulk archive/unarchive tasks by id list
+# description: Toggles the archived flag on every task in `taskIds`. Archived
+#              tasks are excluded from task selection for mappers but remain in
+#              the database.
+# responses:
+#   '204':
+#     description: All tasks updated
+# requestBody:
+#   description: JSON body containing taskIds + archived
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: object
+#         properties:
+#           taskIds:
+#             type: array
+#             items:
+#               type: integer
+#               format: int64
+#           archived:
+#             type: boolean
+###
+PUT     /tasks/archive                             @org.maproulette.controllers.api.TaskController.bulkArchive
+###
+# tags: [ Task ]
+# operationId: task_bulk_reassign_tasks
+# summary: Bulk reassign task review to a different user
+# description: Reassigns the review of every task in `taskIds` to the supplied
+#              `userId`. Tasks without an active review remain unchanged.
+# responses:
+#   '204':
+#     description: All tasks updated
+# requestBody:
+#   description: JSON body containing taskIds + userId
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: object
+#         properties:
+#           taskIds:
+#             type: array
+#             items:
+#               type: integer
+#               format: int64
+#           userId:
+#             type: integer
+#             format: int64
+###
+PUT     /tasks/reassign                            @org.maproulette.controllers.api.TaskController.bulkReassign
+###
+# tags: [ Task ]
 # operationId: task_retrieves_an_already_existing_task
 # summary: Retrieves an already existing Task
 # description: Retrieves an already existing Task based on the supplied ID in the URL.
@@ -306,6 +386,26 @@ GET     /task/:id/attachment/$attachmentId<[\w\d-_~\.]+>/data/$filename<[\w\d-_\
 #     description: The id of the Task to retrieve
 ###
 GET     /task/:id/release                               @org.maproulette.controllers.api.TaskController.releaseTask(id:Long)
+###
+# tags: [ Task ]
+# operationId: task_skip_a_task
+# summary: Skip a Task (increments skip count, releases lock, preserves status)
+# description: Records a skip event for the task (incrementing skip_count),
+#              releases any lock the caller owns, and leaves the task's status
+#              unchanged. Use this instead of transitioning the task to the
+#              Skipped status when the user does not want to act on the task
+#              right now.
+# responses:
+#   '204':
+#     description: The skip event was recorded and the lock was released
+#   '404':
+#     description: ID field supplied but no Task found matching the id
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the Task to skip
+###
+POST    /task/:id/skip                                  @org.maproulette.controllers.api.TaskController.skipTask(id:Long)
 ###
 # tags: [ Task ]
 # operationId: task_refresh_an_existing_lock_on_a_task
