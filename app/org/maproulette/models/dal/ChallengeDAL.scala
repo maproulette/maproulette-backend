@@ -1089,20 +1089,44 @@ class ChallengeDAL @Inject() (
   }
 
   /**
-    * Will run through the tasks in batches of 50 and update the priorities based on the rules
-    * of the challenge
+    * Will run through the tasks in batches and recompute each task's priority from the
+    * challenge's current rules and bounds. Returns a `(high, medium, low)` tuple of the
+    * number of task rows written at each level — callers (particularly the priorities
+    * endpoint) use this as an honest receipt that the DB actually changed, since a silent
+    * 0/0/0 is a strong signal something upstream is wrong.
     *
     * @param user The user executing the request
     * @param id   The id of the challenge
     * @param c    The connection for the request
     */
+  /**
+    * Reads the live priority distribution for a challenge directly from the tasks table,
+    * bypassing any DAL caching. Used by callers (priorities endpoint) to verify that a
+    * recompute actually landed in the DB.
+    */
+  def countTasksByPriority(
+      challengeId: Long
+  )(implicit c: Option[Connection] = None): Map[Int, Long] = {
+    this.withMRConnection { implicit c =>
+      SQL"""SELECT priority, COUNT(*) AS cnt FROM tasks
+            WHERE parent_id = $challengeId
+            GROUP BY priority"""
+        .as((SqlParser.int("priority") ~ SqlParser.long("cnt")).map { case p ~ cnt => (p, cnt) }.*)
+        .toMap
+    }
+  }
+
   def updateTaskPriorities(
       user: User,
       overrideValidation: Boolean = false
-  )(implicit id: Long, c: Option[Connection] = None): Unit = {
+  )(implicit id: Long, c: Option[Connection] = None): (Int, Int, Int) = {
     this.permission.hasWriteAccess(ChallengeType(), user)
     this.withMRConnection { implicit c =>
-      val challenge = this.retrieveById(id) match {
+      // Bypass the challenge cache — callers (e.g. the priorities controller)
+      // race with a background Future that updates the same challenge, and any
+      // cached value can lag behind the freshly-saved rules/bounds. Reading
+      // straight from the DB guarantees the recompute uses the latest config.
+      val challenge = this._retrieveById(caching = false) match {
         case Some(c) => c
         case None =>
           throw new NotFoundException(
@@ -1118,37 +1142,98 @@ class ChallengeDAL @Inject() (
           Challenge.isValidBounds(challenge.priority.lowPriorityBounds)) {
         var pointer                  = 0
         var currentTasks: List[Task] = List.empty
+        var highWrites               = 0
+        var mediumWrites             = 0
+        var lowWrites                = 0
         do {
-          currentTasks =
-            listChildren(DEFAULT_NUM_CHILDREN_LIST, pointer * DEFAULT_NUM_CHILDREN_LIST)
+          // listChildren's second argument is the *page number*, and it computes
+          // offset = page * limit internally. The previous `pointer * limit`
+          // expression was being multiplied by limit a second time, so after
+          // the first 1000 tasks the offset jumped to 1,000,000 and every
+          // subsequent batch came back empty, leaving any task beyond row 1000
+          // with its old priority.
+          currentTasks = listChildren(DEFAULT_NUM_CHILDREN_LIST, pointer)
 
-          // Let the task model determine the priorities based on both rules and bounds
-          val highPriorityTasks =
-            currentTasks.filter(_.getTaskPriority(challenge) == Challenge.PRIORITY_HIGH)
-          val mediumPriorityTasks =
-            currentTasks.filter(_.getTaskPriority(challenge) == Challenge.PRIORITY_MEDIUM)
-          val lowPriorityTasks =
-            currentTasks.filter(_.getTaskPriority(challenge) == Challenge.PRIORITY_LOW)
+          // Evaluate per task with a guard: a single malformed rule/bound shouldn't
+          // abort the whole recompute and leave the batch half-written. On failure
+          // we preserve the task's current priority so it stays internally consistent.
+          val evaluated: List[(Task, Int)] = currentTasks.map { task =>
+            val p =
+              try task.getTaskPriority(challenge)
+              catch { case _: Throwable => task.priority }
+            (task, p)
+          }
+          val highPriorityTasks   = evaluated.collect { case (t, Challenge.PRIORITY_HIGH) => t }
+          val mediumPriorityTasks = evaluated.collect { case (t, Challenge.PRIORITY_MEDIUM) => t }
+          val lowPriorityTasks    = evaluated.collect { case (t, Challenge.PRIORITY_LOW) => t }
 
           if (highPriorityTasks.nonEmpty) {
             val highPriorityIds = highPriorityTasks.map(_.id).mkString(",")
-            SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_HIGH} WHERE id IN (#$highPriorityIds)"""
-              .executeUpdate()
+            highWrites +=
+              SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_HIGH} WHERE id IN (#$highPriorityIds)"""
+                .executeUpdate()
           }
           if (mediumPriorityTasks.nonEmpty) {
             val mediumPriorityIds = mediumPriorityTasks.map(_.id).mkString(",")
-            SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_MEDIUM} WHERE id IN (#$mediumPriorityIds)"""
-              .executeUpdate()
+            mediumWrites +=
+              SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_MEDIUM} WHERE id IN (#$mediumPriorityIds)"""
+                .executeUpdate()
           }
           if (lowPriorityTasks.nonEmpty) {
             val lowPriorityIds = lowPriorityTasks.map(_.id).mkString(",")
-            SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_LOW} WHERE id IN (#$lowPriorityIds)"""
-              .executeUpdate()
+            lowWrites +=
+              SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_LOW} WHERE id IN (#$lowPriorityIds)"""
+                .executeUpdate()
           }
           pointer += 1
         } while (currentTasks.size >= DEFAULT_NUM_CHILDREN_LIST)
         this.taskDAL.clearCaches
+        (highWrites, mediumWrites, lowWrites)
+      } else {
+        (0, 0, 0)
       }
+    }
+  }
+
+  /**
+    * Dry-run `updateTaskPriorities`: computes, but does NOT persist, the priority
+    * that every task in the challenge would receive under the supplied draft
+    * priority config. Used by the editor preview so the UI can show tier
+    * membership that is byte-for-byte consistent with what a subsequent save
+    * would write — including rule-based matches, which the frontend can't
+    * evaluate because it doesn't ship per-task OSM tags.
+    */
+  def previewTaskPriorities(
+      user: User,
+      draft: ChallengePriority
+  )(implicit id: Long, c: Option[Connection] = None): Map[Long, Int] = {
+    this.permission.hasWriteAccess(ChallengeType(), user)
+    this.withMRConnection { implicit c =>
+      val persisted = this._retrieveById(caching = false) match {
+        case Some(c) => c
+        case None =>
+          throw new NotFoundException(
+            s"Could not preview priorities — no challenge with id $id found."
+          )
+      }
+      // Splice the draft priority config onto a copy of the persisted challenge
+      // so `task.getTaskPriority` sees the user's in-progress rules/bounds
+      // while still reading tasks from the live DB.
+      val draftChallenge = persisted.copy(priority = draft)
+      val result                   = scala.collection.mutable.LongMap[Int]()
+      var pointer                  = 0
+      var currentTasks: List[Task] = List.empty
+      do {
+        currentTasks = listChildren(DEFAULT_NUM_CHILDREN_LIST, pointer)
+        currentTasks.foreach { task =>
+          val p =
+            try task.getTaskPriority(draftChallenge)
+            catch { case _: Throwable => task.priority }
+          result.put(task.id, p)
+        }
+        pointer += 1
+      } while (currentTasks.size >= DEFAULT_NUM_CHILDREN_LIST)
+      result.toMap
     }
   }
 

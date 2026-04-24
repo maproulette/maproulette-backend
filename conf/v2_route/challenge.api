@@ -136,6 +136,28 @@ POST    /challenge/saveOrUpdate                     @org.maproulette.controllers
 PUT     /challenge/:id/priorities                   @org.maproulette.controllers.api.ChallengeController.updatePriorities(id:Long)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_preview_priorities
+# summary: Dry-run priority recompute for the supplied draft config
+# description: |
+#   Accepts the same body shape as `PUT /challenge/:id/priorities` but does
+#   not persist anything. Returns the priority each task in the challenge
+#   would receive under the supplied draft config, plus per-tier counts.
+#   Used by the prioritization editor to power a server-accurate preview.
+# responses:
+#   '200':
+#     description: The computed priorities by task id and aggregate counts
+#   '401':
+#     description: The user is not authorized to make this request
+#   '404':
+#     description: Challenge not found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The ID of the Challenge being previewed
+###
+POST    /challenge/:id/priorities/preview           @org.maproulette.controllers.api.ChallengeController.previewPriorities(id:Long)
+###
+# tags: [ Challenge ]
 # operationId: challenge_read
 # summary: Retrieves an already existing Challenge
 # description: Retrieves an already existing Challenge based on the supplied ID in the URL.

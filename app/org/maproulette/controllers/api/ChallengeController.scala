@@ -1956,11 +1956,115 @@ class ChallengeController @Inject() (
           )
         } else {
           this.dal.update(filtered, user)(id) match {
-            case Some(updated) => Ok(Json.toJson(updated))
+            case Some(updated) =>
+              val (highWrites, mediumWrites, lowWrites) =
+                this.dal.updateTaskPriorities(user, overrideValidation = true)(id)
+              this.dalManager.task.clearCaches
+              this.dal.clearCaches
+              // Surface an honest receipt of what the recompute did. `tasksUpdated`
+              // is the number of task rows the DB actually changed at each tier,
+              // measured by COUNT(*) after the writes commit. A response with all
+              // zeros is the signal that either no tasks matched any tier (default
+              // priority covers everything) or the recompute short-circuited.
+              val postCounts: Map[Int, Long] = this.dal.countTasksByPriority(id)
+              val highCount: Long            = postCounts.getOrElse(Challenge.PRIORITY_HIGH, 0L)
+              val mediumCount: Long          = postCounts.getOrElse(Challenge.PRIORITY_MEDIUM, 0L)
+              val lowCount: Long             = postCounts.getOrElse(Challenge.PRIORITY_LOW, 0L)
+              val receipt = Json.obj(
+                "tasksWritten" -> Json.obj(
+                  "high"   -> highWrites,
+                  "medium" -> mediumWrites,
+                  "low"    -> lowWrites
+                ),
+                "tasksByPriority" -> Json.obj(
+                  "high"   -> highCount,
+                  "medium" -> mediumCount,
+                  "low"    -> lowCount
+                )
+              )
+              Ok(Json.toJson(updated).as[JsObject] ++ Json.obj("priorityRecompute" -> receipt))
             case None =>
               InternalServerError(Json.toJson(StatusMessage("KO", JsString("Update failed"))))
           }
         }
+      }
+  }
+
+  /**
+    * Dry-run sibling of `updatePriorities`. Accepts the same body shape but
+    * does not persist anything — instead, it returns the priority each task
+    * WOULD receive under the supplied draft config. The editor uses this to
+    * power its live preview (pin colors, match counts), so what the user sees
+    * on the map is byte-for-byte what a subsequent save would write.
+    */
+  def previewPriorities(id: Long): Action[JsValue] = Action.async(bodyParsers.json) {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        val challenge = this.dal.retrieveById(id) match {
+          case Some(c) => c
+          case None =>
+            throw new NotFoundException(s"Challenge with id $id not found.")
+        }
+        permission.hasWriteAccess(ProjectType(), user)(challenge.general.parent)
+
+        val body = request.body
+        val existing = challenge.priority
+        // `filter(_.nonEmpty)` collapses empty-string/empty-array sentinels the
+        // frontend omits — matches the DAL's save-path interpretation so a rule
+        // cleared in the editor previews as a rule cleared in the DB.
+        val draft = ChallengePriority(
+          defaultPriority =
+            (body \ "defaultPriority").asOpt[Int].getOrElse(existing.defaultPriority),
+          highPriorityRule = (body \ "highPriorityRule")
+            .asOpt[String]
+            .map(_.trim)
+            .filter(s => s.nonEmpty && s != "{}"),
+          mediumPriorityRule = (body \ "mediumPriorityRule")
+            .asOpt[String]
+            .map(_.trim)
+            .filter(s => s.nonEmpty && s != "{}"),
+          lowPriorityRule = (body \ "lowPriorityRule")
+            .asOpt[String]
+            .map(_.trim)
+            .filter(s => s.nonEmpty && s != "{}"),
+          highPriorityBounds = (body \ "highPriorityBounds")
+            .asOpt[String]
+            .map(_.trim)
+            .filter(s => s.nonEmpty && s != "[]"),
+          mediumPriorityBounds = (body \ "mediumPriorityBounds")
+            .asOpt[String]
+            .map(_.trim)
+            .filter(s => s.nonEmpty && s != "[]"),
+          lowPriorityBounds = (body \ "lowPriorityBounds")
+            .asOpt[String]
+            .map(_.trim)
+            .filter(s => s.nonEmpty && s != "[]")
+        )
+
+        val priorities = this.dal.previewTaskPriorities(user, draft)(id)
+        // Aggregate counts once on the server so the client doesn't have to
+        // walk the per-task map just to populate the badges.
+        var high   = 0
+        var medium = 0
+        var low    = 0
+        priorities.foreach {
+          case (_, Challenge.PRIORITY_HIGH)   => high += 1
+          case (_, Challenge.PRIORITY_MEDIUM) => medium += 1
+          case (_, Challenge.PRIORITY_LOW)    => low += 1
+          case _                              => ()
+        }
+        Ok(
+          Json.obj(
+            "priorities" -> JsObject(priorities.map { case (taskId, p) =>
+              taskId.toString -> JsNumber(p)
+            }),
+            "counts" -> Json.obj(
+              "high"   -> high,
+              "medium" -> medium,
+              "low"    -> low
+            )
+          )
+        )
       }
   }
 }
