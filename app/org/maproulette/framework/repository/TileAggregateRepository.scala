@@ -69,6 +69,7 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
             CASE WHEN ttg.group_type IN (0, 1) THEN ttg.task_ids[1] ELSE NULL END AS id,
             CASE WHEN ttg.group_type = 0 THEN t.status   ELSE NULL END AS status,
             CASE WHEN ttg.group_type = 0 THEN t.priority ELSE NULL END AS priority,
+            CASE WHEN ttg.group_type = 0 THEN t.parent_id ELSE NULL END AS challenge_id,
             CASE WHEN ttg.group_type = 1 THEN array_to_string(ttg.task_ids, ',') ELSE NULL END AS task_ids_str
           FROM tile_task_groups ttg
           LEFT JOIN tasks t ON ttg.group_type = 0 AND t.id = ttg.task_ids[1]
@@ -144,6 +145,7 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
         WITH filtered_tasks AS (
           SELECT
             t.id,
+            t.parent_id AS challenge_id,
             ST_Transform(t.location, 3857) AS loc3857,
             t.location AS loc4326,
             t.status,
@@ -165,7 +167,7 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
         clustered AS (
           SELECT
             ST_ClusterDBSCAN(loc3857, eps := {eps}, minpoints := 1) OVER () AS cluster_id,
-            id, loc3857, loc4326, status, priority
+            id, challenge_id, loc3857, loc4326, status, priority
           FROM filtered_tasks
         ),
         grouped AS (
@@ -173,9 +175,10 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
             cluster_id,
             COUNT(*)::int AS task_count,
             CASE WHEN COUNT(*) = 1 THEN 0 ELSE 1 END AS group_type,
-            (ARRAY_AGG(id       ORDER BY id))[1] AS single_id,
-            (ARRAY_AGG(status   ORDER BY id))[1] AS single_status,
-            (ARRAY_AGG(priority ORDER BY id))[1] AS single_priority,
+            (ARRAY_AGG(id           ORDER BY id))[1] AS single_id,
+            (ARRAY_AGG(challenge_id ORDER BY id))[1] AS single_challenge_id,
+            (ARRAY_AGG(status       ORDER BY id))[1] AS single_status,
+            (ARRAY_AGG(priority     ORDER BY id))[1] AS single_priority,
             CASE WHEN COUNT(*) > 1
                  THEN array_to_string(ARRAY_AGG(id ORDER BY id), ',')
                  ELSE NULL END AS task_ids_str,
@@ -193,9 +196,10 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
             ) AS geom,
             group_type,
             task_count,
-            CASE WHEN group_type = 0 THEN single_id       ELSE NULL END AS id,
-            CASE WHEN group_type = 0 THEN single_status   ELSE NULL END AS status,
-            CASE WHEN group_type = 0 THEN single_priority ELSE NULL END AS priority,
+            CASE WHEN group_type = 0 THEN single_id           ELSE NULL END AS id,
+            CASE WHEN group_type = 0 THEN single_status       ELSE NULL END AS status,
+            CASE WHEN group_type = 0 THEN single_priority     ELSE NULL END AS priority,
+            CASE WHEN group_type = 0 THEN single_challenge_id ELSE NULL END AS challenge_id,
             task_ids_str
           FROM grouped
         ) AS tile
