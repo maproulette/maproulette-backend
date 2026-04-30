@@ -1041,18 +1041,22 @@ class ChallengeController @Inject() (
         val challengeTasks    = this.serviceManager.challenge.getTasksByParentId(challengeId);
         val taskReviewHistory = this.serviceManager.taskHistory.getTaskReviewHistory(challengeTasks);
 
+        // Format timestamps in UTC explicitly so the CSV doesn't depend on the
+        // JVM's default timezone — otherwise DST transitions cause the values
+        // to drift by an hour relative to the JSON the UI consumes.
+        def fmtUTC(d: Option[DateTime]): String =
+          d.map(_.withZone(DateTimeZone.UTC).toString).getOrElse("")
+
         val seqString = taskReviewHistory.map(taskReviewLog => {
           val errorTagNames = formatErrorTagNames(taskReviewLog.errorTags);
 
           s"""${taskReviewLog.id},${taskReviewLog.taskId},${taskReviewLog.reviewRequestedByUsername
             .getOrElse("")},${taskReviewLog.reviewedByUsername.getOrElse("")},""" +
             s"""${Task.reviewStatusMap.get(taskReviewLog.reviewStatus.getOrElse(-1)).get},""" +
-            s"""${taskReviewLog.reviewedAt.getOrElse("")},${taskReviewLog.reviewStartedAt
-              .getOrElse("")},""" +
+            s"""${fmtUTC(taskReviewLog.reviewedAt)},${fmtUTC(taskReviewLog.reviewStartedAt)},""" +
             s"""${taskReviewLog.metaReviewStatus
                  .getOrElse("")},${taskReviewLog.metaReviewedByUsername
-                 .getOrElse("")},${taskReviewLog.metaReviewedAt
-                 .getOrElse("")},${errorTagNames}""".stripMargin
+                 .getOrElse("")},${fmtUTC(taskReviewLog.metaReviewedAt)},${errorTagNames}""".stripMargin
         })
 
         Result(
