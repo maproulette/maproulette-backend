@@ -11,8 +11,7 @@ import org.maproulette.framework.model.{
   ChallengeCreation,
   ChallengeExtra,
   ChallengeGeneral,
-  ChallengePriority,
-  CompletionMetrics
+  ChallengePriority
 }
 import org.maproulette.utils.Utils
 import org.maproulette.utils.Utils.{jsonReads, jsonWrites}
