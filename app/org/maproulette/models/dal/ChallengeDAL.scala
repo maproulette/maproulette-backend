@@ -1163,9 +1163,9 @@ class ChallengeDAL @Inject() (
               catch { case _: Throwable => task.priority }
             (task, p)
           }
-          val highPriorityTasks   = evaluated.collect { case (t, Challenge.PRIORITY_HIGH) => t }
+          val highPriorityTasks   = evaluated.collect { case (t, Challenge.PRIORITY_HIGH)   => t }
           val mediumPriorityTasks = evaluated.collect { case (t, Challenge.PRIORITY_MEDIUM) => t }
-          val lowPriorityTasks    = evaluated.collect { case (t, Challenge.PRIORITY_LOW) => t }
+          val lowPriorityTasks    = evaluated.collect { case (t, Challenge.PRIORITY_LOW)    => t }
 
           if (highPriorityTasks.nonEmpty) {
             val highPriorityIds = highPriorityTasks.map(_.id).mkString(",")
@@ -1219,7 +1219,7 @@ class ChallengeDAL @Inject() (
       // Splice the draft priority config onto a copy of the persisted challenge
       // so `task.getTaskPriority` sees the user's in-progress rules/bounds
       // while still reading tasks from the live DB.
-      val draftChallenge = persisted.copy(priority = draft)
+      val draftChallenge           = persisted.copy(priority = draft)
       val result                   = scala.collection.mutable.LongMap[Int]()
       var pointer                  = 0
       var currentTasks: List[Task] = List.empty

@@ -2007,7 +2007,7 @@ class ChallengeController @Inject() (
         }
         permission.hasWriteAccess(ProjectType(), user)(challenge.general.parent)
 
-        val body = request.body
+        val body     = request.body
         val existing = challenge.priority
         // `filter(_.nonEmpty)` collapses empty-string/empty-array sentinels the
         // frontend omits — matches the DAL's save-path interpretation so a rule
@@ -2055,8 +2055,9 @@ class ChallengeController @Inject() (
         }
         Ok(
           Json.obj(
-            "priorities" -> JsObject(priorities.map { case (taskId, p) =>
-              taskId.toString -> JsNumber(p)
+            "priorities" -> JsObject(priorities.map {
+              case (taskId, p) =>
+                taskId.toString -> JsNumber(p)
             }),
             "counts" -> Json.obj(
               "high"   -> high,
