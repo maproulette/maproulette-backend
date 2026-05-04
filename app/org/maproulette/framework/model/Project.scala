@@ -46,7 +46,7 @@ object Project extends CommonField {
   implicit val grantWrites: Writes[Grant] = Grant.writes
   implicit val grantReads: Reads[Grant]   = Grant.reads
   implicit val writes: Writes[Project]    = Json.writes[Project]
-  implicit val reads: Reads[Project]      = Json.reads[Project]
+  implicit val reads: Reads[Project]      = Json.using[Json.WithDefaultValues].reads[Project]
 
   val TABLE              = "projects"
   val KEY_GRANTS         = "grants"
