@@ -121,15 +121,30 @@ class TileAggregateService @Inject() (
   /**
     * Drain the dirty-tile queue in batches. Intended to run on a short
     * schedule so task mutations become visible quickly without requiring a
-    * full zoom-level rebuild.
+    * full zoom-level rebuild. The zoom range lets the scheduler split the
+    * queue into a fast high-zoom loop and a slower low-zoom loop so bulk
+    * imports don't starve the user-visible high-zoom tiles.
     */
-  def rebuildDirtyTiles(limit: Int = 500): Int = {
-    val processed = repository.rebuildDirtyTiles(limit)
+  def rebuildDirtyTiles(
+      limit: Int = 500,
+      minZoom: Int = 0,
+      maxZoom: Int = 22
+  ): Int = {
+    val processed = repository.rebuildDirtyTiles(limit, minZoom, maxZoom)
     if (processed > 0) {
-      logger.info(s"Rebuilt $processed dirty tiles")
+      logger.info(s"Rebuilt $processed dirty tiles (z=[$minZoom..$maxZoom])")
     }
     processed
   }
+
+  /** Drain the most-recently-marked dirty tiles. Called synchronously from
+    * TaskDAL after a single mutation commits so the originating user sees
+    * their own change immediately, without waiting for the scheduler loop. */
+  def rebuildRecentDirtyTiles(
+      limit: Int = 20,
+      minZoom: Int = 13,
+      maxZoom: Int = 22
+  ): Int = repository.rebuildRecentDirtyTiles(limit, minZoom, maxZoom)
 
   /** Stats for ops / debugging. */
   def getStats(): Map[String, Int] = {

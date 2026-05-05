@@ -368,7 +368,7 @@ class TaskController @Inject() (
           "no-store"
         else if (this.serviceManager.tileAggregate
                    .isCacheable(validDifficulty, global, keywords, location_id))
-          "public, max-age=60, must-revalidate"
+          "public, max-age=10, must-revalidate"
         else
           "private, no-store"
 

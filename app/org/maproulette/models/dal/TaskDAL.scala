@@ -815,6 +815,22 @@ class TaskDAL @Inject() (
       }
     }
 
+    // Drain the most-recently-marked high-zoom dirty tiles synchronously
+    // before notifying clients, so the originating user's tile refetch (which
+    // is triggered by the websocket event below) always hits fresh bytes
+    // instead of racing the rebuild. Bounded limit keeps bulk imports off the
+    // critical path.
+    try {
+      this.serviceManager.tileAggregate.rebuildRecentDirtyTiles(
+        limit = 20,
+        minZoom = 13,
+        maxZoom = 22
+      )
+    } catch {
+      case e: Exception =>
+        logger.warn(s"Post-commit dirty-tile drain failed: ${e.getMessage}")
+    }
+
     // Send WebSocket notifications after the transaction
     Future {
       if (updatedTasks.nonEmpty) {

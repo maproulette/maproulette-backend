@@ -115,11 +115,22 @@ class Scheduler @Inject() (
     Config.KEY_SCHEDULER_UPDATE_CHALLENGE_COMPLETION_INTERVAL
   )
 
+  // Fast loop drains the dirty queue often so user-visible zooms (z >= 13)
+  // refresh in seconds, not minutes. Override via osm.scheduler.tileRefresh.interval.
   schedule(
     "refreshTileAggregates",
-    "Rebuilding tile aggregates",
-    1.minute,
+    "Rebuilding high-zoom tile aggregates",
+    5.seconds,
     Config.KEY_SCHEDULER_TILE_REFRESH_INTERVAL
+  )
+
+  // Slow loop handles low-zoom (z < 13) clustered tiles where staleness is
+  // less noticeable; runs less often to avoid starving the high-zoom budget.
+  schedule(
+    "refreshTileAggregatesLowZoom",
+    "Rebuilding low-zoom tile aggregates",
+    30.seconds,
+    Config.KEY_SCHEDULER_TILE_REFRESH_LOW_ZOOM_INTERVAL
   )
 
   scheduleAtTime(

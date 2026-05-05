@@ -349,6 +349,8 @@ object Config {
     s"$SUB_GROUP_SCHEDULER.challengesSnapshot.interval"
   val KEY_SCHEDULER_SNAPSHOT_CHALLENGES_START = s"$SUB_GROUP_SCHEDULER.challengesSnapshot.startTime"
   val KEY_SCHEDULER_TILE_REFRESH_INTERVAL     = s"$SUB_GROUP_SCHEDULER.tileRefresh.interval"
+  val KEY_SCHEDULER_TILE_REFRESH_LOW_ZOOM_INTERVAL =
+    s"$SUB_GROUP_SCHEDULER.tileRefreshLowZoom.interval"
 
   val KEY_MAPROULETTE_FRONTEND = s"$GROUP_MAPROULETTE.frontend"
   val SUB_GROUP_MAPILLARY      = s"$GROUP_MAPROULETTE.mapillary"
