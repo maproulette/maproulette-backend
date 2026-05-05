@@ -11,7 +11,8 @@ import org.maproulette.framework.model.{
   ChallengeCreation,
   ChallengeExtra,
   ChallengeGeneral,
-  ChallengePriority
+  ChallengePriority,
+  CompletionMetrics
 }
 import org.maproulette.utils.Utils
 import org.maproulette.utils.Utils.{jsonReads, jsonWrites}
@@ -85,7 +86,7 @@ trait ChallengeWrites extends DefaultWrites {
     }
   }
 
-  implicit val challengeWrites: Writes[Challenge] = (
+  private val challengeFieldsWrites: Writes[Challenge] = (
     (JsPath \ "id").write[Long] and
       (JsPath \ "name").write[String] and
       (JsPath \ "created").write[DateTime] and
@@ -109,6 +110,23 @@ trait ChallengeWrites extends DefaultWrites {
       (JsPath \ "completionPercentage").writeNullable[Int] and
       (JsPath \ "tasksRemaining").writeNullable[Int]
   )(unlift(Challenge.unapply))
+
+  // Frontend Challenge type expects a completionMetrics object; the
+  // Challenge case class only carries tasksRemaining/completionPercentage,
+  // so per-status counters fall back to CompletionMetrics defaults (zero).
+  implicit val challengeWrites: Writes[Challenge] = Writes { c =>
+    val base      = challengeFieldsWrites.writes(c).as[JsObject]
+    val remaining = c.tasksRemaining.getOrElse(0)
+    val total = c.completionPercentage match {
+      case Some(pct) if pct > 0 && pct < 100 =>
+        Math.round(remaining.toDouble / (1.0 - pct / 100.0)).toInt
+      case _ => remaining
+    }
+    val completionMetrics = Json.toJson(
+      CompletionMetrics(total = total, available = remaining, tasksRemaining = remaining)
+    )
+    base + ("completionMetrics" -> completionMetrics)
+  }
 }
 
 trait ChallengeReads extends DefaultReads {

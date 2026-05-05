@@ -4,11 +4,15 @@
 -- =============================================================================
 -- Zoom-tiered dirty-tile rebuild
 --
--- Adds a 3-arg overload of rebuild_dirty_tiles that drains only marks within
--- the given inclusive zoom range. Lets the scheduler run a fast loop for
--- high-zoom tiles (z >= 13) and a slower loop for low-zoom clustered tiles
--- without one starving the other when bulk imports flood the queue.
+-- Replaces the 1-arg rebuild_dirty_tiles with a 3-arg version that drains
+-- only marks within the given inclusive zoom range. Lets the scheduler run a
+-- fast loop for high-zoom tiles (z >= 13) and a slower loop for low-zoom
+-- clustered tiles without one starving the other when bulk imports flood the
+-- queue. The old 1-arg overload is dropped to avoid ambiguous resolution
+-- when callers pass a single limit argument.
 -- =============================================================================
+
+DROP FUNCTION IF EXISTS rebuild_dirty_tiles(INTEGER);;
 
 CREATE OR REPLACE FUNCTION rebuild_dirty_tiles(
   p_limit INTEGER DEFAULT 500,
