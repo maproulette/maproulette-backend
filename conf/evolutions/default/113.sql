@@ -145,7 +145,7 @@ BEGIN
 
   RETURN processed;;
 END;;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;;
 
 -- Drain the most-recently-marked dirty tiles first. Called synchronously
 -- after a single task mutation so the originating user sees their own change
@@ -285,7 +285,7 @@ BEGIN
 
   RETURN processed;;
 END;;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;;
 
 -- Neighbor-buffer dirtying for clustered low-zoom tiles. A task whose point
 -- falls within the 200-MVT-pixel cluster radius of a tile edge could end up
@@ -329,7 +329,7 @@ BEGIN
     INSERT INTO tile_dirty_marks (z, x, y) VALUES (i_z, tile_x, tile_y)
     ON CONFLICT (z, x, y) DO NOTHING;;
 
-    -- z=12 has effectively-zero cluster epsilon; no neighbor dirtying needed.
+    -- z=12 has effectively-zero cluster epsilon -- no neighbor dirtying needed.
     IF i_z >= 12 THEN
       CONTINUE;;
     END IF;;
@@ -381,7 +381,7 @@ BEGIN
     END IF;;
   END LOOP;;
 END;;
-$$ LANGUAGE plpgsql VOLATILE;
+$$ LANGUAGE plpgsql VOLATILE;;
 
 # --- !Downs
 DROP FUNCTION IF EXISTS rebuild_recent_dirty_tiles(INTEGER, INTEGER, INTEGER);;
