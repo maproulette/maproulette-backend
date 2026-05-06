@@ -17,15 +17,12 @@ import play.api.db.Database
   * generation.
   *
   * Tile building standard:
-  *   - Zoom 0..10: per-tile ST_ClusterDBSCAN on Web Mercator coordinates with
-  *     an epsilon proportional to tile pixel size. Multiple cluster rows per
+  *   - Zoom 0..11: ST_ClusterDBSCAN on Web Mercator coordinates with an
+  *     epsilon proportional to tile pixel size. Multiple cluster rows per
   *     (z, x, y).
-  *   - Zoom 11: one row per distinct ground location (overlap-aware). The
-  *     frontend overzooms this for z = 12..22, so individual task markers are
-  *     visible starting at zoom 11.
-  *
-  * Each zoom level stores rows on its own native x/y grid — there is no
-  * ZOOM_OFFSET indirection anymore.
+  *   - Zoom 12: one row per distinct ground location (overlap-aware). The
+  *     frontend overzooms this for z = 13+, so individual task markers
+  *     are visible starting at zoom 12.
   */
 @Singleton
 class TileAggregateRepository @Inject() (override val db: Database) extends RepositoryMixin {
@@ -131,14 +128,14 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
         if (difficulty.isDefined) "AND c.difficulty = {difficulty}" else ""
       val globalClause = if (!global) "AND c.is_global = false" else ""
 
-      // In-tile clustering epsilon matches the precomputed path and the
-      // frontend Supercluster radius of 25 pixels. Supercluster normalizes
-      // radius with an extent of 512, so 25 Supercluster pixels equals
-      // 200 MVT pixels (MVT extent = 4096, and 25/512 == 200/4096). At
-      // z ≥ 12 we keep the small overlap-only epsilon so single-location
-      // overlaps still collapse without merging neighboring distinct tasks.
+      // In-tile clustering epsilon. The filtered path runs at z=0..12 only
+      // (z>12 returns empty and the frontend overzooms z=12). At z<12 we
+      // cluster with the same 200-MVT-pixel radius the precomputed path
+      // uses (matching the frontend Supercluster radius of 25 pixels;
+      // 25/512 == 200/4096). At z=12 we drop to overlap-only so single-
+      // location overlaps collapse without merging neighboring distinct tasks.
       val epsMeters =
-        if (z >= 12) 0.05 // ~5 cm — overlap-only
+        if (z == 12) 0.05 // ~5 cm — overlap-only
         else 200.0 * (WEB_MERCATOR_EXTENT * 2) / ((1L << z) * 4096.0)
 
       val query = s"""
@@ -257,14 +254,6 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
     val yMax      = WEB_MERCATOR_EXTENT - y * tileSize
     val yMin      = WEB_MERCATOR_EXTENT - (y + 1) * tileSize
     (xMin, yMin, xMax, yMax)
-  }
-
-  /** Rebuild a single zoom level (full rebuild). */
-  def rebuildZoomLevel(zoom: Int)(implicit c: Option[Connection] = None): Int = {
-    this.withMRTransaction { implicit c =>
-      SQL"SELECT rebuild_zoom_level($zoom)"
-        .as(SqlParser.int("rebuild_zoom_level").single)
-    }
   }
 
   /** Incremental rebuild that processes the dirty-tile queue. The zoom range

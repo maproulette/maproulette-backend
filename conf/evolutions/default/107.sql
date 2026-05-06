@@ -1,53 +1,4 @@
-# --- MapRoulette Scheme
-
 # --- !Ups
--- =============================================================================
--- Tile aggregation system (consolidated)
---
--- Pre-computes task groupings per (z, x, y) tile so the explore-page MVT
--- endpoint can serve large-scale maps without recomputing clusters per
--- request. Build standard:
---
---   * Zoom 0..11: clustered. Single-pass greedy "claim neighbors" mirroring
---     Supercluster's `_cluster` (supercluster/index.js). Clustering is GLOBAL
---     per rebuild so clusters can span tile boundaries; each cluster is
---     assigned to the tile where its centroid falls.
---   * Zoom 12: unclustered. One row per distinct ground location
---     (overlap-aware via a microscopic-eps DBSCAN). The frontend overzooms or
---     the on-the-fly tasks query takes over for z > 12.
---
--- Clustering radius matches Supercluster's 25-pixel radius exactly.
--- Supercluster normalizes r = radius / (extent * 2^z), default extent=512.
--- With MVT extent=4096, 25/512 == 200/4096, so the Web Mercator epsilon is
--- `200 * tile_pixel_size_meters(z)` meters.
---
--- A `tile_dirty_marks` queue decouples writes from rebuilds. Triggers on
--- `tasks` record affected (z, x, y) coordinates and a scheduled job processes
--- the queue in batches. Because cluster radii near tile edges may merge
--- cross-tile, when a point is within radius of an edge the neighboring tile
--- is also marked dirty (cardinal + diagonal at corners). At z=12 the DBSCAN
--- epsilon is microscopic and cross-tile clustering doesn't occur, so
--- neighbor dirtying only applies at z=0..11.
---
--- Rebuilds are zoom-tiered: callers pass an inclusive zoom range to drain
--- only marks within that range, so a fast loop for high-zoom tiles
--- (z >= 13 in the recent-first variant; the regular loop covers all zooms)
--- doesn't starve the slower clustered low-zoom rebuilds when bulk imports
--- flood the queue.
---
--- Coordinate-range guard: rows whose tasks.location is outside Web Mercator's
--- valid range (rare ingestion bugs — raw EPSG:3857 meters mistakenly written
--- into a geometry tagged 4326, swapped lat/lng, garbage) are silently
--- skipped during rebuild. Without the guard, ST_Transform on a single bad
--- row raises PROJ error 2049 and aborts the entire rebuild loop.
--- =============================================================================
-
--- ----------- Storage -----------
-
--- Pre-computed task groups per tile.
---   * group_type=0: single isolated task (task_ids has one entry)
---   * group_type=1: overlapping tasks at the same location (task_ids has all)
---   * group_type=2: cluster of tasks at multiple locations (task_ids empty)
 CREATE TABLE IF NOT EXISTS tile_task_groups (
     id SERIAL PRIMARY KEY,
     z SMALLINT NOT NULL,
@@ -65,7 +16,7 @@ CREATE TABLE IF NOT EXISTS tile_task_groups (
 CREATE INDEX IF NOT EXISTS idx_tile_task_groups_coords ON tile_task_groups (z, x, y);;
 CREATE INDEX IF NOT EXISTS idx_tile_task_groups_zoom ON tile_task_groups (z) WHERE task_count > 0;;
 
--- Queue of (z, x, y) tiles whose precomputed groups need rebuilding.
+-- 
 CREATE TABLE IF NOT EXISTS tile_dirty_marks (
   z SMALLINT NOT NULL,
   x INTEGER NOT NULL,
@@ -75,7 +26,7 @@ CREATE TABLE IF NOT EXISTS tile_dirty_marks (
 );;
 CREATE INDEX IF NOT EXISTS idx_tile_dirty_marks_marked_at ON tile_dirty_marks (marked_at);;
 
--- ----------- Coordinate helpers -----------
+
 
 CREATE OR REPLACE FUNCTION lng_to_tile_x(lng DOUBLE PRECISION, zoom INTEGER) RETURNS INTEGER AS $$
     SELECT FLOOR((lng + 180.0) / 360.0 * (1 << zoom))::INTEGER
@@ -86,45 +37,15 @@ CREATE OR REPLACE FUNCTION lat_to_tile_y(lat DOUBLE PRECISION, zoom INTEGER) RET
            1.0 / COS(RADIANS(GREATEST(-85.0511, LEAST(85.0511, lat))))) / PI()) / 2.0 * (1 << zoom))::INTEGER
 $$ LANGUAGE SQL IMMUTABLE PARALLEL SAFE;;
 
--- Web Mercator envelope for a standard z/x/y tile.
-CREATE OR REPLACE FUNCTION tile_envelope_3857(p_z INTEGER, p_x INTEGER, p_y INTEGER)
-RETURNS geometry AS $$
-DECLARE
-  half_extent CONSTANT DOUBLE PRECISION := 20037508.342789244;;
-  tile_size DOUBLE PRECISION;;
-  x_min DOUBLE PRECISION;;
-  y_max DOUBLE PRECISION;;
-BEGIN
-  tile_size := (half_extent * 2) / (1 << p_z);;
-  x_min := -half_extent + p_x * tile_size;;
-  y_max :=  half_extent - p_y * tile_size;;
-  RETURN ST_MakeEnvelope(x_min, y_max - tile_size, x_min + tile_size, y_max, 3857);;
-END;;
-$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;;
 
--- Size in meters of one MVT pixel (extent=4096) at the given zoom.
 CREATE OR REPLACE FUNCTION tile_pixel_size_meters(p_z INTEGER) RETURNS DOUBLE PRECISION AS $$
   SELECT (20037508.342789244 * 2) / ((1 << p_z) * 4096.0);;
 $$ LANGUAGE SQL IMMUTABLE PARALLEL SAFE;;
 
--- ----------- Eligibility -----------
 
-CREATE OR REPLACE FUNCTION task_is_tile_eligible(p_task_id BIGINT) RETURNS BOOLEAN AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM tasks t
-    INNER JOIN challenges c ON c.id = t.parent_id
-    INNER JOIN projects   p ON p.id = c.parent_id
-    WHERE t.id = p_task_id
-      AND t.status IN (0, 3, 6)
-      AND c.deleted = FALSE AND c.enabled = TRUE AND c.is_archived = FALSE
-      AND p.deleted = FALSE AND p.enabled = TRUE
-  );;
-$$ LANGUAGE SQL STABLE;;
 
--- ----------- Dirty-mark queue -----------
 
--- Mark every zoom 0..12 tile that a given point affects, plus neighbors when
--- the point is within the cluster radius of a tile edge (z=0..11 only).
+
 CREATE OR REPLACE FUNCTION mark_tile_dirty_for_point(p_lng DOUBLE PRECISION, p_lat DOUBLE PRECISION) RETURNS VOID AS $$
 DECLARE
   i_z INTEGER;;
@@ -212,7 +133,7 @@ BEGIN
 END;;
 $$ LANGUAGE plpgsql VOLATILE;;
 
--- Trigger: mark affected tiles dirty on task insert/update/delete.
+
 CREATE OR REPLACE FUNCTION mark_tiles_dirty_on_task_change() RETURNS TRIGGER AS $$
 DECLARE
   old_lng DOUBLE PRECISION;;
@@ -252,10 +173,56 @@ CREATE TRIGGER mark_tiles_dirty_on_task_change_trigger
   AFTER INSERT OR UPDATE OF status, location, parent_id OR DELETE ON tasks
   FOR EACH ROW EXECUTE PROCEDURE mark_tiles_dirty_on_task_change();;
 
--- ----------- Rebuild functions -----------
 
--- Full rebuild of one zoom level. Single-pass Supercluster-style greedy
--- merge at z=0..11; overlap-only at z=12. Coord-range guard skips bad rows.
+
+
+
+
+
+
+--
+
+
+
+
+
+CREATE OR REPLACE FUNCTION mark_tiles_dirty_on_challenge_change() RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.deleted     IS NOT DISTINCT FROM NEW.deleted
+     AND OLD.enabled     IS NOT DISTINCT FROM NEW.enabled
+     AND OLD.is_archived IS NOT DISTINCT FROM NEW.is_archived
+     AND OLD.is_global   IS NOT DISTINCT FROM NEW.is_global
+     AND OLD.difficulty  IS NOT DISTINCT FROM NEW.difficulty THEN
+    RETURN NEW;;
+  END IF;;
+
+  INSERT INTO tile_dirty_marks (z, x, y)
+  SELECT DISTINCT
+    z::smallint,
+    lng_to_tile_x(ST_X(t.location), z),
+    lat_to_tile_y(ST_Y(t.location), z)
+  FROM tasks t
+  CROSS JOIN generate_series(0, 12) AS z
+  WHERE t.parent_id = NEW.id
+    AND t.location IS NOT NULL
+    AND NOT ST_IsEmpty(t.location)
+    AND ST_X(t.location) BETWEEN -180 AND 180
+    AND ST_Y(t.location) BETWEEN -85.05112878 AND 85.05112878
+  ON CONFLICT (z, x, y) DO NOTHING;;
+
+  RETURN NEW;;
+END;;
+$$ LANGUAGE plpgsql VOLATILE;;
+
+DROP TRIGGER IF EXISTS mark_tiles_dirty_on_challenge_change_trigger ON challenges;;
+CREATE TRIGGER mark_tiles_dirty_on_challenge_change_trigger
+  AFTER UPDATE OF deleted, enabled, is_archived, is_global, difficulty ON challenges
+  FOR EACH ROW EXECUTE PROCEDURE mark_tiles_dirty_on_challenge_change();;
+
+
+
+
+
 CREATE OR REPLACE FUNCTION rebuild_zoom_level(p_zoom INTEGER) RETURNS INTEGER AS $$
 DECLARE
   groups_created INTEGER := 0;;
@@ -442,9 +409,9 @@ BEGIN
 END;;
 $$ LANGUAGE plpgsql;;
 
--- Zoom-tiered drain of the dirty-tile queue (FIFO). Per-tile rebuilds
--- recluster only the tasks currently in that tile, so they're an
--- approximation; a periodic full rebuild corrects cross-tile drift.
+
+
+
 CREATE OR REPLACE FUNCTION rebuild_dirty_tiles(
   p_limit INTEGER DEFAULT 500,
   p_min_zoom INTEGER DEFAULT 0,
@@ -572,9 +539,10 @@ BEGIN
           task_ids, task_count, counts_by_filter
         ) VALUES (
           mark.z, mark.x, mark.y,
-          CASE WHEN cluster_rec.count = 1 THEN 0 ELSE 1 END,
+          CASE WHEN cluster_rec.count = 1 THEN 0 ELSE 2 END,
           cluster_rec.st_y, cluster_rec.st_x,
-          neighbor_ids, cluster_rec.count, cluster_rec.jsonb_build_object
+          CASE WHEN cluster_rec.count = 1 THEN neighbor_ids ELSE ARRAY[]::BIGINT[] END,
+          cluster_rec.count, cluster_rec.jsonb_build_object
         );;
       END LOOP;;
     END IF;;
@@ -586,9 +554,9 @@ BEGIN
 END;;
 $$ LANGUAGE plpgsql;;
 
--- Drain the most-recently-marked dirty tiles first. Called synchronously
--- after a single task mutation so the originating user sees their own change
--- without waiting for the FIFO scheduler loop to reach their tiles.
+
+
+
 CREATE OR REPLACE FUNCTION rebuild_recent_dirty_tiles(
   p_limit INTEGER DEFAULT 20,
   p_min_zoom INTEGER DEFAULT 13,
@@ -716,9 +684,10 @@ BEGIN
           task_ids, task_count, counts_by_filter
         ) VALUES (
           mark.z, mark.x, mark.y,
-          CASE WHEN cluster_rec.count = 1 THEN 0 ELSE 1 END,
+          CASE WHEN cluster_rec.count = 1 THEN 0 ELSE 2 END,
           cluster_rec.st_y, cluster_rec.st_x,
-          neighbor_ids, cluster_rec.count, cluster_rec.jsonb_build_object
+          CASE WHEN cluster_rec.count = 1 THEN neighbor_ids ELSE ARRAY[]::BIGINT[] END,
+          cluster_rec.count, cluster_rec.jsonb_build_object
         );;
       END LOOP;;
     END IF;;
@@ -732,6 +701,8 @@ $$ LANGUAGE plpgsql;;
 
 # --- !Downs
 
+DROP TRIGGER IF EXISTS mark_tiles_dirty_on_challenge_change_trigger ON challenges;;
+DROP FUNCTION IF EXISTS mark_tiles_dirty_on_challenge_change();;
 DROP TRIGGER IF EXISTS mark_tiles_dirty_on_task_change_trigger ON tasks;;
 DROP FUNCTION IF EXISTS mark_tiles_dirty_on_task_change();;
 DROP FUNCTION IF EXISTS rebuild_recent_dirty_tiles(INTEGER, INTEGER, INTEGER);;
@@ -739,9 +710,7 @@ DROP FUNCTION IF EXISTS rebuild_dirty_tiles(INTEGER, INTEGER, INTEGER);;
 DROP FUNCTION IF EXISTS rebuild_all_tile_aggregates();;
 DROP FUNCTION IF EXISTS rebuild_zoom_level(INTEGER);;
 DROP FUNCTION IF EXISTS mark_tile_dirty_for_point(DOUBLE PRECISION, DOUBLE PRECISION);;
-DROP FUNCTION IF EXISTS task_is_tile_eligible(BIGINT);;
 DROP FUNCTION IF EXISTS tile_pixel_size_meters(INTEGER);;
-DROP FUNCTION IF EXISTS tile_envelope_3857(INTEGER, INTEGER, INTEGER);;
 DROP FUNCTION IF EXISTS lat_to_tile_y(DOUBLE PRECISION, INTEGER);;
 DROP FUNCTION IF EXISTS lng_to_tile_x(DOUBLE PRECISION, INTEGER);;
 DROP INDEX IF EXISTS idx_tile_dirty_marks_marked_at;;
