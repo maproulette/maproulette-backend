@@ -70,9 +70,9 @@ MapRoulette development assumes a database is running on the local system within
 
 Below is a sample command to run a PostGIS database within a container and sets necessary ports/credentials.
 
-* **NOTE: Apple Silicon:** Use `ghcr.io/baosystems/postgis:17-3.5` docker image since postGIS does not yet publish aarch64 images.
+* **NOTE: Apple Silicon:** Use `ghcr.io/baosystems/postgis:18-3.6` docker image since postGIS does not yet publish aarch64 images.
 * NOTE: No volume mount is used so the database's data will be deleted when the container is deleted.
-  If you'd like to keep the data external of the container, be sure to add `--volume "/some/path/here/postgres-data":/var/lib/postgresql/data` to the docker call.
+  If you'd like to keep the data external of the container, be sure to add `--volume "/some/path/here/postgres-data":/var/lib/postgresql` to the docker call.
 
 ```sh
 docker run \
@@ -84,7 +84,7 @@ docker run \
     -e POSTGRES_DB=maproulette-db \
     -e POSTGRES_USER=maproulette-db-user \
     -e POSTGRES_PASSWORD=maproulette-db-pass \
-    postgis/postgis:17-3.5
+    postgis/postgis:18-3.6
 ```
 
 * NOTE: If there's a port conflict, you probably have another pg instance running. Check with `docker ps`.
