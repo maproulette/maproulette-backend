@@ -205,7 +205,7 @@ CREATE TRIGGER mark_tiles_dirty_on_challenge_change_trigger
 -- task table, which keeps DBSCAN cheap even at z=0 where eps is huge.
 --
 -- Caller contract: rebuild_zoom_level(N) for N<12 requires z=N+1 to already
--- exist in tile_task_groups. rebuild_all_tile_aggregates() handles ordering;
+-- exist in tile_task_groups. rebuild_all_tile_aggregates() handles ordering --
 -- standalone callers must build top-down themselves.
 CREATE OR REPLACE FUNCTION rebuild_zoom_level(p_zoom INTEGER) RETURNS INTEGER AS $$
 DECLARE
@@ -276,7 +276,7 @@ BEGIN
     -- Because z+1 is already aggregated (one row per cluster), the input set
     -- shrinks fast as zoom decreases — at z=0 we cluster a handful of points,
     -- not the whole task table. counts_by_filter and task_count are summed
-    -- across merged parents; centroid is task-count-weighted so it tracks
+    -- across merged parents;; centroid is task-count-weighted so it tracks
     -- the true mean of the underlying tasks.
     eps_meters := 200.0 * tile_pixel_size_meters(p_zoom);;
 
@@ -304,8 +304,12 @@ BEGIN
       CASE WHEN SUM(task_count) = 1 THEN 0 ELSE 2 END,
       SUM(centroid_lat * task_count) / SUM(task_count),
       SUM(centroid_lng * task_count) / SUM(task_count),
+      -- SUM(task_count)=1 implies exactly one parent contributing, with
+      -- task_count=1, so task_ids has exactly one element. MIN over a
+      -- single-row group returns that element;; we re-wrap in an array to
+      -- match the bigint[] type of the ELSE branch.
       CASE WHEN SUM(task_count) = 1
-           THEN (ARRAY_AGG(task_ids))[1]
+           THEN ARRAY[MIN(task_ids[1])]::BIGINT[]
            ELSE ARRAY[]::BIGINT[] END,
       SUM(task_count)::INTEGER,
       jsonb_build_object(
