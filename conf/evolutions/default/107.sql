@@ -199,6 +199,14 @@ CREATE TRIGGER mark_tiles_dirty_on_challenge_change_trigger
   AFTER UPDATE OF deleted, enabled, is_archived, is_global, difficulty ON challenges
   FOR EACH ROW EXECUTE PROCEDURE mark_tiles_dirty_on_challenge_change();;
 
+-- Build one zoom level. z=12 is built directly from `tasks` (microscopic eps,
+-- so partition-by-tile DBSCAN stays sparse). z<12 is built hierarchically
+-- from the centroids of the next zoom up — far fewer points than the raw
+-- task table, which keeps DBSCAN cheap even at z=0 where eps is huge.
+--
+-- Caller contract: rebuild_zoom_level(N) for N<12 requires z=N+1 to already
+-- exist in tile_task_groups. rebuild_all_tile_aggregates() handles ordering;
+-- standalone callers must build top-down themselves.
 CREATE OR REPLACE FUNCTION rebuild_zoom_level(p_zoom INTEGER) RETURNS INTEGER AS $$
 DECLARE
   groups_created INTEGER := 0;;
@@ -211,62 +219,108 @@ BEGIN
   END IF;;
   RAISE NOTICE 'Zoom %: Starting rebuild...', p_zoom;;
 
-  eps_meters := CASE WHEN p_zoom = 12 THEN 0.05
-                     ELSE 200.0 * tile_pixel_size_meters(p_zoom) END;;
-
   DELETE FROM tile_task_groups WHERE z = p_zoom;;
 
-  INSERT INTO tile_task_groups (
-    z, x, y, group_type, centroid_lat, centroid_lng,
-    task_ids, task_count, counts_by_filter
-  )
-  WITH eligible AS (
-    SELECT t.id,
-           ST_X(t.location) AS lng,
-           ST_Y(t.location) AS lat,
-           ST_Transform(t.location, 3857) AS loc3857,
-           lng_to_tile_x(ST_X(t.location), p_zoom) AS tile_x,
-           lat_to_tile_y(ST_Y(t.location), p_zoom) AS tile_y,
-           COALESCE(c.difficulty, 0) AS difficulty,
-           COALESCE(c.is_global, false) AS is_global
-    FROM tasks t
-    INNER JOIN challenges c ON c.id = t.parent_id
-    INNER JOIN projects   p ON p.id = c.parent_id
-    WHERE t.location IS NOT NULL AND NOT ST_IsEmpty(t.location)
-      AND ST_X(t.location) BETWEEN -180 AND 180
-      AND ST_Y(t.location) BETWEEN -85.05112878 AND 85.05112878
-      AND t.status IN (0, 3, 6)
-      AND c.deleted = FALSE AND c.enabled = TRUE AND c.is_archived = FALSE
-      AND p.deleted = FALSE AND p.enabled = TRUE
-  ),
-  clustered AS (
-    SELECT id, lat, lng, tile_x, tile_y, difficulty, is_global,
-           ST_ClusterDBSCAN(loc3857, eps := eps_meters, minpoints := 1)
-             OVER (PARTITION BY tile_x, tile_y) AS cluster_id
-    FROM eligible
-  )
-  SELECT
-    p_zoom, tile_x, tile_y,
-    CASE WHEN COUNT(*) = 1 THEN 0
-         WHEN p_zoom = 12 THEN 1
-         ELSE 2 END,
-    AVG(lat), AVG(lng),
-    CASE WHEN COUNT(*) = 1 OR p_zoom = 12
-         THEN ARRAY_AGG(id ORDER BY id)
-         ELSE ARRAY[]::BIGINT[] END,
-    COUNT(*)::INTEGER,
-    jsonb_build_object(
-      'd1_gf', COUNT(*) FILTER (WHERE difficulty = 1 AND NOT is_global),
-      'd1_gt', COUNT(*) FILTER (WHERE difficulty = 1 AND is_global),
-      'd2_gf', COUNT(*) FILTER (WHERE difficulty = 2 AND NOT is_global),
-      'd2_gt', COUNT(*) FILTER (WHERE difficulty = 2 AND is_global),
-      'd3_gf', COUNT(*) FILTER (WHERE difficulty = 3 AND NOT is_global),
-      'd3_gt', COUNT(*) FILTER (WHERE difficulty = 3 AND is_global),
-      'd0_gf', COUNT(*) FILTER (WHERE difficulty NOT IN (1,2,3) AND NOT is_global),
-      'd0_gt', COUNT(*) FILTER (WHERE difficulty NOT IN (1,2,3) AND is_global)
+  IF p_zoom = 12 THEN
+    -- z=12: cluster raw tasks with microscopic eps so only true overlaps
+    -- (same lat/lng) collapse. Connectivity is naturally sparse → fast.
+    INSERT INTO tile_task_groups (
+      z, x, y, group_type, centroid_lat, centroid_lng,
+      task_ids, task_count, counts_by_filter
     )
-  FROM clustered
-  GROUP BY tile_x, tile_y, cluster_id;;
+    WITH eligible AS (
+      SELECT t.id,
+             ST_X(t.location) AS lng,
+             ST_Y(t.location) AS lat,
+             ST_Transform(t.location, 3857) AS loc3857,
+             lng_to_tile_x(ST_X(t.location), 12) AS tile_x,
+             lat_to_tile_y(ST_Y(t.location), 12) AS tile_y,
+             COALESCE(c.difficulty, 0) AS difficulty,
+             COALESCE(c.is_global, false) AS is_global
+      FROM tasks t
+      INNER JOIN challenges c ON c.id = t.parent_id
+      INNER JOIN projects   p ON p.id = c.parent_id
+      WHERE t.location IS NOT NULL AND NOT ST_IsEmpty(t.location)
+        AND ST_X(t.location) BETWEEN -180 AND 180
+        AND ST_Y(t.location) BETWEEN -85.05112878 AND 85.05112878
+        AND t.status IN (0, 3, 6)
+        AND c.deleted = FALSE AND c.enabled = TRUE AND c.is_archived = FALSE
+        AND p.deleted = FALSE AND p.enabled = TRUE
+    ),
+    clustered AS (
+      SELECT id, lat, lng, tile_x, tile_y, difficulty, is_global,
+             ST_ClusterDBSCAN(loc3857, eps := 0.05, minpoints := 1)
+               OVER (PARTITION BY tile_x, tile_y) AS cluster_id
+      FROM eligible
+    )
+    SELECT
+      12, tile_x, tile_y,
+      CASE WHEN COUNT(*) = 1 THEN 0 ELSE 1 END,
+      AVG(lat), AVG(lng),
+      ARRAY_AGG(id ORDER BY id),
+      COUNT(*)::INTEGER,
+      jsonb_build_object(
+        'd1_gf', COUNT(*) FILTER (WHERE difficulty = 1 AND NOT is_global),
+        'd1_gt', COUNT(*) FILTER (WHERE difficulty = 1 AND is_global),
+        'd2_gf', COUNT(*) FILTER (WHERE difficulty = 2 AND NOT is_global),
+        'd2_gt', COUNT(*) FILTER (WHERE difficulty = 2 AND is_global),
+        'd3_gf', COUNT(*) FILTER (WHERE difficulty = 3 AND NOT is_global),
+        'd3_gt', COUNT(*) FILTER (WHERE difficulty = 3 AND is_global),
+        'd0_gf', COUNT(*) FILTER (WHERE difficulty NOT IN (1,2,3) AND NOT is_global),
+        'd0_gt', COUNT(*) FILTER (WHERE difficulty NOT IN (1,2,3) AND is_global)
+      )
+    FROM clustered
+    GROUP BY tile_x, tile_y, cluster_id;;
+  ELSE
+    -- z<12: cluster the centroids from z+1, partition-by-tile at this zoom.
+    -- Because z+1 is already aggregated (one row per cluster), the input set
+    -- shrinks fast as zoom decreases — at z=0 we cluster a handful of points,
+    -- not the whole task table. counts_by_filter and task_count are summed
+    -- across merged parents; centroid is task-count-weighted so it tracks
+    -- the true mean of the underlying tasks.
+    eps_meters := 200.0 * tile_pixel_size_meters(p_zoom);;
+
+    INSERT INTO tile_task_groups (
+      z, x, y, group_type, centroid_lat, centroid_lng,
+      task_ids, task_count, counts_by_filter
+    )
+    WITH parent AS (
+      SELECT centroid_lat, centroid_lng, task_count, task_ids, counts_by_filter,
+             ST_Transform(ST_SetSRID(ST_MakePoint(centroid_lng, centroid_lat), 4326), 3857) AS loc3857,
+             lng_to_tile_x(centroid_lng, p_zoom) AS tile_x,
+             lat_to_tile_y(centroid_lat, p_zoom) AS tile_y
+      FROM tile_task_groups
+      WHERE z = p_zoom + 1
+    ),
+    clustered AS (
+      SELECT centroid_lat, centroid_lng, task_count, task_ids, counts_by_filter,
+             tile_x, tile_y,
+             ST_ClusterDBSCAN(loc3857, eps := eps_meters, minpoints := 1)
+               OVER (PARTITION BY tile_x, tile_y) AS cluster_id
+      FROM parent
+    )
+    SELECT
+      p_zoom, tile_x, tile_y,
+      CASE WHEN SUM(task_count) = 1 THEN 0 ELSE 2 END,
+      SUM(centroid_lat * task_count) / SUM(task_count),
+      SUM(centroid_lng * task_count) / SUM(task_count),
+      CASE WHEN SUM(task_count) = 1
+           THEN (ARRAY_AGG(task_ids))[1]
+           ELSE ARRAY[]::BIGINT[] END,
+      SUM(task_count)::INTEGER,
+      jsonb_build_object(
+        'd1_gf', SUM(COALESCE((counts_by_filter->>'d1_gf')::int, 0)),
+        'd1_gt', SUM(COALESCE((counts_by_filter->>'d1_gt')::int, 0)),
+        'd2_gf', SUM(COALESCE((counts_by_filter->>'d2_gf')::int, 0)),
+        'd2_gt', SUM(COALESCE((counts_by_filter->>'d2_gt')::int, 0)),
+        'd3_gf', SUM(COALESCE((counts_by_filter->>'d3_gf')::int, 0)),
+        'd3_gt', SUM(COALESCE((counts_by_filter->>'d3_gt')::int, 0)),
+        'd0_gf', SUM(COALESCE((counts_by_filter->>'d0_gf')::int, 0)),
+        'd0_gt', SUM(COALESCE((counts_by_filter->>'d0_gt')::int, 0))
+      )
+    FROM clustered
+    GROUP BY tile_x, tile_y, cluster_id;;
+  END IF;;
 
   GET DIAGNOSTICS groups_created = ROW_COUNT;;
 
@@ -282,11 +336,14 @@ DECLARE
   total_start TIMESTAMP := clock_timestamp();;
   total_groups INTEGER := 0;;
 BEGIN
-  RAISE NOTICE '=== Full tile aggregate rebuild (zoom 0..12) ===';;
+  RAISE NOTICE '=== Full tile aggregate rebuild (z=12 -> z=0, hierarchical) ===';;
 
   TRUNCATE tile_task_groups, tile_dirty_marks;;
 
-  FOR zoom_level IN 0..12 LOOP
+  -- Build top-down: z=12 from raw tasks, z=11..0 from the previous zoom.
+  -- Each step's input is already aggregated, so DBSCAN never has to handle
+  -- millions of points in one dense partition.
+  FOR zoom_level IN REVERSE 12..0 LOOP
     tiles_created := rebuild_zoom_level(zoom_level);;
     total_groups := total_groups + tiles_created;;
     RETURN NEXT;;
