@@ -199,14 +199,6 @@ CREATE TRIGGER mark_tiles_dirty_on_challenge_change_trigger
   AFTER UPDATE OF deleted, enabled, is_archived, is_global, difficulty ON challenges
   FOR EACH ROW EXECUTE PROCEDURE mark_tiles_dirty_on_challenge_change();;
 
--- Build one zoom level. z=12 is built directly from `tasks` (microscopic eps,
--- so partition-by-tile DBSCAN stays sparse). z<12 is built hierarchically
--- from the centroids of the next zoom up — far fewer points than the raw
--- task table, which keeps DBSCAN cheap even at z=0 where eps is huge.
---
--- Caller contract: rebuild_zoom_level(N) for N<12 requires z=N+1 to already
--- exist in tile_task_groups. rebuild_all_tile_aggregates() handles ordering --
--- standalone callers must build top-down themselves.
 CREATE OR REPLACE FUNCTION rebuild_zoom_level(p_zoom INTEGER) RETURNS INTEGER AS $$
 DECLARE
   groups_created INTEGER := 0;;
@@ -222,8 +214,6 @@ BEGIN
   DELETE FROM tile_task_groups WHERE z = p_zoom;;
 
   IF p_zoom = 12 THEN
-    -- z=12: cluster raw tasks with microscopic eps so only true overlaps
-    -- (same lat/lng) collapse. Connectivity is naturally sparse → fast.
     INSERT INTO tile_task_groups (
       z, x, y, group_type, centroid_lat, centroid_lng,
       task_ids, task_count, counts_by_filter
@@ -272,12 +262,6 @@ BEGIN
     FROM clustered
     GROUP BY tile_x, tile_y, cluster_id;;
   ELSE
-    -- z<12: cluster the centroids from z+1, partition-by-tile at this zoom.
-    -- Because z+1 is already aggregated (one row per cluster), the input set
-    -- shrinks fast as zoom decreases — at z=0 we cluster a handful of points,
-    -- not the whole task table. counts_by_filter and task_count are summed
-    -- across merged parents;; centroid is task-count-weighted so it tracks
-    -- the true mean of the underlying tasks.
     eps_meters := 200.0 * tile_pixel_size_meters(p_zoom);;
 
     INSERT INTO tile_task_groups (
@@ -295,7 +279,7 @@ BEGIN
     clustered AS (
       SELECT centroid_lat, centroid_lng, task_count, task_ids, counts_by_filter,
              tile_x, tile_y,
-             ST_ClusterDBSCAN(loc3857, eps := eps_meters, minpoints := 1)
+             ST_ClusterKMeans(loc3857, 1, eps_meters)
                OVER (PARTITION BY tile_x, tile_y) AS cluster_id
       FROM parent
     )
@@ -304,10 +288,6 @@ BEGIN
       CASE WHEN SUM(task_count) = 1 THEN 0 ELSE 2 END,
       SUM(centroid_lat * task_count) / SUM(task_count),
       SUM(centroid_lng * task_count) / SUM(task_count),
-      -- SUM(task_count)=1 implies exactly one parent contributing, with
-      -- task_count=1, so task_ids has exactly one element. MIN over a
-      -- single-row group returns that element;; we re-wrap in an array to
-      -- match the bigint[] type of the ELSE branch.
       CASE WHEN SUM(task_count) = 1
            THEN ARRAY[MIN(task_ids[1])]::BIGINT[]
            ELSE ARRAY[]::BIGINT[] END,
@@ -344,9 +324,6 @@ BEGIN
 
   TRUNCATE tile_task_groups, tile_dirty_marks;;
 
-  -- Build top-down: z=12 from raw tasks, z=11..0 from the previous zoom.
-  -- Each step's input is already aggregated, so DBSCAN never has to handle
-  -- millions of points in one dense partition.
   FOR zoom_level IN REVERSE 12..0 LOOP
     tiles_created := rebuild_zoom_level(zoom_level);;
     total_groups := total_groups + tiles_created;;
