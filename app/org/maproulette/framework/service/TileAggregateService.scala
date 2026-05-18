@@ -69,7 +69,21 @@ class TileAggregateService @Inject() (
     } else {
       val polygonWkt =
         locationId.flatMap(id => nominatimService.getPolygonByPlaceId(id))
-      repository.getMvtTileFiltered(z, x, y, difficulty, global, keywords, polygonWkt)
+      // Fail closed: the user asked for a location-scoped view, so if the
+      // polygon can't be resolved (Nominatim miss / slow lookup / no polygon
+      // for that place_id) we must NOT fall back to an unfiltered query —
+      // that would silently leak tasks from outside the requested area.
+      // Returning empty bytes makes the tile render as "no data here" until
+      // the lookup populates.
+      if (hasLocation && polygonWkt.isEmpty) {
+        logger.warn(
+          s"Tile ($z,$x,$y) requested with location_id=${locationId.get} " +
+            s"but no polygon resolved; returning empty tile to avoid unfiltered fallback"
+        )
+        Array.empty[Byte]
+      } else {
+        repository.getMvtTileFiltered(z, x, y, difficulty, global, keywords, polygonWkt)
+      }
     }
   }
 
