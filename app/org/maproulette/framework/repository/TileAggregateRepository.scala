@@ -257,11 +257,11 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
   }
 
   /** Incremental rebuild that processes the dirty-tile queue. The zoom range
-    * is inclusive. Default range covers all zoom levels. */
+    * is inclusive. Default range covers the full stored z=0..12 range. */
   def rebuildDirtyTiles(
       limit: Int = 500,
       minZoom: Int = 0,
-      maxZoom: Int = 22
+      maxZoom: Int = 12
   )(implicit c: Option[Connection] = None): Int = {
     this.withMRTransaction { implicit c =>
       SQL"SELECT rebuild_dirty_tiles($limit, $minZoom, $maxZoom)"
@@ -271,11 +271,11 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
 
   /** Drain the most-recently-marked dirty tiles in the given zoom range. Used
     * for the synchronous post-commit rebuild after a single task mutation, so
-    * the user sees their own change without waiting for the FIFO scheduler. */
+    * the user sees their own change without waiting for the scheduler. */
   def rebuildRecentDirtyTiles(
       limit: Int = 20,
-      minZoom: Int = 13,
-      maxZoom: Int = 22
+      minZoom: Int = 12,
+      maxZoom: Int = 12
   )(implicit c: Option[Connection] = None): Int = {
     this.withMRTransaction { implicit c =>
       SQL"SELECT rebuild_recent_dirty_tiles($limit, $minZoom, $maxZoom)"

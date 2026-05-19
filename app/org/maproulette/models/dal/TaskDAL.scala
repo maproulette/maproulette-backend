@@ -815,16 +815,18 @@ class TaskDAL @Inject() (
       }
     }
 
-    // Drain the most-recently-marked high-zoom dirty tiles synchronously
-    // before notifying clients, so the originating user's tile refetch (which
-    // is triggered by the websocket event below) always hits fresh bytes
-    // instead of racing the rebuild. Bounded limit keeps bulk imports off the
-    // critical path.
+    // Drain the most-recently-marked z=12 dirty tiles synchronously before
+    // notifying clients, so the originating user's tile refetch (which is
+    // triggered by the websocket event below) always hits fresh bytes instead
+    // of racing the rebuild. z=12 is the unclustered marker layer the user is
+    // looking at when they mutate a task; rebuild_tile re-marks the lower-zoom
+    // ancestors, so the scheduler loops cascade the cluster updates. Bounded
+    // limit keeps bulk imports off the critical path.
     try {
       this.serviceManager.tileAggregate.rebuildRecentDirtyTiles(
         limit = 20,
-        minZoom = 13,
-        maxZoom = 22
+        minZoom = 12,
+        maxZoom = 12
       )
     } catch {
       case e: Exception =>

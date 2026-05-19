@@ -93,9 +93,9 @@ class SchedulerActor @Inject() (
     case RunJob("updateChallengeCompletionMetrics", action) =>
       this.handleUpdateChallengeCompletionMetrics(action)
     case RunJob("refreshTileAggregates", action) =>
-      this.refreshTileAggregates(action, minZoom = 13, maxZoom = 22)
+      this.refreshTileAggregates(action, minZoom = 9, maxZoom = 12)
     case RunJob("refreshTileAggregatesLowZoom", action) =>
-      this.refreshTileAggregates(action, minZoom = 0, maxZoom = 12, limit = 200)
+      this.refreshTileAggregates(action, minZoom = 0, maxZoom = 8, limit = 200)
   }
 
   /**
@@ -891,7 +891,7 @@ class SchedulerActor @Inject() (
   def refreshTileAggregates(
       action: String,
       minZoom: Int = 0,
-      maxZoom: Int = 22,
+      maxZoom: Int = 12,
       limit: Int = 500
   ): Unit = {
     val start = System.currentTimeMillis
