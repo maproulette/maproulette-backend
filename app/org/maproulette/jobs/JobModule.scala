@@ -17,6 +17,10 @@ class JobModule extends AbstractModule with AkkaGuiceSupport {
     bind(classOf[Scheduler]).asEagerSingleton()
     bind(classOf[Bootstrap]).asEagerSingleton()
 
+    // Drives the pre-computed tile pyramid: LISTENs for tile_dirty NOTIFYs and
+    // drains the dirty-cell queue.
+    bind(classOf[TileDirtyListener]).asEagerSingleton()
+
     // Eagerly bind the ServiceInfoController so that the runtime uptime is set when the service starts.
     bind(classOf[ServiceInfoController]).asEagerSingleton()
   }

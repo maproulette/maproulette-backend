@@ -1,29 +1,66 @@
+# --- MapRoulette Scheme
+
 # --- !Ups
-CREATE TABLE IF NOT EXISTS tile_task_groups (
-    id SERIAL PRIMARY KEY,
-    z SMALLINT NOT NULL,
-    x INTEGER NOT NULL,
-    y INTEGER NOT NULL,
-    group_type SMALLINT NOT NULL,
-    centroid_lat DOUBLE PRECISION NOT NULL,
-    centroid_lng DOUBLE PRECISION NOT NULL,
-    task_ids BIGINT[] NOT NULL,
-    task_count INTEGER NOT NULL,
-    counts_by_filter JSONB DEFAULT '{}'::jsonb,
-    last_updated TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+-- =============================================================================
+-- Tile system: hierarchical grid-binned task aggregation for the explore map.
+--
+-- Design
+-- ------
+--   * Display zoom 0..11 are PRE-COMPUTED. Each zoom is aggregated onto a fixed
+--     grid of cells: a cell at display zoom z is exactly a slippy tile at zoom
+--     z + CELL_BITS (CELL_BITS = 4 -> 16x16 = 256 cells per display tile, each
+--     ~256 MVT pixels). Because the grid is hierarchical, a cell at zoom z is
+--     EXACTLY the union of its four children at zoom z+1, so roll-up is plain
+--     additive summation -- exact, deterministic, no clustering algorithm.
+--   * Display zoom 12 is served live from `tasks` (see TileAggregateRepository)
+--     as individual / overlap-deduped task markers, and is NOT stored here.
+--   * Display zoom 13+ is overzoomed client-side from z=12.
+--
+-- Per-cell we store only additive quantities (task_count, sum_lat, sum_lng,
+-- counts_by_filter). The emitted centroid is sum_lat/task_count, sum_lng/
+-- task_count -- itself additive, so roll-up stays exact.
+--
+-- Updates
+-- -------
+--   * Triggers on `tasks` / `challenges` mark affected LEAF cells (z=11) dirty
+--     in `tile_dirty_cells` and emit a `tile_dirty` NOTIFY.
+--   * A drain (rebuild_dirty_cells) recomputes each dirty leaf cell from the
+--     base tables -- AUTHORITATIVE, so it is immune to the races a pure delta
+--     scheme suffers -- then rolls the change up z=10..0 by summation.
+--   * The drain holds a single global advisory lock, so only one drainer
+--     touches the pyramid at a time and concurrent rollups never race.
+-- =============================================================================
+
+-- ---------------------------------------------------------------------------
+-- Storage
+-- ---------------------------------------------------------------------------
+
+-- Pre-computed grid cells for display zoom 0..11.
+-- (cx, cy) are slippy-tile coordinates at zoom (z + 4).
+CREATE TABLE IF NOT EXISTS tile_cells (
+    z                SMALLINT NOT NULL,
+    cx               INTEGER  NOT NULL,
+    cy               INTEGER  NOT NULL,
+    task_count       INTEGER  NOT NULL,
+    sum_lat          DOUBLE PRECISION NOT NULL,
+    sum_lng          DOUBLE PRECISION NOT NULL,
+    counts_by_filter JSONB    NOT NULL DEFAULT '{}'::jsonb,
+    last_updated     TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (z, cx, cy)
 );;
 
-CREATE INDEX IF NOT EXISTS idx_tile_task_groups_coords ON tile_task_groups (z, x, y);;
-CREATE INDEX IF NOT EXISTS idx_tile_task_groups_zoom ON tile_task_groups (z) WHERE task_count > 0;;
-
-CREATE TABLE IF NOT EXISTS tile_dirty_marks (
-  z SMALLINT NOT NULL,
-  x INTEGER NOT NULL,
-  y INTEGER NOT NULL,
-  marked_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (z, x, y)
+-- Queue of leaf cells (z=11 grid, i.e. slippy zoom 15) awaiting recompute.
+CREATE TABLE IF NOT EXISTS tile_dirty_cells (
+    cx        INTEGER NOT NULL,
+    cy        INTEGER NOT NULL,
+    marked_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (cx, cy)
 );;
-CREATE INDEX IF NOT EXISTS idx_tile_dirty_marks_marked_at ON tile_dirty_marks (marked_at);;
+CREATE INDEX IF NOT EXISTS idx_tile_dirty_cells_marked_at ON tile_dirty_cells (marked_at);;
+
+-- ---------------------------------------------------------------------------
+-- Coordinate helpers
+-- ---------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION lng_to_tile_x(lng DOUBLE PRECISION, zoom INTEGER) RETURNS INTEGER AS $$
     SELECT FLOOR((lng + 180.0) / 360.0 * (1 << zoom))::INTEGER
@@ -34,531 +71,388 @@ CREATE OR REPLACE FUNCTION lat_to_tile_y(lat DOUBLE PRECISION, zoom INTEGER) RET
            1.0 / COS(RADIANS(GREATEST(-85.0511, LEAST(85.0511, lat))))) / PI()) / 2.0 * (1 << zoom))::INTEGER
 $$ LANGUAGE SQL IMMUTABLE PARALLEL SAFE;;
 
-
-CREATE OR REPLACE FUNCTION tile_pixel_size_meters(p_z INTEGER) RETURNS DOUBLE PRECISION AS $$
-  SELECT (20037508.342789244 * 2) / ((1 << p_z) * 4096.0);;
+-- Lon/lat (EPSG:4326) envelope of a slippy tile. Used to drive GiST-indexed
+-- bbox prefilters (t.location && tile_envelope_4326(...)).
+CREATE OR REPLACE FUNCTION tile_envelope_4326(p_tz INTEGER, p_tx INTEGER, p_ty INTEGER)
+RETURNS geometry AS $$
+    SELECT ST_MakeEnvelope(
+        p_tx::double precision       / (1 << p_tz) * 360.0 - 180.0,
+        DEGREES(ATAN(SINH(PI() * (1.0 - 2.0 * (p_ty + 1)::double precision / (1 << p_tz))))),
+        (p_tx + 1)::double precision / (1 << p_tz) * 360.0 - 180.0,
+        DEGREES(ATAN(SINH(PI() * (1.0 - 2.0 *  p_ty::double precision      / (1 << p_tz))))),
+        4326)
 $$ LANGUAGE SQL IMMUTABLE PARALLEL SAFE;;
 
-CREATE OR REPLACE FUNCTION mark_tile_dirty_for_point(p_lng DOUBLE PRECISION, p_lat DOUBLE PRECISION) RETURNS VOID AS $$
-DECLARE
-  i_z INTEGER;;
-  tile_x INTEGER;;
-  tile_y INTEGER;;
-  px_size DOUBLE PRECISION;;
-  cluster_radius_m DOUBLE PRECISION;;
-  tile_size_m DOUBLE PRECISION;;
-  tx_min DOUBLE PRECISION;;
-  ty_max DOUBLE PRECISION;;
-  pt_x_m DOUBLE PRECISION;;
-  pt_y_m DOUBLE PRECISION;;
-  half_extent CONSTANT DOUBLE PRECISION := 20037508.342789244;;
-  near_left BOOLEAN;;
-  near_right BOOLEAN;;
-  near_top BOOLEAN;;
-  near_bottom BOOLEAN;;
-  pt_3857 geometry;;
+-- ---------------------------------------------------------------------------
+-- Dirty marking (trigger side)
+-- ---------------------------------------------------------------------------
+
+-- Enqueue the leaf cell (z=11 grid == slippy zoom 15) covering a point.
+-- No neighbour buffering is needed: with grid binning a task belongs to
+-- exactly one cell, and the recompute is authoritative.
+CREATE OR REPLACE FUNCTION mark_dirty_leaf_cell(p_loc geometry) RETURNS VOID AS $$
 BEGIN
-  IF p_lng IS NULL OR p_lat IS NULL THEN
-    RETURN;;
-  END IF;;
-
-  pt_3857 := ST_Transform(ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326), 3857);;
-  pt_x_m := ST_X(pt_3857);;
-  pt_y_m := ST_Y(pt_3857);;
-
-  FOR i_z IN 0..12 LOOP
-    tile_x := lng_to_tile_x(p_lng, i_z);;
-    tile_y := lat_to_tile_y(p_lat, i_z);;
-
-    INSERT INTO tile_dirty_marks (z, x, y) VALUES (i_z, tile_x, tile_y)
-    ON CONFLICT (z, x, y) DO NOTHING;;
-
-    IF i_z >= 12 THEN
-      CONTINUE;;
+    IF p_loc IS NULL OR ST_IsEmpty(p_loc) THEN
+        RETURN;;
     END IF;;
-
-    px_size := tile_pixel_size_meters(i_z);;
-    cluster_radius_m := 200.0 * px_size;;
-    tile_size_m := 4096.0 * px_size;;
-
-    tx_min := -half_extent + tile_x * tile_size_m;;
-    ty_max :=  half_extent - tile_y * tile_size_m;;
-
-    near_left   := (pt_x_m - tx_min) < cluster_radius_m;;
-    near_right  := ((tx_min + tile_size_m) - pt_x_m) < cluster_radius_m;;
-    near_top    := (ty_max - pt_y_m) < cluster_radius_m;;
-    near_bottom := (pt_y_m - (ty_max - tile_size_m)) < cluster_radius_m;;
-
-    IF near_left AND tile_x > 0 THEN
-      INSERT INTO tile_dirty_marks (z, x, y) VALUES (i_z, tile_x - 1, tile_y)
-      ON CONFLICT (z, x, y) DO NOTHING;;
+    IF ST_X(p_loc) < -180 OR ST_X(p_loc) > 180
+       OR ST_Y(p_loc) < -85.05112878 OR ST_Y(p_loc) > 85.05112878 THEN
+        RETURN;;
     END IF;;
-    IF near_right AND tile_x < ((1 << i_z) - 1) THEN
-      INSERT INTO tile_dirty_marks (z, x, y) VALUES (i_z, tile_x + 1, tile_y)
-      ON CONFLICT (z, x, y) DO NOTHING;;
-    END IF;;
-    IF near_top AND tile_y > 0 THEN
-      INSERT INTO tile_dirty_marks (z, x, y) VALUES (i_z, tile_x, tile_y - 1)
-      ON CONFLICT (z, x, y) DO NOTHING;;
-    END IF;;
-    IF near_bottom AND tile_y < ((1 << i_z) - 1) THEN
-      INSERT INTO tile_dirty_marks (z, x, y) VALUES (i_z, tile_x, tile_y + 1)
-      ON CONFLICT (z, x, y) DO NOTHING;;
-    END IF;;
-
-    IF near_left AND near_top AND tile_x > 0 AND tile_y > 0 THEN
-      INSERT INTO tile_dirty_marks (z, x, y) VALUES (i_z, tile_x - 1, tile_y - 1)
-      ON CONFLICT (z, x, y) DO NOTHING;;
-    END IF;;
-    IF near_right AND near_top AND tile_x < ((1 << i_z) - 1) AND tile_y > 0 THEN
-      INSERT INTO tile_dirty_marks (z, x, y) VALUES (i_z, tile_x + 1, tile_y - 1)
-      ON CONFLICT (z, x, y) DO NOTHING;;
-    END IF;;
-    IF near_left AND near_bottom AND tile_x > 0 AND tile_y < ((1 << i_z) - 1) THEN
-      INSERT INTO tile_dirty_marks (z, x, y) VALUES (i_z, tile_x - 1, tile_y + 1)
-      ON CONFLICT (z, x, y) DO NOTHING;;
-    END IF;;
-    IF near_right AND near_bottom AND tile_x < ((1 << i_z) - 1) AND tile_y < ((1 << i_z) - 1) THEN
-      INSERT INTO tile_dirty_marks (z, x, y) VALUES (i_z, tile_x + 1, tile_y + 1)
-      ON CONFLICT (z, x, y) DO NOTHING;;
-    END IF;;
-  END LOOP;;
+    INSERT INTO tile_dirty_cells (cx, cy)
+    VALUES (lng_to_tile_x(ST_X(p_loc), 15), lat_to_tile_y(ST_Y(p_loc), 15))
+    ON CONFLICT (cx, cy) DO NOTHING;;
 END;;
 $$ LANGUAGE plpgsql VOLATILE;;
 
-
-CREATE OR REPLACE FUNCTION mark_tiles_dirty_on_task_change() RETURNS TRIGGER AS $$
-DECLARE
-  old_lng DOUBLE PRECISION;;
-  old_lat DOUBLE PRECISION;;
-  new_lng DOUBLE PRECISION;;
-  new_lat DOUBLE PRECISION;;
+-- A single task changed: mark the leaf cell of its old and new locations.
+-- Fires for INSERT / UPDATE / DELETE -- the body decides what is relevant
+-- (status, location, parent_id, archived). A bare AFTER ... trigger -- with no
+-- column list -- is used so this evolution has no DDL dependency on the
+-- `archived` column (added by a later evolution) -- it is resolved lazily.
+CREATE OR REPLACE FUNCTION mark_dirty_on_task_change() RETURNS TRIGGER AS $$
 BEGIN
-  IF TG_OP IN ('UPDATE', 'DELETE') AND OLD.location IS NOT NULL AND NOT ST_IsEmpty(OLD.location) THEN
-    old_lng := ST_X(OLD.location);;
-    old_lat := ST_Y(OLD.location);;
-  END IF;;
-  IF TG_OP IN ('UPDATE', 'INSERT') AND NEW.location IS NOT NULL AND NOT ST_IsEmpty(NEW.location) THEN
-    new_lng := ST_X(NEW.location);;
-    new_lat := ST_Y(NEW.location);;
-  END IF;;
+    IF TG_OP = 'UPDATE'
+       AND OLD.status    IS NOT DISTINCT FROM NEW.status
+       AND OLD.parent_id IS NOT DISTINCT FROM NEW.parent_id
+       AND OLD.archived  IS NOT DISTINCT FROM NEW.archived
+       AND ST_Equals(COALESCE(OLD.location, ST_GeomFromText('POINT EMPTY', 4326)),
+                     COALESCE(NEW.location, ST_GeomFromText('POINT EMPTY', 4326))) THEN
+        RETURN NEW;;
+    END IF;;
 
-  IF TG_OP = 'UPDATE'
-     AND OLD.status = NEW.status
-     AND OLD.parent_id = NEW.parent_id
-     AND ST_Equals(COALESCE(OLD.location, ST_GeomFromText('POINT EMPTY', 4326)),
-                   COALESCE(NEW.location, ST_GeomFromText('POINT EMPTY', 4326))) THEN
+    IF TG_OP IN ('UPDATE', 'DELETE') THEN
+        PERFORM mark_dirty_leaf_cell(OLD.location);;
+    END IF;;
+    IF TG_OP IN ('UPDATE', 'INSERT') THEN
+        PERFORM mark_dirty_leaf_cell(NEW.location);;
+    END IF;;
+
+    PERFORM pg_notify('tile_dirty', '');;
+
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;;
+    END IF;;
     RETURN NEW;;
-  END IF;;
-
-  PERFORM mark_tile_dirty_for_point(old_lng, old_lat);;
-  PERFORM mark_tile_dirty_for_point(new_lng, new_lat);;
-
-  IF TG_OP = 'DELETE' THEN
-    RETURN OLD;;
-  END IF;;
-  RETURN NEW;;
 END;;
 $$ LANGUAGE plpgsql VOLATILE;;
 
 DROP TRIGGER IF EXISTS mark_tiles_dirty_on_task_change_trigger ON tasks;;
-CREATE TRIGGER mark_tiles_dirty_on_task_change_trigger
-  AFTER INSERT OR UPDATE OF status, location, parent_id OR DELETE ON tasks
-  FOR EACH ROW EXECUTE PROCEDURE mark_tiles_dirty_on_task_change();;
+DROP TRIGGER IF EXISTS mark_dirty_on_task_change_trigger ON tasks;;
+CREATE TRIGGER mark_dirty_on_task_change_trigger
+    AFTER INSERT OR UPDATE OR DELETE ON tasks
+    FOR EACH ROW EXECUTE PROCEDURE mark_dirty_on_task_change();;
 
-CREATE OR REPLACE FUNCTION mark_tiles_dirty_on_challenge_change() RETURNS TRIGGER AS $$
+-- A challenge attribute that changes task eligibility (deleted / enabled /
+-- is_archived) or filter bucketing (is_global / difficulty) flipped: mark
+-- every leaf cell holding one of its tasks. The recompute applies the real
+-- eligibility filter, so over-marking here is harmless.
+CREATE OR REPLACE FUNCTION mark_dirty_on_challenge_change() RETURNS TRIGGER AS $$
 BEGIN
-  IF OLD.deleted     IS NOT DISTINCT FROM NEW.deleted
-     AND OLD.enabled     IS NOT DISTINCT FROM NEW.enabled
-     AND OLD.is_archived IS NOT DISTINCT FROM NEW.is_archived
-     AND OLD.is_global   IS NOT DISTINCT FROM NEW.is_global
-     AND OLD.difficulty  IS NOT DISTINCT FROM NEW.difficulty THEN
+    IF OLD.deleted     IS NOT DISTINCT FROM NEW.deleted
+       AND OLD.enabled     IS NOT DISTINCT FROM NEW.enabled
+       AND OLD.is_archived IS NOT DISTINCT FROM NEW.is_archived
+       AND OLD.is_global   IS NOT DISTINCT FROM NEW.is_global
+       AND OLD.difficulty  IS NOT DISTINCT FROM NEW.difficulty THEN
+        RETURN NEW;;
+    END IF;;
+
+    INSERT INTO tile_dirty_cells (cx, cy)
+    SELECT DISTINCT
+        lng_to_tile_x(ST_X(t.location), 15),
+        lat_to_tile_y(ST_Y(t.location), 15)
+    FROM tasks t
+    WHERE t.parent_id = NEW.id
+      AND t.location IS NOT NULL
+      AND NOT ST_IsEmpty(t.location)
+      AND ST_X(t.location) BETWEEN -180 AND 180
+      AND ST_Y(t.location) BETWEEN -85.05112878 AND 85.05112878
+    ON CONFLICT (cx, cy) DO NOTHING;;
+
+    PERFORM pg_notify('tile_dirty', '');;
     RETURN NEW;;
-  END IF;;
-
-  INSERT INTO tile_dirty_marks (z, x, y)
-  SELECT DISTINCT
-    z::smallint,
-    lng_to_tile_x(ST_X(t.location), z),
-    lat_to_tile_y(ST_Y(t.location), z)
-  FROM tasks t
-  CROSS JOIN generate_series(0, 12) AS z
-  WHERE t.parent_id = NEW.id
-    AND t.location IS NOT NULL
-    AND NOT ST_IsEmpty(t.location)
-    AND ST_X(t.location) BETWEEN -180 AND 180
-    AND ST_Y(t.location) BETWEEN -85.05112878 AND 85.05112878
-  ON CONFLICT (z, x, y) DO NOTHING;;
-
-  RETURN NEW;;
 END;;
 $$ LANGUAGE plpgsql VOLATILE;;
 
 DROP TRIGGER IF EXISTS mark_tiles_dirty_on_challenge_change_trigger ON challenges;;
-CREATE TRIGGER mark_tiles_dirty_on_challenge_change_trigger
-  AFTER UPDATE OF deleted, enabled, is_archived, is_global, difficulty ON challenges
-  FOR EACH ROW EXECUTE PROCEDURE mark_tiles_dirty_on_challenge_change();;
+DROP TRIGGER IF EXISTS mark_dirty_on_challenge_change_trigger ON challenges;;
+CREATE TRIGGER mark_dirty_on_challenge_change_trigger
+    AFTER UPDATE OF deleted, enabled, is_archived, is_global, difficulty ON challenges
+    FOR EACH ROW EXECUTE PROCEDURE mark_dirty_on_challenge_change();;
 
-CREATE OR REPLACE FUNCTION rebuild_zoom_level(p_zoom INTEGER) RETURNS INTEGER AS $$
-DECLARE
-  groups_created INTEGER := 0;;
-  start_time TIMESTAMP := clock_timestamp();;
-  eps_meters DOUBLE PRECISION;;
+-- A project attribute that changes task eligibility (deleted / enabled)
+-- flipped: mark every leaf cell holding a task under any of the project's
+-- challenges. Hard project deletes are already covered -- they cascade to
+-- tasks, firing the per-task trigger.
+CREATE OR REPLACE FUNCTION mark_dirty_on_project_change() RETURNS TRIGGER AS $$
 BEGIN
-  IF p_zoom < 0 OR p_zoom > 12 THEN
-    RAISE NOTICE 'Zoom % is outside supported range 0..12, skipping', p_zoom;;
-    RETURN 0;;
-  END IF;;
-  RAISE NOTICE 'Zoom %: Starting rebuild...', p_zoom;;
+    IF OLD.deleted IS NOT DISTINCT FROM NEW.deleted
+       AND OLD.enabled IS NOT DISTINCT FROM NEW.enabled THEN
+        RETURN NEW;;
+    END IF;;
 
-  DELETE FROM tile_task_groups WHERE z = p_zoom;;
+    INSERT INTO tile_dirty_cells (cx, cy)
+    SELECT DISTINCT
+        lng_to_tile_x(ST_X(t.location), 15),
+        lat_to_tile_y(ST_Y(t.location), 15)
+    FROM tasks t
+    INNER JOIN challenges c ON c.id = t.parent_id
+    WHERE c.parent_id = NEW.id
+      AND t.location IS NOT NULL
+      AND NOT ST_IsEmpty(t.location)
+      AND ST_X(t.location) BETWEEN -180 AND 180
+      AND ST_Y(t.location) BETWEEN -85.05112878 AND 85.05112878
+    ON CONFLICT (cx, cy) DO NOTHING;;
 
-  IF p_zoom = 12 THEN
-    INSERT INTO tile_task_groups (
-      z, x, y, group_type, centroid_lat, centroid_lng,
-      task_ids, task_count, counts_by_filter
-    )
-    WITH eligible AS (
-      SELECT t.id,
-             ST_X(t.location) AS lng,
-             ST_Y(t.location) AS lat,
-             ST_Transform(t.location, 3857) AS loc3857,
-             lng_to_tile_x(ST_X(t.location), 12) AS tile_x,
-             lat_to_tile_y(ST_Y(t.location), 12) AS tile_y,
-             COALESCE(c.difficulty, 0) AS difficulty,
-             COALESCE(c.is_global, false) AS is_global
-      FROM tasks t
-      INNER JOIN challenges c ON c.id = t.parent_id
-      INNER JOIN projects   p ON p.id = c.parent_id
-      WHERE t.location IS NOT NULL AND NOT ST_IsEmpty(t.location)
-        AND ST_X(t.location) BETWEEN -180 AND 180
-        AND ST_Y(t.location) BETWEEN -85.05112878 AND 85.05112878
-        AND t.status IN (0, 3, 6)
-        AND c.deleted = FALSE AND c.enabled = TRUE AND c.is_archived = FALSE
-        AND p.deleted = FALSE AND p.enabled = TRUE
-    ),
-    clustered AS (
-      SELECT id, lat, lng, tile_x, tile_y, difficulty, is_global,
-             ST_ClusterDBSCAN(loc3857, eps := 0.05, minpoints := 1)
-               OVER (PARTITION BY tile_x, tile_y) AS cluster_id
-      FROM eligible
-    )
-    SELECT
-      12, tile_x, tile_y,
-      CASE WHEN COUNT(*) = 1 THEN 0 ELSE 1 END,
-      AVG(lat), AVG(lng),
-      ARRAY_AGG(id ORDER BY id),
-      COUNT(*)::INTEGER,
-      jsonb_build_object(
-        'd1_gf', COUNT(*) FILTER (WHERE difficulty = 1 AND NOT is_global),
-        'd1_gt', COUNT(*) FILTER (WHERE difficulty = 1 AND is_global),
-        'd2_gf', COUNT(*) FILTER (WHERE difficulty = 2 AND NOT is_global),
-        'd2_gt', COUNT(*) FILTER (WHERE difficulty = 2 AND is_global),
-        'd3_gf', COUNT(*) FILTER (WHERE difficulty = 3 AND NOT is_global),
-        'd3_gt', COUNT(*) FILTER (WHERE difficulty = 3 AND is_global),
-        'd0_gf', COUNT(*) FILTER (WHERE difficulty NOT IN (1,2,3) AND NOT is_global),
-        'd0_gt', COUNT(*) FILTER (WHERE difficulty NOT IN (1,2,3) AND is_global)
-      )
-    FROM clustered
-    GROUP BY tile_x, tile_y, cluster_id;;
-  ELSE
-    eps_meters := 200.0 * tile_pixel_size_meters(p_zoom);;
-
-    INSERT INTO tile_task_groups (
-      z, x, y, group_type, centroid_lat, centroid_lng,
-      task_ids, task_count, counts_by_filter
-    )
-    WITH parent AS (
-      SELECT centroid_lat, centroid_lng, task_count, task_ids, counts_by_filter,
-             ST_Transform(ST_SetSRID(ST_MakePoint(centroid_lng, centroid_lat), 4326), 3857) AS loc3857,
-             lng_to_tile_x(centroid_lng, p_zoom) AS tile_x,
-             lat_to_tile_y(centroid_lat, p_zoom) AS tile_y
-      FROM tile_task_groups
-      WHERE z = p_zoom + 1
-    ),
-    clustered AS (
-      SELECT centroid_lat, centroid_lng, task_count, task_ids, counts_by_filter,
-             tile_x, tile_y,
-             ST_ClusterKMeans(loc3857, 1, eps_meters)
-               OVER (PARTITION BY tile_x, tile_y) AS cluster_id
-      FROM parent
-    )
-    SELECT
-      p_zoom, tile_x, tile_y,
-      CASE WHEN SUM(task_count) = 1 THEN 0 ELSE 2 END,
-      SUM(centroid_lat * task_count) / SUM(task_count),
-      SUM(centroid_lng * task_count) / SUM(task_count),
-      CASE WHEN SUM(task_count) = 1
-           THEN ARRAY[MIN(task_ids[1])]::BIGINT[]
-           ELSE ARRAY[]::BIGINT[] END,
-      SUM(task_count)::INTEGER,
-      jsonb_build_object(
-        'd1_gf', SUM(COALESCE((counts_by_filter->>'d1_gf')::int, 0)),
-        'd1_gt', SUM(COALESCE((counts_by_filter->>'d1_gt')::int, 0)),
-        'd2_gf', SUM(COALESCE((counts_by_filter->>'d2_gf')::int, 0)),
-        'd2_gt', SUM(COALESCE((counts_by_filter->>'d2_gt')::int, 0)),
-        'd3_gf', SUM(COALESCE((counts_by_filter->>'d3_gf')::int, 0)),
-        'd3_gt', SUM(COALESCE((counts_by_filter->>'d3_gt')::int, 0)),
-        'd0_gf', SUM(COALESCE((counts_by_filter->>'d0_gf')::int, 0)),
-        'd0_gt', SUM(COALESCE((counts_by_filter->>'d0_gt')::int, 0))
-      )
-    FROM clustered
-    GROUP BY tile_x, tile_y, cluster_id;;
-  END IF;;
-
-  GET DIAGNOSTICS groups_created = ROW_COUNT;;
-
-  RAISE NOTICE 'Zoom %: Created % entries in % ms', p_zoom, groups_created,
-    EXTRACT(MILLISECONDS FROM (clock_timestamp() - start_time))::INTEGER;;
-  RETURN groups_created;;
+    PERFORM pg_notify('tile_dirty', '');;
+    RETURN NEW;;
 END;;
-$$ LANGUAGE plpgsql;;
+$$ LANGUAGE plpgsql VOLATILE;;
 
-CREATE OR REPLACE FUNCTION rebuild_all_tile_aggregates()
-RETURNS TABLE(zoom_level INTEGER, tiles_created INTEGER) AS $$
+DROP TRIGGER IF EXISTS mark_dirty_on_project_change_trigger ON projects;;
+CREATE TRIGGER mark_dirty_on_project_change_trigger
+    AFTER UPDATE OF deleted, enabled ON projects
+    FOR EACH ROW EXECUTE PROCEDURE mark_dirty_on_project_change();;
+
+-- ---------------------------------------------------------------------------
+-- Recompute (drain side)
+-- ---------------------------------------------------------------------------
+
+-- Recompute one leaf cell (display z=11) from the base tables. The eligibility
+-- filter is the single source of truth for "available work", and is mirrored
+-- verbatim by rebuild_all_tile_cells() and by the live MVT queries in
+-- TileAggregateRepository -- keep all four in sync.
+CREATE OR REPLACE FUNCTION rebuild_leaf_cell(p_cx INTEGER, p_cy INTEGER) RETURNS VOID AS $$
 DECLARE
-  total_start TIMESTAMP := clock_timestamp();;
-  total_groups INTEGER := 0;;
+    env geometry := tile_envelope_4326(15, p_cx, p_cy);;
 BEGIN
-  RAISE NOTICE '=== Full tile aggregate rebuild (z=12 -> z=0, hierarchical) ===';;
+    DELETE FROM tile_cells WHERE z = 11 AND cx = p_cx AND cy = p_cy;;
 
-  TRUNCATE tile_task_groups, tile_dirty_marks;;
-
-  FOR zoom_level IN REVERSE 12..0 LOOP
-    tiles_created := rebuild_zoom_level(zoom_level);;
-    total_groups := total_groups + tiles_created;;
-    RETURN NEXT;;
-  END LOOP;;
-
-  RAISE NOTICE 'Total groups created: % in % ms', total_groups,
-    EXTRACT(MILLISECONDS FROM (clock_timestamp() - total_start))::INTEGER;;
+    INSERT INTO tile_cells (z, cx, cy, task_count, sum_lat, sum_lng, counts_by_filter)
+    SELECT
+        11, p_cx, p_cy,
+        COUNT(*)::INTEGER,
+        SUM(ST_Y(t.location)),
+        SUM(ST_X(t.location)),
+        jsonb_build_object(
+            'd1_gf', COUNT(*) FILTER (WHERE COALESCE(c.difficulty,0) = 1 AND NOT COALESCE(c.is_global,false)),
+            'd1_gt', COUNT(*) FILTER (WHERE COALESCE(c.difficulty,0) = 1 AND     COALESCE(c.is_global,false)),
+            'd2_gf', COUNT(*) FILTER (WHERE COALESCE(c.difficulty,0) = 2 AND NOT COALESCE(c.is_global,false)),
+            'd2_gt', COUNT(*) FILTER (WHERE COALESCE(c.difficulty,0) = 2 AND     COALESCE(c.is_global,false)),
+            'd3_gf', COUNT(*) FILTER (WHERE COALESCE(c.difficulty,0) = 3 AND NOT COALESCE(c.is_global,false)),
+            'd3_gt', COUNT(*) FILTER (WHERE COALESCE(c.difficulty,0) = 3 AND     COALESCE(c.is_global,false)),
+            'd0_gf', COUNT(*) FILTER (WHERE COALESCE(c.difficulty,0) NOT IN (1,2,3) AND NOT COALESCE(c.is_global,false)),
+            'd0_gt', COUNT(*) FILTER (WHERE COALESCE(c.difficulty,0) NOT IN (1,2,3) AND     COALESCE(c.is_global,false))
+        )
+    FROM tasks t
+    INNER JOIN challenges c ON c.id = t.parent_id
+    INNER JOIN projects   p ON p.id = c.parent_id
+    WHERE t.location && env
+      AND lng_to_tile_x(ST_X(t.location), 15) = p_cx
+      AND lat_to_tile_y(ST_Y(t.location), 15) = p_cy
+      AND NOT ST_IsEmpty(t.location)
+      AND ST_X(t.location) BETWEEN -180 AND 180
+      AND ST_Y(t.location) BETWEEN -85.05112878 AND 85.05112878
+      AND t.status IN (0, 3, 6)
+      AND t.archived = FALSE
+      AND c.deleted = FALSE AND c.enabled = TRUE AND c.is_archived = FALSE
+      AND p.deleted = FALSE AND p.enabled = TRUE
+    HAVING COUNT(*) > 0;;
 END;;
-$$ LANGUAGE plpgsql;;
+$$ LANGUAGE plpgsql VOLATILE;;
 
+-- Recompute one cell at display zoom p_z (0..10) by summing its four children
+-- at p_z + 1. Exact: a parent cell is the precise union of its four children.
+CREATE OR REPLACE FUNCTION rollup_cell(p_z INTEGER, p_cx INTEGER, p_cy INTEGER) RETURNS VOID AS $$
+BEGIN
+    DELETE FROM tile_cells WHERE z = p_z AND cx = p_cx AND cy = p_cy;;
 
--- Rebuild a single (z, x, y) tile in place.
---
--- This is the per-tile equivalent of rebuild_zoom_level and MUST stay
--- consistent with it: same eligibility filter, same clustering primitive and
--- epsilon, same group_type / centroid / counts_by_filter logic. The only
--- difference is the window runs OVER () on this tile's rows instead of
--- OVER (PARTITION BY tile) across every tile -- which is identical per tile.
--- That guarantees an incremental rebuild produces byte-for-byte the same rows
--- a full rebuild_all_tile_aggregates() would, so the two never diverge.
---
---   z = 12  -> cluster the tile's eligible tasks (overlap-aware DBSCAN).
---   z < 12  -> roll up the z+1 children whose centroid falls in this tile.
---
--- After rebuilding, the parent tile is re-marked dirty so the rollup
--- propagates up the pyramid. The re-mark is idempotent: in the normal path
--- the parent is already queued and it is a no-op. It only does work when the
--- parent was drained before this child (the cross-loop race the high/low-zoom
--- scheduler split can create), making the pyramid self-healing.
-CREATE OR REPLACE FUNCTION rebuild_tile(p_z INTEGER, p_x INTEGER, p_y INTEGER) RETURNS VOID AS $$
+    INSERT INTO tile_cells (z, cx, cy, task_count, sum_lat, sum_lng, counts_by_filter)
+    SELECT
+        p_z, p_cx, p_cy,
+        SUM(task_count)::INTEGER,
+        SUM(sum_lat),
+        SUM(sum_lng),
+        jsonb_build_object(
+            'd1_gf', SUM(COALESCE((counts_by_filter->>'d1_gf')::int, 0)),
+            'd1_gt', SUM(COALESCE((counts_by_filter->>'d1_gt')::int, 0)),
+            'd2_gf', SUM(COALESCE((counts_by_filter->>'d2_gf')::int, 0)),
+            'd2_gt', SUM(COALESCE((counts_by_filter->>'d2_gt')::int, 0)),
+            'd3_gf', SUM(COALESCE((counts_by_filter->>'d3_gf')::int, 0)),
+            'd3_gt', SUM(COALESCE((counts_by_filter->>'d3_gt')::int, 0)),
+            'd0_gf', SUM(COALESCE((counts_by_filter->>'d0_gf')::int, 0)),
+            'd0_gt', SUM(COALESCE((counts_by_filter->>'d0_gt')::int, 0))
+        )
+    FROM tile_cells
+    WHERE z = p_z + 1
+      AND cx BETWEEN p_cx * 2 AND p_cx * 2 + 1
+      AND cy BETWEEN p_cy * 2 AND p_cy * 2 + 1
+    HAVING SUM(task_count) > 0;;
+END;;
+$$ LANGUAGE plpgsql VOLATILE;;
+
+-- Full rebuild of the whole pyramid. Used for initial population and as a
+-- crash-recovery safety net. Cheap relative to the old design: one scan of
+-- `tasks` for the leaf level, then 11 additive roll-up passes.
+CREATE OR REPLACE FUNCTION rebuild_all_tile_cells() RETURNS INTEGER AS $$
 DECLARE
-  eps_meters DOUBLE PRECISION;;
+    i_z   INTEGER;;
+    total INTEGER := 0;;
+    n     INTEGER;;
 BEGIN
-  IF p_z < 0 OR p_z > 12 THEN
-    RETURN;;
-  END IF;;
+    TRUNCATE tile_cells, tile_dirty_cells;;
 
-  -- Serialize concurrent rebuilds of the same tile (the fast scheduler loop
-  -- and the synchronous post-commit drain both touch z=12). Without this, two
-  -- DELETE-then-INSERT rebuilds of a tile that started empty take no row locks
-  -- and both INSERT, duplicating the tile's groups. Lock is xact-scoped.
-  PERFORM pg_advisory_xact_lock((p_z::BIGINT << 48) | (p_x::BIGINT << 24) | p_y::BIGINT);;
-
-  DELETE FROM tile_task_groups WHERE z = p_z AND x = p_x AND y = p_y;;
-
-  IF p_z = 12 THEN
-    INSERT INTO tile_task_groups (
-      z, x, y, group_type, centroid_lat, centroid_lng,
-      task_ids, task_count, counts_by_filter
-    )
-    WITH eligible AS (
-      SELECT t.id,
-             ST_X(t.location) AS lng,
-             ST_Y(t.location) AS lat,
-             ST_Transform(t.location, 3857) AS loc3857,
-             COALESCE(c.difficulty, 0) AS difficulty,
-             COALESCE(c.is_global, false) AS is_global
-      FROM tasks t
-      INNER JOIN challenges c ON c.id = t.parent_id
-      INNER JOIN projects   p ON p.id = c.parent_id
-      WHERE t.location IS NOT NULL AND NOT ST_IsEmpty(t.location)
-        AND ST_X(t.location) BETWEEN -180 AND 180
-        AND ST_Y(t.location) BETWEEN -85.05112878 AND 85.05112878
-        AND t.status IN (0, 3, 6)
-        AND c.deleted = FALSE AND c.enabled = TRUE AND c.is_archived = FALSE
-        AND p.deleted = FALSE AND p.enabled = TRUE
-        AND lng_to_tile_x(ST_X(t.location), 12) = p_x
-        AND lat_to_tile_y(ST_Y(t.location), 12) = p_y
-    ),
-    clustered AS (
-      SELECT id, lat, lng, difficulty, is_global,
-             ST_ClusterDBSCAN(loc3857, eps := 0.05, minpoints := 1) OVER () AS cluster_id
-      FROM eligible
-    )
+    -- Leaf level (display z=11) straight from the base tables.
+    INSERT INTO tile_cells (z, cx, cy, task_count, sum_lat, sum_lng, counts_by_filter)
     SELECT
-      12, p_x, p_y,
-      CASE WHEN COUNT(*) = 1 THEN 0 ELSE 1 END,
-      AVG(lat), AVG(lng),
-      ARRAY_AGG(id ORDER BY id),
-      COUNT(*)::INTEGER,
-      jsonb_build_object(
-        'd1_gf', COUNT(*) FILTER (WHERE difficulty = 1 AND NOT is_global),
-        'd1_gt', COUNT(*) FILTER (WHERE difficulty = 1 AND is_global),
-        'd2_gf', COUNT(*) FILTER (WHERE difficulty = 2 AND NOT is_global),
-        'd2_gt', COUNT(*) FILTER (WHERE difficulty = 2 AND is_global),
-        'd3_gf', COUNT(*) FILTER (WHERE difficulty = 3 AND NOT is_global),
-        'd3_gt', COUNT(*) FILTER (WHERE difficulty = 3 AND is_global),
-        'd0_gf', COUNT(*) FILTER (WHERE difficulty NOT IN (1,2,3) AND NOT is_global),
-        'd0_gt', COUNT(*) FILTER (WHERE difficulty NOT IN (1,2,3) AND is_global)
-      )
-    FROM clustered
-    GROUP BY cluster_id;;
-  ELSE
-    eps_meters := 200.0 * tile_pixel_size_meters(p_z);;
+        11,
+        lng_to_tile_x(ST_X(t.location), 15),
+        lat_to_tile_y(ST_Y(t.location), 15),
+        COUNT(*)::INTEGER,
+        SUM(ST_Y(t.location)),
+        SUM(ST_X(t.location)),
+        jsonb_build_object(
+            'd1_gf', COUNT(*) FILTER (WHERE COALESCE(c.difficulty,0) = 1 AND NOT COALESCE(c.is_global,false)),
+            'd1_gt', COUNT(*) FILTER (WHERE COALESCE(c.difficulty,0) = 1 AND     COALESCE(c.is_global,false)),
+            'd2_gf', COUNT(*) FILTER (WHERE COALESCE(c.difficulty,0) = 2 AND NOT COALESCE(c.is_global,false)),
+            'd2_gt', COUNT(*) FILTER (WHERE COALESCE(c.difficulty,0) = 2 AND     COALESCE(c.is_global,false)),
+            'd3_gf', COUNT(*) FILTER (WHERE COALESCE(c.difficulty,0) = 3 AND NOT COALESCE(c.is_global,false)),
+            'd3_gt', COUNT(*) FILTER (WHERE COALESCE(c.difficulty,0) = 3 AND     COALESCE(c.is_global,false)),
+            'd0_gf', COUNT(*) FILTER (WHERE COALESCE(c.difficulty,0) NOT IN (1,2,3) AND NOT COALESCE(c.is_global,false)),
+            'd0_gt', COUNT(*) FILTER (WHERE COALESCE(c.difficulty,0) NOT IN (1,2,3) AND     COALESCE(c.is_global,false))
+        )
+    FROM tasks t
+    INNER JOIN challenges c ON c.id = t.parent_id
+    INNER JOIN projects   p ON p.id = c.parent_id
+    WHERE t.location IS NOT NULL
+      AND NOT ST_IsEmpty(t.location)
+      AND ST_X(t.location) BETWEEN -180 AND 180
+      AND ST_Y(t.location) BETWEEN -85.05112878 AND 85.05112878
+      AND t.status IN (0, 3, 6)
+      AND t.archived = FALSE
+      AND c.deleted = FALSE AND c.enabled = TRUE AND c.is_archived = FALSE
+      AND p.deleted = FALSE AND p.enabled = TRUE
+    GROUP BY 2, 3;;
+    GET DIAGNOSTICS n = ROW_COUNT;;
+    total := total + n;;
 
-    INSERT INTO tile_task_groups (
-      z, x, y, group_type, centroid_lat, centroid_lng,
-      task_ids, task_count, counts_by_filter
-    )
-    WITH parent AS (
-      SELECT centroid_lat, centroid_lng, task_count, task_ids, counts_by_filter,
-             ST_Transform(ST_SetSRID(ST_MakePoint(centroid_lng, centroid_lat), 4326), 3857) AS loc3857
-      FROM tile_task_groups
-      WHERE z = p_z + 1
-        AND lng_to_tile_x(centroid_lng, p_z) = p_x
-        AND lat_to_tile_y(centroid_lat, p_z) = p_y
-    ),
-    clustered AS (
-      SELECT centroid_lat, centroid_lng, task_count, task_ids, counts_by_filter,
-             ST_ClusterKMeans(loc3857, 1, eps_meters) OVER () AS cluster_id
-      FROM parent
-    )
-    SELECT
-      p_z, p_x, p_y,
-      CASE WHEN SUM(task_count) = 1 THEN 0 ELSE 2 END,
-      SUM(centroid_lat * task_count) / SUM(task_count),
-      SUM(centroid_lng * task_count) / SUM(task_count),
-      CASE WHEN SUM(task_count) = 1
-           THEN ARRAY[MIN(task_ids[1])]::BIGINT[]
-           ELSE ARRAY[]::BIGINT[] END,
-      SUM(task_count)::INTEGER,
-      jsonb_build_object(
-        'd1_gf', SUM(COALESCE((counts_by_filter->>'d1_gf')::int, 0)),
-        'd1_gt', SUM(COALESCE((counts_by_filter->>'d1_gt')::int, 0)),
-        'd2_gf', SUM(COALESCE((counts_by_filter->>'d2_gf')::int, 0)),
-        'd2_gt', SUM(COALESCE((counts_by_filter->>'d2_gt')::int, 0)),
-        'd3_gf', SUM(COALESCE((counts_by_filter->>'d3_gf')::int, 0)),
-        'd3_gt', SUM(COALESCE((counts_by_filter->>'d3_gt')::int, 0)),
-        'd0_gf', SUM(COALESCE((counts_by_filter->>'d0_gf')::int, 0)),
-        'd0_gt', SUM(COALESCE((counts_by_filter->>'d0_gt')::int, 0))
-      )
-    FROM clustered
-    GROUP BY cluster_id;;
-  END IF;;
+    -- Roll up display z = 10 .. 0 by summation.
+    FOR i_z IN REVERSE 10..0 LOOP
+        INSERT INTO tile_cells (z, cx, cy, task_count, sum_lat, sum_lng, counts_by_filter)
+        SELECT
+            i_z, cx >> 1, cy >> 1,
+            SUM(task_count)::INTEGER,
+            SUM(sum_lat),
+            SUM(sum_lng),
+            jsonb_build_object(
+                'd1_gf', SUM(COALESCE((counts_by_filter->>'d1_gf')::int, 0)),
+                'd1_gt', SUM(COALESCE((counts_by_filter->>'d1_gt')::int, 0)),
+                'd2_gf', SUM(COALESCE((counts_by_filter->>'d2_gf')::int, 0)),
+                'd2_gt', SUM(COALESCE((counts_by_filter->>'d2_gt')::int, 0)),
+                'd3_gf', SUM(COALESCE((counts_by_filter->>'d3_gf')::int, 0)),
+                'd3_gt', SUM(COALESCE((counts_by_filter->>'d3_gt')::int, 0)),
+                'd0_gf', SUM(COALESCE((counts_by_filter->>'d0_gf')::int, 0)),
+                'd0_gt', SUM(COALESCE((counts_by_filter->>'d0_gt')::int, 0))
+            )
+        FROM tile_cells
+        WHERE z = i_z + 1
+        GROUP BY cx >> 1, cy >> 1;;
+        GET DIAGNOSTICS n = ROW_COUNT;;
+        total := total + n;;
+    END LOOP;;
 
-  IF p_z > 0 THEN
-    INSERT INTO tile_dirty_marks (z, x, y)
-    VALUES (p_z - 1, p_x >> 1, p_y >> 1)
-    ON CONFLICT (z, x, y) DO NOTHING;;
-  END IF;;
+    RETURN total;;
 END;;
-$$ LANGUAGE plpgsql;;
+$$ LANGUAGE plpgsql VOLATILE;;
 
-
--- Drain the dirty-tile queue, highest zoom first.
+-- Drain the dirty-cell queue: pop up to p_limit leaf cells, recompute them
+-- from the base tables, then roll the changes up z=10..0.
 --
--- Processing high zoom before low zoom matters because rebuild_tile rolls a
--- z<12 tile up from its z+1 children: those children must already be fresh.
--- Within one call we walk z = max..min, and rebuild_tile re-marks each parent
--- so the dirtiness cascades down to z=0 across this and subsequent drains (and
--- across the separate high-zoom / low-zoom scheduler loops).
-CREATE OR REPLACE FUNCTION rebuild_dirty_tiles(
-  p_limit INTEGER DEFAULT 500,
-  p_min_zoom INTEGER DEFAULT 0,
-  p_max_zoom INTEGER DEFAULT 12
+-- A single global advisory lock (key 6552071) is held for the call so only
+-- one drainer mutates the pyramid at a time -- this is what makes concurrent
+-- roll-ups (scheduled drain vs. synchronous post-commit drain) safe. The lock
+-- is transaction-scoped, so each call releases it on commit, and callers
+-- on it block for at most one batch.
+--
+-- p_newest_first drains the most recently marked cells first, used by
+-- the synchronous post-commit drain so a user sees their own edit immediately.
+CREATE OR REPLACE FUNCTION rebuild_dirty_cells(
+    p_limit        INTEGER DEFAULT 512,
+    p_newest_first BOOLEAN DEFAULT FALSE
 ) RETURNS INTEGER AS $$
 DECLARE
-  processed INTEGER := 0;;
-  z_level INTEGER;;
-  mark RECORD;;
+    processed INTEGER := 0;;
+    i_z       INTEGER;;
+    rec       RECORD;;
 BEGIN
-  FOR z_level IN REVERSE LEAST(p_max_zoom, 12) .. GREATEST(p_min_zoom, 0) LOOP
-    EXIT WHEN processed >= p_limit;;
-    FOR mark IN
-      DELETE FROM tile_dirty_marks
-      WHERE (z, x, y) IN (
-        SELECT z, x, y FROM tile_dirty_marks
-        WHERE z = z_level
-        ORDER BY marked_at ASC
-        LIMIT (p_limit - processed)
-      )
-      RETURNING z, x, y
-    LOOP
-      PERFORM rebuild_tile(mark.z, mark.x, mark.y);;
-      processed := processed + 1;;
+    PERFORM pg_advisory_xact_lock(6552071);;
+
+    CREATE TEMP TABLE IF NOT EXISTS _tile_work (
+        z  SMALLINT NOT NULL,
+        cx INTEGER  NOT NULL,
+        cy INTEGER  NOT NULL,
+        PRIMARY KEY (z, cx, cy)
+    ) ON COMMIT DROP;;
+    TRUNCATE _tile_work;;
+
+    -- Pop leaf cells (display z=11) off the queue into the work set. The
+    -- DELETE ... RETURNING must sit in a WITH clause: a data-modifying
+    -- statement cannot be a plain subquery in FROM.
+    WITH popped AS (
+        DELETE FROM tile_dirty_cells
+        WHERE (cx, cy) IN (
+            SELECT cx, cy FROM tile_dirty_cells
+            ORDER BY (CASE WHEN p_newest_first THEN marked_at END) DESC NULLS LAST,
+                     marked_at ASC
+            LIMIT p_limit
+        )
+        RETURNING cx, cy
+    )
+    INSERT INTO _tile_work (z, cx, cy)
+    SELECT 11, cx, cy FROM popped
+    ON CONFLICT DO NOTHING;;
+
+    SELECT COUNT(*) INTO processed FROM _tile_work WHERE z = 11;;
+    IF processed = 0 THEN
+        RETURN 0;;
+    END IF;;
+
+    -- Recompute the leaf cells.
+    FOR rec IN SELECT cx, cy FROM _tile_work WHERE z = 11 LOOP
+        PERFORM rebuild_leaf_cell(rec.cx, rec.cy);;
     END LOOP;;
-  END LOOP;;
 
-  RETURN processed;;
-END;;
-$$ LANGUAGE plpgsql;;
+    -- Roll up: each level's dirty set is the distinct parents of the level below.
+    FOR i_z IN REVERSE 10..0 LOOP
+        INSERT INTO _tile_work (z, cx, cy)
+        SELECT i_z, cx >> 1, cy >> 1 FROM _tile_work WHERE z = i_z + 1
+        ON CONFLICT DO NOTHING;;
 
--- Same as rebuild_dirty_tiles but drains the most recently marked tiles first.
--- Used for the synchronous post-commit drain so the user who triggered a
--- mutation sees their own tiles refreshed immediately, and rebuild_tile
--- re-marks the parents, leaving the rest of the pyramid to the scheduler loops.
-CREATE OR REPLACE FUNCTION rebuild_recent_dirty_tiles(
-  p_limit INTEGER DEFAULT 20,
-  p_min_zoom INTEGER DEFAULT 12,
-  p_max_zoom INTEGER DEFAULT 12
-) RETURNS INTEGER AS $$
-DECLARE
-  processed INTEGER := 0;;
-  z_level INTEGER;;
-  mark RECORD;;
-BEGIN
-  FOR z_level IN REVERSE LEAST(p_max_zoom, 12) .. GREATEST(p_min_zoom, 0) LOOP
-    EXIT WHEN processed >= p_limit;;
-    FOR mark IN
-      DELETE FROM tile_dirty_marks
-      WHERE (z, x, y) IN (
-        SELECT z, x, y FROM tile_dirty_marks
-        WHERE z = z_level
-        ORDER BY marked_at DESC
-        LIMIT (p_limit - processed)
-      )
-      RETURNING z, x, y
-    LOOP
-      PERFORM rebuild_tile(mark.z, mark.x, mark.y);;
-      processed := processed + 1;;
+        FOR rec IN SELECT cx, cy FROM _tile_work WHERE z = i_z LOOP
+            PERFORM rollup_cell(i_z, rec.cx, rec.cy);;
+        END LOOP;;
     END LOOP;;
-  END LOOP;;
 
-  RETURN processed;;
+    RETURN processed;;
 END;;
-$$ LANGUAGE plpgsql;;
+$$ LANGUAGE plpgsql VOLATILE;;
 
 # --- !Downs
 
-DROP TRIGGER IF EXISTS mark_tiles_dirty_on_challenge_change_trigger ON challenges;;
-DROP FUNCTION IF EXISTS mark_tiles_dirty_on_challenge_change();;
-DROP TRIGGER IF EXISTS mark_tiles_dirty_on_task_change_trigger ON tasks;;
-DROP FUNCTION IF EXISTS mark_tiles_dirty_on_task_change();;
-DROP FUNCTION IF EXISTS rebuild_recent_dirty_tiles(INTEGER, INTEGER, INTEGER);;
-DROP FUNCTION IF EXISTS rebuild_dirty_tiles(INTEGER, INTEGER, INTEGER);;
-DROP FUNCTION IF EXISTS rebuild_tile(INTEGER, INTEGER, INTEGER);;
-DROP FUNCTION IF EXISTS rebuild_all_tile_aggregates();;
-DROP FUNCTION IF EXISTS rebuild_zoom_level(INTEGER);;
-DROP FUNCTION IF EXISTS mark_tile_dirty_for_point(DOUBLE PRECISION, DOUBLE PRECISION);;
-DROP FUNCTION IF EXISTS tile_pixel_size_meters(INTEGER);;
+DROP TRIGGER IF EXISTS mark_dirty_on_project_change_trigger ON projects;;
+DROP TRIGGER IF EXISTS mark_dirty_on_challenge_change_trigger ON challenges;;
+DROP TRIGGER IF EXISTS mark_dirty_on_task_change_trigger ON tasks;;
+DROP FUNCTION IF EXISTS mark_dirty_on_project_change();;
+DROP FUNCTION IF EXISTS mark_dirty_on_challenge_change();;
+DROP FUNCTION IF EXISTS mark_dirty_on_task_change();;
+DROP FUNCTION IF EXISTS rebuild_dirty_cells(INTEGER, BOOLEAN);;
+DROP FUNCTION IF EXISTS rebuild_all_tile_cells();;
+DROP FUNCTION IF EXISTS rollup_cell(INTEGER, INTEGER, INTEGER);;
+DROP FUNCTION IF EXISTS rebuild_leaf_cell(INTEGER, INTEGER);;
+DROP FUNCTION IF EXISTS mark_dirty_leaf_cell(geometry);;
+DROP FUNCTION IF EXISTS tile_envelope_4326(INTEGER, INTEGER, INTEGER);;
 DROP FUNCTION IF EXISTS lat_to_tile_y(DOUBLE PRECISION, INTEGER);;
 DROP FUNCTION IF EXISTS lng_to_tile_x(DOUBLE PRECISION, INTEGER);;
-DROP INDEX IF EXISTS idx_tile_dirty_marks_marked_at;;
-DROP TABLE IF EXISTS tile_dirty_marks;;
-DROP INDEX IF EXISTS idx_tile_task_groups_zoom;;
-DROP INDEX IF EXISTS idx_tile_task_groups_coords;;
-DROP TABLE IF EXISTS tile_task_groups;;
+DROP INDEX IF EXISTS idx_tile_dirty_cells_marked_at;;
+DROP TABLE IF EXISTS tile_dirty_cells;;
+DROP TABLE IF EXISTS tile_cells;;

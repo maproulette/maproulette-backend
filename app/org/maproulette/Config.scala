@@ -43,6 +43,8 @@ class Config @Inject() (implicit val configuration: Configuration) {
   lazy val ignoreSessionTimeout: Boolean = this.sessionTimeout == -1
   lazy val isBootstrapMode: Boolean =
     this.config.getOptional[Boolean](Config.KEY_BOOTSTRAP).getOrElse(false)
+  lazy val tileListenerEnabled: Boolean =
+    this.config.getOptional[Boolean](Config.KEY_TILE_LISTENER_ENABLED).getOrElse(true)
   lazy val isDebugMode: Boolean =
     this.config.getOptional[Boolean](Config.KEY_DEBUG).getOrElse(false)
   lazy val isDevMode: Boolean =
@@ -348,10 +350,6 @@ object Config {
   val KEY_SCHEDULER_SNAPSHOT_CHALLENGES_INTERVAL =
     s"$SUB_GROUP_SCHEDULER.challengesSnapshot.interval"
   val KEY_SCHEDULER_SNAPSHOT_CHALLENGES_START = s"$SUB_GROUP_SCHEDULER.challengesSnapshot.startTime"
-  val KEY_SCHEDULER_TILE_REFRESH_INTERVAL     = s"$SUB_GROUP_SCHEDULER.tileRefresh.interval"
-  val KEY_SCHEDULER_TILE_REFRESH_LOW_ZOOM_INTERVAL =
-    s"$SUB_GROUP_SCHEDULER.tileRefreshLowZoom.interval"
-
   val KEY_MAPROULETTE_FRONTEND = s"$GROUP_MAPROULETTE.frontend"
   val SUB_GROUP_MAPILLARY      = s"$GROUP_MAPROULETTE.mapillary"
   val KEY_MAPILLARY_HOST       = s"$SUB_GROUP_MAPILLARY.host"
@@ -377,6 +375,11 @@ object Config {
 
   val KEY_OSM_QL_PROVIDER = s"$GROUP_OSM.ql.provider"
   val KEY_OSM_QL_TIMEOUT  = s"$GROUP_OSM.ql.timeout"
+
+  // When true, the TileDirtyListener LISTENs for tile_dirty NOTIFYs and keeps
+  // the pre-computed tile pyramid fresh. Disable for environments that should
+  // not run background tile work (e.g. integration tests).
+  val KEY_TILE_LISTENER_ENABLED = s"$GROUP_OSM.tile.listener.enabled"
 
   val DEFAULT_SESSION_TIMEOUT                         = 3600000L
   val DEFAULT_TASK_LOCK_EXPIRY                        = "1 hour"

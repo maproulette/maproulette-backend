@@ -815,22 +815,17 @@ class TaskDAL @Inject() (
       }
     }
 
-    // Drain the most-recently-marked z=12 dirty tiles synchronously before
-    // notifying clients, so the originating user's tile refetch (which is
-    // triggered by the websocket event below) always hits fresh bytes instead
-    // of racing the rebuild. z=12 is the unclustered marker layer the user is
-    // looking at when they mutate a task; rebuild_tile re-marks the lower-zoom
-    // ancestors, so the scheduler loops cascade the cluster updates. Bounded
-    // limit keeps bulk imports off the critical path.
+    // Drain the most-recently-marked dirty cells synchronously before notifying
+    // clients, so the originating user's tile refetch (triggered by the
+    // websocket event below) hits fresh bytes instead of racing the background
+    // listener. The drain recomputes the affected leaf cells and rolls the
+    // change up to z=0; the bounded limit keeps bulk imports off the critical
+    // path. z=12 itself is served live, so it needs no rebuild here.
     try {
-      this.serviceManager.tileAggregate.rebuildRecentDirtyTiles(
-        limit = 20,
-        minZoom = 12,
-        maxZoom = 12
-      )
+      this.serviceManager.tileAggregate.rebuildRecentDirtyCells(limit = 128)
     } catch {
       case e: Exception =>
-        logger.warn(s"Post-commit dirty-tile drain failed: ${e.getMessage}")
+        logger.warn(s"Post-commit dirty-cell drain failed: ${e.getMessage}")
     }
 
     // Send WebSocket notifications after the transaction

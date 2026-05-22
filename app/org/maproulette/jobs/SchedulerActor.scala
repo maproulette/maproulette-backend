@@ -92,10 +92,6 @@ class SchedulerActor @Inject() (
       this.handleArchiveChallenges(action)
     case RunJob("updateChallengeCompletionMetrics", action) =>
       this.handleUpdateChallengeCompletionMetrics(action)
-    case RunJob("refreshTileAggregates", action) =>
-      this.refreshTileAggregates(action, minZoom = 9, maxZoom = 12)
-    case RunJob("refreshTileAggregatesLowZoom", action) =>
-      this.refreshTileAggregates(action, minZoom = 0, maxZoom = 8, limit = 200)
   }
 
   /**
@@ -881,29 +877,6 @@ class SchedulerActor @Inject() (
     }
   }
 
-  /**
-    * Drains the dirty-tile queue produced by task mutations and rebuilds
-    * just those tiles. This replaces the old "full rebuild every minute"
-    * pattern — triggers now mark affected tiles, and this job processes the
-    * queue incrementally so map updates stay responsive without reprocessing
-    * the entire task table every minute.
-    */
-  def refreshTileAggregates(
-      action: String,
-      minZoom: Int = 0,
-      maxZoom: Int = 12,
-      limit: Int = 500
-  ): Unit = {
-    val start = System.currentTimeMillis
-    val processed =
-      serviceManager.tileAggregate.rebuildDirtyTiles(limit, minZoom, maxZoom)
-    val totalTime = System.currentTimeMillis - start
-    if (processed > 0) {
-      logger.info(
-        s"Scheduled Task '$action': rebuilt $processed dirty tiles (z=[$minZoom..$maxZoom]) in ${totalTime}ms"
-      )
-    }
-  }
 }
 
 object SchedulerActor {

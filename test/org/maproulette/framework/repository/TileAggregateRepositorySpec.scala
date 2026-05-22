@@ -6,21 +6,19 @@
 package org.maproulette.framework.repository
 
 import anorm._
-import anorm.SqlParser
-import org.maproulette.framework.model.{Task, User}
 import org.maproulette.framework.util.{FrameworkHelper, TileAggregateRepoTag}
 import play.api.Application
 import play.api.db.Database
 
 /**
-  * Integration tests for the tile aggregation pipeline:
-  *   1. Task mutation fires `mark_tiles_dirty_on_task_change_trigger`,
-  *      populating `tile_dirty_marks`.
-  *   2. `rebuildDirtyTiles` drains the queue.
+  * Integration tests for the grid-binned tile pipeline:
+  *   1. A task mutation fires `mark_dirty_on_task_change_trigger`, enqueueing
+  *      the affected leaf cell in `tile_dirty_cells`.
+  *   2. `rebuildDirtyCells` drains the queue, recomputing each leaf cell from
+  *      the base tables and rolling the change up to z=0.
   *
-  * Catches the regressions we've already hit once: the `;;` <-> `;` formatter
-  * incident (whole evolution wouldn't apply) and the group_type mismatch
-  * between full and incremental rebuilds at z<12.
+  * The background `TileDirtyListener` is disabled under the test configuration
+  * so queue state is observable deterministically here.
   */
 class TileAggregateRepositorySpec(implicit val application: Application) extends FrameworkHelper {
   val repository: TileAggregateRepository =
@@ -31,44 +29,37 @@ class TileAggregateRepositorySpec(implicit val application: Application) extends
   override implicit val projectTestName: String = "TileAggregateRepositorySpecProject"
 
   "TileAggregateRepository" should {
-    "drain a queued dirty mark via rebuildDirtyTiles" taggedAs TileAggregateRepoTag in {
-      // Seed a single dirty mark at a tile with no tasks; rebuildDirtyTiles
-      // should drain it without inserting any tile_task_groups rows.
+    "drain a queued dirty cell via rebuildDirtyCells" taggedAs TileAggregateRepoTag in {
+      // Seed a dirty leaf cell at coordinates with no tasks; the drain should
+      // pop it and correctly leave no tile_cells row behind.
       db.withConnection { implicit c =>
-        SQL"DELETE FROM tile_dirty_marks WHERE z = 12 AND x = 0 AND y = 0".executeUpdate()
-        SQL"DELETE FROM tile_task_groups WHERE z = 12 AND x = 0 AND y = 0".executeUpdate()
-        SQL"INSERT INTO tile_dirty_marks (z, x, y) VALUES (12, 0, 0)".executeUpdate()
+        SQL"DELETE FROM tile_dirty_cells".executeUpdate()
+        SQL"INSERT INTO tile_dirty_cells (cx, cy) VALUES (1, 1)".executeUpdate()
       }
 
-      val processed = repository.rebuildDirtyTiles(limit = 1000, minZoom = 12, maxZoom = 12)
+      val processed = repository.rebuildDirtyCells(limit = 1000)
       processed must be >= 1
-
-      val remainingMarks = db.withConnection { implicit c =>
-        SQL"SELECT COUNT(*)::int AS c FROM tile_dirty_marks WHERE z = 12 AND x = 0 AND y = 0"
-          .as(SqlParser.scalar[Int].single)
-      }
-      remainingMarks mustEqual 0
+      repository.getDirtyCellCount() mustEqual 0
     }
 
-    "fire the task-change trigger and queue dirty marks on status update" taggedAs
+    "fire the task-change trigger and queue a dirty cell on status update" taggedAs
       TileAggregateRepoTag in {
-      // Drain whatever's in the queue from setup so we can detect a delta.
       db.withConnection { implicit c =>
-        SQL"DELETE FROM tile_dirty_marks".executeUpdate()
+        SQL"DELETE FROM tile_dirty_cells".executeUpdate()
       }
 
-      // Mutate the default task. The trigger fires on UPDATE OF status, so a
-      // status change is the minimal mutation that exercises the path.
-      taskDAL.setTaskStatus(List(defaultTask), Task.STATUS_FIXED, User.superUser, Some(true))
-
-      val markCount = db.withConnection { implicit c =>
-        SQL"SELECT COUNT(*)::int AS c FROM tile_dirty_marks"
-          .as(SqlParser.scalar[Int].single)
+      // A raw UPDATE exercises the trigger directly, without setTaskStatus's
+      // synchronous post-commit drain emptying the queue again.
+      db.withConnection { implicit c =>
+        SQL"UPDATE tasks SET status = 3 WHERE id = ${defaultTask.id}".executeUpdate()
       }
-      // Trigger marks z=0..12 for the task's location, plus neighbors at z<12
-      // when the point is near a tile edge. Lower bound is 13 (one mark per
-      // zoom 0..12) when the task is far from any edge.
-      markCount must be >= 13
+
+      // The trigger marks the leaf cell covering the task's location.
+      repository.getDirtyCellCount() must be >= 1
+
+      val processed = repository.rebuildDirtyCells(limit = 1000)
+      processed must be >= 1
+      repository.getDirtyCellCount() mustEqual 0
     }
   }
 }

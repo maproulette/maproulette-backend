@@ -341,41 +341,32 @@ class TaskController @Inject() (
       difficulty: Option[Int],
       keywords: Option[String],
       location_id: Option[Long]
-  ): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.userAwareRequest { implicit user =>
-      val validZoom       = math.max(0, math.min(22, z))
-      val validDifficulty = difficulty.filter(d => d >= 1 && d <= 3)
+  ): Action[AnyContent] = Action { implicit request =>
+    val validZoom       = math.max(0, math.min(22, z))
+    val validDifficulty = difficulty.filter(d => d >= 1 && d <= 3)
 
-      val mvtBytes = this.serviceManager.tileAggregate.getMvtTile(
-        validZoom,
-        x,
-        y,
-        validDifficulty,
-        global,
-        keywords,
-        location_id
-      )
+    val mvtBytes = this.serviceManager.tileAggregate.getMvtTile(
+      validZoom,
+      x,
+      y,
+      validDifficulty,
+      global,
+      keywords,
+      location_id
+    )
 
-      // Unfiltered tiles are driven entirely by the pre-computed table and
-      // are safe to cache publicly. Filtered tiles depend on request params
-      // (keywords / location polygon) and must not leak between users.
-      //
-      // Keep the cache window short (matching the dirty-tile rebuild cadence)
-      // so task mutations become visible quickly. Empty tiles aren't cached
-      // at all — they may start containing data on the next rebuild.
-      val cacheControl =
-        if (mvtBytes.isEmpty)
-          "no-store"
-        else if (this.serviceManager.tileAggregate
-                   .isCacheable(validDifficulty, global, keywords, location_id))
-          "public, max-age=10, must-revalidate"
-        else
-          "private, no-store"
+    // A tile is a pure function of (z, x, y) and the filter params — nothing
+    // in it depends on the requesting user — so every non-empty tile is
+    // publicly cacheable, filtered or not. The window is kept short (≈ rebuild
+    // cadence) so mutations become visible quickly. Empty tiles aren't cached:
+    // they may start containing data on the next rebuild.
+    val cacheControl =
+      if (mvtBytes.isEmpty) "no-store"
+      else "public, max-age=10, must-revalidate"
 
-      Ok(mvtBytes)
-        .as("application/vnd.mapbox-vector-tile")
-        .withHeaders("Cache-Control" -> cacheControl)
-    }
+    Ok(mvtBytes)
+      .as("application/vnd.mapbox-vector-tile")
+      .withHeaders("Cache-Control" -> cacheControl)
   }
 
   /**
