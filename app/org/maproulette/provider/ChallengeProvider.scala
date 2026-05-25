@@ -428,18 +428,31 @@ class ChallengeProvider @Inject() (
           )
         }
       } else {
-        val createdTasks = featureList.flatMap { value =>
-          if (!single) {
-            this.createNewTask(
-              user,
-              taskNameFromJsValue(value, parent),
+        val createdTasks = if (!single) {
+          val newTasks = featureList.map { value =>
+            buildTaskFromFeature(
               parent,
+              taskNameFromJsValue(value, parent),
               (value \ "geometry").as[JsObject],
               Utils.getProperties(value, "properties")
             )
-          } else {
-            None
           }
+          // Cooperative tasks need the per-task path so create_update_task /
+          // extractCooperativeWork can run their per-row side effects.
+          if (newTasks.exists(t => this.taskDAL.looksCooperative(t.geometries))) {
+            this.taskDAL.bulkMergeNewTasks(newTasks, user, parent)
+          } else {
+            val inserted = this.taskDAL.bulkInsertNewTasks(newTasks, user, parent)
+            // bulkInsertNewTasks writes every row at the challenge's defaultPriority
+            // (skipping the per-task rule evaluation create_update_task normally does),
+            // so priority rules/bounds need to be reapplied across the challenge now.
+            if (inserted.nonEmpty) {
+              this.challengeDAL.updateTaskPriorities(user)(parent.id)
+            }
+            inserted
+          }
+        } else {
+          List.empty
         }
 
         this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(parent.id)
@@ -770,28 +783,37 @@ class ChallengeProvider @Inject() (
       geometry: JsObject,
       properties: JsValue
   ): Option[Task] = {
-    val newTask = Task(
-      -1,
-      name,
-      DateTime.now(),
-      DateTime.now(),
-      parent.id,
-      Some(""),
-      None,
-      Json.obj(
-        "type" -> "FeatureCollection",
-        "features" -> Json.arr(
-          Json.obj(
-            "id"         -> name,
-            "type"       -> "Feature",
-            "geometry"   -> geometry,
-            "properties" -> properties
-          )
+    this._createNewTask(user, name, parent, buildTaskFromFeature(parent, name, geometry, properties))
+  }
+
+  // Construct an in-memory Task for a single Feature without hitting the DB.
+  // Used by the bulk-insert path so we can hand a whole batch of Tasks to
+  // taskDAL.bulkMergeNewTasks in one go.
+  private def buildTaskFromFeature(
+      parent: Challenge,
+      name: String,
+      geometry: JsObject,
+      properties: JsValue
+  ): Task = Task(
+    -1,
+    name,
+    DateTime.now(),
+    DateTime.now(),
+    parent.id,
+    Some(""),
+    None,
+    Json.obj(
+      "type" -> "FeatureCollection",
+      "features" -> Json.arr(
+        Json.obj(
+          "id"         -> name,
+          "type"       -> "Feature",
+          "geometry"   -> geometry,
+          "properties" -> properties
         )
       )
     )
-    this._createNewTask(user, name, parent, newTask)
-  }
+  )
 
   private def _createNewTask(
       user: User,

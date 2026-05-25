@@ -317,6 +317,181 @@ class TaskDAL @Inject() (
     * @param c       A connection to execute against
     * @return
     */
+  /**
+    * Per-task bulk insert via create_update_task. Used for tasks whose JSON
+    * contains cooperativeWork or per-feature maproulette markers (those need
+    * the side effects baked into create_update_task / extractCooperativeWork
+    * and we don't replicate them in the all-SQL bulkInsertNewTasks path).
+    */
+  def bulkMergeNewTasks(
+      tasks: List[Task],
+      user: User,
+      parent: Challenge
+  )(implicit c: Option[Connection] = None): List[Task] = {
+    tasks.headOption.foreach(this.permission.hasObjectWriteAccess(_, user))
+    tasks.flatMap { task =>
+      try this.withMRTransaction { implicit c =>
+        Some(insertViaCreateUpdateTask(task, parent))
+      } catch {
+        case e: Exception =>
+          logger.error(s"Failed to insert task '${task.name}' in challenge ${parent.id}", e)
+          None
+      }
+    }
+  }
+
+  /**
+    * Insert every task in a single SQL statement, bypassing create_update_task.
+    * PostGIS computes ST_Collect / ST_Centroid inline per row from each task's
+    * geojson features. Inserts at the challenge's defaultPriority; the
+    * post-build updateTaskPriorities recompute (single SQL UPDATE) re-applies
+    * any priority rules / bounds afterwards.
+    *
+    * Caller (ChallengeProvider) must NOT route tasks here if any contain
+    * cooperativeWork or per-feature maproulette markers — those still need
+    * the per-task create_update_task path so cooperative_type detection and
+    * geometry-stripping run.
+    */
+  def bulkInsertNewTasks(
+      tasks: List[Task],
+      user: User,
+      parent: Challenge
+  )(implicit c: Option[Connection] = None): List[Task] = {
+    tasks.headOption.foreach(this.permission.hasObjectWriteAccess(_, user))
+    // Chunk so the progress poll sees the count climb step-by-step instead of
+    // jumping from 0 to N at the final commit, and so very large challenges
+    // don't push a single multi-MB parameter through one statement.
+    tasks.grouped(BulkInsertChunkSize).flatMap(bulkInsertChunk(_, parent)).toList
+  }
+
+  private val BulkInsertChunkSize = 5000
+
+  /** Recursive lookup; geometries is already a parsed JsObject so this is cheap. */
+  def looksCooperative(geometries: JsObject): Boolean =
+    (geometries \\ "cooperativeWork").nonEmpty || (geometries \\ "maproulette").nonEmpty
+
+  private def bulkInsertChunk(
+      tasks: List[Task],
+      parent: Challenge
+  )(implicit c: Option[Connection]): List[Task] = {
+    val inputJson = Json.stringify(JsArray(tasks.map { t =>
+      val instruction: String = t.instruction.getOrElse("")
+      Json.obj(
+        "name"        -> t.name,
+        "instruction" -> instruction,
+        "status"      -> t.status,
+        "geojson"     -> t.geometries
+      )
+    }))
+
+    val query =
+      """
+      WITH input AS (
+        SELECT
+          (item->>'name')                        AS name,
+          (item->>'instruction')                 AS instruction,
+          COALESCE((item->>'status')::int, 0)    AS status,
+          item->'geojson'                        AS geojson
+        FROM jsonb_array_elements({input}::jsonb) AS item
+      ), with_geom AS (
+        SELECT
+          i.*,
+          (SELECT ST_COLLECT(ST_SETSRID(ST_MAKEVALID(ST_GEOMFROMGEOJSON(f->>'geometry')), 4326))
+           FROM jsonb_array_elements(i.geojson->'features') AS f) AS combined_geom
+        FROM input i
+      )
+      INSERT INTO tasks (name, parent_id, status, instruction, priority, geojson, location, geom)
+      SELECT
+        name,
+        {parentId}::bigint,
+        status,
+        instruction,
+        {defaultPriority}::int,
+        geojson,
+        ST_Centroid(combined_geom),
+        combined_geom
+      FROM with_geom
+      ON CONFLICT (parent_id, lower(name)) DO NOTHING
+      RETURNING id, name
+      """
+
+    this.withMRTransaction { implicit c =>
+      val inserted: List[(Long, String)] = SQL(query)
+        .on(
+          NamedParameter("input", inputJson),
+          NamedParameter("parentId", parent.id),
+          NamedParameter("defaultPriority", parent.priority.defaultPriority)
+        )
+        .as((long("id") ~ str("name")).map(SqlParser.flatten).*)
+      val idByName: Map[String, Long] = inserted.map { case (id, name) => name -> id }.toMap
+      tasks.flatMap(t => idByName.get(t.name).map(id => t.copy(id = id)))
+    }
+  }
+
+  private def insertViaCreateUpdateTask(
+      task: Task,
+      parent: Challenge
+  )(implicit c: Connection): Task = {
+    val (geometries, cooperativeWork) =
+      extractCooperativeWork(task.parent, task.geometries, task.cooperativeWork)
+    val newId = SQL(createUpdateTaskQuery)
+      .on(createUpdateTaskParams(task, parent, geometries, cooperativeWork): _*)
+      .as(long("create_update_task").*)
+      .head
+    this.cacheManager.cache.remove(newId)
+    task.copy(id = newId)
+  }
+
+  private val createUpdateTaskQuery =
+    """SELECT create_update_task({name}, {parentId}, {instruction},
+                {status}, {geojson}::JSONB, {cooperativeWorkJson}::JSONB, {id}, {priority}, {changesetId},
+                {reset}, {mappedOn}, {reviewStatus}, CAST({reviewRequestedBy} AS INTEGER),
+                CAST({reviewedBy} AS INTEGER), {reviewedAt})"""
+
+  private def createUpdateTaskParams(
+      task: Task,
+      parent: Challenge,
+      geometries: String,
+      cooperativeWork: Option[String]
+  ): Seq[NamedParameter] = Seq(
+    NamedParameter("name", ToParameterValue.apply[String].apply(task.name)),
+    NamedParameter("parentId", ToParameterValue.apply[Long].apply(task.parent)),
+    NamedParameter(
+      "instruction",
+      ToParameterValue.apply[String].apply(task.instruction.getOrElse(""))
+    ),
+    NamedParameter("status", ToParameterValue.apply[Option[Int]].apply(task.status)),
+    NamedParameter("geojson", ToParameterValue.apply[String].apply(geometries)),
+    NamedParameter(
+      "cooperativeWorkJson",
+      ToParameterValue.apply[String].apply(cooperativeWork.orNull)
+    ),
+    NamedParameter("id", ToParameterValue.apply[Long].apply(task.id)),
+    NamedParameter("priority", ToParameterValue.apply[Int].apply(task.getTaskPriority(parent))),
+    NamedParameter(
+      "changesetId",
+      ToParameterValue.apply[Long].apply(task.changesetId.getOrElse(-1L))
+    ),
+    NamedParameter("reset", ToParameterValue.apply[String].apply(s"${config.taskReset} days")),
+    NamedParameter("mappedOn", ToParameterValue.apply[Option[DateTime]].apply(task.mappedOn)),
+    NamedParameter(
+      "reviewStatus",
+      ToParameterValue.apply[Option[Int]].apply(task.review.reviewStatus)
+    ),
+    NamedParameter(
+      "reviewRequestedBy",
+      ToParameterValue.apply[Option[Long]].apply(task.review.reviewRequestedBy)
+    ),
+    NamedParameter(
+      "reviewedBy",
+      ToParameterValue.apply[Option[Long]].apply(task.review.reviewedBy)
+    ),
+    NamedParameter(
+      "reviewedAt",
+      ToParameterValue.apply[Option[DateTime]].apply(task.review.reviewedAt)
+    )
+  )
+
   override def mergeUpdate(
       element: Task,
       user: User
@@ -342,67 +517,10 @@ class TaskDAL @Inject() (
         Some(cachedItem)
     }(id, true, true)
     this.withMRTransaction { implicit c =>
-      val result =
+      val (geometries, cooperativeWork) =
         extractCooperativeWork(element.parent, geoJson, element.cooperativeWork)
-      val geometries      = result._1
-      var cooperativeWork = result._2
-
-      val query =
-        """SELECT create_update_task({name}, {parentId}, {instruction},
-                    {status}, {geojson}::JSONB, {cooperativeWorkJson}::JSONB, {id}, {priority}, {changesetId},
-                    {reset}, {mappedOn}, {reviewStatus}, CAST({reviewRequestedBy} AS INTEGER),
-                    CAST({reviewedBy} AS INTEGER), {reviewedAt})"""
-      val updatedTaskId = SQL(query)
-        .on(
-          NamedParameter("name", ToParameterValue.apply[String].apply(element.name)),
-          NamedParameter("parentId", ToParameterValue.apply[Long].apply(element.parent)),
-          NamedParameter(
-            "instruction",
-            ToParameterValue.apply[String].apply(element.instruction.getOrElse(""))
-          ),
-          NamedParameter(
-            "status",
-            ToParameterValue.apply[Option[Int]].apply(element.status)
-          ),
-          NamedParameter("geojson", ToParameterValue.apply[String].apply(geometries)),
-          NamedParameter(
-            "cooperativeWorkJson",
-            ToParameterValue.apply[String].apply(cooperativeWork.orNull)
-          ),
-          NamedParameter("id", ToParameterValue.apply[Long].apply(element.id)),
-          NamedParameter(
-            "priority",
-            ToParameterValue.apply[Int].apply(element.getTaskPriority(parentChallenge))
-          ),
-          NamedParameter(
-            "changesetId",
-            ToParameterValue.apply[Long].apply(element.changesetId.getOrElse(-1L))
-          ),
-          NamedParameter(
-            "reset",
-            ToParameterValue.apply[String].apply(s"${config.taskReset} days")
-          ),
-          NamedParameter(
-            "mappedOn",
-            ToParameterValue.apply[Option[DateTime]].apply(element.mappedOn)
-          ),
-          NamedParameter(
-            "reviewStatus",
-            ToParameterValue.apply[Option[Int]].apply(element.review.reviewStatus)
-          ),
-          NamedParameter(
-            "reviewRequestedBy",
-            ToParameterValue.apply[Option[Long]].apply(element.review.reviewRequestedBy)
-          ),
-          NamedParameter(
-            "reviewedBy",
-            ToParameterValue.apply[Option[Long]].apply(element.review.reviewedBy)
-          ),
-          NamedParameter(
-            "reviewedAt",
-            ToParameterValue.apply[Option[DateTime]].apply(element.review.reviewedAt)
-          )
-        )
+      val updatedTaskId = SQL(createUpdateTaskQuery)
+        .on(createUpdateTaskParams(element, parentChallenge, geometries, cooperativeWork): _*)
         .as(long("create_update_task").*)
         .head
 
