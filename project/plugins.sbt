@@ -3,7 +3,7 @@ logLevel := Level.Warn
 addDependencyTreePlugin
 
 // https://github.com/playframework/playframework/releases
-addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.9.3")
+addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.9.11")
 
 addSbtPlugin("com.typesafe.sbt" % "sbt-gzip" % "1.0.2")
 
@@ -15,7 +15,7 @@ addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.4.6")
 
 addSbtPlugin("com.github.sbt" % "sbt-jacoco" % "3.4.0")
 
-addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.14.3")
+addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.14.6")
 
 addSbtPlugin("com.eed3si9n" % "sbt-buildinfo" % "0.11.0")
 
