@@ -56,12 +56,48 @@ class ChallengeDAL @Inject() (
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  // Challenge ids whose priorities are currently being recomputed in the background.
-  // Exposed via isRecomputingPriorities so the UI can show a progress indicator.
-  private val recomputingPriorities =
-    java.util.concurrent.ConcurrentHashMap.newKeySet[java.lang.Long]()
+  // Process-local bookkeeping for the UI's recompute indicator. The visibility
+  // window keeps fast recomputes on screen long enough for the frontend's 3s
+  // poll to catch them; the inFlight counter keeps it on across overlapping
+  // saves.
+  private case class RecomputeState(
+      inFlight: java.util.concurrent.atomic.AtomicInteger,
+      visibleUntil: java.util.concurrent.atomic.AtomicLong,
+      errorMessage: java.util.concurrent.atomic.AtomicReference[String]
+  )
+  private val recomputeStates  = scala.collection.concurrent.TrieMap.empty[Long, RecomputeState]
+  private val MIN_INDICATOR_MS = 3000L
 
-  def isRecomputingPriorities(id: Long): Boolean = recomputingPriorities.contains(id)
+  private def recomputeStateFor(id: Long): RecomputeState =
+    recomputeStates.getOrElseUpdate(
+      id,
+      RecomputeState(
+        new java.util.concurrent.atomic.AtomicInteger(0),
+        new java.util.concurrent.atomic.AtomicLong(0L),
+        new java.util.concurrent.atomic.AtomicReference[String](null)
+      )
+    )
+
+  def isRecomputingPriorities(id: Long): Boolean =
+    recomputeStates.get(id).exists { s =>
+      s.inFlight.get() > 0 || s.visibleUntil.get() > System.currentTimeMillis()
+    }
+
+  def priorityRecomputeError(id: Long): Option[String] =
+    recomputeStates.get(id).flatMap(s => Option(s.errorMessage.get()))
+
+  private def beginRecompute(id: Long): Unit = {
+    val s = recomputeStateFor(id)
+    s.inFlight.incrementAndGet()
+    s.errorMessage.set(null)
+  }
+
+  private def endRecompute(id: Long, failure: Option[Throwable]): Unit =
+    recomputeStates.get(id).foreach { s =>
+      s.inFlight.decrementAndGet()
+      s.visibleUntil.set(System.currentTimeMillis() + MIN_INDICATOR_MS)
+      failure.foreach(t => s.errorMessage.set(s"${t.getClass.getSimpleName}: ${t.getMessage}"))
+    }
 
   // The manager for the challenge cache
   override val cacheManager = new CacheManager[Long, Challenge](config, Config.CACHE_ID_CHALLENGES)
@@ -901,17 +937,19 @@ class ChallengeDAL @Inject() (
         }
     }
     if (updatedPriorityRules) {
-      recomputingPriorities.add(id)
+      beginRecompute(id)
       Future {
+        var failure: Option[Throwable] = None
         try updateTaskPriorities(user, overrideValidation = true)
         catch {
           case t: Throwable =>
+            failure = Some(t)
             logger.error(
               s"updateTaskPriorities failed for challenge $id: ${t.getClass.getName}: ${t.getMessage}",
               t
             )
         } finally {
-          recomputingPriorities.remove(id)
+          endRecompute(id, failure)
         }
       }
     }
@@ -970,21 +1008,9 @@ class ChallengeDAL @Inject() (
     }
   }
 
-  /**
-    * Recomputes every task priority for a challenge in a single SQL UPDATE.
-    * Bounds become `ST_Intersects(location, ST_GeomFromGeoJSON(?))` (indexed);
-    * rules become `EXISTS` subqueries over `tasks.geojson` jsonb properties.
-    * CASE evaluates top-down so HIGH wins over MEDIUM wins over LOW, matching
-    * `getTaskPriority`'s short-circuit precedence. Throws if a rule uses a
-    * construct the translator doesn't handle — the outer Future catches it.
-    *
-    * Every user-supplied string (GeoJSON bounds, rule keys, rule values) is
-    * passed through anorm named parameters rather than inlined into the SQL
-    * text. Inlining is unsafe even with quote-escaping because the Postgres
-    * JDBC driver pre-parses the statement string for ODBC-style `{...}`
-    * escape syntax — and bounds GeoJSON is full of `{` and `}` braces, which
-    * blew up `prepareStatement` before the query ever reached the server.
-    */
+  // User-supplied strings (GeoJSON bounds, rule keys/values) must be bound as
+  // anorm parameters rather than inlined: the Postgres JDBC driver pre-parses
+  // statement text for ODBC-style {…} escape syntax, and GeoJSON contains {}.
   private def recomputePriorities(
       challenge: Challenge
   )(implicit id: Long, c: Connection): Unit = {
@@ -1003,8 +1029,8 @@ class ChallengeDAL @Inject() (
       else
         Some(
           geoms
-            .map(g => s"ST_Intersects(location, ST_GeomFromGeoJSON(${bind(g)}))")
-            .mkString("(location IS NOT NULL AND (", " OR ", "))")
+            .map(g => s"ST_Intersects(geom, ST_GeomFromGeoJSON(${bind(g)}))")
+            .mkString("(geom IS NOT NULL AND (", " OR ", "))")
         )
     }
 
@@ -1030,13 +1056,12 @@ class ChallengeDAL @Inject() (
         val operator  = (rule \ "operator").as[String]
         if (valueType == "bounds") boundsRuleSql(valueRaw, operator)
         else propertyRuleSql(valueRaw, valueType, operator)
-      } catch { case _: Throwable => None }
+      } catch { case scala.util.control.NonFatal(_) => None }
 
     def boundsRuleSql(valueRaw: String, operator: String): Option[String] = {
       val bbox = valueRaw.split(",").map(_.trim.toDouble)
       if (bbox.length != 4) None
       else {
-        // bbox values are validated as Doubles; safe to inline.
         val env = s"ST_MakeEnvelope(${bbox(0)}, ${bbox(1)}, ${bbox(2)}, ${bbox(3)}, 4326)"
         operator match {
           case "contains"     => Some(s"(location IS NOT NULL AND location && $env)")
@@ -1052,8 +1077,10 @@ class ChallengeDAL @Inject() (
         operator: String
     ): Option[String] = valueRaw.split("\\.", 2) match {
       case Array(rawKey, rawValue) =>
-        val keyParam   = bind(rawKey)
-        val valueParam = bind(rawValue)
+        val keyParam    = bind(rawKey)
+        val valueParam  = bind(rawValue)
+        val doubleRegex = "^[+-]?([0-9]+\\.?[0-9]*|\\.[0-9]+)([eE][+-]?[0-9]+)?$"
+        val longRegex   = "^[+-]?[0-9]+$"
         val check: Option[String] = (valueType, operator) match {
           case ("string", "equal")        => Some(s"p.v = $valueParam")
           case ("string", "not_equal")    => Some(s"p.v <> $valueParam")
@@ -1065,21 +1092,25 @@ class ChallengeDAL @Inject() (
             for {
               sqlOp <- numericOp(op)
               n     <- scala.util.Try(rawValue.toDouble).toOption
-            } yield s"(p.v ~ '^-?[0-9]+\\.?[0-9]*$$' AND p.v::double precision $sqlOp $n)"
+            } yield s"(p.v ~ '$doubleRegex' AND p.v::double precision $sqlOp $n)"
           case ("integer" | "long", op) =>
             for {
               sqlOp <- numericOp(op)
               n     <- scala.util.Try(rawValue.toLong).toOption
-            } yield s"(p.v ~ '^-?[0-9]+$$' AND p.v::bigint $sqlOp $n)"
+            } yield s"(p.v ~ '$longRegex' AND p.v::bigint $sqlOp $n)"
           case _ => None
         }
-        // jsonb_build_array()/_object() instead of '[]'::jsonb / '{}'::jsonb —
-        // see method-level comment for why braces are toxic in the statement.
+        // jsonb_typeof guards keep one malformed task from aborting the UPDATE;
+        // jsonb_build_*() instead of '[]'/'{}' literals to avoid braces in the
+        // statement text (see method-level note).
         check.map { c =>
-          s"(geojson IS NOT NULL AND EXISTS (" +
-            "SELECT 1 FROM jsonb_array_elements(COALESCE(geojson -> 'features', jsonb_build_array())) AS f, " +
-            "jsonb_each_text(COALESCE(f -> 'properties', jsonb_build_object())) AS p(k, v) " +
-            s"WHERE LOWER(p.k) = LOWER($keyParam) AND $c))"
+          s"(geojson IS NOT NULL AND EXISTS (SELECT 1 FROM jsonb_array_elements(" +
+            "CASE WHEN jsonb_typeof(geojson -> 'features') = 'array' " +
+            "THEN geojson -> 'features' ELSE jsonb_build_array() END" +
+            ") AS f, jsonb_each_text(" +
+            "CASE WHEN jsonb_typeof(f -> 'properties') = 'object' " +
+            "THEN f -> 'properties' ELSE jsonb_build_object() END" +
+            s") AS p(k, v) WHERE LOWER(p.k) = LOWER($keyParam) AND $c))"
         }
       case _ => None
     }
@@ -1093,9 +1124,7 @@ class ChallengeDAL @Inject() (
         boundsOpt.flatMap(boundsSql),
         ruleOpt.filter(r => Challenge.isValidRule(Some(r))).map { r =>
           ruleSql(Json.parse(r)).getOrElse(
-            throw new IllegalArgumentException(
-              s"Priority rule can't be translated to SQL — please simplify: $r"
-            )
+            throw new IllegalArgumentException(s"Priority rule can't be translated to SQL: $r")
           )
         }
       ).flatten
@@ -1140,15 +1169,9 @@ class ChallengeDAL @Inject() (
     case _    => None
   }
 
-  /**
-    * Parse a priority-bounds string (either a JSON array of GeoJSON Features or
-    * a single Feature/geometry) and return one GeoJSON-geometry string per
-    * feature, suitable for `ST_GeomFromGeoJSON`. Returns Nil on parse error.
-    */
   private def extractBoundsGeometries(boundsJson: String): List[String] = {
     try {
-      val parsed = Json.parse(boundsJson)
-      val features = parsed match {
+      val features = Json.parse(boundsJson) match {
         case arr: JsArray => arr.value.toList
         case obj          => List(obj)
       }
@@ -1157,7 +1180,7 @@ class ChallengeDAL @Inject() (
         if ((geom \ "type").asOpt[String].isDefined) Some(Json.stringify(geom)) else None
       }
     } catch {
-      case _: Throwable => Nil
+      case scala.util.control.NonFatal(_) => Nil
     }
   }
 
