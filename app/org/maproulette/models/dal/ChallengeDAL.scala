@@ -62,8 +62,7 @@ class ChallengeDAL @Inject() (
   // saves.
   private case class RecomputeState(
       inFlight: java.util.concurrent.atomic.AtomicInteger,
-      visibleUntil: java.util.concurrent.atomic.AtomicLong,
-      errorMessage: java.util.concurrent.atomic.AtomicReference[String]
+      visibleUntil: java.util.concurrent.atomic.AtomicLong
   )
   private val recomputeStates  = scala.collection.concurrent.TrieMap.empty[Long, RecomputeState]
   private val MIN_INDICATOR_MS = 3000L
@@ -73,8 +72,7 @@ class ChallengeDAL @Inject() (
       id,
       RecomputeState(
         new java.util.concurrent.atomic.AtomicInteger(0),
-        new java.util.concurrent.atomic.AtomicLong(0L),
-        new java.util.concurrent.atomic.AtomicReference[String](null)
+        new java.util.concurrent.atomic.AtomicLong(0L)
       )
     )
 
@@ -83,20 +81,13 @@ class ChallengeDAL @Inject() (
       s.inFlight.get() > 0 || s.visibleUntil.get() > System.currentTimeMillis()
     }
 
-  def priorityRecomputeError(id: Long): Option[String] =
-    recomputeStates.get(id).flatMap(s => Option(s.errorMessage.get()))
+  private def beginRecompute(id: Long): Unit =
+    recomputeStateFor(id).inFlight.incrementAndGet()
 
-  private def beginRecompute(id: Long): Unit = {
-    val s = recomputeStateFor(id)
-    s.inFlight.incrementAndGet()
-    s.errorMessage.set(null)
-  }
-
-  private def endRecompute(id: Long, failure: Option[Throwable]): Unit =
+  private def endRecompute(id: Long): Unit =
     recomputeStates.get(id).foreach { s =>
       s.inFlight.decrementAndGet()
       s.visibleUntil.set(System.currentTimeMillis() + MIN_INDICATOR_MS)
-      failure.foreach(t => s.errorMessage.set(s"${t.getClass.getSimpleName}: ${t.getMessage}"))
     }
 
   // The manager for the challenge cache
@@ -939,17 +930,15 @@ class ChallengeDAL @Inject() (
     if (updatedPriorityRules) {
       beginRecompute(id)
       Future {
-        var failure: Option[Throwable] = None
         try updateTaskPriorities(user, overrideValidation = true)
         catch {
           case t: Throwable =>
-            failure = Some(t)
             logger.error(
               s"updateTaskPriorities failed for challenge $id: ${t.getClass.getName}: ${t.getMessage}",
               t
             )
         } finally {
-          endRecompute(id, failure)
+          endRecompute(id)
         }
       }
     }

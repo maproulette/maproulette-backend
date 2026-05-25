@@ -1229,15 +1229,11 @@ class ChallengeController @Inject() (
   override def inject(obj: Challenge)(implicit request: Request[Any]): JsValue = {
     val tags     = this.tagService.listByChallenge(obj.id)
     val withTags = Utils.insertIntoJson(Json.toJson(obj), Tag.TABLE, Json.toJson(tags.map(_.name)))
-    val withFlag = Utils.insertIntoJson(
+    Utils.insertIntoJson(
       withTags,
       "isRecomputingPriorities",
       this.dal.isRecomputingPriorities(obj.id)
     )
-    this.dal.priorityRecomputeError(obj.id) match {
-      case Some(err) => Utils.insertIntoJson(withFlag, "priorityRecomputeError", err)
-      case None      => withFlag
-    }
   }
 
   /**
