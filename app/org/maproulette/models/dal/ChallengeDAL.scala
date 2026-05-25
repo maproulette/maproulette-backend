@@ -964,96 +964,180 @@ class ChallengeDAL @Inject() (
 
       // make sure that at least one of the challenges is valid
       if (overrideValidation || hasRules || hasBounds) {
-        if (hasRules) {
-          recomputePrioritiesWithRules(challenge)
-        } else {
-          recomputePrioritiesFromBoundsOnly(challenge)
-        }
+        recomputePriorities(challenge)
         this.taskDAL.clearCaches
       }
     }
   }
 
   /**
-    * Rule-aware recompute. Walks every task, parses its geometries, evaluates
-    * each rule and bounds check in Scala. Slow (per-task `update_geometry` call
-    * inside the parser dominates on large challenges) but required when any
-    * priority rule needs OSM-tag inspection.
+    * Recomputes every task priority for a challenge in a single SQL UPDATE.
+    * Bounds become `ST_Intersects(location, ST_GeomFromGeoJSON(?))` (indexed);
+    * rules become `EXISTS` subqueries over `tasks.geojson` jsonb properties.
+    * CASE evaluates top-down so HIGH wins over MEDIUM wins over LOW, matching
+    * `getTaskPriority`'s short-circuit precedence. Throws if a rule uses a
+    * construct the translator doesn't handle — the outer Future catches it.
+    *
+    * Every user-supplied string (GeoJSON bounds, rule keys, rule values) is
+    * passed through anorm named parameters rather than inlined into the SQL
+    * text. Inlining is unsafe even with quote-escaping because the Postgres
+    * JDBC driver pre-parses the statement string for ODBC-style `{...}`
+    * escape syntax — and bounds GeoJSON is full of `{` and `}` braces, which
+    * blew up `prepareStatement` before the query ever reached the server.
     */
-  private def recomputePrioritiesWithRules(
+  private def recomputePriorities(
       challenge: Challenge
   )(implicit id: Long, c: Connection): Unit = {
-    var pointer                  = 0
-    var currentTasks: List[Task] = List.empty
-    do {
-      // listChildren's second arg is a page number, not an offset.
-      currentTasks = listChildren(DEFAULT_NUM_CHILDREN_LIST, pointer)
+    val default = challenge.priority.defaultPriority
+    val params  = scala.collection.mutable.ListBuffer.empty[NamedParameter]
 
-      val byPriority = currentTasks.groupBy { task =>
-        try task.getTaskPriority(challenge)
-        catch {
-          case t: Throwable =>
-            logger.warn(
-              s"Could not evaluate priority for task ${task.id} in challenge $id (${t.getClass.getSimpleName}: ${t.getMessage}); falling back to defaultPriority=${challenge.priority.defaultPriority}"
-            )
-            challenge.priority.defaultPriority
+    def bind(value: String): String = {
+      val name = s"p${params.size}"
+      params += NamedParameter(name, value)
+      s"{$name}"
+    }
+
+    def boundsSql(boundsJson: String): Option[String] = {
+      val geoms = extractBoundsGeometries(boundsJson)
+      if (geoms.isEmpty) None
+      else
+        Some(
+          geoms
+            .map(g => s"ST_Intersects(location, ST_GeomFromGeoJSON(${bind(g)}))")
+            .mkString("(location IS NOT NULL AND (", " OR ", "))")
+        )
+    }
+
+    def ruleSql(ruleJson: JsValue): Option[String] = {
+      val joiner =
+        if ((ruleJson \ "condition").asOpt[String].exists(_.equalsIgnoreCase("OR"))) " OR "
+        else " AND "
+      val rules = (ruleJson \ "rules").asOpt[List[JsValue]].getOrElse(Nil)
+      val translated = rules.map { r =>
+        if ((r \ "rules").asOpt[JsValue].isDefined) ruleSql(r) else singleRuleSql(r)
+      }
+      if (rules.isEmpty || translated.exists(_.isEmpty)) None
+      else {
+        val parts = translated.flatten
+        Some(if (parts.size == 1) parts.head else parts.mkString("(", joiner, ")"))
+      }
+    }
+
+    def singleRuleSql(rule: JsValue): Option[String] =
+      try {
+        val valueRaw  = (rule \ "value").as[String]
+        val valueType = (rule \ "type").as[String]
+        val operator  = (rule \ "operator").as[String]
+        if (valueType == "bounds") boundsRuleSql(valueRaw, operator)
+        else propertyRuleSql(valueRaw, valueType, operator)
+      } catch { case _: Throwable => None }
+
+    def boundsRuleSql(valueRaw: String, operator: String): Option[String] = {
+      val bbox = valueRaw.split(",").map(_.trim.toDouble)
+      if (bbox.length != 4) None
+      else {
+        // bbox values are validated as Doubles; safe to inline.
+        val env = s"ST_MakeEnvelope(${bbox(0)}, ${bbox(1)}, ${bbox(2)}, ${bbox(3)}, 4326)"
+        operator match {
+          case "contains"     => Some(s"(location IS NOT NULL AND location && $env)")
+          case "not_contains" => Some(s"(location IS NOT NULL AND NOT (location && $env))")
+          case _              => None
         }
       }
+    }
 
-      byPriority.foreach {
-        case (priority, tasks) =>
-          val ids = tasks.map(_.id).mkString(",")
-          SQL"""UPDATE tasks SET priority = $priority WHERE id IN (#$ids)""".executeUpdate()
-      }
-      pointer += 1
-    } while (currentTasks.size >= DEFAULT_NUM_CHILDREN_LIST)
+    def propertyRuleSql(
+        valueRaw: String,
+        valueType: String,
+        operator: String
+    ): Option[String] = valueRaw.split("\\.", 2) match {
+      case Array(rawKey, rawValue) =>
+        val keyParam   = bind(rawKey)
+        val valueParam = bind(rawValue)
+        val check: Option[String] = (valueType, operator) match {
+          case ("string", "equal")        => Some(s"p.v = $valueParam")
+          case ("string", "not_equal")    => Some(s"p.v <> $valueParam")
+          case ("string", "contains")     => Some(s"position($valueParam IN p.v) > 0")
+          case ("string", "not_contains") => Some(s"position($valueParam IN p.v) = 0")
+          case ("string", "is_empty")     => Some("(p.v IS NULL OR p.v = '')")
+          case ("string", "is_not_empty") => Some("(p.v IS NOT NULL AND p.v <> '')")
+          case ("double", op) =>
+            for {
+              sqlOp <- numericOp(op)
+              n     <- scala.util.Try(rawValue.toDouble).toOption
+            } yield s"(p.v ~ '^-?[0-9]+\\.?[0-9]*$$' AND p.v::double precision $sqlOp $n)"
+          case ("integer" | "long", op) =>
+            for {
+              sqlOp <- numericOp(op)
+              n     <- scala.util.Try(rawValue.toLong).toOption
+            } yield s"(p.v ~ '^-?[0-9]+$$' AND p.v::bigint $sqlOp $n)"
+          case _ => None
+        }
+        // jsonb_build_array()/_object() instead of '[]'::jsonb / '{}'::jsonb —
+        // see method-level comment for why braces are toxic in the statement.
+        check.map { c =>
+          s"(geojson IS NOT NULL AND EXISTS (" +
+            "SELECT 1 FROM jsonb_array_elements(COALESCE(geojson -> 'features', jsonb_build_array())) AS f, " +
+            "jsonb_each_text(COALESCE(f -> 'properties', jsonb_build_object())) AS p(k, v) " +
+            s"WHERE LOWER(p.k) = LOWER($keyParam) AND $c))"
+        }
+      case _ => None
+    }
+
+    def levelWhen(
+        boundsOpt: Option[String],
+        ruleOpt: Option[String],
+        priority: Int
+    ): Option[String] = {
+      val parts = List(
+        boundsOpt.flatMap(boundsSql),
+        ruleOpt.filter(r => Challenge.isValidRule(Some(r))).map { r =>
+          ruleSql(Json.parse(r)).getOrElse(
+            throw new IllegalArgumentException(
+              s"Priority rule can't be translated to SQL — please simplify: $r"
+            )
+          )
+        }
+      ).flatten
+      if (parts.isEmpty) None else Some(s"WHEN ${parts.mkString(" OR ")} THEN $priority")
+    }
+
+    val whens = List(
+      levelWhen(
+        challenge.priority.highPriorityBounds,
+        challenge.priority.highPriorityRule,
+        Challenge.PRIORITY_HIGH
+      ),
+      levelWhen(
+        challenge.priority.mediumPriorityBounds,
+        challenge.priority.mediumPriorityRule,
+        Challenge.PRIORITY_MEDIUM
+      ),
+      levelWhen(
+        challenge.priority.lowPriorityBounds,
+        challenge.priority.lowPriorityRule,
+        Challenge.PRIORITY_LOW
+      )
+    ).flatten
+
+    val expr =
+      if (whens.isEmpty) default.toString
+      else s"CASE ${whens.mkString(" ")} ELSE $default END"
+
+    params += NamedParameter("pid", id)
+    SQL(s"UPDATE tasks SET priority = $expr WHERE parent_id = {pid}")
+      .on(params.toSeq: _*)
+      .executeUpdate()
   }
 
-  /**
-    * Bounds-only fast path: when no priority *rule* (OSM-tag predicate) is set
-    * we don't need any task JSON at all. The indexed `tasks.location` centroid
-    * is sufficient, so we push the entire recompute down to a handful of
-    * PostGIS UPDATEs and skip the per-task `update_geometry` round-trip that
-    * makes the Scala loop run for minutes on large challenges.
-    *
-    * Precedence is preserved by writing in reverse: default → LOW → MEDIUM →
-    * HIGH, so each higher level overwrites lower-level matches for tasks that
-    * fall inside multiple bounds (matching `getTaskPriority`'s short-circuit
-    * order, which checks HIGH first).
-    *
-    * Tasks with a NULL `location` (geometry never materialized) silently keep
-    * `defaultPriority` here — these tasks would also not contribute meaningful
-    * coordinates to the Scala vertex-in-polygon check, so the outcome is the
-    * same in practice.
-    */
-  private def recomputePrioritiesFromBoundsOnly(
-      challenge: Challenge
-  )(implicit id: Long, c: Connection): Unit = {
-    val defaultPriority = challenge.priority.defaultPriority
-    SQL"""UPDATE tasks SET priority = $defaultPriority WHERE parent_id = $id""".executeUpdate()
-
-    Seq(
-      (challenge.priority.lowPriorityBounds, Challenge.PRIORITY_LOW),
-      (challenge.priority.mediumPriorityBounds, Challenge.PRIORITY_MEDIUM),
-      (challenge.priority.highPriorityBounds, Challenge.PRIORITY_HIGH)
-    ).foreach {
-      case (boundsOpt, priority) =>
-        boundsOpt.foreach { bounds =>
-          extractBoundsGeometries(bounds).foreach { geomJson =>
-            try {
-              SQL"""UPDATE tasks SET priority = $priority
-                    WHERE parent_id = $id
-                      AND location IS NOT NULL
-                      AND ST_Intersects(location, ST_GeomFromGeoJSON($geomJson))""".executeUpdate()
-            } catch {
-              case t: Throwable =>
-                logger.warn(
-                  s"Skipping priority=$priority bounds for challenge $id (${t.getClass.getSimpleName}: ${t.getMessage})"
-                )
-            }
-          }
-        }
-    }
+  private def numericOp(op: String): Option[String] = op match {
+    case "==" => Some("=")
+    case "!=" => Some("<>")
+    case "<"  => Some("<")
+    case "<=" => Some("<=")
+    case ">"  => Some(">")
+    case ">=" => Some(">=")
+    case _    => None
   }
 
   /**
