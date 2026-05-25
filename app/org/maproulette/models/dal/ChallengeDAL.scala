@@ -29,7 +29,7 @@ import org.maproulette.session.SearchParameters
 import org.maproulette.utils.Utils
 import play.api.db.Database
 import play.api.libs.json.JodaReads._
-import play.api.libs.json.{JsString, JsValue, Json}
+import play.api.libs.json.{JsArray, JsString, JsValue, Json}
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
@@ -55,6 +55,13 @@ class ChallengeDAL @Inject() (
     with OwnerMixin[Challenge] {
 
   import scala.concurrent.ExecutionContext.Implicits.global
+
+  // Challenge ids whose priorities are currently being recomputed in the background.
+  // Exposed via isRecomputingPriorities so the UI can show a progress indicator.
+  private val recomputingPriorities =
+    java.util.concurrent.ConcurrentHashMap.newKeySet[java.lang.Long]()
+
+  def isRecomputingPriorities(id: Long): Boolean = recomputingPriorities.contains(id)
 
   // The manager for the challenge cache
   override val cacheManager = new CacheManager[Long, Challenge](config, Config.CACHE_ID_CHALLENGES)
@@ -893,10 +900,19 @@ class ChallengeDAL @Inject() (
           }
         }
     }
-    // update the task priorities in the background
     if (updatedPriorityRules) {
+      recomputingPriorities.add(id)
       Future {
-        updateTaskPriorities(user, overrideValidation = true)
+        try updateTaskPriorities(user, overrideValidation = true)
+        catch {
+          case t: Throwable =>
+            logger.error(
+              s"updateTaskPriorities failed for challenge $id: ${t.getClass.getName}: ${t.getMessage}",
+              t
+            )
+        } finally {
+          recomputingPriorities.remove(id)
+        }
       }
     }
 
@@ -937,46 +953,127 @@ class ChallengeDAL @Inject() (
             s"Could not update priorties for tasks, no challenge with id $id found."
           )
       }
-      // make sure that at least one of the challenges is valid
-      if (overrideValidation || Challenge.isValidRule(challenge.priority.highPriorityRule) ||
+      val hasRules =
+        Challenge.isValidRule(challenge.priority.highPriorityRule) ||
           Challenge.isValidRule(challenge.priority.mediumPriorityRule) ||
-          Challenge.isValidRule(challenge.priority.lowPriorityRule) ||
-          Challenge.isValidBounds(challenge.priority.highPriorityBounds) ||
+          Challenge.isValidRule(challenge.priority.lowPriorityRule)
+      val hasBounds =
+        Challenge.isValidBounds(challenge.priority.highPriorityBounds) ||
           Challenge.isValidBounds(challenge.priority.mediumPriorityBounds) ||
-          Challenge.isValidBounds(challenge.priority.lowPriorityBounds)) {
-        var pointer                  = 0
-        var currentTasks: List[Task] = List.empty
-        do {
-          currentTasks =
-            listChildren(DEFAULT_NUM_CHILDREN_LIST, pointer * DEFAULT_NUM_CHILDREN_LIST)
+          Challenge.isValidBounds(challenge.priority.lowPriorityBounds)
 
-          // Let the task model determine the priorities based on both rules and bounds
-          val highPriorityTasks =
-            currentTasks.filter(_.getTaskPriority(challenge) == Challenge.PRIORITY_HIGH)
-          val mediumPriorityTasks =
-            currentTasks.filter(_.getTaskPriority(challenge) == Challenge.PRIORITY_MEDIUM)
-          val lowPriorityTasks =
-            currentTasks.filter(_.getTaskPriority(challenge) == Challenge.PRIORITY_LOW)
-
-          if (highPriorityTasks.nonEmpty) {
-            val highPriorityIds = highPriorityTasks.map(_.id).mkString(",")
-            SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_HIGH} WHERE id IN (#$highPriorityIds)"""
-              .executeUpdate()
-          }
-          if (mediumPriorityTasks.nonEmpty) {
-            val mediumPriorityIds = mediumPriorityTasks.map(_.id).mkString(",")
-            SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_MEDIUM} WHERE id IN (#$mediumPriorityIds)"""
-              .executeUpdate()
-          }
-          if (lowPriorityTasks.nonEmpty) {
-            val lowPriorityIds = lowPriorityTasks.map(_.id).mkString(",")
-            SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_LOW} WHERE id IN (#$lowPriorityIds)"""
-              .executeUpdate()
-          }
-          pointer += 1
-        } while (currentTasks.size >= DEFAULT_NUM_CHILDREN_LIST)
+      // make sure that at least one of the challenges is valid
+      if (overrideValidation || hasRules || hasBounds) {
+        if (hasRules) {
+          recomputePrioritiesWithRules(challenge)
+        } else {
+          recomputePrioritiesFromBoundsOnly(challenge)
+        }
         this.taskDAL.clearCaches
       }
+    }
+  }
+
+  /**
+    * Rule-aware recompute. Walks every task, parses its geometries, evaluates
+    * each rule and bounds check in Scala. Slow (per-task `update_geometry` call
+    * inside the parser dominates on large challenges) but required when any
+    * priority rule needs OSM-tag inspection.
+    */
+  private def recomputePrioritiesWithRules(
+      challenge: Challenge
+  )(implicit id: Long, c: Connection): Unit = {
+    var pointer                  = 0
+    var currentTasks: List[Task] = List.empty
+    do {
+      // listChildren's second arg is a page number, not an offset.
+      currentTasks = listChildren(DEFAULT_NUM_CHILDREN_LIST, pointer)
+
+      val byPriority = currentTasks.groupBy { task =>
+        try task.getTaskPriority(challenge)
+        catch {
+          case t: Throwable =>
+            logger.warn(
+              s"Could not evaluate priority for task ${task.id} in challenge $id (${t.getClass.getSimpleName}: ${t.getMessage}); falling back to defaultPriority=${challenge.priority.defaultPriority}"
+            )
+            challenge.priority.defaultPriority
+        }
+      }
+
+      byPriority.foreach {
+        case (priority, tasks) =>
+          val ids = tasks.map(_.id).mkString(",")
+          SQL"""UPDATE tasks SET priority = $priority WHERE id IN (#$ids)""".executeUpdate()
+      }
+      pointer += 1
+    } while (currentTasks.size >= DEFAULT_NUM_CHILDREN_LIST)
+  }
+
+  /**
+    * Bounds-only fast path: when no priority *rule* (OSM-tag predicate) is set
+    * we don't need any task JSON at all. The indexed `tasks.location` centroid
+    * is sufficient, so we push the entire recompute down to a handful of
+    * PostGIS UPDATEs and skip the per-task `update_geometry` round-trip that
+    * makes the Scala loop run for minutes on large challenges.
+    *
+    * Precedence is preserved by writing in reverse: default → LOW → MEDIUM →
+    * HIGH, so each higher level overwrites lower-level matches for tasks that
+    * fall inside multiple bounds (matching `getTaskPriority`'s short-circuit
+    * order, which checks HIGH first).
+    *
+    * Tasks with a NULL `location` (geometry never materialized) silently keep
+    * `defaultPriority` here — these tasks would also not contribute meaningful
+    * coordinates to the Scala vertex-in-polygon check, so the outcome is the
+    * same in practice.
+    */
+  private def recomputePrioritiesFromBoundsOnly(
+      challenge: Challenge
+  )(implicit id: Long, c: Connection): Unit = {
+    val defaultPriority = challenge.priority.defaultPriority
+    SQL"""UPDATE tasks SET priority = $defaultPriority WHERE parent_id = $id""".executeUpdate()
+
+    Seq(
+      (challenge.priority.lowPriorityBounds, Challenge.PRIORITY_LOW),
+      (challenge.priority.mediumPriorityBounds, Challenge.PRIORITY_MEDIUM),
+      (challenge.priority.highPriorityBounds, Challenge.PRIORITY_HIGH)
+    ).foreach {
+      case (boundsOpt, priority) =>
+        boundsOpt.foreach { bounds =>
+          extractBoundsGeometries(bounds).foreach { geomJson =>
+            try {
+              SQL"""UPDATE tasks SET priority = $priority
+                    WHERE parent_id = $id
+                      AND location IS NOT NULL
+                      AND ST_Intersects(location, ST_GeomFromGeoJSON($geomJson))""".executeUpdate()
+            } catch {
+              case t: Throwable =>
+                logger.warn(
+                  s"Skipping priority=$priority bounds for challenge $id (${t.getClass.getSimpleName}: ${t.getMessage})"
+                )
+            }
+          }
+        }
+    }
+  }
+
+  /**
+    * Parse a priority-bounds string (either a JSON array of GeoJSON Features or
+    * a single Feature/geometry) and return one GeoJSON-geometry string per
+    * feature, suitable for `ST_GeomFromGeoJSON`. Returns Nil on parse error.
+    */
+  private def extractBoundsGeometries(boundsJson: String): List[String] = {
+    try {
+      val parsed = Json.parse(boundsJson)
+      val features = parsed match {
+        case arr: JsArray => arr.value.toList
+        case obj          => List(obj)
+      }
+      features.flatMap { feat =>
+        val geom = (feat \ "geometry").asOpt[JsValue].getOrElse(feat)
+        if ((geom \ "type").asOpt[String].isDefined) Some(Json.stringify(geom)) else None
+      }
+    } catch {
+      case _: Throwable => Nil
     }
   }
 
