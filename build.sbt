@@ -49,8 +49,7 @@ inThisBuild(
   List(
     semanticdbEnabled := true,
     semanticdbOptions += "-P:semanticdb:synthetics:on",
-    semanticdbVersion := scalafixSemanticdb.revision,
-    scalafixScalaBinaryVersion := CrossVersion.binaryScalaVersion(scalaVersion.value)
+    semanticdbVersion := scalafixSemanticdb.revision
   )
 )
 
@@ -136,8 +135,6 @@ val akkaSerializationJacksonOverrides = Seq(
 ).map(_ % jacksonVersion)
 
 libraryDependencies ++= jacksonDatabindOverrides ++ jacksonOverrides ++ akkaSerializationJacksonOverrides
-
-resolvers ++= Resolver.sonatypeOssRepos("releases")
 
 // Some suggested scalac compiler options. These will print but nothing will fail the build.
 // https://gist.githubusercontent.com/tabdulradi/aa7450921756cd22db6d278100b2dac8/raw/ad80d738758f81b576bac4fe6188625646cf4ddf/scalac-compiler-flags-2.13.sbt

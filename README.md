@@ -47,7 +47,7 @@ as similar to production as possible. It also handles fetching x8664 and aarch64
 Follow the installation steps and install the JDK and sbt using a command similar to:
 
 * `sdk install java 17.0.15-tem`
-* `sdk install sbt 1.11.2`
+* `sdk install sbt 1.12.11`
 
 #### Validation
 
