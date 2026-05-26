@@ -10,7 +10,7 @@ import org.maproulette.framework.psql.filter._
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.{AND, OR}
 import org.maproulette.framework.model.{TaskReview, Project, Challenge, Task}
-import play.api.libs.json.JsDefined
+import play.api.libs.json.JsValue
 
 trait SearchParametersMixin {
 
@@ -782,57 +782,58 @@ trait SearchParametersMixin {
   def filterBoundingGeometries(params: SearchParameters): FilterGroup = {
     params.boundingGeometries match {
       case Some(bp) =>
-        val allPolygons = new StringBuilder()
-        bp.foreach(value =>
-          value \ "bounding" match {
-            case locationJSON: JsDefined => {
-              val polygonLinestring = new StringBuilder()
-              if (allPolygons.toString() != "")
-                allPolygons.append(" OR ")
-
-              (locationJSON \ "type").as[String] match {
-                case "Polygon" => {
-                  (locationJSON \ "coordinates")
-                    .as[List[List[List[Double]]]]
-                    .foreach(p =>
-                      p.foreach(coordinates => {
-                        if (polygonLinestring.toString() != "")
-                          polygonLinestring.append(",")
-                        polygonLinestring.append(s"${coordinates.head} ${coordinates(1)}")
-                      })
-                    )
-                  allPolygons.append(
-                    s"tasks.location @ ST_MakePolygon( ST_GeomFromText('LINESTRING($polygonLinestring)'))"
-                  )
-                }
-                case "LineString" => {
-                  (locationJSON \ "coordinates")
-                    .as[List[List[Double]]]
-                    .foreach(coordinates => {
-                      if (polygonLinestring.toString() != "") {
-                        polygonLinestring.append(",")
-                      }
-                      polygonLinestring.append(s"${coordinates.head} ${coordinates(1)}")
-                    })
-                  allPolygons.append(
-                    s"tasks.location @ ST_GeomFromText('LINESTRING($polygonLinestring)')"
-                  )
-                }
-                case "Point" => {
-                  val coordinates = (locationJSON \ "coordinates").as[List[Double]]
-                  allPolygons.append(
-                    s"tasks.location @ ST_GeomFromText('POINT(${coordinates.head} ${coordinates(1)})')"
-                  )
-                }
-                case _ => // do nothing
-              }
-            }
-            case _ => // do nothing
-          }
-        )
-        FilterGroup(List(CustomParameter("(" + allPolygons.toString + ")")))
+        val clauses = bp.flatMap { value =>
+          (value \ "bounding").asOpt[JsValue].flatMap(geometryClause)
+        }
+        if (clauses.nonEmpty) {
+          FilterGroup(List(CustomParameter("(" + clauses.mkString(" OR ") + ")")))
+        } else {
+          FilterGroup(List())
+        }
       case _ => FilterGroup(List())
     }
+  }
+
+  private def geometryClause(geometry: JsValue): Option[String] = {
+    (geometry \ "type").asOpt[String].flatMap {
+      case "Polygon" =>
+        val rings = (geometry \ "coordinates").asOpt[List[List[List[Double]]]].getOrElse(Nil)
+        polygonClause(rings)
+      case "MultiPolygon" =>
+        val polygons =
+          (geometry \ "coordinates").asOpt[List[List[List[List[Double]]]]].getOrElse(Nil)
+        val polyClauses = polygons.flatMap(polygonClause)
+        if (polyClauses.nonEmpty) Some("(" + polyClauses.mkString(" OR ") + ")")
+        else None
+      case "LineString" =>
+        val coords = (geometry \ "coordinates").asOpt[List[List[Double]]].getOrElse(Nil)
+        lineStringText(coords).map(ls => s"tasks.location @ ST_GeomFromText('LINESTRING($ls)')")
+      case "Point" =>
+        (geometry \ "coordinates").asOpt[List[Double]].flatMap { c =>
+          if (c.length >= 2) Some(s"tasks.location @ ST_GeomFromText('POINT(${c.head} ${c(1)})')")
+          else None
+        }
+      case _ => None
+    }
+  }
+
+  /**
+    * Builds a containment clause from a polygon's exterior ring. Interior rings
+    * (holes) are intentionally ignored — the previous implementation flattened
+    * them into the exterior linestring, producing an invalid polygon shape.
+    */
+  private def polygonClause(rings: List[List[List[Double]]]): Option[String] = {
+    rings.headOption.flatMap { exterior =>
+      lineStringText(exterior).map { ls =>
+        s"tasks.location @ ST_MakePolygon(ST_GeomFromText('LINESTRING($ls)'))"
+      }
+    }
+  }
+
+  private def lineStringText(coords: List[List[Double]]): Option[String] = {
+    val valid = coords.filter(_.length >= 2)
+    if (valid.isEmpty) None
+    else Some(valid.map(c => s"${c.head} ${c(1)}").mkString(","))
   }
 
   /**
