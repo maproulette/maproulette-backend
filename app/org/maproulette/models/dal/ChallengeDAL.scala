@@ -2497,7 +2497,8 @@ class ChallengeDAL @Inject() (
     *
     * @param includeGlobal Whether to include challenges marked as global
     * @param boundingBox Optional bounding box to filter by challenge location (left, bottom, right, top)
-    * @param locationId Optional Nominatim place_id to filter by location polygon
+    * @param osmType Optional OSM type ("N"/"W"/"R") for polygon filter
+    * @param osmId Optional OSM id paired with osmType for polygon filter
     * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
     * @param limit Maximum number of results to return
     * @param offset Number of results to skip for pagination
@@ -2507,7 +2508,8 @@ class ChallengeDAL @Inject() (
   def exploreChallenges(
       includeGlobal: Boolean,
       boundingBox: Option[(Double, Double, Double, Double)],
-      locationId: Option[Long],
+      osmType: Option[String],
+      osmId: Option[Long],
       sortBy: String,
       limit: Int,
       offset: Int = 0,
@@ -2552,11 +2554,10 @@ class ChallengeDAL @Inject() (
         case None       =>
       }
 
-      // If location_id is provided, fetch polygon from Nominatim and use it for filtering
-      locationId match {
-        case Some(placeId) =>
-          val nominatimService = serviceManager.nominatim
-          nominatimService.getLocationPolygon(placeId) match {
+      // If osm identifiers are provided, fetch polygon from Nominatim and use it for filtering
+      (osmType, osmId) match {
+        case (Some(t), Some(id)) =>
+          serviceManager.nominatim.getPolygonByOsmId(t, id) match {
             case Some(wkt) =>
               // Use && operator for fast bounding box overlap check (uses spatial index efficiently)
               // This is much faster than ST_Intersects and sufficient for location filtering
@@ -2564,7 +2565,7 @@ class ChallengeDAL @Inject() (
             case None =>
             // If we can't get the polygon, ignore this filter
           }
-        case None =>
+        case _ =>
       }
 
       boundingBox match {

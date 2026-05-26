@@ -173,7 +173,8 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
     * @param statuses List of task status filters
     * @param global   Whether to include global challenges
     * @param boundingBox   Search parameters including bounding box
-    * @param locationId Optional Nominatim place_id for polygon filtering
+    * @param osmType Optional OSM type ("N"/"W"/"R") for polygon filtering
+    * @param osmId Optional OSM id for polygon filtering
     * @param keywords Optional comma-separated list of keywords to filter by
     * @param difficulty Optional difficulty level to filter by
     * @return List of task markers
@@ -182,7 +183,8 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       statuses: List[Int],
       global: Boolean,
       boundingBox: SearchLocation,
-      locationId: Option[Long] = None,
+      osmType: Option[String] = None,
+      osmId: Option[Long] = None,
       keywords: Option[String] = None,
       difficulty: Option[Int] = None
   ): List[TaskMarker] = {
@@ -190,7 +192,8 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       statuses,
       global,
       boundingBox,
-      locationId,
+      osmType,
+      osmId,
       keywords,
       difficulty
     )
@@ -203,7 +206,8 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
     * @param statuses List of task status filters
     * @param global   Whether to include global challenges
     * @param boundingBox   Search parameters including bounding box
-    * @param locationId Optional Nominatim place_id for polygon filtering
+    * @param osmType Optional OSM type ("N"/"W"/"R") for polygon filtering
+    * @param osmId Optional OSM id for polygon filtering
     * @param keywords Optional comma-separated list of keywords to filter by
     * @param difficulty Optional difficulty level to filter by
     * @return Tuple of (single task markers, overlapping task markers)
@@ -212,7 +216,8 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       statuses: List[Int],
       global: Boolean,
       boundingBox: SearchLocation,
-      locationId: Option[Long] = None,
+      osmType: Option[String] = None,
+      osmId: Option[Long] = None,
       keywords: Option[String] = None,
       difficulty: Option[Int] = None
   ): (List[TaskMarker], List[OverlappingTaskMarker]) = {
@@ -220,7 +225,8 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       statuses,
       global,
       boundingBox,
-      locationId,
+      osmType,
+      osmId,
       keywords,
       difficulty
     )
@@ -232,7 +238,8 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
     * @param statuses List of task status filters
     * @param global   Whether to include global challenges
     * @param boundingBox   Search parameters including bounding box
-    * @param locationId Optional Nominatim place_id for polygon filtering
+    * @param osmType Optional OSM type ("N"/"W"/"R") for polygon filtering
+    * @param osmId Optional OSM id for polygon filtering
     * @param keywords Optional comma-separated list of keywords to filter by
     * @param difficulty Optional difficulty level to filter by
     * @return List of task cluster summaries
@@ -241,7 +248,8 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       statuses: List[Int],
       global: Boolean,
       boundingBox: SearchLocation,
-      locationId: Option[Long] = None,
+      osmType: Option[String] = None,
+      osmId: Option[Long] = None,
       keywords: Option[String] = None,
       difficulty: Option[Int] = None
   ): List[TaskClusterSummary] = {
@@ -249,7 +257,8 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       statuses,
       global,
       boundingBox,
-      locationId,
+      osmType,
+      osmId,
       keywords,
       difficulty
     )
@@ -261,7 +270,8 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
     * @param statuses List of task status filters
     * @param global   Whether to include global challenges
     * @param boundingBox   Search parameters including bounding box
-    * @param locationId Optional Nominatim place_id for polygon filtering
+    * @param osmType Optional OSM type ("N"/"W"/"R") for polygon filtering
+    * @param osmId Optional OSM id for polygon filtering
     * @param keywords Optional comma-separated list of keywords to filter by
     * @param difficulty Optional difficulty level to filter by
     * @return Count of task markers
@@ -270,7 +280,8 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       statuses: List[Int],
       global: Boolean,
       boundingBox: SearchLocation,
-      locationId: Option[Long] = None,
+      osmType: Option[String] = None,
+      osmId: Option[Long] = None,
       keywords: Option[String] = None,
       difficulty: Option[Int] = None
   ): Int = {
@@ -278,7 +289,8 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       statuses,
       global,
       boundingBox,
-      locationId,
+      osmType,
+      osmId,
       keywords,
       difficulty
     )

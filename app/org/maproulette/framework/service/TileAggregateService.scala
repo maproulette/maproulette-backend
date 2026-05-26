@@ -53,23 +53,26 @@ class TileAggregateService @Inject() (
       difficulty: Option[Int] = None,
       global: Boolean = false,
       keywords: Option[String] = None,
-      locationId: Option[Long] = None
+      osmType: Option[String] = None,
+      osmId: Option[Long] = None
   ): Array[Byte] = {
     if (z < 0 || z > MAX_ZOOM) return Array.empty[Byte]
 
     val hasKeywords = keywords.exists(_.trim.nonEmpty)
-    val hasLocation = locationId.isDefined
+    val hasLocation = osmType.isDefined && osmId.isDefined
 
     // Resolve the location filter up front. Fail closed: the user asked for a
     // location-scoped view, so if the polygon can't be resolved (Nominatim
-    // miss / slow lookup / no polygon for that place_id) we must NOT fall back
+    // miss / slow lookup / unsupported geometry) we must NOT fall back
     // to an unfiltered query — that would silently leak tasks from outside the
     // requested area. Returning empty bytes renders the tile as "no data here"
     // until the lookup populates.
-    val polygonWkt = locationId.flatMap(id => nominatimService.getPolygonByPlaceId(id))
+    val polygonWkt =
+      if (hasLocation) nominatimService.getPolygonByOsmId(osmType.get, osmId.get)
+      else None
     if (hasLocation && polygonWkt.isEmpty) {
       logger.warn(
-        s"Tile ($z,$x,$y) requested with location_id=${locationId.get} " +
+        s"Tile ($z,$x,$y) requested with osm_type=${osmType.get}, osm_id=${osmId.get} " +
           "but no polygon resolved; returning empty tile to avoid unfiltered fallback"
       )
       return Array.empty[Byte]

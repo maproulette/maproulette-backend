@@ -6,6 +6,7 @@
 package org.maproulette.framework.service
 
 import javax.inject.{Inject, Singleton}
+import org.slf4j.LoggerFactory
 import play.api.libs.json._
 import play.api.libs.ws.WSClient
 import scala.concurrent.{ExecutionContext, Await}
@@ -13,124 +14,125 @@ import scala.concurrent.duration._
 import scala.collection.concurrent.TrieMap
 
 /**
-  * Service for interacting with the Nominatim API to fetch location polygon data
+  * Service for interacting with the Nominatim API to fetch location polygon data.
   *
-  * @author maproulette
+  * Polygons are resolved by stable OSM identifiers (osm_type + osm_id), not by
+  * Nominatim's internal place_id. Nominatim's public instance does not guarantee
+  * place_id stability across endpoints — the same place_id returned by /search
+  * can resolve to an unrelated OSM object via /details.php (observed in
+  * practice: a city search returning a place_id that /details.php resolves to
+  * a small waterway). Using /lookup with osm_ids avoids that ambiguity.
   */
 @Singleton
 class NominatimService @Inject() (wsClient: WSClient)(implicit ec: ExecutionContext) {
 
+  private val logger             = LoggerFactory.getLogger(this.getClass)
   private val NOMINATIM_BASE_URL = "https://nominatim.openstreetmap.org"
   private val REQUEST_TIMEOUT    = 10.seconds
 
-  // Cache to store WKT geometries by place_id (thread-safe)
-  private val geometryCache = TrieMap.empty[Long, Option[String]]
+  // Cache keyed by (osm_type, osm_id). Only successful lookups are cached;
+  // failures (rate limit, timeout, transient errors) must be retried on the
+  // next request — caching None would make a brief Nominatim outage permanent
+  // for the life of the JVM.
+  private val geometryCache = TrieMap.empty[(String, Long), String]
 
   /**
-    * Fetches polygon geometry from Nominatim using a place_id
+    * Fetches polygon geometry from Nominatim for a given OSM object.
     *
-    * @param placeId The Nominatim place_id (location_id)
-    * @return Option containing the polygon geometry as WKT string, or None if not found or error
+    * @param osmType Single-letter OSM type ("N", "W", or "R", case-insensitive)
+    * @param osmId   OSM object id
+    * @return Option containing the polygon geometry as WKT string, or None if
+    *         the lookup failed or the geometry can't be expressed as a polygon
     */
-  def getPolygonByPlaceId(placeId: Long): Option[String] = {
-    // Check cache first
-    geometryCache.get(placeId) match {
-      case Some(cachedResult) => cachedResult
-      case None               =>
-        // Not in cache, fetch from Nominatim
-        val result = fetchFromNominatim(placeId)
-        // Store in cache (even if None, to avoid repeated failed requests)
-        geometryCache.put(placeId, result)
-        result
+  def getPolygonByOsmId(osmType: String, osmId: Long): Option[String] = {
+    val normalizedType = normalizeOsmType(osmType)
+    normalizedType match {
+      case Some(t) =>
+        val key = (t, osmId)
+        geometryCache.get(key) match {
+          case Some(cached) => Some(cached)
+          case None =>
+            val result = fetchFromNominatim(t, osmId)
+            result.foreach(wkt => geometryCache.put(key, wkt))
+            result
+        }
+      case None => None
+    }
+  }
+
+  /** Accepts "N"/"W"/"R" or "node"/"way"/"relation" (any case). */
+  private def normalizeOsmType(osmType: String): Option[String] = {
+    Option(osmType).map(_.trim.toLowerCase) match {
+      case Some("n") | Some("node")     => Some("N")
+      case Some("w") | Some("way")      => Some("W")
+      case Some("r") | Some("relation") => Some("R")
+      case _                            => None
     }
   }
 
   /**
-    * Fetches polygon geometry from Nominatim API using a two-step lookup (not cached).
-    *
-    * Step 1: Call /details to get the osm_type and osm_id for the place_id
-    * Step 2: Call /lookup with the osm_ids to get the actual polygon geometry
-    *
-    * This two-step approach is necessary because the /details endpoint's polygon_geojson
-    * can return incorrect geometry (e.g. a building instead of the searched region),
-    * while /lookup reliably returns the correct polygon for the OSM object.
-    *
-    * @param placeId The Nominatim place_id
-    * @return Option containing the WKT polygon string
+    * Calls Nominatim's /lookup endpoint with the given OSM identifier to
+    * retrieve the polygon GeoJSON, then converts to WKT.
     */
-  private def fetchFromNominatim(placeId: Long): Option[String] = {
+  private def fetchFromNominatim(osmTypePrefix: String, osmId: Long): Option[String] = {
     try {
-      // Step 1: Get osm_type and osm_id from /details
-      val detailsResponse = Await.result(
+      val lookupResponse = Await.result(
         wsClient
-          .url(s"$NOMINATIM_BASE_URL/details.php")
+          .url(s"$NOMINATIM_BASE_URL/lookup")
           .withRequestTimeout(REQUEST_TIMEOUT)
           .addQueryStringParameters(
-            "place_id"       -> placeId.toString,
-            "format"         -> "json",
-            "addressdetails" -> "0"
+            "osm_ids"         -> s"$osmTypePrefix$osmId",
+            "format"          -> "json",
+            "polygon_geojson" -> "1"
           )
           .addHttpHeaders("User-Agent" -> "MapRoulette/1.0")
           .get(),
         REQUEST_TIMEOUT + 1.second
       )
 
-      if (detailsResponse.status != 200) return None
+      if (lookupResponse.status != 200) {
+        logger.warn(
+          s"Nominatim /lookup for $osmTypePrefix$osmId returned ${lookupResponse.status}: " +
+            lookupResponse.body.take(200)
+        )
+        return None
+      }
 
-      val detailsJson = detailsResponse.json
-      val osmType     = (detailsJson \ "osm_type").asOpt[String]
-      val osmId       = (detailsJson \ "osm_id").asOpt[Long]
+      val lookupJson = lookupResponse.json.as[JsArray]
+      if (lookupJson.value.isEmpty) {
+        logger.warn(s"Nominatim /lookup for $osmTypePrefix$osmId returned no results")
+        return None
+      }
 
-      (osmType, osmId) match {
-        case (Some(ot), Some(oid)) =>
-          // Build OSM ID prefix: N for node, W for way, R for relation
-          val prefix = ot match {
-            case "node"     => "N"
-            case "way"      => "W"
-            case "relation" => "R"
-            case _          => return None
+      val place = lookupJson.value.head
+      (place \ "geojson").asOpt[JsObject] match {
+        case Some(geometry) =>
+          val wkt = convertGeoJSONToWKT(geometry)
+          if (wkt.isEmpty) {
+            logger.warn(
+              s"Nominatim /lookup for $osmTypePrefix$osmId returned geometry type " +
+                s"${(geometry \ "type").asOpt[String].getOrElse("unknown")} which cannot be " +
+                "converted to a polygon WKT"
+            )
           }
-
-          // Step 2: Get polygon geometry from /lookup
-          val lookupResponse = Await.result(
-            wsClient
-              .url(s"$NOMINATIM_BASE_URL/lookup")
-              .withRequestTimeout(REQUEST_TIMEOUT)
-              .addQueryStringParameters(
-                "osm_ids"         -> s"$prefix$oid",
-                "format"          -> "json",
-                "polygon_geojson" -> "1"
-              )
-              .addHttpHeaders("User-Agent" -> "MapRoulette/1.0")
-              .get(),
-            REQUEST_TIMEOUT + 1.second
-          )
-
-          if (lookupResponse.status != 200) return None
-
-          val lookupJson = lookupResponse.json.as[JsArray]
-          if (lookupJson.value.isEmpty) return None
-
-          val place = lookupJson.value.head
-          (place \ "geojson").asOpt[JsObject] match {
-            case Some(geometry) => convertGeoJSONToWKT(geometry)
-            case None           => None
-          }
-
-        case _ => None
+          wkt
+        case None =>
+          logger.warn(s"Nominatim /lookup for $osmTypePrefix$osmId returned no geojson")
+          None
       }
     } catch {
-      case _: java.util.concurrent.TimeoutException => None
-      case _: Exception                             => None
+      case e: java.util.concurrent.TimeoutException =>
+        logger.warn(s"Nominatim /lookup for $osmTypePrefix$osmId timed out", e)
+        None
+      case e: Exception =>
+        logger.warn(s"Nominatim /lookup for $osmTypePrefix$osmId failed: ${e.getMessage}", e)
+        None
     }
   }
 
   /**
     * Converts a GeoJSON geometry object to WKT (Well-Known Text) format for PostGIS.
-    * Handles Polygon, MultiPolygon, Point, and LineString geometry types.
-    *
-    * @param geometry The GeoJSON geometry object
-    * @return Option containing the WKT string, or None if conversion fails or type unsupported
+    * Handles Polygon, MultiPolygon, and Point geometry types.
     */
   private def convertGeoJSONToWKT(geometry: JsObject): Option[String] = {
     try {
@@ -144,10 +146,6 @@ class NominatimService @Inject() (wsClient: WSClient)(implicit ec: ExecutionCont
           Some(multiPolygonToWKT(coords))
         case (Some("Point"), Some(coords)) if coords.value.size >= 2 =>
           Some(pointToWKT(coords))
-        case (Some("LineString"), Some(coords)) if coords.value.size >= 2 =>
-          None
-        case (Some("GeometryCollection"), _) =>
-          None
         case _ =>
           None
       }
@@ -213,19 +211,7 @@ class NominatimService @Inject() (wsClient: WSClient)(implicit ec: ExecutionCont
   }
 
   /**
-    * Gets polygon geometry from cache or fetches from Nominatim
-    * This is a synchronous wrapper for easier integration with existing code
-    *
-    * @param placeId The Nominatim place_id
-    * @return Option containing the WKT polygon string
-    */
-  def getLocationPolygon(placeId: Long): Option[String] = {
-    getPolygonByPlaceId(placeId)
-  }
-
-  /**
     * Clears the geometry cache
-    * Useful for testing or if cache needs to be refreshed
     */
   def clearCache(): Unit = {
     geometryCache.clear()
@@ -233,8 +219,6 @@ class NominatimService @Inject() (wsClient: WSClient)(implicit ec: ExecutionCont
 
   /**
     * Gets the current cache size
-    *
-    * @return Number of cached geometries
     */
   def getCacheSize: Int = {
     geometryCache.size

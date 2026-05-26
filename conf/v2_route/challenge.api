@@ -394,12 +394,19 @@ GET     /challenges/extendedFind                    @org.maproulette.controllers
 #     schema:
 #       type: string
 #       example: "40.7128,-74.0060,40.7000,-74.0200"
-#   - name: location_id
+#   - name: osm_type
 #     in: query
-#     description: parent id of location filter
+#     description: OSM type ("N"/"W"/"R") for polygon-based location filter
+#     required: false
+#     schema:
+#       type: string
+#   - name: osm_id
+#     in: query
+#     description: OSM id paired with osm_type for polygon-based location filter
 #     required: false
 #     schema:
 #       type: integer
+#       format: int64
 #   - name: sortBy
 #     in: query
 #     description: Column to sort results by
@@ -446,7 +453,7 @@ GET     /challenges/extendedFind                    @org.maproulette.controllers
 #           items:
 #             $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 ###
-GET     /challenges/exploreChallenges                    @org.maproulette.controllers.api.ChallengeController.exploreChallenges(global:Boolean ?= true, bounds:Option[String] ?= None, location_id:Option[Long] ?= None, sortBy:String ?= "name", limit:Int ?= 50, offset:Int ?= 0, keywords:Option[String] ?= None, difficulty:Option[Int] ?= None)
+GET     /challenges/exploreChallenges                    @org.maproulette.controllers.api.ChallengeController.exploreChallenges(global:Boolean ?= true, bounds:Option[String] ?= None, osm_type:Option[String] ?= None, osm_id:Option[Long] ?= None, sortBy:String ?= "name", limit:Int ?= 50, offset:Int ?= 0, keywords:Option[String] ?= None, difficulty:Option[Int] ?= None)
 ###
 # tags: [ Challenge ]
 # operationId: challenge_list_challenges_in_specified_projects

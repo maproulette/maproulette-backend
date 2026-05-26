@@ -365,7 +365,8 @@ class TaskClusterRepository @Inject() (
       statuses: List[Int],
       global: Boolean,
       boundingBox: SearchLocation,
-      locationId: Option[Long] = None,
+      osmType: Option[String] = None,
+      osmId: Option[Long] = None,
       keywords: Option[String] = None,
       difficulty: Option[Int] = None
   ): List[TaskClusterSummary] = {
@@ -419,13 +420,11 @@ filtered_tasks AS MATERIALIZED (
     AND t.location && ST_MakeEnvelope($left, $bottom, $right, $top, 4326)
     ${if (statuses.nonEmpty) s"AND t.status IN ($statusList)" else ""}
     AND t.location IS NOT NULL
-    ${locationId
-        .flatMap(placeId =>
-          serviceManager.nominatim
-            .getLocationPolygon(placeId)
-            .map(wkt => s"AND ST_Intersects(t.location, ST_GeomFromText('$wkt', 4326))")
-        )
-        .getOrElse("")}
+    ${(for {
+        t   <- osmType
+        id  <- osmId
+        wkt <- serviceManager.nominatim.getPolygonByOsmId(t, id)
+      } yield s"AND ST_Intersects(t.location, ST_GeomFromText('$wkt', 4326))").getOrElse("")}
 ),
 cluster_input AS (
   SELECT
@@ -463,14 +462,16 @@ ORDER BY kmeans;
     * @param statuses List of task status filters
     * @param global   Whether to include global challenges
     * @param boundingBox   Search parameters including bounding box
-    * @param locationId Optional Nominatim place_id for polygon filtering
+    * @param osmType Optional OSM type ("N"/"W"/"R") for polygon filtering
+    * @param osmId Optional OSM id for polygon filtering
     * @return List of task markers within the bounding box
     */
   def queryTaskMarkersWithBoundingBox(
       statuses: List[Int],
       global: Boolean,
       boundingBox: SearchLocation,
-      locationId: Option[Long] = None,
+      osmType: Option[String] = None,
+      osmId: Option[Long] = None,
       keywords: Option[String] = None,
       difficulty: Option[Int] = None
   ): List[TaskMarker] = {
@@ -531,11 +532,13 @@ ORDER BY kmeans;
       var top    = boundingBox.top
       query += s" AND ST_Intersects(tasks.location, ST_MakeEnvelope($left, $bottom, $right, $top, 4326))"
 
-      // Add location polygon filter if location_id is provided
-      locationId.foreach { placeId =>
-        serviceManager.nominatim.getLocationPolygon(placeId).foreach { wkt =>
-          query += s" AND ST_Intersects(tasks.location, ST_GeomFromText('$wkt', 4326))"
-        }
+      // Add location polygon filter if osm identifiers are provided
+      for {
+        t   <- osmType
+        id  <- osmId
+        wkt <- serviceManager.nominatim.getPolygonByOsmId(t, id)
+      } yield {
+        query += s" AND ST_Intersects(tasks.location, ST_GeomFromText('$wkt', 4326))"
       }
 
       SQL(query)
@@ -566,7 +569,8 @@ ORDER BY kmeans;
     * @param statuses List of task status filters
     * @param global   Whether to include global challenges
     * @param boundingBox   Search parameters including bounding box
-    * @param locationId Optional Nominatim place_id for polygon filtering
+    * @param osmType Optional OSM type ("N"/"W"/"R") for polygon filtering
+    * @param osmId Optional OSM id for polygon filtering
     * @param keywords Optional comma-separated list of keywords to filter by
     * @param difficulty Optional difficulty level to filter by
     * @return Tuple of (single task markers, overlapping task markers)
@@ -575,7 +579,8 @@ ORDER BY kmeans;
       statuses: List[Int],
       global: Boolean,
       boundingBox: SearchLocation,
-      locationId: Option[Long] = None,
+      osmType: Option[String] = None,
+      osmId: Option[Long] = None,
       keywords: Option[String] = None,
       difficulty: Option[Int] = None
   ): (List[TaskMarker], List[OverlappingTaskMarker]) = {
@@ -612,12 +617,11 @@ ORDER BY kmeans;
 
       val statusFilter = if (statuses.nonEmpty) s"AND tasks.status IN ($statusList)" else ""
 
-      val locationFilter = locationId
-        .flatMap(placeId =>
-          serviceManager.nominatim
-            .getLocationPolygon(placeId)
-            .map(wkt => s"AND ST_Intersects(tasks.location, ST_GeomFromText('$wkt', 4326))")
-        )
+      val locationFilter = (for {
+        t   <- osmType
+        id  <- osmId
+        wkt <- serviceManager.nominatim.getPolygonByOsmId(t, id)
+      } yield s"AND ST_Intersects(tasks.location, ST_GeomFromText('$wkt', 4326))")
         .getOrElse("")
 
       // Use PostGIS ST_ClusterDBSCAN for efficient overlap detection
@@ -703,14 +707,16 @@ ORDER BY kmeans;
     * @param statuses List of task status filters
     * @param global   Whether to include global challenges
     * @param boundingBox   Search parameters including bounding box
-    * @param locationId Optional Nominatim place_id for polygon filtering
+    * @param osmType Optional OSM type ("N"/"W"/"R") for polygon filtering
+    * @param osmId Optional OSM id for polygon filtering
     * @return Count of task markers
     */
   def queryCountTaskMarkers(
       statuses: List[Int],
       global: Boolean,
       boundingBox: SearchLocation,
-      locationId: Option[Long] = None,
+      osmType: Option[String] = None,
+      osmId: Option[Long] = None,
       keywords: Option[String] = None,
       difficulty: Option[Int] = None
   ): Int = {
@@ -769,11 +775,13 @@ ORDER BY kmeans;
       var top    = boundingBox.top
       query += s" AND ST_Intersects(tasks.location, ST_MakeEnvelope($left, $bottom, $right, $top, 4326))"
 
-      // Add location polygon filter if location_id is provided
-      locationId.foreach { placeId =>
-        serviceManager.nominatim.getLocationPolygon(placeId).foreach { wkt =>
-          query += s" AND ST_Intersects(tasks.location, ST_GeomFromText('$wkt', 4326))"
-        }
+      // Add location polygon filter if osm identifiers are provided
+      for {
+        t   <- osmType
+        id  <- osmId
+        wkt <- serviceManager.nominatim.getPolygonByOsmId(t, id)
+      } yield {
+        query += s" AND ST_Intersects(tasks.location, ST_GeomFromText('$wkt', 4326))"
       }
 
       SQL(query).as(int("count").single)
