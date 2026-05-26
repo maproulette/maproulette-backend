@@ -64,7 +64,7 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
       global: Boolean
   )(implicit c: Option[Connection] = None): Array[Byte] = {
     this.withMRConnection { implicit c =>
-      val (xMin, yMin, xMax, yMax) = tileBounds3857(z, x, y)
+      val (xMin, yMin, xMax, yMax)     = tileBounds3857(z, x, y)
       val (cxMin, cyMin, cxMax, cyMax) = cellRange(x, y)
 
       // counts_by_filter has a fixed, code-controlled key set, so composing the

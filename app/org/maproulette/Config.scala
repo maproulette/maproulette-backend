@@ -350,11 +350,11 @@ object Config {
   val KEY_SCHEDULER_SNAPSHOT_CHALLENGES_INTERVAL =
     s"$SUB_GROUP_SCHEDULER.challengesSnapshot.interval"
   val KEY_SCHEDULER_SNAPSHOT_CHALLENGES_START = s"$SUB_GROUP_SCHEDULER.challengesSnapshot.startTime"
-  val KEY_MAPROULETTE_FRONTEND = s"$GROUP_MAPROULETTE.frontend"
-  val SUB_GROUP_MAPILLARY      = s"$GROUP_MAPROULETTE.mapillary"
-  val KEY_MAPILLARY_HOST       = s"$SUB_GROUP_MAPILLARY.host"
-  val KEY_MAPILLARY_CLIENT_ID  = s"$SUB_GROUP_MAPILLARY.clientId"
-  val KEY_MAPILLARY_BORDER     = s"$SUB_GROUP_MAPILLARY.border"
+  val KEY_MAPROULETTE_FRONTEND                = s"$GROUP_MAPROULETTE.frontend"
+  val SUB_GROUP_MAPILLARY                     = s"$GROUP_MAPROULETTE.mapillary"
+  val KEY_MAPILLARY_HOST                      = s"$SUB_GROUP_MAPILLARY.host"
+  val KEY_MAPILLARY_CLIENT_ID                 = s"$SUB_GROUP_MAPILLARY.clientId"
+  val KEY_MAPILLARY_BORDER                    = s"$SUB_GROUP_MAPILLARY.border"
 
   val GROUP_OSM                         = "osm"
   val KEY_OSM_SERVER                    = s"$GROUP_OSM.server"

@@ -106,9 +106,9 @@ class TileAggregateService @Inject() (
   /** Stats for ops / debugging. */
   def getStats(): Map[String, Int] = {
     Map(
-      "totalCells"      -> repository.getCellCount(),
-      "dirtyCells"      -> repository.getDirtyCellCount(),
-      "dirtyQueueLagS"  -> repository.getDirtyQueueLagSeconds()
+      "totalCells"     -> repository.getCellCount(),
+      "dirtyCells"     -> repository.getDirtyCellCount(),
+      "dirtyQueueLagS" -> repository.getDirtyQueueLagSeconds()
     )
   }
 }
