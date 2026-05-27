@@ -783,7 +783,12 @@ class ChallengeProvider @Inject() (
       geometry: JsObject,
       properties: JsValue
   ): Option[Task] = {
-    this._createNewTask(user, name, parent, buildTaskFromFeature(parent, name, geometry, properties))
+    this._createNewTask(
+      user,
+      name,
+      parent,
+      buildTaskFromFeature(parent, name, geometry, properties)
+    )
   }
 
   // Construct an in-memory Task for a single Feature without hitting the DB.
