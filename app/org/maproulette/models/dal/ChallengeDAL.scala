@@ -1122,11 +1122,9 @@ class ChallengeDAL @Inject() (
   )(implicit id: Long, c: Option[Connection] = None): (Int, Int, Int) = {
     this.permission.hasWriteAccess(ChallengeType(), user)
     this.withMRConnection { implicit c =>
-      // Bypass the challenge cache — callers (e.g. the priorities controller)
-      // race with a background Future that updates the same challenge, and any
-      // cached value can lag behind the freshly-saved rules/bounds. Reading
-      // straight from the DB guarantees the recompute uses the latest config.
-      val challenge = this._retrieveById(caching = false) match {
+      // Bypass the challenge cache so freshly-updated priority rules/bounds are
+      // always used when recalculating task priorities.
+      val challenge = this._retrieveById(caching = false)(id, Some(c)) match {
         case Some(c) => c
         case None =>
           throw new NotFoundException(

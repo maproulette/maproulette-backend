@@ -9,7 +9,7 @@ import scala.io.Source
 import scala.util.Using
 
 name := "MapRouletteAPI"
-scalaVersion := "2.13.16"
+scalaVersion := "2.13.18"
 Universal / packageName := "MapRouletteAPI"
 
 // Developers can run 'sbt format' to easily format their source; this is required to pass a PR build.
@@ -49,8 +49,7 @@ inThisBuild(
   List(
     semanticdbEnabled := true,
     semanticdbOptions += "-P:semanticdb:synthetics:on",
-    semanticdbVersion := scalafixSemanticdb.revision,
-    scalafixScalaBinaryVersion := CrossVersion.binaryScalaVersion(scalaVersion.value)
+    semanticdbVersion := scalafixSemanticdb.revision
   )
 )
 
@@ -91,7 +90,7 @@ libraryDependencies ++= Seq(
   // NOTE: The swagger-ui package is used to obtain the static distribution of swagger-ui, the files included at runtime
   // and are served by the webserver at route '/assets/lib/swagger-ui/'. We have a few customized swagger files in dir
   // 'public/swagger'.
-  "org.webjars"             % "swagger-ui"      % "5.10.3",
+  "org.webjars"             % "swagger-ui"      % "5.32.5",
   "org.playframework.anorm" %% "anorm"          % "2.7.0",
   "org.playframework.anorm" %% "anorm-postgres" % "2.7.0",
   "org.postgresql"          % "postgresql"      % "42.7.3", // https://github.com/pgjdbc/pgjdbc/releases
@@ -136,8 +135,6 @@ val akkaSerializationJacksonOverrides = Seq(
 ).map(_ % jacksonVersion)
 
 libraryDependencies ++= jacksonDatabindOverrides ++ jacksonOverrides ++ akkaSerializationJacksonOverrides
-
-resolvers ++= Resolver.sonatypeOssRepos("releases")
 
 // Some suggested scalac compiler options. These will print but nothing will fail the build.
 // https://gist.githubusercontent.com/tabdulradi/aa7450921756cd22db6d278100b2dac8/raw/ad80d738758f81b576bac4fe6188625646cf4ddf/scalac-compiler-flags-2.13.sbt
