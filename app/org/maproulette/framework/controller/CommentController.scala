@@ -137,8 +137,8 @@ class CommentController @Inject() (
       limit: Int = 25,
       page: Int = 0
   ): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.userAwareRequest { implicit user =>
-      Ok(Json.toJson(this.commentService.searchComments(q, limit, page)))
+    this.sessionManager.authenticatedRequest { implicit user =>
+      Ok(Json.toJson(this.commentService.searchComments(q, user, limit, page)))
     }
   }
 
@@ -155,8 +155,8 @@ class CommentController @Inject() (
       limit: Int = 25,
       page: Int = 0
   ): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.userAwareRequest { implicit user =>
-      Ok(Json.toJson(this.commentService.searchChallengeComments(q, limit, page)))
+    this.sessionManager.authenticatedRequest { implicit user =>
+      Ok(Json.toJson(this.commentService.searchChallengeComments(q, user, limit, page)))
     }
   }
 
