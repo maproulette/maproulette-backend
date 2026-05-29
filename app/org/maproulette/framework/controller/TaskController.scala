@@ -236,8 +236,6 @@ class TaskController @Inject() (
       global: Boolean,
       cluster: Boolean,
       bounds: Option[String],
-      osm_type: Option[String],
-      osm_id: Option[Long],
       keywords: Option[String],
       difficulty: Option[Int]
   ): Action[AnyContent] = Action.async { implicit request =>
@@ -263,8 +261,6 @@ class TaskController @Inject() (
           statusList,
           global,
           boundingBox,
-          osm_type,
-          osm_id,
           keywords,
           difficulty
         )
@@ -284,8 +280,6 @@ class TaskController @Inject() (
             statusList,
             global,
             boundingBox,
-            osm_type,
-            osm_id,
             keywords,
             difficulty
           )
@@ -304,8 +298,6 @@ class TaskController @Inject() (
               statusList,
               global,
               boundingBox,
-              osm_type,
-              osm_id,
               keywords,
               difficulty
             )
@@ -343,9 +335,7 @@ class TaskController @Inject() (
       y: Int,
       global: Boolean,
       difficulty: Option[Int],
-      keywords: Option[String],
-      osm_type: Option[String],
-      osm_id: Option[Long]
+      keywords: Option[String]
   ): Action[AnyContent] = Action { implicit request =>
     val validZoom       = math.max(0, math.min(22, z))
     val validDifficulty = difficulty.filter(d => d >= 1 && d <= 3)
@@ -356,9 +346,7 @@ class TaskController @Inject() (
       y,
       validDifficulty,
       global,
-      keywords,
-      osm_type,
-      osm_id
+      keywords
     )
 
     // A tile is a pure function of (z, x, y) and the filter params — nothing

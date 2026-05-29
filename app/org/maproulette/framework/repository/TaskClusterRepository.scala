@@ -26,13 +26,11 @@ import play.api.db.Database
 import play.api.libs.json._
 
 import org.maproulette.models.dal.ChallengeDAL
-import org.maproulette.framework.service.ServiceManager
 
 @Singleton
 class TaskClusterRepository @Inject() (
     override val db: Database,
-    challengeDAL: ChallengeDAL,
-    serviceManager: ServiceManager
+    challengeDAL: ChallengeDAL
 ) extends RepositoryMixin {
   implicit val baseTable: String = "tasks"
 
@@ -365,8 +363,6 @@ class TaskClusterRepository @Inject() (
       statuses: List[Int],
       global: Boolean,
       boundingBox: SearchLocation,
-      osmType: Option[String] = None,
-      osmId: Option[Long] = None,
       keywords: Option[String] = None,
       difficulty: Option[Int] = None
   ): List[TaskClusterSummary] = {
@@ -377,8 +373,11 @@ class TaskClusterRepository @Inject() (
       val top        = boundingBox.top
       val statusList = statuses.mkString(",")
 
+      val keywordList   = parseKeywords(keywords)
+      val keywordParams = keywordNamedParameters(keywordList)
+
       // Build joins for keywords filtering if keywords are provided
-      val joins = if (keywords.isDefined && keywords.get.trim.nonEmpty) {
+      val joins = if (keywordList.nonEmpty) {
         " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id" +
           " INNER JOIN tags tags_table ON toc.tag_id = tags_table.id"
       } else ""
@@ -396,19 +395,7 @@ WITH eligible_challenges AS MATERIALIZED (
     AND p.enabled = true
     ${if (!global) "AND c.is_global = false" else ""}
     ${difficulty.map(d => s"AND c.difficulty = $d").getOrElse("")}
-    ${keywords
-        .filter(_.trim.nonEmpty)
-        .map { kws =>
-          val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
-          if (keywordList.nonEmpty) {
-            val keywordConditions =
-              keywordList
-                .map(kw => s"LOWER(tags_table.name) = '${kw.replace("'", "''")}'")
-                .mkString(" OR ")
-            s"AND ($keywordConditions)"
-          } else ""
-        }
-        .getOrElse("")}
+    ${keywordInClause("tags_table.name", keywordList)}
 ),
 filtered_tasks AS MATERIALIZED (
   SELECT DISTINCT
@@ -420,11 +407,6 @@ filtered_tasks AS MATERIALIZED (
     AND t.location && ST_MakeEnvelope($left, $bottom, $right, $top, 4326)
     ${if (statuses.nonEmpty) s"AND t.status IN ($statusList)" else ""}
     AND t.location IS NOT NULL
-    ${(for {
-        t   <- osmType
-        id  <- osmId
-        wkt <- serviceManager.nominatim.getPolygonByOsmId(t, id)
-      } yield s"AND ST_Intersects(t.location, ST_GeomFromText('$wkt', 4326))").getOrElse("")}
 ),
 cluster_input AS (
   SELECT
@@ -450,6 +432,7 @@ GROUP BY kmeans
 ORDER BY kmeans;
 """
       SQL(query)
+        .on(keywordParams: _*)
         .as(this.getTaskClusterSummaryParser().*)
         .filter(_ != None)
         .asInstanceOf[List[TaskClusterSummary]]
@@ -462,20 +445,19 @@ ORDER BY kmeans;
     * @param statuses List of task status filters
     * @param global   Whether to include global challenges
     * @param boundingBox   Search parameters including bounding box
-    * @param osmType Optional OSM type ("N"/"W"/"R") for polygon filtering
-    * @param osmId Optional OSM id for polygon filtering
     * @return List of task markers within the bounding box
     */
   def queryTaskMarkersWithBoundingBox(
       statuses: List[Int],
       global: Boolean,
       boundingBox: SearchLocation,
-      osmType: Option[String] = None,
-      osmId: Option[Long] = None,
       keywords: Option[String] = None,
       difficulty: Option[Int] = None
   ): List[TaskMarker] = {
     this.withMRTransaction { implicit c =>
+      val keywordList   = parseKeywords(keywords)
+      val keywordParams = keywordNamedParameters(keywordList)
+
       var query =
         """
     SELECT DISTINCT tasks.id, ST_AsGeoJSON(tasks.location) AS location, tasks.status, tasks.priority,
@@ -487,7 +469,7 @@ ORDER BY kmeans;
     """
 
       // Add joins for keywords filtering if keywords are provided
-      if (keywords.isDefined && keywords.get.trim.nonEmpty) {
+      if (keywordList.nonEmpty) {
         query += " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id"
         query += " INNER JOIN tags t ON toc.tag_id = t.id"
       }
@@ -509,16 +491,9 @@ ORDER BY kmeans;
         query += s" AND tasks.status IN (${statuses.mkString(",")})"
       }
 
-      // Filter by keywords if provided
-      keywords.foreach { kws =>
-        if (kws.trim.nonEmpty) {
-          val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
-          if (keywordList.nonEmpty) {
-            val keywordConditions =
-              keywordList.map(kw => s"LOWER(t.name) = '${kw.replace("'", "''")}'").mkString(" OR ")
-            query += s" AND ($keywordConditions)"
-          }
-        }
+      // Filter by keywords if provided (bound as parameters, not interpolated)
+      if (keywordList.nonEmpty) {
+        query += " " + keywordInClause("t.name", keywordList)
       }
 
       // Filter by difficulty if provided
@@ -532,16 +507,8 @@ ORDER BY kmeans;
       var top    = boundingBox.top
       query += s" AND ST_Intersects(tasks.location, ST_MakeEnvelope($left, $bottom, $right, $top, 4326))"
 
-      // Add location polygon filter if osm identifiers are provided
-      for {
-        t   <- osmType
-        id  <- osmId
-        wkt <- serviceManager.nominatim.getPolygonByOsmId(t, id)
-      } yield {
-        query += s" AND ST_Intersects(tasks.location, ST_GeomFromText('$wkt', 4326))"
-      }
-
       SQL(query)
+        .on(keywordParams: _*)
         .as(
           (int("id") ~ str("location") ~ int("status") ~ int("priority") ~ get[Option[Long]](
             "bundle_id"
@@ -569,8 +536,6 @@ ORDER BY kmeans;
     * @param statuses List of task status filters
     * @param global   Whether to include global challenges
     * @param boundingBox   Search parameters including bounding box
-    * @param osmType Optional OSM type ("N"/"W"/"R") for polygon filtering
-    * @param osmId Optional OSM id for polygon filtering
     * @param keywords Optional comma-separated list of keywords to filter by
     * @param difficulty Optional difficulty level to filter by
     * @return Tuple of (single task markers, overlapping task markers)
@@ -579,8 +544,6 @@ ORDER BY kmeans;
       statuses: List[Int],
       global: Boolean,
       boundingBox: SearchLocation,
-      osmType: Option[String] = None,
-      osmId: Option[Long] = None,
       keywords: Option[String] = None,
       difficulty: Option[Int] = None
   ): (List[TaskMarker], List[OverlappingTaskMarker]) = {
@@ -591,38 +554,22 @@ ORDER BY kmeans;
       val top        = boundingBox.top
       val statusList = statuses.mkString(",")
 
+      val keywordList   = parseKeywords(keywords)
+      val keywordParams = keywordNamedParameters(keywordList)
+
       // Build joins for keywords filtering if keywords are provided
-      val keywordJoins = if (keywords.isDefined && keywords.get.trim.nonEmpty) {
+      val keywordJoins = if (keywordList.nonEmpty) {
         " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id" +
           " INNER JOIN tags tags_table ON toc.tag_id = tags_table.id"
       } else ""
 
-      val keywordFilter = keywords
-        .filter(_.trim.nonEmpty)
-        .map { kws =>
-          val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
-          if (keywordList.nonEmpty) {
-            val keywordConditions =
-              keywordList
-                .map(kw => s"LOWER(tags_table.name) = '${kw.replace("'", "''")}'")
-                .mkString(" OR ")
-            s"AND ($keywordConditions)"
-          } else ""
-        }
-        .getOrElse("")
+      val keywordFilter = keywordInClause("tags_table.name", keywordList)
 
       val difficultyFilter = difficulty.map(d => s"AND c.difficulty = $d").getOrElse("")
 
       val globalFilter = if (!global) "AND c.is_global = false" else ""
 
       val statusFilter = if (statuses.nonEmpty) s"AND tasks.status IN ($statusList)" else ""
-
-      val locationFilter = (for {
-        t   <- osmType
-        id  <- osmId
-        wkt <- serviceManager.nominatim.getPolygonByOsmId(t, id)
-      } yield s"AND ST_Intersects(tasks.location, ST_GeomFromText('$wkt', 4326))")
-        .getOrElse("")
 
       // Use PostGIS ST_ClusterDBSCAN for efficient overlap detection
       // eps = 0.000001 degrees (~0.1 meters), minpoints = 1 to include all points
@@ -652,10 +599,10 @@ ORDER BY kmeans;
           $statusFilter
           $keywordFilter
           $difficultyFilter
-          $locationFilter
       """
 
       val allTasks = SQL(query)
+        .on(keywordParams: _*)
         .as(
           (get[Long]("id") ~ get[Double]("lat") ~ get[Double]("lng") ~ get[Int]("status") ~ get[
             Int
@@ -707,20 +654,19 @@ ORDER BY kmeans;
     * @param statuses List of task status filters
     * @param global   Whether to include global challenges
     * @param boundingBox   Search parameters including bounding box
-    * @param osmType Optional OSM type ("N"/"W"/"R") for polygon filtering
-    * @param osmId Optional OSM id for polygon filtering
     * @return Count of task markers
     */
   def queryCountTaskMarkers(
       statuses: List[Int],
       global: Boolean,
       boundingBox: SearchLocation,
-      osmType: Option[String] = None,
-      osmId: Option[Long] = None,
       keywords: Option[String] = None,
       difficulty: Option[Int] = None
   ): Int = {
     this.withMRTransaction { implicit c =>
+      val keywordList   = parseKeywords(keywords)
+      val keywordParams = keywordNamedParameters(keywordList)
+
       var query =
         """
     SELECT COUNT(DISTINCT tasks.id) as count
@@ -730,7 +676,7 @@ ORDER BY kmeans;
     """
 
       // Add joins for keywords filtering if keywords are provided
-      if (keywords.isDefined && keywords.get.trim.nonEmpty) {
+      if (keywordList.nonEmpty) {
         query += " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id"
         query += " INNER JOIN tags t ON toc.tag_id = t.id"
       }
@@ -752,16 +698,9 @@ ORDER BY kmeans;
         query += s" AND tasks.status IN (${statuses.mkString(",")})"
       }
 
-      // Filter by keywords if provided
-      keywords.foreach { kws =>
-        if (kws.trim.nonEmpty) {
-          val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
-          if (keywordList.nonEmpty) {
-            val keywordConditions =
-              keywordList.map(kw => s"LOWER(t.name) = '${kw.replace("'", "''")}'").mkString(" OR ")
-            query += s" AND ($keywordConditions)"
-          }
-        }
+      // Filter by keywords if provided (bound as parameters, not interpolated)
+      if (keywordList.nonEmpty) {
+        query += " " + keywordInClause("t.name", keywordList)
       }
 
       // Filter by difficulty if provided
@@ -775,16 +714,27 @@ ORDER BY kmeans;
       var top    = boundingBox.top
       query += s" AND ST_Intersects(tasks.location, ST_MakeEnvelope($left, $bottom, $right, $top, 4326))"
 
-      // Add location polygon filter if osm identifiers are provided
-      for {
-        t   <- osmType
-        id  <- osmId
-        wkt <- serviceManager.nominatim.getPolygonByOsmId(t, id)
-      } yield {
-        query += s" AND ST_Intersects(tasks.location, ST_GeomFromText('$wkt', 4326))"
-      }
-
-      SQL(query).as(int("count").single)
+      SQL(query).on(keywordParams: _*).as(int("count").single)
     }
   }
+
+  /** Split a comma-separated keyword string into normalized, non-empty terms. */
+  private def parseKeywords(keywords: Option[String]): List[String] =
+    keywords
+      .map(_.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty).toList)
+      .getOrElse(Nil)
+
+  /** Bound parameters (kw0, kw1, ...) for a parsed keyword list. */
+  private def keywordNamedParameters(keywordList: List[String]): Seq[NamedParameter] =
+    keywordList.zipWithIndex.map { case (kw, i) => NamedParameter(s"kw$i", kw) }
+
+  /**
+    * `AND LOWER(<column>) IN ({kw0}, {kw1}, ...)` clause for a parsed keyword
+    * list, or "" when empty. Values are bound (see keywordNamedParameters), not
+    * interpolated, so the keyword string cannot be a SQL-injection vector.
+    */
+  private def keywordInClause(column: String, keywordList: List[String]): String =
+    if (keywordList.isEmpty) ""
+    else
+      s"AND LOWER($column) IN (" + keywordList.indices.map(i => s"{kw$i}").mkString(", ") + ")"
 }

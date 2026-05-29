@@ -20,15 +20,18 @@ import org.slf4j.LoggerFactory
   *     MapLibre overzooms this through z=18+.
   *
   * Difficulty/global filters at z<12 are answered from the pre-computed
-  * `counts_by_filter` buckets. Keyword/location filters cannot be pre-computed,
-  * so those requests go through an on-the-fly grid-binning query that uses the
-  * same cell grid — a filtered map therefore clusters identically to an
-  * unfiltered one.
+  * `counts_by_filter` buckets. Keyword filters cannot be pre-computed, so those
+  * requests go through an on-the-fly grid-binning query that uses the same cell
+  * grid — a filtered map therefore clusters identically to an unfiltered one.
+  *
+  * Tiles are not spatially filtered server-side: a tile is a pure function of
+  * (z, x, y) and the difficulty/global/keyword filters, so it stays HTTP
+  * cacheable. Location filtering (e.g. "only France") is applied client-side by
+  * highlighting the area, not by mutating tile contents.
   */
 @Singleton
 class TileAggregateService @Inject() (
-    repository: TileAggregateRepository,
-    nominatimService: NominatimService
+    repository: TileAggregateRepository
 ) {
   private val logger = LoggerFactory.getLogger(this.getClass)
 
@@ -43,8 +46,8 @@ class TileAggregateService @Inject() (
     * Routing:
     *   - z > MAX_ZOOM: empty; MapLibre overzooms the last native tile.
     *   - z == 12: live `tasks` query (individual / overlap markers).
-    *   - z in 0..11 without keyword/location filters: pre-computed `tile_cells`.
-    *   - z in 0..11 with keyword/location filters: on-the-fly grid-binning query.
+    *   - z in 0..11 without keyword filters: pre-computed `tile_cells`.
+    *   - z in 0..11 with keyword filters: on-the-fly grid-binning query.
     */
   def getMvtTile(
       z: Int,
@@ -52,38 +55,18 @@ class TileAggregateService @Inject() (
       y: Int,
       difficulty: Option[Int] = None,
       global: Boolean = false,
-      keywords: Option[String] = None,
-      osmType: Option[String] = None,
-      osmId: Option[Long] = None
+      keywords: Option[String] = None
   ): Array[Byte] = {
     if (z < 0 || z > MAX_ZOOM) return Array.empty[Byte]
 
     val hasKeywords = keywords.exists(_.trim.nonEmpty)
-    val hasLocation = osmType.isDefined && osmId.isDefined
-
-    // Resolve the location filter up front. Fail closed: the user asked for a
-    // location-scoped view, so if the polygon can't be resolved (Nominatim
-    // miss / slow lookup / unsupported geometry) we must NOT fall back
-    // to an unfiltered query — that would silently leak tasks from outside the
-    // requested area. Returning empty bytes renders the tile as "no data here"
-    // until the lookup populates.
-    val polygonWkt =
-      if (hasLocation) nominatimService.getPolygonByOsmId(osmType.get, osmId.get)
-      else None
-    if (hasLocation && polygonWkt.isEmpty) {
-      logger.warn(
-        s"Tile ($z,$x,$y) requested with osm_type=${osmType.get}, osm_id=${osmId.get} " +
-          "but no polygon resolved; returning empty tile to avoid unfiltered fallback"
-      )
-      return Array.empty[Byte]
-    }
 
     if (z == repository.TASK_ZOOM) {
-      repository.getMvtTasksLive(z, x, y, difficulty, global, keywords, polygonWkt)
-    } else if (!hasKeywords && !hasLocation) {
+      repository.getMvtTasksLive(z, x, y, difficulty, global, keywords)
+    } else if (!hasKeywords) {
       repository.getMvtCellsPrecomputed(z, x, y, difficulty, global)
     } else {
-      repository.getMvtCellsLive(z, x, y, difficulty, global, keywords, polygonWkt)
+      repository.getMvtCellsLive(z, x, y, difficulty, global, keywords)
     }
   }
 
@@ -94,14 +77,6 @@ class TileAggregateService @Inject() (
     */
   def rebuildDirtyCells(limit: Int = 512): Int =
     repository.rebuildDirtyCells(limit, newestFirst = false)
-
-  /**
-    * Drain the most-recently-marked dirty cells first. Called synchronously
-    * from TaskDAL after a mutation commits so the originating user sees their
-    * own change before the scheduler/listener gets to it.
-    */
-  def rebuildRecentDirtyCells(limit: Int = 128): Int =
-    repository.rebuildDirtyCells(limit, newestFirst = true)
 
   /** Full rebuild of the pyramid (initial population / crash recovery). */
   def rebuildAll(): Int = repository.rebuildAll()

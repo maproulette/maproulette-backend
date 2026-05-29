@@ -1120,8 +1120,6 @@ class ChallengeController @Inject() (
     *
     * @param global Whether to include global challenges (default: true)
     * @param bounds Bounding box as [left,bottom,right,top] to filter challenges by location
-    * @param osmType OSM type ("N"/"W"/"R") for polygon-based location filter
-    * @param osmId OSM id paired with osmType for polygon-based location filter
     * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
     * @param limit Maximum number of results to return
     * @param offset Number of results to skip for pagination
@@ -1130,8 +1128,6 @@ class ChallengeController @Inject() (
   def exploreChallenges(
       global: Boolean,
       bounds: Option[String],
-      osm_type: Option[String],
-      osm_id: Option[Long],
       sortBy: String,
       limit: Int,
       offset: Int,
@@ -1151,8 +1147,6 @@ class ChallengeController @Inject() (
         val challenges = this.dal.exploreChallenges(
           includeGlobal = global,
           boundingBox = boundingBox,
-          osmType = osm_type,
-          osmId = osm_id,
           sortBy = sortBy,
           limit = limit,
           offset = offset,

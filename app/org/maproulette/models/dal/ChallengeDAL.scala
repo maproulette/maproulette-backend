@@ -2512,10 +2512,11 @@ class ChallengeDAL @Inject() (
     * Optimized method to explore challenges with specific filtering
     * This is a purpose-built query for the exploreChallenges endpoint
     *
+    * Location filtering is bounding-box based: the client resolves any named place
+    * (e.g. via Nominatim on the frontend) to a bbox and passes it as `boundingBox`.
+    *
     * @param includeGlobal Whether to include challenges marked as global
     * @param boundingBox Optional bounding box to filter by challenge location (left, bottom, right, top)
-    * @param osmType Optional OSM type ("N"/"W"/"R") for polygon filter
-    * @param osmId Optional OSM id paired with osmType for polygon filter
     * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
     * @param limit Maximum number of results to return
     * @param offset Number of results to skip for pagination
@@ -2525,8 +2526,6 @@ class ChallengeDAL @Inject() (
   def exploreChallenges(
       includeGlobal: Boolean,
       boundingBox: Option[(Double, Double, Double, Double)],
-      osmType: Option[String],
-      osmId: Option[Long],
       sortBy: String,
       limit: Int,
       offset: Int = 0,
@@ -2534,17 +2533,22 @@ class ChallengeDAL @Inject() (
       difficulty: Option[Int] = None
   )(implicit c: Option[Connection] = None): List[Challenge] = {
     this.withMRConnection { implicit c =>
+      val params = new ListBuffer[NamedParameter]()
       var query =
         s"""SELECT DISTINCT c.*, ST_AsGeoJSON(c.location) AS locationJSON, ST_AsGeoJSON(c.bounding) AS boundingJSON
             FROM challenges c
             INNER JOIN projects p ON p.id = c.parent_id"""
 
-      // Add LEFT JOIN for keywords filtering if keywords are provided
-      keywords match {
+      val keywordList = keywords match {
         case Some(kws) if kws.trim.nonEmpty =>
-          query += " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id"
-          query += " INNER JOIN tags t ON toc.tag_id = t.id"
-        case _ =>
+          kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty).toList
+        case _ => List.empty[String]
+      }
+
+      // Add INNER JOIN for keywords filtering if keywords are provided
+      if (keywordList.nonEmpty) {
+        query += " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id"
+        query += " INNER JOIN tags t ON toc.tag_id = t.id"
       }
 
       query += " WHERE c.deleted = false AND c.enabled = true AND c.is_archived = false"
@@ -2554,40 +2558,31 @@ class ChallengeDAL @Inject() (
         query += " AND c.is_global = false"
       }
 
-      // Filter by keywords if provided
-      keywords match {
-        case Some(kws) if kws.trim.nonEmpty =>
-          val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
-          if (keywordList.nonEmpty) {
-            val keywordConditions = keywordList.map(kw => s"LOWER(t.name) = '$kw'").mkString(" OR ")
-            query += s" AND ($keywordConditions)"
-          }
-        case _ =>
+      // Filter by keywords if provided (bound as parameters to avoid SQL injection)
+      if (keywordList.nonEmpty) {
+        val placeholders = keywordList.zipWithIndex.map {
+          case (kw, i) =>
+            params += NamedParameter(s"kw$i", kw)
+            s"{kw$i}"
+        }
+        query += s" AND LOWER(t.name) IN (${placeholders.mkString(", ")})"
       }
 
       // Filter by difficulty if provided
       difficulty match {
-        case Some(diff) => query += s" AND c.difficulty = $diff"
-        case None       =>
-      }
-
-      // If osm identifiers are provided, fetch polygon from Nominatim and use it for filtering
-      (osmType, osmId) match {
-        case (Some(t), Some(id)) =>
-          serviceManager.nominatim.getPolygonByOsmId(t, id) match {
-            case Some(wkt) =>
-              // Use && operator for fast bounding box overlap check (uses spatial index efficiently)
-              // This is much faster than ST_Intersects and sufficient for location filtering
-              query += s" AND c.bounding && ST_GeomFromText('$wkt', 4326)"
-            case None =>
-            // If we can't get the polygon, ignore this filter
-          }
-        case _ =>
+        case Some(diff) =>
+          params += NamedParameter("difficulty", diff)
+          query += " AND c.difficulty = {difficulty}"
+        case None =>
       }
 
       boundingBox match {
         case Some((left, bottom, right, top)) =>
-          query += s" AND ST_Intersects(c.bounding, ST_MakeEnvelope($left, $bottom, $right, $top, 4326))"
+          params += NamedParameter("bbLeft", left)
+          params += NamedParameter("bbBottom", bottom)
+          params += NamedParameter("bbRight", right)
+          params += NamedParameter("bbTop", top)
+          query += " AND ST_Intersects(c.bounding, ST_MakeEnvelope({bbLeft}, {bbBottom}, {bbRight}, {bbTop}, 4326))"
         case None =>
       }
 
@@ -2607,10 +2602,11 @@ class ChallengeDAL @Inject() (
       }
 
       if (offset > 0) {
-        query += s" OFFSET $offset"
+        params += NamedParameter("offset", offset)
+        query += " OFFSET {offset}"
       }
 
-      SQL(query).as(this.parser.*)
+      SQL(query).on(params.toSeq: _*).as(this.parser.*)
     }
   }
 }

@@ -98,9 +98,9 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
   }
 
   /**
-    * MVT for display zoom 0..11 with keyword/location filters. Tasks are
-    * grid-binned on the fly using the *same* cell grid as the pre-computed
-    * path, so a filtered map clusters identically to an unfiltered one.
+    * MVT for display zoom 0..11 with keyword filters. Tasks are grid-binned on
+    * the fly using the *same* cell grid as the pre-computed path, so a filtered
+    * map clusters identically to an unfiltered one.
     */
   def getMvtCellsLive(
       z: Int,
@@ -108,13 +108,12 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
       y: Int,
       difficulty: Option[Int],
       global: Boolean,
-      keywords: Option[String],
-      polygonWkt: Option[String]
+      keywords: Option[String]
   )(implicit c: Option[Connection] = None): Array[Byte] = {
     this.withMRConnection { implicit c =>
       val (xMin, yMin, xMax, yMax) = tileBounds3857(z, x, y)
       val cellZoom                 = z + CELL_BITS
-      val filter                   = liveFilter(difficulty, global, keywords, polygonWkt)
+      val filter                   = liveFilter(difficulty, global, keywords)
 
       val query = s"""
         WITH binned AS (
@@ -167,12 +166,11 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
       y: Int,
       difficulty: Option[Int],
       global: Boolean,
-      keywords: Option[String],
-      polygonWkt: Option[String]
+      keywords: Option[String]
   )(implicit c: Option[Connection] = None): Array[Byte] = {
     this.withMRConnection { implicit c =>
       val (xMin, yMin, xMax, yMax) = tileBounds3857(z, x, y)
-      val filter                   = liveFilter(difficulty, global, keywords, polygonWkt)
+      val filter                   = liveFilter(difficulty, global, keywords)
 
       val query = s"""
         WITH eligible AS (
@@ -287,21 +285,19 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
   private case class LiveFilter(joins: String, where: String, params: Seq[NamedParameter])
 
   /**
-    * Build the eligibility + difficulty/global/keyword/location filter shared
-    * by the live MVT queries. All user-provided values are bound parameters;
-    * only code-controlled identifiers are interpolated.
+    * Build the eligibility + difficulty/global/keyword filter shared by the live
+    * MVT queries. All user-provided values are bound parameters; only
+    * code-controlled identifiers are interpolated.
     */
   private def liveFilter(
       difficulty: Option[Int],
       global: Boolean,
-      keywords: Option[String],
-      polygonWkt: Option[String]
+      keywords: Option[String]
   ): LiveFilter = {
     val keywordList = keywords
       .map(_.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty).toList)
       .getOrElse(Nil)
     val hasKeywords = keywordList.nonEmpty
-    val hasPolygon  = polygonWkt.exists(_.trim.nonEmpty)
 
     val joins =
       if (hasKeywords)
@@ -314,8 +310,6 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
       if (hasKeywords)
         "AND LOWER(tg.name) IN (" + keywordParamNames.map(n => s"{$n}").mkString(", ") + ")"
       else ""
-    val polygonClause =
-      if (hasPolygon) "AND ST_Intersects(t.location, ST_GeomFromText({polygon}, 4326))" else ""
     val difficultyClause = if (difficulty.isDefined) "AND c.difficulty = {difficulty}" else ""
     val globalClause     = if (!global) "AND c.is_global = false" else ""
 
@@ -326,14 +320,12 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
           AND p.deleted = false AND p.enabled = true
           $globalClause
           $difficultyClause
-          $keywordClause
-          $polygonClause"""
+          $keywordClause"""
 
     val params = scala.collection.mutable.ListBuffer[NamedParameter]()
     keywordParamNames.zip(keywordList).foreach {
       case (name, value) => params += NamedParameter(name, value)
     }
-    if (hasPolygon) params += NamedParameter("polygon", polygonWkt.get)
     if (difficulty.isDefined) params += NamedParameter("difficulty", difficulty.get)
 
     LiveFilter(joins, where, params.toSeq)
