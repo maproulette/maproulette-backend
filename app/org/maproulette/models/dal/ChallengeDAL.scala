@@ -1161,7 +1161,7 @@ class ChallengeDAL @Inject() (
           val evaluated: List[(Task, Int)] = currentTasks.map { task =>
             val p =
               try task.getTaskPriority(challenge)
-              catch { case _: Throwable => task.priority }
+              catch { case _: Exception => task.priority }
             (task, p)
           }
           val highPriorityTasks   = evaluated.collect { case (t, Challenge.PRIORITY_HIGH)   => t }
@@ -1229,7 +1229,7 @@ class ChallengeDAL @Inject() (
         currentTasks.foreach { task =>
           val p =
             try task.getTaskPriority(draftChallenge)
-            catch { case _: Throwable => task.priority }
+            catch { case _: Exception => task.priority }
           result.put(task.id, p)
         }
         pointer += 1
