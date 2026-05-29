@@ -1171,16 +1171,16 @@ class ChallengeController @Inject() (
     *
     * @param search The search string (can be ID or name)
     * @param onlyEnabled Only include enabled challenges
+    * @param limit Maximum number of results to return
     * @return A single challenge matching the search criteria, or empty list if not found
     */
   def search(
       search: String,
-      onlyEnabled: Boolean = false
+      onlyEnabled: Boolean = false,
+      limit: Int = 25
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
-      val results = this.dal.search(
-        search
-      )
+      val results = this.dal.search(search, limit, onlyEnabled)
       Ok(Json.toJson(results))
     }
   }

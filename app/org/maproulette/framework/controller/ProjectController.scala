@@ -218,16 +218,16 @@ class ProjectController @Inject() (
     *
     * @param search The search string (can be ID or name)
     * @param onlyEnabled Only include enabled projects
+    * @param limit Maximum number of results to return
     * @return A single project matching the search criteria, or empty list if not found
     */
   def search(
       search: String,
-      onlyEnabled: Boolean = false
+      onlyEnabled: Boolean = false,
+      limit: Int = 25
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
-      val results = this.projectService.search(
-        search
-      )
+      val results = this.projectService.search(search, limit, onlyEnabled)
       Ok(Json.toJson(results))
     }
   }

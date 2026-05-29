@@ -1395,24 +1395,25 @@ class ChallengeDAL @Inject() (
 
   def search(
       search: String,
-      limit: Int = 25
+      limit: Int = 25,
+      onlyEnabled: Boolean = false
   )(implicit c: Option[Connection] = None): List[Challenge] = {
     this.withMRConnection { implicit c =>
       val isNumeric     = search.matches("^\\d+$")
       val searchLong    = if (isNumeric) Some(search.toLong) else None
-      val searchPattern = if (search.nonEmpty) s"%${search.replace("'", "''")}%" else "%"
-      val searchLower   = if (search.nonEmpty) search.toLowerCase.replace("'", "''") else ""
+      val searchPattern = if (search.nonEmpty) s"%$search%" else "%"
+      val enabledClause = if (onlyEnabled) " AND c.enabled = true AND p.enabled = true" else ""
 
       if (isNumeric && searchLong.isDefined) {
         SQL(s"""SELECT ${this.retrieveColumns} FROM challenges c
                INNER JOIN projects p ON p.id = c.parent_id
-               WHERE c.deleted = false AND p.deleted = false AND c.id = {id}""")
+               WHERE c.deleted = false AND p.deleted = false AND c.id = {id}$enabledClause""")
           .on("id" -> searchLong.get)
           .as(this.parser.*)
       } else if (search.nonEmpty) {
         SQL(s"""SELECT ${this.retrieveColumns} FROM challenges c
                INNER JOIN projects p ON p.id = c.parent_id
-               WHERE c.deleted = false AND p.deleted = false
+               WHERE c.deleted = false AND p.deleted = false$enabledClause
                AND (
                  LOWER(c.name) LIKE LOWER({search})
                  OR (c.name <> '' AND octet_length(LEFT(c.name, 255)) <= 255 AND octet_length({exact}) <= 255 AND (
