@@ -1282,44 +1282,59 @@ class ChallengeDAL @Inject() (
   }
 
   def getChallengeTaskMarkers(
-      id: Long
+      id: Long,
+      limit: Int = Config.DEFAULT_LIST_SIZE,
+      page: Int = 0
   )(implicit c: Option[Connection] = None): ChallengeTaskMarkersResponse = {
     this.withMRConnection { implicit c =>
-      // Use PostGIS ST_ClusterDBSCAN for efficient overlap detection
-      // eps = 0.000001 degrees (~0.1 meters), minpoints = 1 to include all points
+      // Page the challenge's tasks first (bounded so huge challenges aren't fully
+      // scanned), then run the overlap clustering over just that page. Use
+      // PostGIS ST_ClusterDBSCAN for efficient overlap detection:
+      // eps = 0.000001 degrees (~0.1 meters), minpoints = 1 to include all points.
       val query =
         s"""SELECT
-              tasks.id,
-              ST_Y(tasks.location) as lat,
-              ST_X(tasks.location) as lng,
-              tasks.status,
-              tasks.priority,
-              tasks.bundle_id,
+              t.id,
+              ST_Y(t.location) as lat,
+              ST_X(t.location) as lng,
+              t.status,
+              t.priority,
+              t.bundle_id,
               l.user_id as locked_by,
-              ST_ClusterDBSCAN(tasks.location, eps := 0.000001, minpoints := 1) OVER () as cluster_id
-            FROM tasks
-            LEFT JOIN locked l ON l.item_id = tasks.id AND l.item_type = 2
-            WHERE tasks.parent_id = $id"""
+              ST_ClusterDBSCAN(t.location, eps := 0.000001, minpoints := 1) OVER () as cluster_id
+            FROM (
+              SELECT id, location, status, priority, bundle_id
+              FROM tasks
+              WHERE parent_id = {id}
+              ORDER BY id
+              LIMIT {limit} OFFSET {offset}
+            ) t
+            LEFT JOIN locked l ON l.item_id = t.id AND l.item_type = 2"""
 
       val allTasks =
-        SQL(query).as(
-          (long("id") ~ double("lat") ~ double("lng") ~ int("status") ~ int("priority") ~ get[
-            Option[Long]
-          ]("bundle_id") ~ get[Option[Long]]("locked_by") ~ int(
-            "cluster_id"
-          )).map {
-            case taskId ~ lat ~ lng ~ status ~ priority ~ bundleId ~ lockedBy ~ clusterId =>
-              (
-                taskId,
-                TaskMarkerLocation(lat, lng),
-                status,
-                priority,
-                bundleId,
-                lockedBy,
-                clusterId
-              )
-          }.*
-        )
+        SQL(query)
+          .on(
+            Symbol("id")     -> id,
+            Symbol("limit")  -> limit,
+            Symbol("offset") -> (page * limit)
+          )
+          .as(
+            (long("id") ~ double("lat") ~ double("lng") ~ int("status") ~ int("priority") ~ get[
+              Option[Long]
+            ]("bundle_id") ~ get[Option[Long]]("locked_by") ~ int(
+              "cluster_id"
+            )).map {
+              case taskId ~ lat ~ lng ~ status ~ priority ~ bundleId ~ lockedBy ~ clusterId =>
+                (
+                  taskId,
+                  TaskMarkerLocation(lat, lng),
+                  status,
+                  priority,
+                  bundleId,
+                  lockedBy,
+                  clusterId
+                )
+            }.*
+          )
 
       // Group by cluster_id - O(n)
       val clusters = allTasks.groupBy(_._7)

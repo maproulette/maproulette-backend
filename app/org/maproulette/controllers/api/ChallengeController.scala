@@ -577,11 +577,12 @@ class ChallengeController @Inject() (
       }
   }
 
-  def getChallengeTaskMarkers(id: Long): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.userAwareRequest { implicit user =>
-      Ok(Json.toJson(this.dal.getChallengeTaskMarkers(id)))
+  def getChallengeTaskMarkers(id: Long, limit: Int, page: Int): Action[AnyContent] =
+    Action.async { implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        Ok(Json.toJson(this.dal.getChallengeTaskMarkers(id, limit, page)))
+      }
     }
-  }
 
   /**
     * Gets the preferred challenges (hottest, newest, featured)
