@@ -28,7 +28,9 @@ import play.api.db.Database
   * and `rebuild_all_tile_cells` in evolution 107) share one eligibility filter:
   * a task is available work when it has a valid location, `status IN (0,3,6)`,
   * is not archived, and its challenge/project are enabled and not deleted or
-  * archived. Keep them in sync.
+  * archived. `enabled` is MapRoulette's "discoverable" flag, so requiring it on
+  * both challenge and project keeps hidden work off the explore map. Keep all
+  * four paths in sync.
   */
 @Singleton
 class TileAggregateRepository @Inject() (override val db: Database) extends RepositoryMixin {
