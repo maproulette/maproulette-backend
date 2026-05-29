@@ -23,10 +23,11 @@
 -- Updates
 -- -------
 --   * Triggers on `tasks` / `challenges` mark affected LEAF cells (z=11) dirty
---     in `tile_dirty_cells` and emit a `tile_dirty` NOTIFY.
---   * A drain (rebuild_dirty_cells) recomputes each dirty leaf cell from the
---     base tables -- AUTHORITATIVE, so it is immune to the races a pure delta
---     scheme suffers -- then rolls the change up z=10..0 by summation.
+--     in `tile_dirty_cells`.
+--   * A drain (rebuild_dirty_cells), run on a fixed schedule by the backend
+--     (see SchedulerActor `rebuildDirtyTileCells`), recomputes each dirty leaf
+--     cell from the base tables -- AUTHORITATIVE, so it is immune to the races a
+--     pure delta scheme suffers -- then rolls the change up z=10..0 by summation.
 --   * The drain holds a single global advisory lock, so only one drainer
 --     touches the pyramid at a time and concurrent rollups never race.
 -- =============================================================================
@@ -128,8 +129,6 @@ BEGIN
         PERFORM mark_dirty_leaf_cell(NEW.location);;
     END IF;;
 
-    PERFORM pg_notify('tile_dirty', '');;
-
     IF TG_OP = 'DELETE' THEN
         RETURN OLD;;
     END IF;;
@@ -169,7 +168,6 @@ BEGIN
       AND ST_Y(t.location) BETWEEN -85.05112878 AND 85.05112878
     ON CONFLICT (cx, cy) DO NOTHING;;
 
-    PERFORM pg_notify('tile_dirty', '');;
     RETURN NEW;;
 END;;
 $$ LANGUAGE plpgsql VOLATILE;;
@@ -204,7 +202,6 @@ BEGIN
       AND ST_Y(t.location) BETWEEN -85.05112878 AND 85.05112878
     ON CONFLICT (cx, cy) DO NOTHING;;
 
-    PERFORM pg_notify('tile_dirty', '');;
     RETURN NEW;;
 END;;
 $$ LANGUAGE plpgsql VOLATILE;;

@@ -43,8 +43,6 @@ class Config @Inject() (implicit val configuration: Configuration) {
   lazy val ignoreSessionTimeout: Boolean = this.sessionTimeout == -1
   lazy val isBootstrapMode: Boolean =
     this.config.getOptional[Boolean](Config.KEY_BOOTSTRAP).getOrElse(false)
-  lazy val tileListenerEnabled: Boolean =
-    this.config.getOptional[Boolean](Config.KEY_TILE_LISTENER_ENABLED).getOrElse(true)
   lazy val isDebugMode: Boolean =
     this.config.getOptional[Boolean](Config.KEY_DEBUG).getOrElse(false)
   lazy val isDevMode: Boolean =
@@ -340,6 +338,10 @@ object Config {
     s"$SUB_GROUP_SCHEDULER.archiveChallenges.staleTimeInMonths"
   val KEY_SCHEDULER_UPDATE_CHALLENGE_COMPLETION_INTERVAL =
     s"$SUB_GROUP_SCHEDULER.updateChallengeCompletionMetrics.interval"
+  // Drains the dirty-cell queue and keeps the pre-computed tile pyramid fresh.
+  // Set to an empty string to disable (e.g. integration tests).
+  val KEY_SCHEDULER_REBUILD_DIRTY_TILE_CELLS_INTERVAL =
+    s"$SUB_GROUP_SCHEDULER.rebuildDirtyTileCells.interval"
   val KEY_SCHEDULER_NOTIFICATION_DIGEST_EMAIL_INTERVAL =
     s"$SUB_GROUP_SCHEDULER.notifications.digestEmail.interval"
   val KEY_SCHEDULER_NOTIFICATION_DIGEST_EMAIL_START =
@@ -375,11 +377,6 @@ object Config {
 
   val KEY_OSM_QL_PROVIDER = s"$GROUP_OSM.ql.provider"
   val KEY_OSM_QL_TIMEOUT  = s"$GROUP_OSM.ql.timeout"
-
-  // When true, the TileDirtyListener LISTENs for tile_dirty NOTIFYs and keeps
-  // the pre-computed tile pyramid fresh. Disable for environments that should
-  // not run background tile work (e.g. integration tests).
-  val KEY_TILE_LISTENER_ENABLED = s"$GROUP_OSM.tile.listener.enabled"
 
   val DEFAULT_SESSION_TIMEOUT                         = 3600000L
   val DEFAULT_TASK_LOCK_EXPIRY                        = "1 hour"
