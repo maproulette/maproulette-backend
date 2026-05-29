@@ -1091,17 +1091,6 @@ class ChallengeDAL @Inject() (
   }
 
   /**
-    * Will run through the tasks in batches and recompute each task's priority from the
-    * challenge's current rules and bounds. Returns a `(high, medium, low)` tuple of the
-    * number of task rows written at each level — callers (particularly the priorities
-    * endpoint) use this as an honest receipt that the DB actually changed, since a silent
-    * 0/0/0 is a strong signal something upstream is wrong.
-    *
-    * @param user The user executing the request
-    * @param id   The id of the challenge
-    * @param c    The connection for the request
-    */
-  /**
     * Reads the live priority distribution for a challenge directly from the tasks table,
     * bypassing any DAL caching. Used by callers (priorities endpoint) to verify that a
     * recompute actually landed in the DB.
@@ -1118,6 +1107,18 @@ class ChallengeDAL @Inject() (
     }
   }
 
+  /**
+    * Runs through the tasks in batches and recomputes each task's priority from the
+    * challenge's current rules and bounds. Genuine failures raise: a missing challenge
+    * throws `NotFoundException`, lack of permission throws, and a DB error propagates.
+    * Returns a `(high, medium, low)` tuple of the number of task rows written at each
+    * level. A `(0, 0, 0)` result is a legitimate outcome (e.g. no valid rules/bounds, or
+    * no tasks matched any tier), not a failure signal.
+    *
+    * @param user The user executing the request
+    * @param id   The id of the challenge
+    * @param c    The connection for the request
+    */
   def updateTaskPriorities(
       user: User,
       overrideValidation: Boolean = false
