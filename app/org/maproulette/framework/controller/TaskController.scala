@@ -144,53 +144,68 @@ class TaskController @Inject() (
       page: Int
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
-      // Parse bounds string (format: "left,bottom,right,top")
-      val location = if (bounds.nonEmpty) {
-        try {
-          val coords = bounds.split(",").map(_.trim.toDouble)
-          if (coords.length == 4) {
-            Some(SearchLocation(coords(0), coords(1), coords(2), coords(3)))
+      // Parse bounds string (format: "left,bottom,right,top"). A malformed bbox
+      // is a client error, so reject it instead of silently ignoring the filter.
+      val location: Either[String, Option[SearchLocation]] =
+        if (bounds.nonEmpty) {
+          val coords = bounds.split(",").map(_.trim)
+          if (coords.length == 4 && coords.forall(c => c.toDoubleOption.isDefined)) {
+            Right(
+              Some(
+                SearchLocation(
+                  coords(0).toDouble,
+                  coords(1).toDouble,
+                  coords(2).toDouble,
+                  coords(3).toDouble
+                )
+              )
+            )
           } else {
-            None
+            Left(s"Invalid bounds '$bounds'; expected numeric 'left,bottom,right,top'")
           }
-        } catch {
-          case _: Exception => None
+        } else {
+          Right(None)
         }
-      } else {
-        None
-      }
 
-      // Parse challenge IDs
-      val challenges = if (challengeIds.nonEmpty) {
-        try {
-          Some(challengeIds.split(",").map(_.trim.toLong).toList)
-        } catch {
-          case _: Exception => None
+      // Parse challenge IDs; a malformed list is likewise a client error.
+      val challenges: Either[String, Option[List[Long]]] =
+        if (challengeIds.nonEmpty) {
+          val ids = challengeIds.split(",").map(_.trim)
+          if (ids.forall(_.toLongOption.isDefined)) {
+            Right(Some(ids.map(_.toLong).toList))
+          } else {
+            Left(
+              s"Invalid challengeIds '$challengeIds'; expected a comma-separated list of integers"
+            )
+          }
+        } else {
+          Right(None)
         }
-      } else {
-        None
+
+      (location, challenges) match {
+        case (Left(msg), _) => BadRequest(Json.obj("error" -> msg))
+        case (_, Left(msg)) => BadRequest(Json.obj("error" -> msg))
+        case (Right(loc), Right(challengeList)) =>
+          val (count, result) = this.taskClusterService.getChallengeTasksInBounds(
+            loc,
+            challengeList,
+            Paging(limit, page)
+          )
+
+          // Convert result to JSON (without extra geometries/tags for performance)
+          val resultJson =
+            this.insertExtraTaskJSON(result, includeGeometries = false, includeTags = false)
+
+          // Return paginated response
+          Ok(
+            Json.obj(
+              "data"  -> resultJson,
+              "total" -> count,
+              "page"  -> page,
+              "limit" -> limit
+            )
+          )
       }
-
-      // Get tasks using simplified method
-      val (count, result) = this.taskClusterService.getChallengeTasksInBounds(
-        location,
-        challenges,
-        Paging(limit, page)
-      )
-
-      // Convert result to JSON (without extra geometries/tags for performance)
-      val resultJson =
-        this.insertExtraTaskJSON(result, includeGeometries = false, includeTags = false)
-
-      // Return paginated response
-      Ok(
-        Json.obj(
-          "data"  -> resultJson,
-          "total" -> count,
-          "page"  -> page,
-          "limit" -> limit
-        )
-      )
     }
   }
 

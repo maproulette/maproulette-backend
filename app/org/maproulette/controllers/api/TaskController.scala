@@ -969,7 +969,15 @@ class TaskController @Inject() (
             case None => false
           }
         } catch {
-          case _: Exception => false
+          // Expected: the caller lacks write access to this task's project.
+          case _: IllegalAccessException => false
+          // Anything else (e.g. a transient DB error) is unexpected; don't let
+          // it masquerade as a permission denial silently.
+          case e: Exception =>
+            logger.warn(
+              s"Skipping task ${task.id} in write-access check due to unexpected error: ${e.getMessage}"
+            )
+            false
         }
       }
     (permitted, denied.map(_.id))
