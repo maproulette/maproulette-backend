@@ -132,7 +132,8 @@ class ChallengeDAL @Inject() (
       get[Option[Int]]("challenges.completion_percentage") ~
       get[Option[Int]]("challenges.tasks_remaining") ~
       get[Boolean]("challenges.require_confirmation") ~
-      get[Boolean]("challenges.require_reject_reason") map {
+      get[Boolean]("challenges.require_reject_reason") ~
+      get[Option[JsValue]]("challenges.completion_metrics") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
             checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~ status ~ statusMessage ~
@@ -141,7 +142,7 @@ class ChallengeDAL @Inject() (
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
             requiresLocal ~ deleted ~ isGlobal ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~
-            completionPercentage ~ tasksRemaining ~ requireConfirmation ~ requireRejectReason =>
+            completionPercentage ~ tasksRemaining ~ requireConfirmation ~ requireRejectReason ~ completionMetricsJson =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -227,7 +228,7 @@ class ChallengeDAL @Inject() (
           location,
           bounding,
           completionPercentage,
-          tasksRemaining
+          completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         )
     }
   }
@@ -298,7 +299,8 @@ class ChallengeDAL @Inject() (
       get[Option[Int]]("challenges.completion_percentage") ~
       get[Option[Int]]("challenges.tasks_remaining") ~
       get[Boolean]("challenges.require_confirmation") ~
-      get[Boolean]("challenges.require_reject_reason") map {
+      get[Boolean]("challenges.require_reject_reason") ~
+      get[Option[JsValue]]("challenges.completion_metrics") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~
             checkin_comment ~ checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~
@@ -308,7 +310,7 @@ class ChallengeDAL @Inject() (
             preferredReviewTags ~ limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~
             dataOriginDate ~ location ~ bounding ~ requiresLocal ~ deleted ~ isGlobal ~ virtualParents ~
             presets ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ systemArchivedAt ~ completionPercentage ~
-            tasksRemaining ~ requireConfirmation ~ requireRejectReason =>
+            tasksRemaining ~ requireConfirmation ~ requireRejectReason ~ completionMetricsJson =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -393,7 +395,7 @@ class ChallengeDAL @Inject() (
           location,
           bounding,
           completionPercentage,
-          tasksRemaining
+          completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         )
     }
   }
