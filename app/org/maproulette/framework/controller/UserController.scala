@@ -67,7 +67,7 @@ class UserController @Inject() (
 
   def whoami(): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
-      Ok(Json.toJson(user))
+      Ok(Json.toJson(User.withDecryptedAPIKey(user)(crypto)))
     }
   }
 
