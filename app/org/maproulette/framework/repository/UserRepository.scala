@@ -134,7 +134,7 @@ class UserRepository @Inject() (
           Symbol("isReviewer")               -> user.settings.isReviewer,
           Symbol("theme")                    -> user.settings.theme,
           Symbol("allowFollowing")           -> user.settings.allowFollowing,
-          Symbol("properties")               -> user.properties,
+          Symbol("properties")               -> user.properties.map(Json.stringify),
           Symbol("seeTagFixSuggestions")     -> user.settings.seeTagFixSuggestions,
           Symbol("disableTaskConfirm")       -> user.settings.disableTaskConfirm,
           Symbol("showPriorityMarkerColors") -> user.settings.showPriorityMarkerColors
@@ -577,7 +577,7 @@ object UserRepository {
             showPriorityMarkerColors,
             plugins.flatten
           ),
-          properties,
+          properties.map(Json.parse),
           score,
           followingGroupId,
           followersGroupId,

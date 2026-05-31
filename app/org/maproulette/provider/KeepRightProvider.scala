@@ -18,6 +18,7 @@ import org.maproulette.utils.Utils
 import org.slf4j.LoggerFactory
 import play.api.db.Database
 import play.api.http.Status
+import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.WSClient
 
 import scala.concurrent.duration.Duration
@@ -177,16 +178,19 @@ class KeepRightProvider @Inject() (
                   this.withMRTransaction {
                     implicit c =>
                       val totalTasks = errors._2.map(kpError => {
-                        val geometry =
-                          s"""
-                    {"type":"FeatureCollection",
-                      "features":[{
-                        "geometry":{"type":"Point","coordinates":[${kpError.lat}, ${kpError.lon}]},
-                        "type":"Feature",
-                        "properties":{}
-                      }]
-                    }
-                  """
+                        val geometry: JsValue = Json.obj(
+                          "type" -> "FeatureCollection",
+                          "features" -> Json.arr(
+                            Json.obj(
+                              "geometry" -> Json.obj(
+                                "type"        -> "Point",
+                                "coordinates" -> Json.arr(kpError.lat, kpError.lon)
+                              ),
+                              "type"       -> "Feature",
+                              "properties" -> Json.obj()
+                            )
+                          )
+                        )
                         this.taskDAL.mergeUpdate(
                           Task(
                             -1,

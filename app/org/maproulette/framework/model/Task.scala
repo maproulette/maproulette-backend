@@ -4,7 +4,6 @@
  */
 package org.maproulette.framework.model
 
-import org.apache.commons.lang3.StringUtils
 import org.joda.time.DateTime
 import org.maproulette.data.{ItemType, TaskType}
 import org.maproulette.framework.model.{Challenge, Identifiable, MapillaryImage}
@@ -57,9 +56,9 @@ case class Task(
     override val modified: DateTime,
     parent: Long,
     instruction: Option[String] = None,
-    location: Option[String] = None,
-    geometries: String,
-    cooperativeWork: Option[String] = None,
+    location: Option[JsValue] = None,
+    geometries: JsValue,
+    cooperativeWork: Option[JsValue] = None,
     status: Option[Int] = None,
     mappedOn: Option[DateTime] = None,
     completedTimeSpent: Option[Long] = None,
@@ -112,13 +111,11 @@ case class Task(
   }
 
   def getGeometryProperties(): List[Map[String, String]] = {
-    if (StringUtils.isNotEmpty(this.geometries)) {
-      val geojson = Json.parse(this.geometries)
-      (geojson \ "features")
-        .as[List[JsValue]]
-        .map(json => Utils.getProperties(json, "properties").as[Map[String, String]])
-    } else {
-      List.empty
+    (this.geometries \ "features").asOpt[List[JsValue]] match {
+      case Some(features) =>
+        features.map(json => Utils.getProperties(json, "properties").as[Map[String, String]])
+      case None =>
+        List.empty
     }
   }
 }
@@ -181,9 +178,9 @@ object Task extends CommonField {
       modified            <- (json \ "modified").validate[DateTime]
       parent              <- (json \ "parent").validate[Long]
       instruction         <- (json \ "instruction").validateOpt[String]
-      location            <- (json \ "location").validateOpt[String]
-      geometries          <- (json \ "geometries").validate[String]
-      cooperativeWork     <- (json \ "cooperativeWork").validateOpt[String]
+      location            <- (json \ "location").validateOpt[JsValue]
+      geometries          <- (json \ "geometries").validate[JsValue]
+      cooperativeWork     <- (json \ "cooperativeWork").validateOpt[JsValue]
       status              <- (json \ "status").validateOpt[Int]
       mappedOn            <- (json \ "mappedOn").validateOpt[DateTime]
       completedTimeSpent  <- (json \ "completedTimeSpent").validateOpt[Long]
@@ -229,24 +226,12 @@ object Task extends CommonField {
       implicit val mapillaryWrites: Writes[MapillaryImage] = Json.writes[MapillaryImage]
       implicit val reviewWrites: Writes[TaskReviewFields]  = Json.writes[TaskReviewFields]
       implicit val taskWrites: Writes[Task]                = Writes(taskObjectWrites)
-      var original                                         = Json.toJson(o)(taskWrites)
-      var updatedLocation = o.location match {
-        case Some(l) => Utils.insertIntoJson(original, "location", Json.parse(l), true)
-        case None    => original
-      }
-
-      original = Utils.insertIntoJson(updatedLocation, "geometries", Json.parse(o.geometries), true)
-      var updated = o.cooperativeWork match {
-        case Some(cw) => Utils.insertIntoJson(original, "cooperativeWork", Json.parse(cw), true)
-        case None     => original
-      }
+      var updated                                          = Json.toJson(o)(taskWrites)
 
       // Move review fields up to top level
       updated = o.review.reviewStatus match {
-        case Some(r) => {
-          Utils.insertIntoJson(updated, "reviewStatus", r, true)
-        }
-        case None => updated
+        case Some(r) => Utils.insertIntoJson(updated, "reviewStatus", r, true)
+        case None    => updated
       }
       updated = o.review.reviewRequestedBy match {
         case Some(r) => Utils.insertIntoJson(updated, "reviewRequestedBy", r, true)
@@ -261,10 +246,8 @@ object Task extends CommonField {
         case None    => updated
       }
       updated = o.review.metaReviewStatus match {
-        case Some(r) => {
-          Utils.insertIntoJson(updated, "metaReviewStatus", r, true)
-        }
-        case None => updated
+        case Some(r) => Utils.insertIntoJson(updated, "metaReviewStatus", r, true)
+        case None    => updated
       }
       updated = o.review.metaReviewedBy match {
         case Some(r) => Utils.insertIntoJson(updated, "metaReviewedBy", r, true)
@@ -287,7 +270,7 @@ object Task extends CommonField {
         case None    => updated
       }
 
-      Utils.insertIntoJson(updated, "geometries", Json.parse(o.geometries), true)
+      updated
     }
 
     override def reads(json: JsValue): JsResult[Task] = {
@@ -485,5 +468,5 @@ object Task extends CommonField {
     }
 
   def emptyTask(parentId: Long): Task =
-    Task(-1, "", DateTime.now(), DateTime.now(), parentId, Some(""), None, "")
+    Task(-1, "", DateTime.now(), DateTime.now(), parentId, Some(""), None, Json.obj())
 }

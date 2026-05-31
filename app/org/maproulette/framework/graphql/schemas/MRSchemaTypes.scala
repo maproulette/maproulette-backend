@@ -107,6 +107,14 @@ trait MRSchemaTypes {
             )
           }
         )
+      ),
+      ReplaceField(
+        "properties",
+        Field(
+          "properties",
+          OptionType(StringType),
+          resolve = ctx => ctx.value.properties.map(Json.stringify)
+        )
       )
     )
   implicit lazy val ActionItemType: ObjectType[Unit, ActionItem] =
@@ -207,7 +215,33 @@ trait MRSchemaTypes {
     deriveObjectType[Unit, Comment](ObjectTypeName("Comment"))
   // Task Types
   implicit val TaskType: ObjectType[Unit, Task] =
-    deriveObjectType[Unit, Task](ObjectTypeName("Task"))
+    deriveObjectType[Unit, Task](
+      ObjectTypeName("Task"),
+      ReplaceField(
+        "geometries",
+        Field(
+          "geometries",
+          StringType,
+          resolve = ctx => Json.stringify(ctx.value.geometries)
+        )
+      ),
+      ReplaceField(
+        "location",
+        Field(
+          "location",
+          OptionType(StringType),
+          resolve = ctx => ctx.value.location.map(Json.stringify)
+        )
+      ),
+      ReplaceField(
+        "cooperativeWork",
+        Field(
+          "cooperativeWork",
+          OptionType(StringType),
+          resolve = ctx => ctx.value.cooperativeWork.map(Json.stringify)
+        )
+      )
+    )
   implicit val TaskReviewFieldsType: ObjectType[Unit, TaskReviewFields] =
     deriveObjectType[Unit, TaskReviewFields](ObjectTypeName("TaskReviewFields"))
   implicit val MapillaryImageType: ObjectType[Unit, MapillaryImage] =

@@ -2,12 +2,10 @@
   - type: play\.api\.libs\.json\.jsvalue
     specAsParameter: []
     specAsProperty:
-      type: string
+      type: object
+      additionalProperties: true
   - type: play\.api\.libs\.json\.jsobject
     specAsParameter: []
     specAsProperty:
       type: object
-  - type: play\.api\.libs\.oauth\.requesttoken
-    specAsParameter: []
-    specAsProperty:
-      type: object
+      additionalProperties: true

@@ -129,8 +129,8 @@ trait TaskJSONMixin {
         }
 
         if (includeGeometries) {
-          val geometries = Json.parse(taskDetailsMap(task.id).geometries)
-          updated = Utils.insertIntoJson(updated, "geometries", geometries, true)
+          updated =
+            Utils.insertIntoJson(updated, "geometries", taskDetailsMap(task.id).geometries, true)
         }
 
         if (includeTags) {
