@@ -39,7 +39,6 @@ class ServiceManager @Inject() (
     notificationService: Provider[NotificationService],
     leaderboardService: Provider[LeaderboardService],
     taskHistoryService: Provider[TaskHistoryService],
-    nominatimService: Provider[NominatimService],
     tileAggregateService: Provider[TileAggregateService]
 ) {
   def comment: CommentService = commentService.get()
@@ -97,8 +96,6 @@ class ServiceManager @Inject() (
   def notification: NotificationService = notificationService.get()
 
   def leaderboard: LeaderboardService = leaderboardService.get()
-
-  def nominatim: NominatimService = nominatimService.get()
 
   def tileAggregate: TileAggregateService = tileAggregateService.get()
 }

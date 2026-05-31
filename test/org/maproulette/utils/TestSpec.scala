@@ -146,7 +146,6 @@ trait TestSpec extends PlaySpec with MockitoSugar {
   val notificationService      = mock[NotificationService]
   val leaderboardService       = mock[LeaderboardService]
   val taskHistoryService       = mock[TaskHistoryService]
-  val nominatimService         = mock[NominatimService]
   val tileAggregateService     = mock[TileAggregateService]
   // format: off
   val serviceManager = new ServiceManager(
@@ -173,7 +172,6 @@ trait TestSpec extends PlaySpec with MockitoSugar {
     Providers.of[NotificationService](notificationService),
     Providers.of[LeaderboardService](leaderboardService),
     Providers.of[TaskHistoryService](taskHistoryService),
-    Providers.of[NominatimService](nominatimService),
     Providers.of[TileAggregateService](tileAggregateService)
   )
   // format: on

@@ -251,7 +251,7 @@ case class Challenge(
     location: Option[String] = None,
     bounding: Option[String] = None,
     completionPercentage: Option[Int] = Some(0),
-    tasksRemaining: Option[Int] = Some(0)
+    completionMetrics: CompletionMetrics = CompletionMetrics()
 ) extends BaseObject[Long]
     with DefaultWrites
     with Identifiable {

@@ -577,11 +577,12 @@ class ChallengeController @Inject() (
       }
   }
 
-  def getChallengeTaskMarkers(id: Long): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.userAwareRequest { implicit user =>
-      Ok(Json.toJson(this.dal.getChallengeTaskMarkers(id)))
+  def getChallengeTaskMarkers(id: Long, limit: Int, page: Int): Action[AnyContent] =
+    Action.async { implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        Ok(Json.toJson(this.dal.getChallengeTaskMarkers(id, limit, page)))
+      }
     }
-  }
 
   /**
     * Gets the preferred challenges (hottest, newest, featured)
@@ -1119,8 +1120,6 @@ class ChallengeController @Inject() (
     *
     * @param global Whether to include global challenges (default: true)
     * @param bounds Bounding box as [left,bottom,right,top] to filter challenges by location
-    * @param osmType OSM type ("N"/"W"/"R") for polygon-based location filter
-    * @param osmId OSM id paired with osmType for polygon-based location filter
     * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
     * @param limit Maximum number of results to return
     * @param offset Number of results to skip for pagination
@@ -1129,8 +1128,6 @@ class ChallengeController @Inject() (
   def exploreChallenges(
       global: Boolean,
       bounds: Option[String],
-      osm_type: Option[String],
-      osm_id: Option[Long],
       sortBy: String,
       limit: Int,
       offset: Int,
@@ -1150,8 +1147,6 @@ class ChallengeController @Inject() (
         val challenges = this.dal.exploreChallenges(
           includeGlobal = global,
           boundingBox = boundingBox,
-          osmType = osm_type,
-          osmId = osm_id,
           sortBy = sortBy,
           limit = limit,
           offset = offset,
@@ -1170,16 +1165,16 @@ class ChallengeController @Inject() (
     *
     * @param search The search string (can be ID or name)
     * @param onlyEnabled Only include enabled challenges
+    * @param limit Maximum number of results to return
     * @return A single challenge matching the search criteria, or empty list if not found
     */
   def search(
       search: String,
-      onlyEnabled: Boolean = false
+      onlyEnabled: Boolean = false,
+      limit: Int = 25
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
-      val results = this.dal.search(
-        search
-      )
+      val results = this.dal.search(search, limit, onlyEnabled)
       Ok(Json.toJson(results))
     }
   }

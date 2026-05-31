@@ -815,18 +815,11 @@ class TaskDAL @Inject() (
       }
     }
 
-    // Drain the most-recently-marked dirty cells synchronously before notifying
-    // clients, so the originating user's tile refetch (triggered by the
-    // websocket event below) hits fresh bytes instead of racing the background
-    // listener. The drain recomputes the affected leaf cells and rolls the
-    // change up to z=0; the bounded limit keeps bulk imports off the critical
-    // path. z=12 itself is served live, so it needs no rebuild here.
-    try {
-      this.serviceManager.tileAggregate.rebuildRecentDirtyCells(limit = 128)
-    } catch {
-      case e: Exception =>
-        logger.warn(s"Post-commit dirty-cell drain failed: ${e.getMessage}")
-    }
+    // The task/challenge triggers (evolution 107) have marked the affected leaf
+    // cells dirty; the scheduled rebuildDirtyTileCells job drains them. We do not
+    // rebuild synchronously here: it would block the response on a global lock
+    // for no caller-visible benefit (z=12 is served live, and z<12 refreshes on
+    // the next drain).
 
     // Send WebSocket notifications after the transaction
     Future {

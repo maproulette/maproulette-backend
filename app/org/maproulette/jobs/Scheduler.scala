@@ -115,8 +115,12 @@ class Scheduler @Inject() (
     Config.KEY_SCHEDULER_UPDATE_CHALLENGE_COMPLETION_INTERVAL
   )
 
-  // The pre-computed tile pyramid is kept fresh by TileDirtyListener, which
-  // LISTENs for tile_dirty NOTIFYs — there is no scheduled tile job here.
+  schedule(
+    "rebuildDirtyTileCells",
+    "Rebuilding Dirty Tile Cells",
+    30.seconds,
+    Config.KEY_SCHEDULER_REBUILD_DIRTY_TILE_CELLS_INTERVAL
+  )
 
   scheduleAtTime(
     "sendCountNotificationDailyEmails",

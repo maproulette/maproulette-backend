@@ -108,25 +108,13 @@ trait ChallengeWrites extends DefaultWrites {
       (JsPath \ "location").writeNullable[String](new jsonWrites("location")) and
       (JsPath \ "bounding").writeNullable[String](new jsonWrites("bounding")) and
       (JsPath \ "completionPercentage").writeNullable[Int] and
-      (JsPath \ "tasksRemaining").writeNullable[Int]
+      (JsPath \ "completionMetrics").write[CompletionMetrics]
   )(unlift(Challenge.unapply))
 
-  // Frontend Challenge type expects a completionMetrics object; the
-  // Challenge case class only carries tasksRemaining/completionPercentage,
-  // so per-status counters fall back to CompletionMetrics defaults (zero).
-  implicit val challengeWrites: Writes[Challenge] = Writes { c =>
-    val base      = challengeFieldsWrites.writes(c).as[JsObject]
-    val remaining = c.tasksRemaining.getOrElse(0)
-    val total = c.completionPercentage match {
-      case Some(pct) if pct > 0 && pct < 100 =>
-        Math.round(remaining.toDouble / (1.0 - pct / 100.0)).toInt
-      case _ => remaining
-    }
-    val completionMetrics = Json.toJson(
-      CompletionMetrics(total = total, available = remaining, tasksRemaining = remaining)
-    )
-    base + ("completionMetrics" -> completionMetrics)
-  }
+  // completionMetrics is read straight from the `completion_metrics` JSONB
+  // column (see ChallengeDAL parser), so every endpoint returns complete and
+  // accurate per-status counts rather than synthesized values.
+  implicit val challengeWrites: Writes[Challenge] = challengeFieldsWrites
 }
 
 trait ChallengeReads extends DefaultReads {
@@ -218,7 +206,7 @@ trait ChallengeReads extends DefaultReads {
       (JsPath \ "location").readNullable[String](new jsonReads("location")) and
       (JsPath \ "bounding").readNullable[String](new jsonReads("bounding")) and
       (JsPath \ "completionPercentage").readNullable[Int] and
-      (JsPath \ "tasksRemaining").readNullable[Int]
+      ((JsPath \ "completionMetrics").read[CompletionMetrics] or Reads.pure(CompletionMetrics()))
   )(Challenge.apply _)
 }
 

@@ -218,8 +218,14 @@ GET     /projects                                   @org.maproulette.framework.c
 #     in: query
 #     description: The search string (can be project ID or name). Supports fuzzy matching for names.
 #     required: true
+#   - name: onlyEnabled
+#     in: query
+#     description: Only include enabled (discoverable) projects
+#   - name: limit
+#     in: query
+#     description: Maximum number of results to return
 ###
-GET     /projects/search                            @org.maproulette.framework.controller.ProjectController.search(search:String)
+GET     /projects/search                            @org.maproulette.framework.controller.ProjectController.search(search:String, onlyEnabled:Boolean ?= false, limit:Int ?= 25)
 ###
 # tags: [ Project ]
 # operationId: project_list_all_the_managed_projects

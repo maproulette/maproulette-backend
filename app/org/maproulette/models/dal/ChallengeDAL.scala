@@ -132,7 +132,8 @@ class ChallengeDAL @Inject() (
       get[Option[Int]]("challenges.completion_percentage") ~
       get[Option[Int]]("challenges.tasks_remaining") ~
       get[Boolean]("challenges.require_confirmation") ~
-      get[Boolean]("challenges.require_reject_reason") map {
+      get[Boolean]("challenges.require_reject_reason") ~
+      get[Option[JsValue]]("challenges.completion_metrics") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
             checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~ status ~ statusMessage ~
@@ -141,7 +142,7 @@ class ChallengeDAL @Inject() (
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
             requiresLocal ~ deleted ~ isGlobal ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~
-            completionPercentage ~ tasksRemaining ~ requireConfirmation ~ requireRejectReason =>
+            completionPercentage ~ tasksRemaining ~ requireConfirmation ~ requireRejectReason ~ completionMetricsJson =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -227,7 +228,7 @@ class ChallengeDAL @Inject() (
           location,
           bounding,
           completionPercentage,
-          tasksRemaining
+          completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         )
     }
   }
@@ -298,7 +299,8 @@ class ChallengeDAL @Inject() (
       get[Option[Int]]("challenges.completion_percentage") ~
       get[Option[Int]]("challenges.tasks_remaining") ~
       get[Boolean]("challenges.require_confirmation") ~
-      get[Boolean]("challenges.require_reject_reason") map {
+      get[Boolean]("challenges.require_reject_reason") ~
+      get[Option[JsValue]]("challenges.completion_metrics") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~
             checkin_comment ~ checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~
@@ -308,7 +310,7 @@ class ChallengeDAL @Inject() (
             preferredReviewTags ~ limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~
             dataOriginDate ~ location ~ bounding ~ requiresLocal ~ deleted ~ isGlobal ~ virtualParents ~
             presets ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ systemArchivedAt ~ completionPercentage ~
-            tasksRemaining ~ requireConfirmation ~ requireRejectReason =>
+            tasksRemaining ~ requireConfirmation ~ requireRejectReason ~ completionMetricsJson =>
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -393,7 +395,7 @@ class ChallengeDAL @Inject() (
           location,
           bounding,
           completionPercentage,
-          tasksRemaining
+          completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         )
     }
   }
@@ -1089,17 +1091,6 @@ class ChallengeDAL @Inject() (
   }
 
   /**
-    * Will run through the tasks in batches and recompute each task's priority from the
-    * challenge's current rules and bounds. Returns a `(high, medium, low)` tuple of the
-    * number of task rows written at each level — callers (particularly the priorities
-    * endpoint) use this as an honest receipt that the DB actually changed, since a silent
-    * 0/0/0 is a strong signal something upstream is wrong.
-    *
-    * @param user The user executing the request
-    * @param id   The id of the challenge
-    * @param c    The connection for the request
-    */
-  /**
     * Reads the live priority distribution for a challenge directly from the tasks table,
     * bypassing any DAL caching. Used by callers (priorities endpoint) to verify that a
     * recompute actually landed in the DB.
@@ -1116,6 +1107,18 @@ class ChallengeDAL @Inject() (
     }
   }
 
+  /**
+    * Runs through the tasks in batches and recomputes each task's priority from the
+    * challenge's current rules and bounds. Genuine failures raise: a missing challenge
+    * throws `NotFoundException`, lack of permission throws, and a DB error propagates.
+    * Returns a `(high, medium, low)` tuple of the number of task rows written at each
+    * level. A `(0, 0, 0)` result is a legitimate outcome (e.g. no valid rules/bounds, or
+    * no tasks matched any tier), not a failure signal.
+    *
+    * @param user The user executing the request
+    * @param id   The id of the challenge
+    * @param c    The connection for the request
+    */
   def updateTaskPriorities(
       user: User,
       overrideValidation: Boolean = false
@@ -1158,7 +1161,7 @@ class ChallengeDAL @Inject() (
           val evaluated: List[(Task, Int)] = currentTasks.map { task =>
             val p =
               try task.getTaskPriority(challenge)
-              catch { case _: Throwable => task.priority }
+              catch { case _: Exception => task.priority }
             (task, p)
           }
           val highPriorityTasks   = evaluated.collect { case (t, Challenge.PRIORITY_HIGH)   => t }
@@ -1226,7 +1229,7 @@ class ChallengeDAL @Inject() (
         currentTasks.foreach { task =>
           val p =
             try task.getTaskPriority(draftChallenge)
-            catch { case _: Throwable => task.priority }
+            catch { case _: Exception => task.priority }
           result.put(task.id, p)
         }
         pointer += 1
@@ -1279,44 +1282,59 @@ class ChallengeDAL @Inject() (
   }
 
   def getChallengeTaskMarkers(
-      id: Long
+      id: Long,
+      limit: Int = Config.DEFAULT_LIST_SIZE,
+      page: Int = 0
   )(implicit c: Option[Connection] = None): ChallengeTaskMarkersResponse = {
     this.withMRConnection { implicit c =>
-      // Use PostGIS ST_ClusterDBSCAN for efficient overlap detection
-      // eps = 0.000001 degrees (~0.1 meters), minpoints = 1 to include all points
+      // Page the challenge's tasks first (bounded so huge challenges aren't fully
+      // scanned), then run the overlap clustering over just that page. Use
+      // PostGIS ST_ClusterDBSCAN for efficient overlap detection:
+      // eps = 0.000001 degrees (~0.1 meters), minpoints = 1 to include all points.
       val query =
         s"""SELECT
-              tasks.id,
-              ST_Y(tasks.location) as lat,
-              ST_X(tasks.location) as lng,
-              tasks.status,
-              tasks.priority,
-              tasks.bundle_id,
+              t.id,
+              ST_Y(t.location) as lat,
+              ST_X(t.location) as lng,
+              t.status,
+              t.priority,
+              t.bundle_id,
               l.user_id as locked_by,
-              ST_ClusterDBSCAN(tasks.location, eps := 0.000001, minpoints := 1) OVER () as cluster_id
-            FROM tasks
-            LEFT JOIN locked l ON l.item_id = tasks.id AND l.item_type = 2
-            WHERE tasks.parent_id = $id"""
+              ST_ClusterDBSCAN(t.location, eps := 0.000001, minpoints := 1) OVER () as cluster_id
+            FROM (
+              SELECT id, location, status, priority, bundle_id
+              FROM tasks
+              WHERE parent_id = {id}
+              ORDER BY id
+              LIMIT {limit} OFFSET {offset}
+            ) t
+            LEFT JOIN locked l ON l.item_id = t.id AND l.item_type = 2"""
 
       val allTasks =
-        SQL(query).as(
-          (long("id") ~ double("lat") ~ double("lng") ~ int("status") ~ int("priority") ~ get[
-            Option[Long]
-          ]("bundle_id") ~ get[Option[Long]]("locked_by") ~ int(
-            "cluster_id"
-          )).map {
-            case taskId ~ lat ~ lng ~ status ~ priority ~ bundleId ~ lockedBy ~ clusterId =>
-              (
-                taskId,
-                TaskMarkerLocation(lat, lng),
-                status,
-                priority,
-                bundleId,
-                lockedBy,
-                clusterId
-              )
-          }.*
-        )
+        SQL(query)
+          .on(
+            Symbol("id")     -> id,
+            Symbol("limit")  -> limit,
+            Symbol("offset") -> (page * limit)
+          )
+          .as(
+            (long("id") ~ double("lat") ~ double("lng") ~ int("status") ~ int("priority") ~ get[
+              Option[Long]
+            ]("bundle_id") ~ get[Option[Long]]("locked_by") ~ int(
+              "cluster_id"
+            )).map {
+              case taskId ~ lat ~ lng ~ status ~ priority ~ bundleId ~ lockedBy ~ clusterId =>
+                (
+                  taskId,
+                  TaskMarkerLocation(lat, lng),
+                  status,
+                  priority,
+                  bundleId,
+                  lockedBy,
+                  clusterId
+                )
+            }.*
+          )
 
       // Group by cluster_id - O(n)
       val clusters = allTasks.groupBy(_._7)
@@ -1377,24 +1395,25 @@ class ChallengeDAL @Inject() (
 
   def search(
       search: String,
-      limit: Int = 25
+      limit: Int = 25,
+      onlyEnabled: Boolean = false
   )(implicit c: Option[Connection] = None): List[Challenge] = {
     this.withMRConnection { implicit c =>
       val isNumeric     = search.matches("^\\d+$")
       val searchLong    = if (isNumeric) Some(search.toLong) else None
-      val searchPattern = if (search.nonEmpty) s"%${search.replace("'", "''")}%" else "%"
-      val searchLower   = if (search.nonEmpty) search.toLowerCase.replace("'", "''") else ""
+      val searchPattern = if (search.nonEmpty) s"%$search%" else "%"
+      val enabledClause = if (onlyEnabled) " AND c.enabled = true AND p.enabled = true" else ""
 
       if (isNumeric && searchLong.isDefined) {
         SQL(s"""SELECT ${this.retrieveColumns} FROM challenges c
                INNER JOIN projects p ON p.id = c.parent_id
-               WHERE c.deleted = false AND p.deleted = false AND c.id = {id}""")
+               WHERE c.deleted = false AND p.deleted = false AND c.id = {id}$enabledClause""")
           .on("id" -> searchLong.get)
           .as(this.parser.*)
       } else if (search.nonEmpty) {
         SQL(s"""SELECT ${this.retrieveColumns} FROM challenges c
                INNER JOIN projects p ON p.id = c.parent_id
-               WHERE c.deleted = false AND p.deleted = false
+               WHERE c.deleted = false AND p.deleted = false$enabledClause
                AND (
                  LOWER(c.name) LIKE LOWER({search})
                  OR (c.name <> '' AND octet_length(LEFT(c.name, 255)) <= 255 AND octet_length({exact}) <= 255 AND (
@@ -2493,10 +2512,11 @@ class ChallengeDAL @Inject() (
     * Optimized method to explore challenges with specific filtering
     * This is a purpose-built query for the exploreChallenges endpoint
     *
+    * Location filtering is bounding-box based: the client resolves any named place
+    * (e.g. via Nominatim on the frontend) to a bbox and passes it as `boundingBox`.
+    *
     * @param includeGlobal Whether to include challenges marked as global
     * @param boundingBox Optional bounding box to filter by challenge location (left, bottom, right, top)
-    * @param osmType Optional OSM type ("N"/"W"/"R") for polygon filter
-    * @param osmId Optional OSM id paired with osmType for polygon filter
     * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
     * @param limit Maximum number of results to return
     * @param offset Number of results to skip for pagination
@@ -2506,8 +2526,6 @@ class ChallengeDAL @Inject() (
   def exploreChallenges(
       includeGlobal: Boolean,
       boundingBox: Option[(Double, Double, Double, Double)],
-      osmType: Option[String],
-      osmId: Option[Long],
       sortBy: String,
       limit: Int,
       offset: Int = 0,
@@ -2515,17 +2533,22 @@ class ChallengeDAL @Inject() (
       difficulty: Option[Int] = None
   )(implicit c: Option[Connection] = None): List[Challenge] = {
     this.withMRConnection { implicit c =>
+      val params = new ListBuffer[NamedParameter]()
       var query =
         s"""SELECT DISTINCT c.*, ST_AsGeoJSON(c.location) AS locationJSON, ST_AsGeoJSON(c.bounding) AS boundingJSON
             FROM challenges c
             INNER JOIN projects p ON p.id = c.parent_id"""
 
-      // Add LEFT JOIN for keywords filtering if keywords are provided
-      keywords match {
+      val keywordList = keywords match {
         case Some(kws) if kws.trim.nonEmpty =>
-          query += " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id"
-          query += " INNER JOIN tags t ON toc.tag_id = t.id"
-        case _ =>
+          kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty).toList
+        case _ => List.empty[String]
+      }
+
+      // Add INNER JOIN for keywords filtering if keywords are provided
+      if (keywordList.nonEmpty) {
+        query += " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id"
+        query += " INNER JOIN tags t ON toc.tag_id = t.id"
       }
 
       query += " WHERE c.deleted = false AND c.enabled = true AND c.is_archived = false"
@@ -2535,40 +2558,31 @@ class ChallengeDAL @Inject() (
         query += " AND c.is_global = false"
       }
 
-      // Filter by keywords if provided
-      keywords match {
-        case Some(kws) if kws.trim.nonEmpty =>
-          val keywordList = kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty)
-          if (keywordList.nonEmpty) {
-            val keywordConditions = keywordList.map(kw => s"LOWER(t.name) = '$kw'").mkString(" OR ")
-            query += s" AND ($keywordConditions)"
-          }
-        case _ =>
+      // Filter by keywords if provided (bound as parameters to avoid SQL injection)
+      if (keywordList.nonEmpty) {
+        val placeholders = keywordList.zipWithIndex.map {
+          case (kw, i) =>
+            params += NamedParameter(s"kw$i", kw)
+            s"{kw$i}"
+        }
+        query += s" AND LOWER(t.name) IN (${placeholders.mkString(", ")})"
       }
 
       // Filter by difficulty if provided
       difficulty match {
-        case Some(diff) => query += s" AND c.difficulty = $diff"
-        case None       =>
-      }
-
-      // If osm identifiers are provided, fetch polygon from Nominatim and use it for filtering
-      (osmType, osmId) match {
-        case (Some(t), Some(id)) =>
-          serviceManager.nominatim.getPolygonByOsmId(t, id) match {
-            case Some(wkt) =>
-              // Use && operator for fast bounding box overlap check (uses spatial index efficiently)
-              // This is much faster than ST_Intersects and sufficient for location filtering
-              query += s" AND c.bounding && ST_GeomFromText('$wkt', 4326)"
-            case None =>
-            // If we can't get the polygon, ignore this filter
-          }
-        case _ =>
+        case Some(diff) =>
+          params += NamedParameter("difficulty", diff)
+          query += " AND c.difficulty = {difficulty}"
+        case None =>
       }
 
       boundingBox match {
         case Some((left, bottom, right, top)) =>
-          query += s" AND ST_Intersects(c.bounding, ST_MakeEnvelope($left, $bottom, $right, $top, 4326))"
+          params += NamedParameter("bbLeft", left)
+          params += NamedParameter("bbBottom", bottom)
+          params += NamedParameter("bbRight", right)
+          params += NamedParameter("bbTop", top)
+          query += " AND ST_Intersects(c.bounding, ST_MakeEnvelope({bbLeft}, {bbBottom}, {bbRight}, {bbTop}, 4326))"
         case None =>
       }
 
@@ -2588,10 +2602,11 @@ class ChallengeDAL @Inject() (
       }
 
       if (offset > 0) {
-        query += s" OFFSET $offset"
+        params += NamedParameter("offset", offset)
+        query += " OFFSET {offset}"
       }
 
-      SQL(query).as(this.parser.*)
+      SQL(query).on(params.toSeq: _*).as(this.parser.*)
     }
   }
 }

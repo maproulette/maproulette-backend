@@ -247,35 +247,47 @@ class CommentService @Inject() (
   }
 
   /**
-    * Searches all task comments by a search term
+    * Searches task comments by a search term, scoped to comments the requesting
+    * user authored or comments on challenges the user owns.
     *
     * @param searchTerm The term to search within the comments
+    * @param user The authenticated user making the request
     * @param limit The maximum number of comments to return
     * @param page The page number for pagination
     * @return a list of matching comments
     */
   def searchComments(
       searchTerm: String,
+      user: User,
       limit: Int = 25,
       page: Int = 0
   ): List[Comment] = {
-    this.repository.searchComments(searchTerm, limit, page)
+    this.repository.searchComments(searchTerm, user.id, user.osmProfile.id, limit, page)
   }
 
   /**
-    * Searches all challenge comments by a search term
+    * Searches challenge comments by a search term, scoped to comments the
+    * requesting user authored or comments on challenges the user owns.
     *
     * @param searchTerm The term to search within the comments
+    * @param user The authenticated user making the request
     * @param limit The maximum number of comments to return
     * @param page The page number for pagination
     * @return a list of matching challenge comments
     */
   def searchChallengeComments(
       searchTerm: String,
+      user: User,
       limit: Int = 25,
       page: Int = 0
   ): List[ChallengeComment] = {
-    this.challengeCommentRepository.searchComments(searchTerm, limit, page)
+    this.challengeCommentRepository.searchComments(
+      searchTerm,
+      user.id,
+      user.osmProfile.id,
+      limit,
+      page
+    )
   }
 
   /**
