@@ -299,8 +299,7 @@ class TaskController @Inject() (
 
       val xml = task.cooperativeWork match {
         case Some(cw) =>
-          val cooperativeWork = Json.parse(cw)
-          (cooperativeWork \ "file" \ "content").asOpt[String] match {
+          (cw \ "file" \ "content").asOpt[String] match {
             case Some(base64EncodedXML) =>
               new String(java.util.Base64.getDecoder.decode(base64EncodedXML))
             case None => throw new NotFoundException(s"Task $taskId does not offer change XML.")
@@ -538,7 +537,7 @@ class TaskController @Inject() (
       if (request.getQueryString("mapillary").getOrElse("false").toBoolean) {
         // build the envelope for the task geometries
         val taskFeatureCollection =
-          GeoJSONFactory.create(obj.geometries).asInstanceOf[FeatureCollection]
+          GeoJSONFactory.create(Json.stringify(obj.geometries)).asInstanceOf[FeatureCollection]
         val reader   = new GeoJSONReader()
         val envelope = new Envelope()
         taskFeatureCollection.getFeatures.foreach(f => {

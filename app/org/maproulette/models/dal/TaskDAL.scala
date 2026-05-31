@@ -11,7 +11,6 @@ import anorm.JodaParameterMetaData._
 import anorm.SqlParser._
 import anorm._
 import javax.inject.{Inject, Provider, Singleton}
-import org.apache.commons.lang3.StringUtils
 import org.joda.time.{DateTime, DateTimeZone}
 import org.locationtech.jts.geom.Envelope
 import org.maproulette.Config
@@ -196,9 +195,11 @@ class TaskDAL @Inject() (
             s"progression from ${cachedItem.status.getOrElse(0)} to $status not valid."
         )
       }
-      val priority                  = (value \ "priority").asOpt[Int].getOrElse(cachedItem.priority)
-      val geometries                = (value \ "geometries").asOpt[String].getOrElse(cachedItem.geometries)
-      val cooperativeWorkGeometries = (value \ "cooperativeWork").asOpt[String].getOrElse("")
+      val priority = (value \ "priority").asOpt[Int].getOrElse(cachedItem.priority)
+      val geometries: JsValue =
+        (value \ "geometries").toOption.getOrElse(cachedItem.geometries)
+      val cooperativeWork: Option[JsValue] =
+        (value \ "cooperativeWork").toOption.filter(_ != JsNull)
       val changesetId =
         (value \ "changesetId").asOpt[Long].getOrElse(cachedItem.changesetId.getOrElse(-1L))
 
@@ -241,11 +242,7 @@ class TaskDAL @Inject() (
             reviewedAt = reviewedAt
           ),
           geometries = geometries,
-          cooperativeWork = if (StringUtils.isEmpty(cooperativeWorkGeometries)) {
-            None
-          } else {
-            Some(cooperativeWorkGeometries)
-          },
+          cooperativeWork = cooperativeWork,
           priority = priority,
           changesetId = Some(changesetId)
         ),
@@ -435,15 +432,15 @@ class TaskDAL @Inject() (
     */
   private def extractCooperativeWork(
       parentId: Long,
-      geometries: String,
-      cooperativeWork: Option[String]
+      geometries: JsValue,
+      cooperativeWork: Option[JsValue]
   )(
       implicit c: Option[Connection] = None
   ): (String, Option[String]) = {
     this.withMRTransaction { implicit c =>
-      var cooperativeWorkJson = cooperativeWork
+      var cooperativeWorkJson: Option[String] = cooperativeWork.map(Json.stringify)
 
-      val geoJson   = Json.parse(geometries)
+      val geoJson   = geometries
       var workMatch = (geoJson \\ "cooperativeWork")
       if (workMatch.isEmpty) {
         // Check to see if our cooperative work JSON was changed into a string due
@@ -891,7 +888,9 @@ class TaskDAL @Inject() (
                       true
                     } else {
                       val feature =
-                        GeoJSONFactory.create(task.geometries).asInstanceOf[FeatureCollection]
+                        GeoJSONFactory
+                          .create(Json.stringify(task.geometries))
+                          .asInstanceOf[FeatureCollection]
                       val reader   = new GeoJSONReader()
                       val envelope = new Envelope()
                       feature.getFeatures.foreach(f => {

@@ -64,14 +64,14 @@ case class PriorityRule(operator: String, key: String, value: String, valueType:
   private def locationInBounds(
       operator: String,
       value: String,
-      location: Option[String]
+      location: Option[JsValue]
   ): Boolean = {
     // eg. Some({"type":"Point","coordinates":[-120.18699365,48.47991855]})
     location match {
       case Some(loc) =>
         // MinX,MinY,MaxX,MaxY
         val bbox: List[Double] = Utils.toDoubleList(value).getOrElse(List(0, 0, 0, 0))
-        val coordinates        = (Json.parse(loc) \ "coordinates").as[List[Double]]
+        val coordinates        = (loc \ "coordinates").as[List[Double]]
         if (coordinates.length == 2) {
           val x        = coordinates(0)
           val y        = coordinates(1)
@@ -328,8 +328,7 @@ case class Challenge(
 
           // Extract coordinates from task geometries
           try {
-            val geometries = Json.parse(task.geometries)
-            val features   = (geometries \ "features").as[List[JsValue]]
+            val features = (task.geometries \ "features").as[List[JsValue]]
             if (features.nonEmpty) {
               // Check if any feature is within bounds (important for ways/relations with multiple features)
               features.exists(feature => {

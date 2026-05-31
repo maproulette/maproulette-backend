@@ -7,6 +7,7 @@ package org.maproulette.framework.mixins
 import anorm.SqlParser.get
 import anorm.{RowParser, ~}
 import org.joda.time.DateTime
+import play.api.libs.json.Json
 
 import org.maproulette.framework.model.{TaskReview, TaskReviewFields, TaskWithReview, Task}
 
@@ -80,9 +81,9 @@ trait TaskParserMixin {
           modified,
           parent_id,
           instruction,
-          values._2,
-          values._1,
-          values._3,
+          values._2.map(Json.parse),
+          Json.parse(values._1),
+          values._3.map(Json.parse),
           status,
           mappedOn,
           completedTimeSpent,
@@ -178,9 +179,9 @@ trait TaskParserMixin {
             modified,
             parent_id,
             instruction,
-            values._2,
-            values._1,
-            values._3,
+            values._2.map(Json.parse),
+            Json.parse(values._1),
+            values._3.map(Json.parse),
             status,
             mappedOn,
             completedTimeSpent,

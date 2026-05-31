@@ -756,7 +756,7 @@ class ChallengeProvider @Inject() (
       user,
       name,
       parent,
-      Task(-1, name, DateTime.now(), DateTime.now(), parent.id, Some(""), None, json.toString)
+      Task(-1, name, DateTime.now(), DateTime.now(), parent.id, Some(""), None, json)
     )
   }
 
@@ -775,19 +775,17 @@ class ChallengeProvider @Inject() (
       parent.id,
       Some(""),
       None,
-      Json
-        .obj(
-          "type" -> "FeatureCollection",
-          "features" -> Json.arr(
-            Json.obj(
-              "id"         -> name,
-              "type"       -> "Feature",
-              "geometry"   -> geometry,
-              "properties" -> properties
-            )
+      Json.obj(
+        "type" -> "FeatureCollection",
+        "features" -> Json.arr(
+          Json.obj(
+            "id"         -> name,
+            "type"       -> "Feature",
+            "geometry"   -> geometry,
+            "properties" -> properties
           )
         )
-        .toString
+      )
     )
     this._createNewTask(user, name, parent, newTask)
   }
