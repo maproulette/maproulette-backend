@@ -131,7 +131,7 @@ class TaskController @Inject() (
   /**
     * Gets challenge tasks within a bounding box (simplified endpoint)
     *
-    * @param bounds       Comma-separated bounding box coordinates: "left,bottom,right,top"
+    * @param bounds       Comma-separated bounding box coordinates: "west,south,east,north"
     * @param challengeIds Comma-separated list of challenge IDs to filter by
     * @param limit        Maximum number of tasks to return per page
     * @param page         Page number for pagination (0-indexed)
@@ -144,70 +144,52 @@ class TaskController @Inject() (
       page: Int
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
-      // Parse bounds string (format: "left,bottom,right,top"). A malformed bbox
-      // is a client error, so reject it instead of silently ignoring the filter.
-      val location: Either[String, Option[SearchLocation]] =
-        if (bounds.nonEmpty) {
-          val coords = bounds.split(",").map(_.trim)
-          if (coords.length == 4 && coords.forall(c => c.toDoubleOption.isDefined)) {
-            Right(
-              Some(
-                SearchLocation(
-                  coords(0).toDouble,
-                  coords(1).toDouble,
-                  coords(2).toDouble,
-                  coords(3).toDouble
-                )
-              )
-            )
-          } else {
-            Left(s"Invalid bounds '$bounds'; expected numeric 'left,bottom,right,top'")
-          }
-        } else {
-          Right(None)
-        }
-
-      // Parse challenge IDs; a malformed list is likewise a client error.
-      val challenges: Either[String, Option[List[Long]]] =
-        if (challengeIds.nonEmpty) {
-          val ids = challengeIds.split(",").map(_.trim)
-          if (ids.forall(_.toLongOption.isDefined)) {
-            Right(Some(ids.map(_.toLong).toList))
-          } else {
-            Left(
-              s"Invalid challengeIds '$challengeIds'; expected a comma-separated list of integers"
-            )
-          }
-        } else {
-          Right(None)
-        }
-
-      (location, challenges) match {
-        case (Left(msg), _) => BadRequest(Json.obj("error" -> msg))
-        case (_, Left(msg)) => BadRequest(Json.obj("error" -> msg))
-        case (Right(loc), Right(challengeList)) =>
-          val (count, result) = this.taskClusterService.getChallengeTasksInBounds(
-            loc,
-            challengeList,
+      val result: Either[String, JsObject] =
+        for {
+          location   <- parseBounds(bounds)
+          challenges <- parseChallengeIds(challengeIds)
+        } yield {
+          val (count, tasks) = this.taskClusterService.getChallengeTasksInBounds(
+            location,
+            challenges,
             Paging(limit, page)
           )
-
-          // Convert result to JSON (without extra geometries/tags for performance)
           val resultJson =
-            this.insertExtraTaskJSON(result, includeGeometries = false, includeTags = false)
-
-          // Return paginated response
-          Ok(
-            Json.obj(
-              "data"  -> resultJson,
-              "total" -> count,
-              "page"  -> page,
-              "limit" -> limit
-            )
+            this.insertExtraTaskJSON(tasks, includeGeometries = false, includeTags = false)
+          Json.obj(
+            "data"  -> resultJson,
+            "total" -> count,
+            "page"  -> page,
+            "limit" -> limit
           )
+        }
+
+      result match {
+        case Left(msg)   => BadRequest(Json.obj("error" -> msg))
+        case Right(json) => Ok(json)
       }
     }
   }
+
+  private def parseBounds(bounds: String): Either[String, Option[SearchLocation]] =
+    if (bounds.isEmpty) Right(None)
+    else
+      bounds.split(",").map(_.trim).map(_.toDoubleOption) match {
+        case Array(Some(w), Some(s), Some(e), Some(n)) =>
+          Right(Some(SearchLocation(w, s, e, n)))
+        case _ =>
+          Left(s"Invalid bounds '$bounds'; expected numeric 'west,south,east,north'")
+      }
+
+  private def parseChallengeIds(challengeIds: String): Either[String, Option[List[Long]]] =
+    if (challengeIds.isEmpty) Right(None)
+    else {
+      val parsed = challengeIds.split(",").map(_.trim).map(_.toLongOption)
+      if (parsed.forall(_.isDefined))
+        Right(Some(parsed.flatten.toList))
+      else
+        Left(s"Invalid challengeIds '$challengeIds'; expected a comma-separated list of integers")
+    }
 
   /**
     * Gets all the task markers within a bounding box
