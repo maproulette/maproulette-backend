@@ -678,6 +678,22 @@ class ChallengeDAL @Inject() (
       }
     }
 
+    // Normalize legacy encodings of 'no value ("" / "{}" / "[]") that some
+    // callers (e.g. the Java client) still send. Empty values are stored as
+    // NULL in the database.
+    def normalizeNullValues(value: Option[String], emptyMarker: String): Option[String] =
+      value match {
+        case Some(v) if StringUtils.isEmpty(v) || StringUtils.equals(v, emptyMarker) => None
+        case other                                                                   => other
+      }
+
+    val highPriorityRule     = normalizeNullValues(challenge.priority.highPriorityRule, "{}")
+    val mediumPriorityRule   = normalizeNullValues(challenge.priority.mediumPriorityRule, "{}")
+    val lowPriorityRule      = normalizeNullValues(challenge.priority.lowPriorityRule, "{}")
+    val highPriorityBounds   = normalizeNullValues(challenge.priority.highPriorityBounds, "[]")
+    val mediumPriorityBounds = normalizeNullValues(challenge.priority.mediumPriorityBounds, "[]")
+    val lowPriorityBounds    = normalizeNullValues(challenge.priority.lowPriorityBounds, "[]")
+
     this.cacheManager.withOptionCaching { () =>
       val insertedChallenge =
         this.withMRTransaction { implicit c =>
@@ -689,13 +705,13 @@ class ChallengeDAL @Inject() (
                                       osm_id_property, task_bundle_id_property, last_task_refresh, data_origin_date, preferred_tags, preferred_review_tags,
                                       limit_tags, limit_review_tags, task_styles, requires_local, is_archived, review_setting, dataset_url, require_confirmation, require_reject_reason, task_widget_layout)
               VALUES (${challenge.name}, ${challenge.general.owner}, ${challenge.general.parent},
-                      ${challenge.general.difficulty}, 
+                      ${challenge.general.difficulty},
                       ${challenge.description}, ${challenge.infoLink}, ${challenge.general.blurb}, ${challenge.general.instruction},
                       ${challenge.general.enabled}, ${challenge.general.featured},
                       ${challenge.general.checkinComment}, ${challenge.general.checkinSource}, ${challenge.creation.overpassQL}, ${challenge.creation.remoteGeoJson},
                       ${challenge.creation.overpassTargetType}, ${challenge.status},
-                      ${challenge.statusMessage}, ${challenge.priority.defaultPriority}, ${challenge.priority.highPriorityRule},
-                      ${challenge.priority.mediumPriorityRule}, ${challenge.priority.lowPriorityRule}, ${challenge.priority.highPriorityBounds}, ${challenge.priority.mediumPriorityBounds}, ${challenge.priority.lowPriorityBounds}, ${challenge.extra.defaultZoom}, ${challenge.extra.minZoom},
+                      ${challenge.statusMessage}, ${challenge.priority.defaultPriority}, ${highPriorityRule},
+                      ${mediumPriorityRule}, ${lowPriorityRule}, ${highPriorityBounds}, ${mediumPriorityBounds}, ${lowPriorityBounds}, ${challenge.extra.defaultZoom}, ${challenge.extra.minZoom},
                       ${challenge.extra.maxZoom}, ${challenge.extra.defaultBasemap}, ${challenge.extra.defaultBasemapId}, ${challenge.extra.customBasemap}, ${challenge.extra.updateTasks},
                       ${challenge.extra.exportableProperties}, ${challenge.extra.osmIdProperty}, ${challenge.extra.taskBundleIdProperty},
                       ${challenge.lastTaskRefresh.getOrElse(DateTime.now()).toString}::timestamptz,
