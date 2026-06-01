@@ -1254,7 +1254,6 @@ class ChallengeDAL @Inject() (
       id: Long
   )(implicit c: Option[Connection] = None): ChallengeTaskMarkersResponse = {
     this.withMRConnection { implicit c =>
-
       val query =
         s"""SELECT
               tasks.id,
