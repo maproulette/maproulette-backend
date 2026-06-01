@@ -1253,20 +1253,7 @@ class ChallengeDAL @Inject() (
   def getChallengeTaskMarkers(
       id: Long
   )(implicit c: Option[Connection] = None): ChallengeTaskMarkersResponse = {
-    val maxTasks = 50000
     this.withMRConnection { implicit c =>
-      // Bail out on huge challenges before running the clustering window.
-      // Using OFFSET lets Postgres stop after row maxTasks+1 instead of
-      // counting the whole partition.
-      val tooLarge =
-        SQL("SELECT EXISTS(SELECT 1 FROM tasks WHERE parent_id = {id} OFFSET {max})")
-          .on(Symbol("id") -> id, Symbol("max") -> maxTasks)
-          .as(scalar[Boolean].single)
-      if (tooLarge) {
-        throw new InvalidException(
-          s"Challenge $id has more than $maxTasks tasks; the task markers endpoint cannot serve challenges this large."
-        )
-      }
 
       val query =
         s"""SELECT
