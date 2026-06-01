@@ -20,7 +20,7 @@ import org.maproulette.framework.service.GrantService
 import org.maproulette.session.SearchParameters
 import org.maproulette.utils.Readers
 import play.api.db.Database
-import play.api.libs.json.Json
+import play.api.libs.json.{JsObject, Json}
 
 /**
   * Repository to handle all database actionns related to Projects, no business logic should be
@@ -364,7 +364,7 @@ object ProjectRepository extends Readers {
         val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
         val point        = Point(coordinates(1), coordinates.head)
         val pointReview  = PointReview(None, None, None, None, None, None, None, None, None)
-        val boundingJSON = Json.parse(bounding)
+        val boundingJSON = Json.parse(bounding).as[JsObject]
         ClusteredPoint(
           id,
           osm_id,

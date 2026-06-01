@@ -226,7 +226,7 @@ case class User(
     apiKey: Option[String] = None,
     guest: Boolean = false,
     settings: UserSettings = UserSettings(),
-    properties: Option[JsValue] = None,
+    properties: Option[JsObject] = None,
     score: Option[Int] = None,
     followingGroupId: Option[Long] = None,
     followersGroupId: Option[Long] = None,

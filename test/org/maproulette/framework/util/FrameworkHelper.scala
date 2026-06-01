@@ -16,7 +16,7 @@ import org.scalatest.{BeforeAndAfterAll, Tag}
 import org.scalatestplus.mockito.MockitoSugar
 import org.scalatestplus.play.PlaySpec
 import play.api.Application
-import play.api.libs.json.Json
+import play.api.libs.json.{JsObject, Json}
 
 import org.maproulette.data.SnapshotManager
 
@@ -117,9 +117,11 @@ trait FrameworkHelper extends PlaySpec with BeforeAndAfterAll with MockitoSugar 
       null,
       null,
       parentId,
-      geometries = Json.parse(
-        "{\"features\":[{\"type\":\"Feature\",\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[-60.811801,-32.9199812],[-60.8117804,-32.9199856],[-60.8117816,-32.9199896],[-60.8117873,-32.919984]]},\"properties\":{\"osm_id\":\"OSM_W_378169283_000000_000\",\"pbfHistory\":[\"20200110-043000\"]}}]}"
-      ),
+      geometries = Json
+        .parse(
+          "{\"features\":[{\"type\":\"Feature\",\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[-60.811801,-32.9199812],[-60.8117804,-32.9199856],[-60.8117816,-32.9199896],[-60.8117873,-32.919984]]},\"properties\":{\"osm_id\":\"OSM_W_378169283_000000_000\",\"pbfHistory\":[\"20200110-043000\"]}}]}"
+        )
+        .as[JsObject],
       status = Some(0)
     )
   }

@@ -309,9 +309,9 @@ class TaskClusterRepository @Inject() (
             taskPriority,
             params,
             point,
-            Json.parse(bounding),
+            Json.parse(bounding).as[JsObject],
             challengeIds,
-            geojson.map(Json.parse(_))
+            geojson.map(Json.parse(_).as[JsObject])
           )
         } else {
           None
@@ -335,7 +335,7 @@ class TaskClusterRepository @Inject() (
             taskId,
             taskStatus,
             point,
-            Json.parse(bounding)
+            Json.parse(bounding).as[JsObject]
           )
         } else {
           None

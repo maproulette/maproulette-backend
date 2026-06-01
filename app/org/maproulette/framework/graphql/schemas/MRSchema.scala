@@ -75,3 +75,7 @@ case object DateTimeCoerceViolation extends Violation {
 case object ArrayLongCoerceViolation extends Violation {
   override def errorMessage: String = "Error during parsing Array[Long]"
 }
+
+case object JsonCoerceViolation extends Violation {
+  override def errorMessage: String = "Not valid JSON"
+}

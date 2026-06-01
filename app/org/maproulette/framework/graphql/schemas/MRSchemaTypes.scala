@@ -41,6 +41,28 @@ trait MRSchemaTypes {
     }
   )
 
+  // GraphQL doesn't have a native JSON type, so we expose embedded JSON
+  // fields as custom scalars. Scalar names were chosen to be compatible
+  // with https://www.npmjs.com/package/graphql-type-json
+  implicit val graphQLJsObject: ScalarType[JsObject] = ScalarType[JsObject](
+    "JSONObject",
+    coerceOutput = (value, _) => value,
+    coerceUserInput = {
+      case v: JsObject => Right(v)
+      case _           => Left(JsonCoerceViolation)
+    },
+    coerceInput = _ => Left(JsonCoerceViolation)
+  )
+  implicit val graphQLJsArray: ScalarType[JsArray] = ScalarType[JsArray](
+    "JSONArray",
+    coerceOutput = (value, _) => value,
+    coerceUserInput = {
+      case v: JsArray => Right(v)
+      case _          => Left(JsonCoerceViolation)
+    },
+    coerceInput = _ => Left(JsonCoerceViolation)
+  )
+
   implicit val CompletionMetricsType: ObjectType[Unit, CompletionMetrics] =
     deriveObjectType[Unit, CompletionMetrics](ObjectTypeName("CompletionMetrics"))
   // Project Types
@@ -106,14 +128,6 @@ trait MRSchemaTypes {
               userContext.services.follow.getUserFollowers(context.value.id, userContext.user).toSeq
             )
           }
-        )
-      ),
-      ReplaceField(
-        "properties",
-        Field(
-          "properties",
-          OptionType(StringType),
-          resolve = ctx => ctx.value.properties.map(Json.stringify)
         )
       )
     )
@@ -215,33 +229,7 @@ trait MRSchemaTypes {
     deriveObjectType[Unit, Comment](ObjectTypeName("Comment"))
   // Task Types
   implicit val TaskType: ObjectType[Unit, Task] =
-    deriveObjectType[Unit, Task](
-      ObjectTypeName("Task"),
-      ReplaceField(
-        "geometries",
-        Field(
-          "geometries",
-          StringType,
-          resolve = ctx => Json.stringify(ctx.value.geometries)
-        )
-      ),
-      ReplaceField(
-        "location",
-        Field(
-          "location",
-          OptionType(StringType),
-          resolve = ctx => ctx.value.location.map(Json.stringify)
-        )
-      ),
-      ReplaceField(
-        "cooperativeWork",
-        Field(
-          "cooperativeWork",
-          OptionType(StringType),
-          resolve = ctx => ctx.value.cooperativeWork.map(Json.stringify)
-        )
-      )
-    )
+    deriveObjectType[Unit, Task](ObjectTypeName("Task"))
   implicit val TaskReviewFieldsType: ObjectType[Unit, TaskReviewFields] =
     deriveObjectType[Unit, TaskReviewFields](ObjectTypeName("TaskReviewFields"))
   implicit val MapillaryImageType: ObjectType[Unit, MapillaryImage] =

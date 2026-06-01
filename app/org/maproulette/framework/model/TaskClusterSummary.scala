@@ -23,7 +23,7 @@ case class TaskClusterSummary(
     taskId: Option[Long],
     taskStatus: Option[Int],
     point: Point,
-    bounding: JsValue = Json.toJson("{}")
+    bounding: JsObject = Json.obj()
 ) extends DefaultWrites
 
 object TaskClusterSummary {

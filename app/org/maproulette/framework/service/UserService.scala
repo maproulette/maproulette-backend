@@ -24,7 +24,7 @@ import org.maproulette.permissions.Permission
 import org.maproulette.session.SearchParameters
 import org.maproulette.utils.{Crypto, Utils, Writers}
 import org.slf4j.LoggerFactory
-import play.api.libs.json.{JsValue, Json}
+import play.api.libs.json.{JsObject, JsValue, Json}
 
 /**
   * @author mcuthbert
@@ -468,8 +468,10 @@ class UserService @Inject() (
       val theme = (value \ "settings" \ "theme")
         .asOpt[Int]
         .getOrElse(cachedItem.settings.theme.getOrElse(-1))
-      val properties: JsValue =
-        (value \ "properties").toOption.getOrElse(cachedItem.properties.getOrElse(Json.obj()))
+      val properties: JsObject =
+        (value \ "properties")
+          .asOpt[JsObject]
+          .getOrElse(cachedItem.properties.getOrElse(Json.obj()))
 
       val customBasemaps = (value \ "settings" \ "customBasemaps").asOpt[List[CustomBasemap]]
       val plugins = (value \ "settings" \ "plugins")

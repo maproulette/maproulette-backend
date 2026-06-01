@@ -169,13 +169,13 @@ trait ChallengeReads extends DefaultReads {
             reviewSetting = (jsonWithExtras \ "reviewSetting")
               .asOpt[Int]
               .getOrElse(Challenge.REVIEW_SETTING_NOT_REQUIRED),
-            taskWidgetLayout = (jsonWithExtras \ "taskWidgetLayout").asOpt[JsValue],
+            taskWidgetLayout = (jsonWithExtras \ "taskWidgetLayout").asOpt[JsObject],
             datasetUrl = (jsonWithExtras \ "datasetUrl").asOpt[String],
             systemArchivedAt = (jsonWithExtras \ "systemArchivedAt").asOpt[DateTime],
             presets = (jsonWithExtras \ "presets").asOpt[List[String]],
             requireConfirmation =
               (jsonWithExtras \ "requireConfirmation").asOpt[Boolean].getOrElse(false),
-            mrTagMetrics = (jsonWithExtras \ "mrTagMetrics").asOpt[JsValue]
+            mrTagMetrics = (jsonWithExtras \ "mrTagMetrics").asOpt[JsObject]
           )
         )
       } catch {

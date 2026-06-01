@@ -18,7 +18,7 @@ import org.maproulette.utils.Utils
 import org.slf4j.LoggerFactory
 import play.api.db.Database
 import play.api.http.Status
-import play.api.libs.json.{JsValue, Json}
+import play.api.libs.json.{JsObject, Json}
 import play.api.libs.ws.WSClient
 
 import scala.concurrent.duration.Duration
@@ -178,7 +178,7 @@ class KeepRightProvider @Inject() (
                   this.withMRTransaction {
                     implicit c =>
                       val totalTasks = errors._2.map(kpError => {
-                        val geometry: JsValue = Json.obj(
+                        val geometry: JsObject = Json.obj(
                           "type" -> "FeatureCollection",
                           "features" -> Json.arr(
                             Json.obj(
