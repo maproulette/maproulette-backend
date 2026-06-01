@@ -815,12 +815,6 @@ class TaskDAL @Inject() (
       }
     }
 
-    // The task/challenge triggers (evolution 107) have marked the affected leaf
-    // cells dirty; the scheduled rebuildDirtyTileCells job drains them. We do not
-    // rebuild synchronously here: it would block the response on a global lock
-    // for no caller-visible benefit (z=12 is served live, and z<12 refreshes on
-    // the next drain).
-
     // Send WebSocket notifications after the transaction
     Future {
       if (updatedTasks.nonEmpty) {
