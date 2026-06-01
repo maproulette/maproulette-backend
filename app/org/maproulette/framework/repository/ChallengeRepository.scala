@@ -16,7 +16,7 @@ import org.maproulette.framework.model._
 import org.maproulette.framework.psql.{GroupField, Grouping, OR, Query}
 import org.maproulette.framework.psql.filter._
 import play.api.db.Database
-import play.api.libs.json.JsValue
+import play.api.libs.json.{JsObject, JsValue}
 
 /**
   * The challenge repository handles all the querying with the databases related to challenge objects
@@ -351,7 +351,7 @@ object ChallengeRepository {
             taskBundleIdProperty,
             isArchived,
             reviewSetting,
-            taskWidgetLayout,
+            taskWidgetLayout.map(_.as[JsObject]),
             datasetUrl,
             systemArchivedAt
           ),

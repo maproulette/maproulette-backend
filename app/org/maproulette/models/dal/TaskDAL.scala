@@ -196,10 +196,10 @@ class TaskDAL @Inject() (
         )
       }
       val priority = (value \ "priority").asOpt[Int].getOrElse(cachedItem.priority)
-      val geometries: JsValue =
-        (value \ "geometries").toOption.getOrElse(cachedItem.geometries)
-      val cooperativeWork: Option[JsValue] =
-        (value \ "cooperativeWork").toOption.filter(_ != JsNull)
+      val geometries: JsObject =
+        (value \ "geometries").asOpt[JsObject].getOrElse(cachedItem.geometries)
+      val cooperativeWork: Option[JsObject] =
+        (value \ "cooperativeWork").asOpt[JsObject]
       val changesetId =
         (value \ "changesetId").asOpt[Long].getOrElse(cachedItem.changesetId.getOrElse(-1L))
 
@@ -432,20 +432,19 @@ class TaskDAL @Inject() (
     */
   private def extractCooperativeWork(
       parentId: Long,
-      geometries: JsValue,
-      cooperativeWork: Option[JsValue]
+      geometries: JsObject,
+      cooperativeWork: Option[JsObject]
   )(
       implicit c: Option[Connection] = None
   ): (String, Option[String]) = {
     this.withMRTransaction { implicit c =>
       var cooperativeWorkJson: Option[String] = cooperativeWork.map(Json.stringify)
 
-      val geoJson   = geometries
-      var workMatch = (geoJson \\ "cooperativeWork")
+      var workMatch = (geometries \\ "cooperativeWork")
       if (workMatch.isEmpty) {
         // Check to see if our cooperative work JSON was changed into a string due
         // to being a feature property (which are always converted to strings)
-        val parentMatch = (geoJson \\ "maproulette")
+        val parentMatch = (geometries \\ "maproulette")
         if (!parentMatch.isEmpty) {
           workMatch = (Json.parse(Utils.unescapeStringifiedJSON(parentMatch.head.toString())) \\ "cooperativeWork")
         }
@@ -455,10 +454,10 @@ class TaskDAL @Inject() (
         cooperativeWorkJson = Some(workMatch.head.toString())
       }
 
-      val attachments   = (geoJson \ "attachments").toOption
+      val attachments   = (geometries \ "attachments").toOption
       val mrTransformer = (__ \ "properties" \ "maproulette").json.prune
       val extractedGeometries = JsArray(
-        (geoJson \ "features")
+        (geometries \ "features")
           .as[JsArray]
           .value
           .map {

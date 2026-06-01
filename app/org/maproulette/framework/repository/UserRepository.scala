@@ -17,7 +17,7 @@ import org.maproulette.framework.psql.{Query, SQLUtils}
 import org.maproulette.framework.service.{GrantService, ServiceManager}
 import org.maproulette.models.dal.ChallengeDAL
 import play.api.db.Database
-import play.api.libs.json.{JsResultException, Json}
+import play.api.libs.json.{JsObject, JsResultException, Json}
 
 import java.sql.Connection
 import javax.inject.{Inject, Singleton}
@@ -577,7 +577,7 @@ object UserRepository {
             showPriorityMarkerColors,
             plugins.flatten
           ),
-          properties.map(Json.parse),
+          properties.map(Json.parse(_).as[JsObject]),
           score,
           followingGroupId,
           followersGroupId,

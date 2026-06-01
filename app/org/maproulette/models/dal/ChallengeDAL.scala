@@ -30,7 +30,7 @@ import org.maproulette.utils.Utils
 import org.maproulette.framework.psql.SQLUtils
 import play.api.db.Database
 import play.api.libs.json.JodaReads._
-import play.api.libs.json.{JsString, JsValue, Json}
+import play.api.libs.json.{JsArray, JsObject, JsValue, Json}
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
@@ -143,31 +143,6 @@ class ChallengeDAL @Inject() (
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
             requiresLocal ~ deleted ~ isGlobal ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~
             completionPercentage ~ tasksRemaining ~ requireConfirmation ~ requireRejectReason ~ completionMetricsJson =>
-        val hpr = highPriorityRule match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
-          case r                                                                => r
-        }
-        val mpr = mediumPriorityRule match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
-          case r                                                                => r
-        }
-        val lpr = lowPriorityRule match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
-          case r                                                                => r
-        }
-        val hpb = highPriorityBounds match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
-          case r                                                                => r
-        }
-        val mpb = mediumPriorityBounds match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
-          case r                                                                => r
-        }
-        val lpb = lowPriorityBounds match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
-          case r                                                                => r
-        }
-
         new Challenge(
           id,
           name,
@@ -195,7 +170,15 @@ class ChallengeDAL @Inject() (
             requiresLocal
           ),
           ChallengeCreation(overpassql, remoteGeoJson, overpassTargetType),
-          ChallengePriority(defaultPriority, hpr, mpr, lpr, hpb, mpb, lpb),
+          ChallengePriority(
+            defaultPriority,
+            highPriorityRule,
+            mediumPriorityRule,
+            lowPriorityRule,
+            highPriorityBounds,
+            mediumPriorityBounds,
+            lowPriorityBounds
+          ),
           ChallengeExtra(
             defaultZoom,
             minZoom,
@@ -214,7 +197,7 @@ class ChallengeDAL @Inject() (
             taskBundleIdProperty,
             isArchived,
             reviewSetting,
-            taskWidgetLayout,
+            taskWidgetLayout.map(_.as[JsObject]),
             datasetUrl,
             None, // systemArchivedAt
             None, // presets
@@ -311,31 +294,6 @@ class ChallengeDAL @Inject() (
             dataOriginDate ~ location ~ bounding ~ requiresLocal ~ deleted ~ isGlobal ~ virtualParents ~
             presets ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ systemArchivedAt ~ completionPercentage ~
             tasksRemaining ~ requireConfirmation ~ requireRejectReason ~ completionMetricsJson =>
-        val hpr = highPriorityRule match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
-          case r                                                                => r
-        }
-        val mpr = mediumPriorityRule match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
-          case r                                                                => r
-        }
-        val lpr = lowPriorityRule match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
-          case r                                                                => r
-        }
-        val hpb = highPriorityBounds match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
-          case r                                                                => r
-        }
-        val mpb = mediumPriorityBounds match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
-          case r                                                                => r
-        }
-        val lpb = lowPriorityBounds match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
-          case r                                                                => r
-        }
-
         new Challenge(
           id,
           name,
@@ -363,7 +321,15 @@ class ChallengeDAL @Inject() (
             requiresLocal
           ),
           ChallengeCreation(overpassql, remoteGeoJson, overpassTargetType),
-          ChallengePriority(defaultPriority, hpr, mpr, lpr, hpb, mpb, lpb),
+          ChallengePriority(
+            defaultPriority,
+            highPriorityRule,
+            mediumPriorityRule,
+            lowPriorityRule,
+            highPriorityBounds,
+            mediumPriorityBounds,
+            lowPriorityBounds
+          ),
           ChallengeExtra(
             defaultZoom,
             minZoom,
@@ -382,7 +348,7 @@ class ChallengeDAL @Inject() (
             taskBundleIdProperty,
             isArchived,
             reviewSetting,
-            taskWidgetLayout,
+            taskWidgetLayout.map(_.as[JsObject]),
             datasetUrl,
             systemArchivedAt,
             presets,
@@ -469,26 +435,13 @@ class ChallengeDAL @Inject() (
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ taskWidgetLayout ~ taskStyles ~ status ~
             statusMessage ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~ completionPercentage ~
             completionMetricsJson =>
-        // Parse JSON strings for priority rules and bounds
-        val hpr = highPriorityRule.flatMap(r =>
-          if (StringUtils.isEmpty(r) || StringUtils.equals(r, "{}")) None else Some(Json.parse(r))
-        )
-        val mpr = mediumPriorityRule.flatMap(r =>
-          if (StringUtils.isEmpty(r) || StringUtils.equals(r, "{}")) None else Some(Json.parse(r))
-        )
-        val lpr = lowPriorityRule.flatMap(r =>
-          if (StringUtils.isEmpty(r) || StringUtils.equals(r, "{}")) None else Some(Json.parse(r))
-        )
-        val hpb = highPriorityBounds.flatMap(b =>
-          if (StringUtils.isEmpty(b) || StringUtils.equals(b, "[]")) None else Some(Json.parse(b))
-        )
-        val mpb = mediumPriorityBounds.flatMap(b =>
-          if (StringUtils.isEmpty(b) || StringUtils.equals(b, "[]")) None else Some(Json.parse(b))
-        )
-        val lpb = lowPriorityBounds.flatMap(b =>
-          if (StringUtils.isEmpty(b) || StringUtils.equals(b, "[]")) None else Some(Json.parse(b))
-        )
-        val ts = taskStyles.flatMap(s => if (StringUtils.isEmpty(s)) None else Some(Json.parse(s)))
+        val hpr = highPriorityRule.map(Json.parse(_).as[JsObject])
+        val mpr = mediumPriorityRule.map(Json.parse(_).as[JsObject])
+        val lpr = lowPriorityRule.map(Json.parse(_).as[JsObject])
+        val hpb = highPriorityBounds.map(Json.parse(_).as[JsArray])
+        val mpb = mediumPriorityBounds.map(Json.parse(_).as[JsArray])
+        val lpb = lowPriorityBounds.map(Json.parse(_).as[JsArray])
+        val ts  = taskStyles.map(Json.parse(_).as[JsArray])
 
         new BaseChallenge(
           id,
@@ -537,14 +490,14 @@ class ChallengeDAL @Inject() (
           exportableProperties,
           osmIdProperty,
           taskBundleIdProperty,
-          taskWidgetLayout,
+          taskWidgetLayout.map(_.as[JsObject]),
           ts,
           status,
           statusMessage,
           lastTaskRefresh,
           dataOriginDate,
-          location.map(Json.parse),
-          bounding.map(Json.parse),
+          location.map(Json.parse(_).as[JsObject]),
+          bounding.map(Json.parse(_).as[JsObject]),
           completionPercentage,
           completionMetricsJson
             .flatMap(_.asOpt[CompletionMetrics])
@@ -630,7 +583,7 @@ class ChallengeDAL @Inject() (
           parentId,
           parentName.getOrElse(orParentName.get),
           point,
-          JsString(""),
+          Json.obj(),
           instruction,
           DateTime.now(),
           -1,
@@ -750,7 +703,7 @@ class ChallengeDAL @Inject() (
                       ${challenge.extra.preferredTags}, ${challenge.extra.preferredReviewTags}, ${challenge.extra.limitTags},
                       ${challenge.extra.limitReviewTags}, ${challenge.extra.taskStyles}, ${challenge.general.requiresLocal}, ${challenge.extra.isArchived},
                       ${challenge.extra.reviewSetting}, ${challenge.extra.datasetUrl}, ${challenge.requireConfirmation}, ${challenge.requireRejectReason},
-                      ${asJson(challenge.extra.taskWidgetLayout.getOrElse(Json.parse("{}")))}
+                      ${asJson(challenge.extra.taskWidgetLayout.getOrElse(Json.obj()))}
                       ) RETURNING #${this.retrieveColumns}"""
             .as(this.parser.*)
             .headOption
@@ -1003,8 +956,8 @@ class ChallengeDAL @Inject() (
             .getOrElse(cachedItem.requireRejectReason)
 
           val taskWidgetLayout = (updates \ "taskWidgetLayout")
-            .asOpt[JsValue]
-            .getOrElse(cachedItem.extra.taskWidgetLayout.getOrElse(Json.parse("{}")))
+            .asOpt[JsObject]
+            .getOrElse(cachedItem.extra.taskWidgetLayout.getOrElse(Json.obj()))
 
           val presets: List[String] = (updates \ "presets")
             .asOpt[List[String]]

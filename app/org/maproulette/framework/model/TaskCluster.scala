@@ -20,9 +20,9 @@ case class TaskCluster(
     taskPriority: Option[Int],
     params: SearchParameters,
     point: Point,
-    bounding: JsValue = Json.toJson("{}"),
+    bounding: JsObject = Json.obj(),
     challengeIds: List[Long],
-    geometries: Option[JsValue] = None
+    geometries: Option[JsObject] = None
 ) extends DefaultWrites
 
 object TaskCluster {

@@ -56,9 +56,9 @@ case class Task(
     override val modified: DateTime,
     parent: Long,
     instruction: Option[String] = None,
-    location: Option[JsValue] = None,
-    geometries: JsValue,
-    cooperativeWork: Option[JsValue] = None,
+    location: Option[JsObject] = None,
+    geometries: JsObject,
+    cooperativeWork: Option[JsObject] = None,
     status: Option[Int] = None,
     mappedOn: Option[DateTime] = None,
     completedTimeSpent: Option[Long] = None,
@@ -178,9 +178,9 @@ object Task extends CommonField {
       modified            <- (json \ "modified").validate[DateTime]
       parent              <- (json \ "parent").validate[Long]
       instruction         <- (json \ "instruction").validateOpt[String]
-      location            <- (json \ "location").validateOpt[JsValue]
-      geometries          <- (json \ "geometries").validate[JsValue]
-      cooperativeWork     <- (json \ "cooperativeWork").validateOpt[JsValue]
+      location            <- (json \ "location").validateOpt[JsObject]
+      geometries          <- (json \ "geometries").validate[JsObject]
+      cooperativeWork     <- (json \ "cooperativeWork").validateOpt[JsObject]
       status              <- (json \ "status").validateOpt[Int]
       mappedOn            <- (json \ "mappedOn").validateOpt[DateTime]
       completedTimeSpent  <- (json \ "completedTimeSpent").validateOpt[Long]

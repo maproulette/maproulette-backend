@@ -756,7 +756,7 @@ class ChallengeProvider @Inject() (
       user,
       name,
       parent,
-      Task(-1, name, DateTime.now(), DateTime.now(), parent.id, Some(""), None, json)
+      Task(-1, name, DateTime.now(), DateTime.now(), parent.id, Some(""), None, json.as[JsObject])
     )
   }
 

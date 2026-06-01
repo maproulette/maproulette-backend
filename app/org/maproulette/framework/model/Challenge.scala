@@ -64,7 +64,7 @@ case class PriorityRule(operator: String, key: String, value: String, valueType:
   private def locationInBounds(
       operator: String,
       value: String,
-      location: Option[JsValue]
+      location: Option[JsObject]
   ): Boolean = {
     // eg. Some({"type":"Point","coordinates":[-120.18699365,48.47991855]})
     location match {
@@ -138,12 +138,12 @@ case class ChallengeExtra(
     taskBundleIdProperty: Option[String] = None,
     isArchived: Boolean = false,
     reviewSetting: Int = Challenge.REVIEW_SETTING_NOT_REQUIRED,
-    taskWidgetLayout: Option[JsValue] = None,
+    taskWidgetLayout: Option[JsObject] = None,
     datasetUrl: Option[String] = None,
     systemArchivedAt: Option[DateTime] = None,
     presets: Option[List[String]] = None,
     requireConfirmation: Boolean = false,
-    mrTagMetrics: Option[JsValue] = None
+    mrTagMetrics: Option[JsObject] = None
 ) extends DefaultWrites
 
 case class ChallengeListing(
@@ -191,12 +191,12 @@ case class BaseChallenge(
     overpassTargetType: Option[String] = None,
     // Fields from ChallengePriority
     defaultPriority: Int = Challenge.PRIORITY_HIGH,
-    highPriorityRule: Option[JsValue] = None,
-    mediumPriorityRule: Option[JsValue] = None,
-    lowPriorityRule: Option[JsValue] = None,
-    highPriorityBounds: Option[JsValue] = None,
-    mediumPriorityBounds: Option[JsValue] = None,
-    lowPriorityBounds: Option[JsValue] = None,
+    highPriorityRule: Option[JsObject] = None,
+    mediumPriorityRule: Option[JsObject] = None,
+    lowPriorityRule: Option[JsObject] = None,
+    highPriorityBounds: Option[JsArray] = None,
+    mediumPriorityBounds: Option[JsArray] = None,
+    lowPriorityBounds: Option[JsArray] = None,
     // Fields from ChallengeExtra
     defaultZoom: Int = Challenge.DEFAULT_ZOOM,
     minZoom: Int = Challenge.MIN_ZOOM,
@@ -212,15 +212,15 @@ case class BaseChallenge(
     exportableProperties: Option[String] = None,
     osmIdProperty: Option[String] = None,
     taskBundleIdProperty: Option[String] = None,
-    taskWidgetLayout: Option[JsValue] = None,
-    taskStyles: Option[JsValue] = None,
+    taskWidgetLayout: Option[JsObject] = None,
+    taskStyles: Option[JsArray] = None,
     // Status and location fields
     status: Option[Int] = Some(0),
     statusMessage: Option[String] = None,
     lastTaskRefresh: Option[DateTime] = None,
     dataOriginDate: Option[DateTime] = None,
-    location: Option[JsValue] = None,
-    bounding: Option[JsValue] = None,
+    location: Option[JsObject] = None,
+    bounding: Option[JsObject] = None,
     completionPercentage: Option[Int] = Some(0),
     completionMetrics: CompletionMetrics = CompletionMetrics()
 ) extends DefaultWrites
