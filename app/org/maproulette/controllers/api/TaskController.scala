@@ -133,46 +133,21 @@ class TaskController @Inject() (
     this.updateGeometryData(super.updateUpdateBody(body, user))
 
   private def updateGeometryData(body: JsValue): JsValue = {
-    val updatedBody = (body \ "geometries").asOpt[String] match {
-      case Some(value) =>
-        // if it is a string, then it is either GeoJSON or a WKB
-        // just check to see if { is the first character and then we can assume it is GeoJSON
-        if (value.charAt(0) != '{') {
-          // TODO:
-          body
-        } else {
-          // just return the body because it handles this case correctly
-          body
-        }
-      case None =>
-        // if it maps to None then it simply could be that it is a JSON object
-        (body \ "geometries").asOpt[JsValue] match {
-          case Some(value) =>
-            // need to convert to a string for the case class otherwise validation will fail
-            Utils.insertIntoJson(body, "geometries", value.toString(), true)
-          case None =>
-            // if the geometries are not supplied then just leave it
-            body
-        }
-    }
-    (updatedBody \ "location").asOpt[String] match {
-      case Some(value) => updatedBody
-      case None =>
-        (updatedBody \ "location").asOpt[JsValue] match {
-          case Some(value) =>
-            Utils.insertIntoJson(updatedBody, "location", value.toString(), true)
-          case None => updatedBody
-        }
-    }
-    (updatedBody \ "cooperativeWork").asOpt[String] match {
-      case Some(value) => updatedBody
-      case None =>
-        (updatedBody \ "cooperativeWork").asOpt[JsValue] match {
-          case Some(value) =>
-            Utils.insertIntoJson(updatedBody, "cooperativeWork", value.toString(), true)
-          case None => updatedBody
-        }
-    }
+    // Detect JsValues that are strings containing embedded JSON objects,
+    // and parse them to real JsValues instead. This is so that old clients
+    // which submit task geometries, location, etc as stringified JSON instead
+    // of proper nested objects still work.
+    def normalize(json: JsValue, key: String): JsValue =
+      (json \ key).toOption match {
+        case Some(JsString(value)) if value.nonEmpty && value.charAt(0) == '{' =>
+          Utils.insertIntoJson(json, key, Json.parse(value), true)
+        case _ => json
+      }
+
+    val withGeometries      = normalize(body, "geometries")
+    val withLocation        = normalize(withGeometries, "location")
+    val withCooperativeWork = normalize(withLocation, "cooperativeWork")
+    withCooperativeWork
   }
 
   /**
