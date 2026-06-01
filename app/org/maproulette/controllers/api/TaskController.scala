@@ -888,8 +888,8 @@ class TaskController @Inject() (
 
   /**
     * Bulk delete: removes every task in the supplied `taskIds` list.
-    * Caller must have write access on each task's parent project; tasks
-    * the caller cannot access are skipped and reported in `denied`.
+    * Fails with 403 if the caller lacks write access to any task's parent
+    * project, or 404 if any id is missing.
     */
   def bulkDelete: Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
@@ -897,22 +897,16 @@ class TaskController @Inject() (
       if (taskIds.isEmpty) {
         BadRequest(Json.toJson(StatusMessage("KO", JsString("taskIds must be a non-empty array"))))
       } else {
-        val (permitted, denied) = partitionTasksByWriteAccess(taskIds, user)
-        val deleted             = taskRepository.bulkDeleteTasks(permitted.map(_.id))
-        Ok(
-          Json.obj(
-            "requested" -> taskIds.length,
-            "deleted"   -> deleted,
-            "denied"    -> denied
-          )
-        )
+        val tasks   = resolveTasksWithWriteAccess(taskIds, user)
+        val deleted = taskRepository.bulkDeleteTasks(tasks.map(_.id))
+        Ok(Json.obj("requested" -> taskIds.length, "deleted" -> deleted))
       }
     }
   }
 
   /**
-    * Bulk archive / unarchive tasks. Respects per-task write-access checks
-    * identically to `bulkDelete`.
+    * Bulk archive / unarchive tasks. Same access semantics as `bulkDelete`:
+    * 403 on any unauthorized task, 404 on any missing id.
     */
   def bulkArchive: Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
@@ -921,10 +915,10 @@ class TaskController @Inject() (
       if (taskIds.isEmpty) {
         BadRequest(Json.toJson(StatusMessage("KO", JsString("taskIds must be a non-empty array"))))
       } else {
-        val (permitted, _) = partitionTasksByWriteAccess(taskIds, user)
-        taskRepository.bulkArchiveTasks(permitted.map(_.id), archived)
+        val tasks = resolveTasksWithWriteAccess(taskIds, user)
+        taskRepository.bulkArchiveTasks(tasks.map(_.id), archived)
         webSocketProvider.sendMessage(
-          WebSocketMessages.tasksUpdated(permitted, Some(WebSocketMessages.userSummary(user)))
+          WebSocketMessages.tasksUpdated(tasks, Some(WebSocketMessages.userSummary(user)))
         )
         NoContent
       }
@@ -944,42 +938,30 @@ class TaskController @Inject() (
           Json.toJson(StatusMessage("KO", JsString("taskIds and userId are required")))
         )
       } else {
-        val (permitted, _) = partitionTasksByWriteAccess(taskIds, user)
-        val updated        = taskRepository.bulkReassignReviewer(permitted.map(_.id), userId)
+        val tasks   = resolveTasksWithWriteAccess(taskIds, user)
+        val updated = taskRepository.bulkReassignReviewer(tasks.map(_.id), userId)
         Ok(Json.obj("requested" -> taskIds.length, "updated" -> updated))
       }
     }
   }
 
   /**
-    * Split a list of task ids into tasks whose parent project the caller
-    * can write to, and the ids that were denied.
+    * Resolve each id to a task and assert the caller has write access on its
+    * parent project. Throws `NotFoundException` for any missing task or
+    * orphaned challenge, and `IllegalAccessException` from the first denial
+    * — both are mapped to 404/403 by the framework's exception handler.
     */
-  private def partitionTasksByWriteAccess(
-      taskIds: List[Long],
-      user: User
-  ): (List[Task], List[Long]) = {
-    val (permitted, denied) =
-      taskIds.distinct.flatMap(this.dal.retrieveById(_)).partition { task =>
-        try {
-          dalManager.challenge.retrieveById(task.parent) match {
-            case Some(challenge) =>
-              permission.hasWriteAccess(ProjectType(), user)(challenge.general.parent)
-              true
-            case None => false
-          }
-        } catch {
-          // Expected: the caller lacks write access to this task's project.
-          case _: IllegalAccessException => false
-          // Anything else (e.g. a transient DB error) is unexpected; don't let
-          // it masquerade as a permission denial silently.
-          case e: Exception =>
-            logger.warn(
-              s"Skipping task ${task.id} in write-access check due to unexpected error: ${e.getMessage}"
-            )
-            false
-        }
-      }
-    (permitted, denied.map(_.id))
-  }
+  private def resolveTasksWithWriteAccess(taskIds: List[Long], user: User): List[Task] =
+    taskIds.distinct.map { taskId =>
+      val task = this.dal
+        .retrieveById(taskId)
+        .getOrElse(throw new NotFoundException(s"Task $taskId not found"))
+      val challenge = dalManager.challenge
+        .retrieveById(task.parent)
+        .getOrElse(
+          throw new NotFoundException(s"Parent challenge ${task.parent} for task $taskId not found")
+        )
+      permission.hasWriteAccess(ProjectType(), user)(challenge.general.parent)
+      task
+    }
 }
