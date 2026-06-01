@@ -1251,41 +1251,40 @@ class ChallengeDAL @Inject() (
   }
 
   def getChallengeTaskMarkers(
-      id: Long,
-      limit: Int = Config.DEFAULT_LIST_SIZE,
-      page: Int = 0
+      id: Long
   )(implicit c: Option[Connection] = None): ChallengeTaskMarkersResponse = {
+    val maxTasks = 50000
     this.withMRConnection { implicit c =>
-      // Page the challenge's tasks first (bounded so huge challenges aren't fully
-      // scanned), then run the overlap clustering over just that page. Use
-      // PostGIS ST_ClusterDBSCAN for efficient overlap detection:
-      // eps = 0.000001 degrees (~0.1 meters), minpoints = 1 to include all points.
+      // Bail out on huge challenges before running the clustering window.
+      // Using OFFSET lets Postgres stop after row maxTasks+1 instead of
+      // counting the whole partition.
+      val tooLarge =
+        SQL("SELECT EXISTS(SELECT 1 FROM tasks WHERE parent_id = {id} OFFSET {max})")
+          .on(Symbol("id") -> id, Symbol("max") -> maxTasks)
+          .as(scalar[Boolean].single)
+      if (tooLarge) {
+        throw new InvalidException(
+          s"Challenge $id has more than $maxTasks tasks; the task markers endpoint cannot serve challenges this large."
+        )
+      }
+
       val query =
         s"""SELECT
-              t.id,
-              ST_Y(t.location) as lat,
-              ST_X(t.location) as lng,
-              t.status,
-              t.priority,
-              t.bundle_id,
+              tasks.id,
+              ST_Y(tasks.location) as lat,
+              ST_X(tasks.location) as lng,
+              tasks.status,
+              tasks.priority,
+              tasks.bundle_id,
               l.user_id as locked_by,
-              ST_ClusterDBSCAN(t.location, eps := 0.000001, minpoints := 1) OVER () as cluster_id
-            FROM (
-              SELECT id, location, status, priority, bundle_id
-              FROM tasks
-              WHERE parent_id = {id}
-              ORDER BY id
-              LIMIT {limit} OFFSET {offset}
-            ) t
-            LEFT JOIN locked l ON l.item_id = t.id AND l.item_type = 2"""
+              ST_ClusterDBSCAN(tasks.location, eps := 0.000001, minpoints := 1) OVER () as cluster_id
+            FROM tasks
+            LEFT JOIN locked l ON l.item_id = tasks.id AND l.item_type = 2
+            WHERE tasks.parent_id = {id}"""
 
       val allTasks =
         SQL(query)
-          .on(
-            Symbol("id")     -> id,
-            Symbol("limit")  -> limit,
-            Symbol("offset") -> (page * limit)
-          )
+          .on(Symbol("id") -> id)
           .as(
             (long("id") ~ double("lat") ~ double("lng") ~ int("status") ~ int("priority") ~ get[
               Option[Long]

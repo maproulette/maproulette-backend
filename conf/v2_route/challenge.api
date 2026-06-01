@@ -47,14 +47,8 @@ POST    /challenge                                  @org.maproulette.controllers
 #   - name: id
 #     in: path
 #     description: Id of the challenge
-#   - name: limit
-#     in: query
-#     description: The maximum number of tasks to return markers for (bounds large challenges)
-#   - name: page
-#     in: query
-#     description: The page of tasks to return markers for, starting at 0
 ###
-GET     /challenge/:id/taskMarkers        @org.maproulette.controllers.api.ChallengeController.getChallengeTaskMarkers(id:Long, limit:Int ?= 10000, page:Int ?= 0)
+GET     /challenge/:id/taskMarkers        @org.maproulette.controllers.api.ChallengeController.getChallengeTaskMarkers(id:Long)
 ###
 # tags: [ Challenge ]
 # operationId: challenge_update
