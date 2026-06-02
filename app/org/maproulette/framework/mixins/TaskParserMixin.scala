@@ -28,13 +28,7 @@ trait TaskParserMixin {
       "task_review.review_claimed_by, task_review.review_claimed_at, task_review.additional_reviewers, task_review.error_tags "
 
   // The anorm row parser to convert records from the task table to task objects
-  def getTaskParser(
-      updateAndRetrieve: (Long, Option[String], Option[String], Option[String]) => (
-          String,
-          Option[String],
-          Option[String]
-      )
-  ): RowParser[Task] = {
+  def getTaskParser(): RowParser[Task] = {
     get[Long]("tasks.id") ~
       get[String]("tasks.name") ~
       get[DateTime]("tasks.created") ~
@@ -43,7 +37,7 @@ trait TaskParserMixin {
       get[Option[String]]("tasks.instruction") ~
       get[Option[String]]("geo_location") ~
       get[Option[Int]]("tasks.status") ~
-      get[Option[String]]("geo_json") ~
+      get[String]("geo_json") ~
       get[Option[String]]("cooperative_work") ~
       get[Option[DateTime]]("tasks.mapped_on") ~
       get[Option[Long]]("tasks.completed_time_spent") ~
@@ -73,7 +67,6 @@ trait TaskParserMixin {
             metaReviewStatus ~ metaReviewedAt ~ reviewStartedAt ~ reviewClaimedBy ~ reviewClaimedAt ~
             additionalReviewers ~ priority ~ changesetId ~ responses ~ bundleId ~ isBundlePrimary ~ errorTags ~
             skipCount ~ archived =>
-        val values = updateAndRetrieve(id, geojson, location, cooperativeWork)
         Task(
           id,
           name,
@@ -81,9 +74,9 @@ trait TaskParserMixin {
           modified,
           parent_id,
           instruction,
-          values._2.map(Json.parse(_).as[JsObject]),
-          Json.parse(values._1).as[JsObject],
-          values._3.map(Json.parse(_).as[JsObject]),
+          location.map(Json.parse(_).as[JsObject]),
+          Json.parse(geojson).as[JsObject],
+          cooperativeWork.map(Json.parse(_).as[JsObject]),
           status,
           mappedOn,
           completedTimeSpent,
@@ -113,13 +106,7 @@ trait TaskParserMixin {
     }
   }
 
-  def getTaskWithReviewParser(
-      updateAndRetrieve: (Long, Option[String], Option[String], Option[String]) => (
-          String,
-          Option[String],
-          Option[String]
-      )
-  ): RowParser[TaskWithReview] = {
+  def getTaskWithReviewParser(): RowParser[TaskWithReview] = {
     // tasks fields
     get[Long]("tasks.id") ~
       get[String]("tasks.name") ~
@@ -129,7 +116,7 @@ trait TaskParserMixin {
       get[Option[String]]("tasks.instruction") ~
       get[Option[String]]("geo_location") ~
       get[Option[Int]]("tasks.status") ~
-      get[Option[String]]("geo_json") ~
+      get[String]("geo_json") ~
       get[Option[String]]("cooperative_work") ~
       get[Option[DateTime]]("tasks.mapped_on") ~
       get[Option[Long]]("tasks.completed_time_spent") ~
@@ -170,7 +157,6 @@ trait TaskParserMixin {
             skipCount ~ archived ~
             challengeName ~ projectName ~ projectId ~
             reviewRequestedByUsername ~ reviewedByUsername =>
-        val values = updateAndRetrieve(id, geojson, location, cooperativeWork)
         TaskWithReview(
           Task(
             id,
@@ -179,9 +165,9 @@ trait TaskParserMixin {
             modified,
             parent_id,
             instruction,
-            values._2.map(Json.parse(_).as[JsObject]),
-            Json.parse(values._1).as[JsObject],
-            values._3.map(Json.parse(_).as[JsObject]),
+            location.map(Json.parse(_).as[JsObject]),
+            Json.parse(geojson).as[JsObject],
+            cooperativeWork.map(Json.parse(_).as[JsObject]),
             status,
             mappedOn,
             completedTimeSpent,

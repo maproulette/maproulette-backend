@@ -35,8 +35,8 @@ class TaskReviewRepository @Inject() (
   implicit val baseTable: String = TaskReview.TABLE
   protected val logger           = LoggerFactory.getLogger(this.getClass)
 
-  val parser       = this.getTaskParser(this.taskRepository.updateAndRetrieve)
-  val reviewParser = this.getTaskWithReviewParser(this.taskRepository.updateAndRetrieve)
+  val parser       = this.getTaskParser()
+  val reviewParser = this.getTaskWithReviewParser()
 
   /**
     * Gets a Task object with review data

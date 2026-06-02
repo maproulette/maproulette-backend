@@ -69,7 +69,7 @@ class TaskDAL @Inject() (
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  val parser = this.getTaskParser(this.taskRepository.updateAndRetrieve)
+  val parser = this.getTaskParser()
 
   // The cache manager for that tasks
   override val cacheManager = this.taskRepository.cacheManager
@@ -1486,20 +1486,6 @@ class TaskDAL @Inject() (
         }
       }
     }
-  }
-
-  /**
-    * A temporary solution that will allow us to lazy update the geojson data
-    *
-    * @param taskId The identifier of the task
-    */
-  def updateAndRetrieve(
-      taskId: Long,
-      geojson: Option[String],
-      location: Option[String],
-      cooperativeWork: Option[String]
-  )(implicit c: Option[Connection] = None): (String, Option[String], Option[String]) = {
-    this.taskRepository.updateAndRetrieve(taskId, geojson, location, cooperativeWork)
   }
 
   case class TaskSummary(

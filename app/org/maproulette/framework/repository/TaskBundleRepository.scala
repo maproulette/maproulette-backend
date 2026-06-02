@@ -313,7 +313,7 @@ class TaskBundleRepository @Inject() (
       query.build(s"""SELECT ${this.retrieveColumnsWithReview} FROM ${baseTable}
             INNER JOIN task_bundles tb on tasks.id = tb.task_id
             LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
-         """).as(this.getTaskParser(this.taskRepository.updateAndRetrieve).*)
+         """).as(this.getTaskParser().*)
     }
   }
 
