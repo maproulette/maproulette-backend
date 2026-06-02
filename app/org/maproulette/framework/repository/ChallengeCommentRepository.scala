@@ -99,6 +99,60 @@ class ChallengeCommentRepository @Inject() (override val db: Database) extends R
   }
 
   /**
+    * Searches challenge comments by a search term, scoped to comments the
+    * requesting user authored or comments on challenges the user owns. Callers
+    * must supply the authenticated user's ids; there is no unscoped variant.
+    *
+    * @param searchTerm The term to search within the comments
+    * @param userId The requesting user's internal id (matches challenges.owner_id)
+    * @param userOsmId The requesting user's OSM id (matches challenge_comments.osm_id)
+    * @param limit The maximum number of comments to return
+    * @param page The page number for pagination
+    * @return A list of matching ChallengeComments
+    */
+  def searchComments(
+      searchTerm: String,
+      userId: Long,
+      userOsmId: Long,
+      limit: Int = 25,
+      page: Int = 0
+  )(implicit c: Option[Connection] = None): List[ChallengeComment] = {
+    withMRConnection { implicit c =>
+      val searchFilter =
+        if (searchTerm.nonEmpty) "AND c.comment ILIKE {searchTerm}"
+        else ""
+      val query =
+        s"""
+        SELECT c.id, c.project_id, c.challenge_id, c.created, c.comment, c.osm_id,
+        u.name, u.avatar_url
+        FROM challenge_comments c
+        INNER JOIN users AS u ON c.osm_id = u.osm_id
+        WHERE (
+          c.osm_id = {userOsmId}
+          OR EXISTS (
+            SELECT 1 FROM challenges ch
+            WHERE ch.id = c.challenge_id AND ch.owner_id = {userId}
+          )
+        )
+        $searchFilter
+        ORDER BY c.created DESC
+        LIMIT {limit}
+        OFFSET {offset}
+        """
+
+      SQL(query)
+        .on(
+          "searchTerm" -> s"%$searchTerm%",
+          "userId"     -> userId,
+          "userOsmId"  -> userOsmId,
+          "limit"      -> limit,
+          "offset"     -> (limit * page).toLong
+        )
+        .as(ChallengeCommentRepository.parser.*)
+    }
+  }
+
+  /**
     * Add comment to a challenge
     *
     * @param user     The user adding the comment

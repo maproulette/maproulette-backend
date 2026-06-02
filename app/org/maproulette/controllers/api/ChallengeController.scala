@@ -122,6 +122,23 @@ class ChallengeController @Inject() (
   }
 
   /**
+    * Overrides the default read method to return a BaseChallenge (flattened structure)
+    * instead of the nested Challenge structure
+    *
+    * @param id The id of the challenge to retrieve
+    * @return 200 Ok with BaseChallenge json, 404 if not found
+    */
+  override def read(implicit id: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      implicit val baseChallengeWrites = BaseChallenge.baseChallengeWrites
+      this.dal.retrieveBaseChallengeById match {
+        case Some(value) => Ok(Json.toJson(value))
+        case None        => NotFound
+      }
+    }
+  }
+
+  /**
     * Gets a json list of tags of the challenge
     *
     * @param id The id of the challenge containing the tags
@@ -559,6 +576,13 @@ class ChallengeController @Inject() (
         Ok(Json.toJson(this.dal.getHotChallenges(limit, offset)))
       }
   }
+
+  def getChallengeTaskMarkers(id: Long): Action[AnyContent] =
+    Action.async { implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        Ok(Json.toJson(this.dal.getChallengeTaskMarkers(id)))
+      }
+    }
 
   /**
     * Gets the preferred challenges (hottest, newest, featured)
@@ -1089,6 +1113,71 @@ class ChallengeController @Inject() (
         }
       }
     }
+
+  /**
+    * Efficient endpoint for exploring challenges with specific parameters
+    * Uses an optimized query path specifically designed for the explore challenges feature
+    *
+    * @param global Whether to include global challenges (default: true)
+    * @param bounds Bounding box as [left,bottom,right,top] to filter challenges by location
+    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
+    * @param limit Maximum number of results to return
+    * @param offset Number of results to skip for pagination
+    * @return A list of challenges matching the criteria
+    */
+  def exploreChallenges(
+      global: Boolean,
+      bounds: Option[String],
+      sortBy: String,
+      limit: Int,
+      offset: Int,
+      keywords: Option[String],
+      difficulty: Option[Int]
+  ): Action[AnyContent] =
+    Action.async { implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        val boundingBox = bounds.flatMap { b =>
+          b.split(",").map(_.trim).filter(_.nonEmpty).toList match {
+            case List(left, bottom, right, top) =>
+              Some((left.toDouble, bottom.toDouble, right.toDouble, top.toDouble))
+            case _ => None
+          }
+        }
+
+        val challenges = this.dal.exploreChallenges(
+          includeGlobal = global,
+          boundingBox = boundingBox,
+          sortBy = sortBy,
+          limit = limit,
+          offset = offset,
+          keywords = keywords,
+          difficulty = difficulty
+        )
+
+        Ok(Json.toJson(challenges))
+      }
+    }
+
+  /**
+    * Fuzzy search for challenges by ID or name
+    * Returns a single challenge if found (first match)
+    * Searches by ID if the search string is numeric, otherwise searches by name using fuzzy matching
+    *
+    * @param search The search string (can be ID or name)
+    * @param onlyEnabled Only include enabled challenges
+    * @param limit Maximum number of results to return
+    * @return A single challenge matching the search criteria, or empty list if not found
+    */
+  def search(
+      search: String,
+      onlyEnabled: Boolean = false,
+      limit: Int = 25
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      val results = this.dal.search(search, limit, onlyEnabled)
+      Ok(Json.toJson(results))
+    }
+  }
 
   def healthCheck(): Action[AnyContent] =
     Action { implicit request =>
@@ -1684,6 +1773,297 @@ class ChallengeController @Inject() (
           case None =>
             throw new NotFoundException(s"No challenge found with id $id")
         }
+      }
+  }
+
+  /**
+    * Favorites (saves) a challenge for the current user
+    *
+    * @param challengeId The id of the challenge to favorite
+    * @return 200 OK with success message
+    */
+  def favoriteChallenge(challengeId: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      this.serviceManager.user.saveChallenge(user.id, challengeId, user)
+      Ok(
+        Json.toJson(
+          StatusMessage("OK", JsString(s"Challenge $challengeId favorited"))
+        )
+      )
+    }
+  }
+
+  /**
+    * Unfavorites (unsaves) a challenge for the current user
+    *
+    * @param challengeId The id of the challenge to unfavorite
+    * @return 200 OK with success message
+    */
+  def unfavoriteChallenge(challengeId: Long): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        this.serviceManager.user.unsaveChallenge(user.id, challengeId, user)
+        Ok(
+          Json.toJson(
+            StatusMessage("OK", JsString(s"Challenge $challengeId unfavorited"))
+          )
+        )
+      }
+  }
+
+  /**
+    * Checks if a challenge is favorited by the current user
+    *
+    * @param challengeId The id of the challenge to check
+    * @return 200 OK with boolean indicating if favorited
+    */
+  def isChallengeFavorited(challengeId: Long): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        user match {
+          case Some(u) =>
+            val isFavorited = this.serviceManager.user.isChallengeSaved(u.id, challengeId, u)
+            Ok(Json.toJson(Json.obj("isFavorited" -> isFavorited)))
+          case None =>
+            Ok(Json.toJson(Json.obj("isFavorited" -> false)))
+        }
+      }
+  }
+
+  /**
+    * Likes a challenge for the current user
+    *
+    * @param challengeId The id of the challenge to like
+    * @return 200 OK with success message
+    */
+  def likeChallenge(challengeId: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      this.serviceManager.user.likeChallenge(user.id, challengeId, user)
+      Ok(
+        Json.toJson(
+          StatusMessage("OK", JsString(s"Challenge $challengeId liked"))
+        )
+      )
+    }
+  }
+
+  /**
+    * Unlikes a challenge for the current user
+    *
+    * @param challengeId The id of the challenge to unlike
+    * @return 200 OK with success message
+    */
+  def unlikeChallenge(challengeId: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      this.serviceManager.user.unlikeChallenge(user.id, challengeId, user)
+      Ok(
+        Json.toJson(
+          StatusMessage("OK", JsString(s"Challenge $challengeId unliked"))
+        )
+      )
+    }
+  }
+
+  /**
+    * Checks if a challenge is liked by the current user
+    *
+    * @param challengeId The id of the challenge to check
+    * @return 200 OK with boolean indicating if liked
+    */
+  def isChallengeLiked(challengeId: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      user match {
+        case Some(u) =>
+          val isLiked = this.serviceManager.user.isChallengeLiked(u.id, challengeId, u)
+          Ok(Json.toJson(Json.obj("isLiked" -> isLiked)))
+        case None =>
+          Ok(Json.toJson(Json.obj("isLiked" -> false)))
+      }
+    }
+  }
+
+  /**
+    * Gets the total like count for a challenge
+    *
+    * @param challengeId The id of the challenge
+    * @return 200 OK with the like count
+    */
+  def getChallengeLikeCount(challengeId: Long): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        val likeCount = this.serviceManager.user.getChallengeLikeCount(challengeId)
+        Ok(Json.toJson(Json.obj("likeCount" -> likeCount)))
+      }
+  }
+
+  /**
+    * Create-or-update: if the JSON body includes a numeric `id`, delegate to
+    * update; otherwise delegate to create. Keeps clients from needing to pick
+    * between POST /challenge and PUT /challenge/:id based on whether they
+    * have a persisted id yet.
+    */
+  def saveOrUpdate: Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
+    val rawId = (request.body \ "id").asOpt[Long].getOrElse(-1L)
+    if (rawId > 0) {
+      this.update(rawId).apply(request)
+    } else {
+      this.create.apply(request)
+    }
+  }
+
+  /**
+    * Narrow update endpoint that accepts just the priority-related fields on
+    * a challenge and nothing else. Avoids the side effects (re-validation,
+    * task-rebuild triggers) that the full PUT /challenge/:id performs when
+    * unrelated fields are absent or differ.
+    */
+  def updatePriorities(id: Long): Action[JsValue] = Action.async(bodyParsers.json) {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        val challenge = this.dal.retrieveById(id) match {
+          case Some(c) => c
+          case None =>
+            throw new NotFoundException(s"Challenge with id $id not found, unable to update.")
+        }
+        permission.hasWriteAccess(ProjectType(), user)(challenge.general.parent)
+
+        val allowedKeys = Set(
+          "defaultPriority",
+          "highPriorityRule",
+          "highPriorityBounds",
+          "mediumPriorityRule",
+          "mediumPriorityBounds",
+          "lowPriorityRule",
+          "lowPriorityBounds"
+        )
+        val body = request.body.asOpt[JsObject].getOrElse(Json.obj())
+        val filtered = JsObject(
+          body.fields.filter { case (k, _) => allowedKeys.contains(k) }
+        )
+
+        if (filtered.fields.isEmpty) {
+          BadRequest(
+            Json.toJson(
+              StatusMessage(
+                "KO",
+                JsString(
+                  s"Body must include at least one of: ${allowedKeys.mkString(", ")}"
+                )
+              )
+            )
+          )
+        } else {
+          this.dal.update(filtered, user)(id) match {
+            case Some(updated) =>
+              val (highWrites, mediumWrites, lowWrites) =
+                this.dal.updateTaskPriorities(user, overrideValidation = true)(id)
+              this.dalManager.task.clearCaches
+              this.dal.clearCaches
+              // Surface an honest receipt of what the recompute did. `tasksUpdated`
+              // is the number of task rows the DB actually changed at each tier,
+              // measured by COUNT(*) after the writes commit. A response with all
+              // zeros is the signal that either no tasks matched any tier (default
+              // priority covers everything) or the recompute short-circuited.
+              val postCounts: Map[Int, Long] = this.dal.countTasksByPriority(id)
+              val highCount: Long            = postCounts.getOrElse(Challenge.PRIORITY_HIGH, 0L)
+              val mediumCount: Long          = postCounts.getOrElse(Challenge.PRIORITY_MEDIUM, 0L)
+              val lowCount: Long             = postCounts.getOrElse(Challenge.PRIORITY_LOW, 0L)
+              val receipt = Json.obj(
+                "tasksWritten" -> Json.obj(
+                  "high"   -> highWrites,
+                  "medium" -> mediumWrites,
+                  "low"    -> lowWrites
+                ),
+                "tasksByPriority" -> Json.obj(
+                  "high"   -> highCount,
+                  "medium" -> mediumCount,
+                  "low"    -> lowCount
+                )
+              )
+              Ok(Json.toJson(updated).as[JsObject] ++ Json.obj("priorityRecompute" -> receipt))
+            case None =>
+              InternalServerError(Json.toJson(StatusMessage("KO", JsString("Update failed"))))
+          }
+        }
+      }
+  }
+
+  /**
+    * Dry-run sibling of `updatePriorities`. Accepts the same body shape but
+    * does not persist anything — instead, it returns the priority each task
+    * WOULD receive under the supplied draft config. The editor uses this to
+    * power its live preview (pin colors, match counts), so what the user sees
+    * on the map is byte-for-byte what a subsequent save would write.
+    */
+  def previewPriorities(id: Long): Action[JsValue] = Action.async(bodyParsers.json) {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        val challenge = this.dal.retrieveById(id) match {
+          case Some(c) => c
+          case None =>
+            throw new NotFoundException(s"Challenge with id $id not found.")
+        }
+        permission.hasWriteAccess(ProjectType(), user)(challenge.general.parent)
+
+        val body     = request.body
+        val existing = challenge.priority
+        // `filter(_.nonEmpty)` collapses empty-string/empty-array sentinels the
+        // frontend omits — matches the DAL's save-path interpretation so a rule
+        // cleared in the editor previews as a rule cleared in the DB.
+        val draft = ChallengePriority(
+          defaultPriority =
+            (body \ "defaultPriority").asOpt[Int].getOrElse(existing.defaultPriority),
+          highPriorityRule = (body \ "highPriorityRule")
+            .asOpt[String]
+            .map(_.trim)
+            .filter(s => s.nonEmpty && s != "{}"),
+          mediumPriorityRule = (body \ "mediumPriorityRule")
+            .asOpt[String]
+            .map(_.trim)
+            .filter(s => s.nonEmpty && s != "{}"),
+          lowPriorityRule = (body \ "lowPriorityRule")
+            .asOpt[String]
+            .map(_.trim)
+            .filter(s => s.nonEmpty && s != "{}"),
+          highPriorityBounds = (body \ "highPriorityBounds")
+            .asOpt[String]
+            .map(_.trim)
+            .filter(s => s.nonEmpty && s != "[]"),
+          mediumPriorityBounds = (body \ "mediumPriorityBounds")
+            .asOpt[String]
+            .map(_.trim)
+            .filter(s => s.nonEmpty && s != "[]"),
+          lowPriorityBounds = (body \ "lowPriorityBounds")
+            .asOpt[String]
+            .map(_.trim)
+            .filter(s => s.nonEmpty && s != "[]")
+        )
+
+        val priorities = this.dal.previewTaskPriorities(user, draft)(id)
+        // Aggregate counts once on the server so the client doesn't have to
+        // walk the per-task map just to populate the badges.
+        var high   = 0
+        var medium = 0
+        var low    = 0
+        priorities.foreach {
+          case (_, Challenge.PRIORITY_HIGH)   => high += 1
+          case (_, Challenge.PRIORITY_MEDIUM) => medium += 1
+          case (_, Challenge.PRIORITY_LOW)    => low += 1
+          case _                              => ()
+        }
+        Ok(
+          Json.obj(
+            "priorities" -> JsObject(priorities.map {
+              case (taskId, p) =>
+                taskId.toString -> JsNumber(p)
+            }),
+            "counts" -> Json.obj(
+              "high"   -> high,
+              "medium" -> medium,
+              "low"    -> low
+            )
+          )
+        )
       }
   }
 }

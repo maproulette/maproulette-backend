@@ -41,6 +41,30 @@ trait MRSchemaTypes {
     }
   )
 
+  // GraphQL doesn't have a native JSON type, so we expose embedded JSON
+  // fields as custom scalars. Scalar names were chosen to be compatible
+  // with https://www.npmjs.com/package/graphql-type-json
+  implicit val graphQLJsObject: ScalarType[JsObject] = ScalarType[JsObject](
+    "JSONObject",
+    coerceOutput = (value, _) => value,
+    coerceUserInput = {
+      case v: JsObject => Right(v)
+      case _           => Left(JsonCoerceViolation)
+    },
+    coerceInput = _ => Left(JsonCoerceViolation)
+  )
+  implicit val graphQLJsArray: ScalarType[JsArray] = ScalarType[JsArray](
+    "JSONArray",
+    coerceOutput = (value, _) => value,
+    coerceUserInput = {
+      case v: JsArray => Right(v)
+      case _          => Left(JsonCoerceViolation)
+    },
+    coerceInput = _ => Left(JsonCoerceViolation)
+  )
+
+  implicit val CompletionMetricsType: ObjectType[Unit, CompletionMetrics] =
+    deriveObjectType[Unit, CompletionMetrics](ObjectTypeName("CompletionMetrics"))
   // Project Types
   implicit lazy val ProjectType: ObjectType[Unit, Project] =
     deriveObjectType[Unit, Project](ObjectTypeName("Project"))

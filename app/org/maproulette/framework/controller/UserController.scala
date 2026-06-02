@@ -7,7 +7,8 @@ package org.maproulette.framework.controller
 import javax.inject.Inject
 import org.maproulette.exception.{InvalidException, NotFoundException, StatusMessage}
 import org.maproulette.framework.model.{Challenge, User, UserSettings, GrantTarget, Task}
-import org.maproulette.framework.psql.Paging
+import org.maproulette.framework.psql.{Paging, Query, Order}
+import org.maproulette.framework.psql.filter.{BaseParameter, Operator}
 import org.maproulette.framework.service.ServiceManager
 import org.maproulette.framework.mixins.ParentMixin
 import org.maproulette.permissions.Permission
@@ -577,6 +578,33 @@ class UserController @Inject() (
       Ok(Json.toJson(this.serviceManager.user.superUsers))
     }
   }
+
+  /**
+    * Super Admin endpoint to get all users with pagination
+    * @param limit the maximum number of users to return per page
+    * @param page the page number (0-indexed)
+    * @return A paginated list of all users
+    */
+  def getAllUsersForSuperAdmin(limit: Int, page: Int): Action[AnyContent] =
+    Action.async { implicit request =>
+      implicit val requireSuperUser: Boolean = true
+      this.sessionManager.authenticatedRequest { implicit user =>
+        // Ensure only super admins can access this endpoint
+        this.permission.hasSuperAccess(user)
+
+        // Query users with pagination, excluding the system super user (id = -999)
+        val users = this.serviceManager.user.query(
+          Query.simple(
+            List(BaseParameter(User.FIELD_ID, -999, Operator.NE)),
+            paging = Paging(limit, page),
+            order = Order > (User.FIELD_ID)
+          ),
+          user
+        )
+
+        Ok(Json.toJson(users))
+      }
+    }
 
   /**
     * Promotes a user to a super user

@@ -1,5 +1,6 @@
 ###
 # tags: [ Team ]
+# operationId: team_create_a_new_team
 # summary: Create a new team
 # description: Creates a new team
 # responses:
@@ -20,6 +21,7 @@
 POST    /team                                       @org.maproulette.framework.controller.TeamController.createTeam()
 ###
 # tags: [ Team ]
+# operationId: team_update_a_team
 # summary: Update a team
 # description: Updates the team info (name, description, avatar URL)
 # responses:
@@ -44,6 +46,7 @@ POST    /team                                       @org.maproulette.framework.c
 PUT    /team/:id                                    @org.maproulette.framework.controller.TeamController.updateTeam(id: Long)
 ###
 # tags: [ Team ]
+# operationId: team_retrieves_a_team
 # summary: Retrieves a team
 # description: Retrieves a team based on a specific ID.
 # responses:
@@ -63,6 +66,7 @@ PUT    /team/:id                                    @org.maproulette.framework.c
 GET     /team/:id                                   @org.maproulette.framework.controller.TeamController.retrieve(id:Long)
 ###
 # tags: [ Team ]
+# operationId: team_find_teams_by_name
 # summary: Find teams by name
 # description: Search for teams by name
 # responses:
@@ -90,6 +94,7 @@ GET     /team/:id                                   @org.maproulette.framework.c
 GET     /teams/find                                 @org.maproulette.framework.controller.TeamController.find(name:String, limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ Team ]
+# operationId: team_retrieves_users_who_are_members_of_a_team
 # summary: Retrieves users who are members of a team
 # description: Retrieves all the user members of a team
 # responses:
@@ -111,6 +116,7 @@ GET     /teams/find                                 @org.maproulette.framework.c
 GET     /team/:id/userMembers                       @org.maproulette.framework.controller.TeamController.teamUsers(id:Long)
 ###
 # tags: [ Team ]
+# operationId: team_retrieves_all_team_memberships_for_a_user
 # summary: Retrieves all team memberships for a user
 # description: Retrieves all the given user's team memberships
 # responses:
@@ -132,6 +138,7 @@ GET     /team/:id/userMembers                       @org.maproulette.framework.c
 GET     /team/all/user/:userId/memberships          @org.maproulette.framework.controller.TeamController.userTeamMemberships(userId:Long)
 ###
 # tags: [ Team ]
+# operationId: team_invites_a_user_to_join_a_team
 # summary: Invites a user to join a team
 # description: Invites a user to join a team with the given role
 # responses:
@@ -157,6 +164,7 @@ GET     /team/all/user/:userId/memberships          @org.maproulette.framework.c
 POST    /team/:id/user/:userId/invite/:role         @org.maproulette.framework.controller.TeamController.inviteUser(id:Long, userId:Long, role:Int)
 ###
 # tags: [ Team ]
+# operationId: team_accept_an_invitation_to_join_a_team
 # summary: Accept an invitation to join a team
 # description: Accepts the logged-in user's invitation to join a team
 # responses:
@@ -176,6 +184,7 @@ POST    /team/:id/user/:userId/invite/:role         @org.maproulette.framework.c
 PUT    /team/:id/invite/accept                      @org.maproulette.framework.controller.TeamController.acceptInvite(id:Long)
 ###
 # tags: [ Team ]
+# operationId: team_decline_an_invitation_to_join_a_team
 # summary: Decline an invitation to join a team
 # description: Decline the logged-in user's invitation to join a team
 # responses:
@@ -191,6 +200,7 @@ PUT    /team/:id/invite/accept                      @org.maproulette.framework.c
 DELETE /team/:id/invite                             @org.maproulette.framework.controller.TeamController.declineInvite(id:Long)
 ###
 # tags: [ Team ]
+# operationId: team_update_a_team_members_role
 # summary: Update a team member's role
 # description: Update a team member's granted role on the team
 # responses:
@@ -216,6 +226,7 @@ DELETE /team/:id/invite                             @org.maproulette.framework.c
 PUT    /team/:id/user/:userId/role/:role            @org.maproulette.framework.controller.TeamController.updateMemberRole(id:Long, userId:Long, role:Int)
 ###
 # tags: [ Team ]
+# operationId: team_remove_a_member_from_a_team
 # summary: Remove a member from a team
 # description: Remove a team member from a team
 # responses:
@@ -234,6 +245,7 @@ PUT    /team/:id/user/:userId/role/:role            @org.maproulette.framework.c
 DELETE /team/:id/user/:userId/                      @org.maproulette.framework.controller.TeamController.removeTeamMember(id:Long, userId:Long)
 ###
 # tags: [ Team ]
+# operationId: team_grant_role_to_team_on_project
 # summary: Grant role to team on project
 # description: Grant a team an Admin, Write or Read role on the project
 # responses:
@@ -255,6 +267,7 @@ DELETE /team/:id/user/:userId/                      @org.maproulette.framework.c
 POST     /team/:teamId/project/:projectId/:role  @org.maproulette.framework.controller.TeamController.addTeamToProject(teamId:Long, projectId:Long, role:Int)
 ###
 # tags: [ Team ]
+# operationId: team_set_granted_role_of_team_on_project
 # summary: Set granted role of team on project
 # description: Grant a team an Admin, Write or Read role on the project, clearing any prior roles
 # responses:
@@ -276,6 +289,7 @@ POST     /team/:teamId/project/:projectId/:role  @org.maproulette.framework.cont
 PUT      /team/:teamId/project/:projectId/:role  @org.maproulette.framework.controller.TeamController.setTeamProjectRole(teamId:Long, projectId:Long, role:Int)
 ###
 # tags: [ Team ]
+# operationId: team_remove_granted_roles_on_project_from_team
 # summary: Remove granted roles on project from team
 # description: Remove roles on a project from a team
 # responses:
@@ -294,6 +308,7 @@ PUT      /team/:teamId/project/:projectId/:role  @org.maproulette.framework.cont
 DELETE   /team/:teamId/project/:projectId        @org.maproulette.framework.controller.TeamController.removeTeamFromProject(teamId:Long, projectId:Long)
 ###
 # tags: [ Team ]
+# operationId: team_get_teams_granted_a_role_on_a_project
 # summary: Get teams granted a role on a project
 # description: Get teams granted an Admin, Write or Read role on a project
 # responses:
@@ -315,6 +330,7 @@ DELETE   /team/:teamId/project/:projectId        @org.maproulette.framework.cont
 GET      /teams/projectManagers/:projectId        @org.maproulette.framework.controller.TeamController.getTeamsManagingProject(projectId:Long)
 ###
 # tags: [ Team ]
+# operationId: team_delete_a_team
 # summary: Delete a team
 # description: Deletes a team with ID
 # responses:

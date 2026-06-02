@@ -10,6 +10,7 @@ import java.util.UUID
 import org.maproulette.framework.model.{User, Task}
 import org.maproulette.framework.util.{TaskTag, FrameworkHelper}
 import play.api.Application
+import play.api.libs.json.{JsObject, Json}
 
 /**
   * @author nrotstan
@@ -45,7 +46,10 @@ class TaskRepositorySpec(implicit val application: Application) extends Framewor
       null,
       null,
       this.defaultChallenge.id,
-      geometries =
-        """{"features":[{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-60.811801,-32.9199812],[-60.8117804,-32.9199856],[-60.8117816,-32.9199896],[-60.8117873,-32.919984]]},"properties":{"osm_id":"OSM_W_378169283_000000_000","pbfHistory":["20200110-043000"]}}], "attachments": [{"id": "74bc872f-8448-45ff-b8f2-66517a35b41e", "kind": "referenceLayer", "type": "geojson", "name": "geojson boundary", "data": {"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [[[-121.0, 48.0],[-120.0, 48.0],[-120.0, 49.0],[-121.0, 49],[-121.0, 48.0]]]}}}]}"""
+      geometries = Json
+        .parse(
+          """{"features":[{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-60.811801,-32.9199812],[-60.8117804,-32.9199856],[-60.8117816,-32.9199896],[-60.8117873,-32.919984]]},"properties":{"osm_id":"OSM_W_378169283_000000_000","pbfHistory":["20200110-043000"]}}], "attachments": [{"id": "74bc872f-8448-45ff-b8f2-66517a35b41e", "kind": "referenceLayer", "type": "geojson", "name": "geojson boundary", "data": {"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [[[-121.0, 48.0],[-120.0, 48.0],[-120.0, 49.0],[-121.0, 49],[-121.0, 48.0]]]}}}]}"""
+        )
+        .as[JsObject]
     )
 }

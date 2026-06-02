@@ -6,11 +6,13 @@ package org.maproulette.models.utils
 
 import org.joda.time.DateTime
 import org.maproulette.framework.model.{
+  BaseChallenge,
   Challenge,
   ChallengeCreation,
   ChallengeExtra,
   ChallengeGeneral,
-  ChallengePriority
+  ChallengePriority,
+  CompletionMetrics
 }
 import org.maproulette.utils.Utils
 import org.maproulette.utils.Utils.{jsonReads, jsonWrites}
@@ -84,7 +86,7 @@ trait ChallengeWrites extends DefaultWrites {
     }
   }
 
-  implicit val challengeWrites: Writes[Challenge] = (
+  private val challengeFieldsWrites: Writes[Challenge] = (
     (JsPath \ "id").write[Long] and
       (JsPath \ "name").write[String] and
       (JsPath \ "created").write[DateTime] and
@@ -106,8 +108,13 @@ trait ChallengeWrites extends DefaultWrites {
       (JsPath \ "location").writeNullable[String](new jsonWrites("location")) and
       (JsPath \ "bounding").writeNullable[String](new jsonWrites("bounding")) and
       (JsPath \ "completionPercentage").writeNullable[Int] and
-      (JsPath \ "tasksRemaining").writeNullable[Int]
+      (JsPath \ "completionMetrics").write[CompletionMetrics]
   )(unlift(Challenge.unapply))
+
+  // completionMetrics is read straight from the `completion_metrics` JSONB
+  // column (see ChallengeDAL parser), so every endpoint returns complete and
+  // accurate per-status counts rather than synthesized values.
+  implicit val challengeWrites: Writes[Challenge] = challengeFieldsWrites
 }
 
 trait ChallengeReads extends DefaultReads {
@@ -162,13 +169,13 @@ trait ChallengeReads extends DefaultReads {
             reviewSetting = (jsonWithExtras \ "reviewSetting")
               .asOpt[Int]
               .getOrElse(Challenge.REVIEW_SETTING_NOT_REQUIRED),
-            taskWidgetLayout = (jsonWithExtras \ "taskWidgetLayout").asOpt[JsValue],
+            taskWidgetLayout = (jsonWithExtras \ "taskWidgetLayout").asOpt[JsObject],
             datasetUrl = (jsonWithExtras \ "datasetUrl").asOpt[String],
             systemArchivedAt = (jsonWithExtras \ "systemArchivedAt").asOpt[DateTime],
             presets = (jsonWithExtras \ "presets").asOpt[List[String]],
             requireConfirmation =
               (jsonWithExtras \ "requireConfirmation").asOpt[Boolean].getOrElse(false),
-            mrTagMetrics = (jsonWithExtras \ "mrTagMetrics").asOpt[JsValue]
+            mrTagMetrics = (jsonWithExtras \ "mrTagMetrics").asOpt[JsObject]
           )
         )
       } catch {
@@ -199,6 +206,79 @@ trait ChallengeReads extends DefaultReads {
       (JsPath \ "location").readNullable[String](new jsonReads("location")) and
       (JsPath \ "bounding").readNullable[String](new jsonReads("bounding")) and
       (JsPath \ "completionPercentage").readNullable[Int] and
-      (JsPath \ "tasksRemaining").readNullable[Int]
+      ((JsPath \ "completionMetrics").read[CompletionMetrics] or Reads.pure(CompletionMetrics()))
   )(Challenge.apply _)
+}
+
+/**
+  * JSON formatters for BaseChallenge (flattened structure)
+  */
+trait BaseChallengeWrites extends DefaultWrites {
+  implicit val baseChallengeWrites: Writes[BaseChallenge] = new Writes[BaseChallenge] {
+    def writes(bc: BaseChallenge): JsValue = {
+      val baseFields: Seq[(String, JsValue)] = Seq(
+        "id"                  -> JsNumber(bc.id),
+        "name"                -> JsString(bc.name),
+        "created"             -> Json.toJson(bc.created),
+        "modified"            -> Json.toJson(bc.modified),
+        "deleted"             -> JsBoolean(bc.deleted),
+        "isGlobal"            -> JsBoolean(bc.isGlobal),
+        "requireConfirmation" -> JsBoolean(bc.requireConfirmation),
+        "requireRejectReason" -> JsBoolean(bc.requireRejectReason),
+        "owner"               -> JsNumber(bc.owner),
+        "parent"              -> JsNumber(bc.parent),
+        "instruction"         -> JsString(bc.instruction),
+        "difficulty"          -> JsNumber(bc.difficulty),
+        "enabled"             -> JsBoolean(bc.enabled),
+        "featured"            -> JsBoolean(bc.featured),
+        "cooperativeType"     -> JsNumber(bc.cooperativeType),
+        "checkinComment"      -> JsString(bc.checkinComment),
+        "checkinSource"       -> JsString(bc.checkinSource),
+        "requiresLocal"       -> JsBoolean(bc.requiresLocal),
+        "defaultPriority"     -> JsNumber(bc.defaultPriority),
+        "defaultZoom"         -> JsNumber(bc.defaultZoom),
+        "minZoom"             -> JsNumber(bc.minZoom),
+        "maxZoom"             -> JsNumber(bc.maxZoom),
+        "updateTasks"         -> JsBoolean(bc.updateTasks),
+        "limitTags"           -> JsBoolean(bc.limitTags),
+        "limitReviewTags"     -> JsBoolean(bc.limitReviewTags),
+        "isArchived"          -> JsBoolean(bc.isArchived),
+        "reviewSetting"       -> JsNumber(bc.reviewSetting),
+        "completionMetrics"   -> Json.toJson(bc.completionMetrics)
+      )
+
+      val optionFields: Seq[Option[(String, JsValue)]] = Seq(
+        bc.description.map(v => "description"                   -> JsString(v)),
+        bc.infoLink.map(v => "infoLink"                         -> JsString(v)),
+        bc.blurb.map(v => "blurb"                               -> JsString(v)),
+        bc.popularity.map(v => "popularity"                     -> JsNumber(v)),
+        bc.overpassQL.map(v => "overpassQL"                     -> JsString(v)),
+        bc.remoteGeoJson.map(v => "remoteGeoJson"               -> JsString(v)),
+        bc.overpassTargetType.map(v => "overpassTargetType"     -> JsString(v)),
+        bc.highPriorityRule.map(v => "highPriorityRule"         -> v),
+        bc.mediumPriorityRule.map(v => "mediumPriorityRule"     -> v),
+        bc.lowPriorityRule.map(v => "lowPriorityRule"           -> v),
+        bc.highPriorityBounds.map(v => "highPriorityBounds"     -> v),
+        bc.mediumPriorityBounds.map(v => "mediumPriorityBounds" -> v),
+        bc.lowPriorityBounds.map(v => "lowPriorityBounds"       -> v),
+        bc.defaultBasemap.map(v => "defaultBasemap"             -> JsNumber(v)),
+        bc.defaultBasemapId.map(v => "defaultBasemapId"         -> JsString(v)),
+        bc.customBasemap.map(v => "customBasemap"               -> JsString(v)),
+        bc.exportableProperties.map(v => "exportableProperties" -> JsString(v)),
+        bc.osmIdProperty.map(v => "osmIdProperty"               -> JsString(v)),
+        bc.taskBundleIdProperty.map(v => "taskBundleIdProperty" -> JsString(v)),
+        bc.taskWidgetLayout.map(v => "taskWidgetLayout"         -> v),
+        bc.taskStyles.map(v => "taskStyles"                     -> v),
+        bc.status.map(v => "status"                             -> JsNumber(v)),
+        bc.statusMessage.map(v => "statusMessage"               -> JsString(v)),
+        bc.lastTaskRefresh.map(dt => "lastTaskRefresh"          -> Json.toJson(dt)),
+        bc.dataOriginDate.map(dt => "dataOriginDate"            -> Json.toJson(dt)),
+        bc.location.map(v => "location"                         -> v),
+        bc.bounding.map(v => "bounding"                         -> v),
+        bc.completionPercentage.map(v => "completionPercentage" -> JsNumber(v))
+      )
+
+      JsObject(baseFields ++ optionFields.flatten)
+    }
+  }
 }

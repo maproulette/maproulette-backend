@@ -9,6 +9,7 @@ import java.sql.Connection
 
 import anorm.SqlParser._
 import anorm._
+import anorm.postgresql.jsValueColumn
 import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
 import org.maproulette.data.Actions
@@ -19,7 +20,7 @@ import org.maproulette.framework.service.GrantService
 import org.maproulette.session.SearchParameters
 import org.maproulette.utils.Readers
 import play.api.db.Database
-import play.api.libs.json.Json
+import play.api.libs.json.{JsObject, Json}
 
 /**
   * Repository to handle all database actionns related to Projects, no business logic should be
@@ -363,7 +364,7 @@ object ProjectRepository extends Readers {
         val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
         val point        = Point(coordinates(1), coordinates.head)
         val pointReview  = PointReview(None, None, None, None, None, None, None, None, None)
-        val boundingJSON = Json.parse(bounding)
+        val boundingJSON = Json.parse(bounding).as[JsObject]
         ClusteredPoint(
           id,
           osm_id,
@@ -405,8 +406,10 @@ object ProjectRepository extends Readers {
       get[Boolean]("projects.is_virtual") ~
       get[Boolean]("projects.featured") ~
       get[Boolean]("projects.is_archived") ~
-      get[Boolean]("projects.require_confirmation") map {
-      case id ~ ownerId ~ name ~ created ~ modified ~ description ~ enabled ~ displayName ~ deleted ~ isVirtual ~ featured ~ isArchived ~ requireConfirmation =>
+      get[Boolean]("projects.require_confirmation") ~
+      get[Option[play.api.libs.json.JsValue]]("projects.completion_metrics") map {
+      case id ~ ownerId ~ name ~ created ~ modified ~ description ~ enabled ~ displayName ~ deleted ~
+            isVirtual ~ featured ~ isArchived ~ requireConfirmation ~ completionMetricsJson =>
         new Project(
           id,
           ownerId,
@@ -421,7 +424,10 @@ object ProjectRepository extends Readers {
           Some(isVirtual),
           featured,
           isArchived,
-          requireConfirmation
+          requireConfirmation,
+          completionMetricsJson
+            .flatMap(_.asOpt[CompletionMetrics])
+            .getOrElse(CompletionMetrics())
         )
     }
   }

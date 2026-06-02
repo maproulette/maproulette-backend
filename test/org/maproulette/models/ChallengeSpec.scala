@@ -8,6 +8,7 @@ package org.maproulette.models
 import org.maproulette.framework.model.{PriorityRule, Task}
 import org.scalatestplus.play.PlaySpec
 import org.joda.time.DateTime
+import play.api.libs.json.{JsObject, Json}
 
 /**
   * @author cuthbertm
@@ -58,9 +59,9 @@ class ChallengeSpec() extends PlaySpec {
     }
 
     "bounds type should operate correctly" in {
-      val location = Some("{\"type\":\"Point\",\"coordinates\":[-120,50]}")
+      val location = Json.parse("{\"type\":\"Point\",\"coordinates\":[-120,50]}").asOpt[JsObject]
 
-      val task = Task(1, "Task1", DateTime.now(), DateTime.now(), 1, None, location, "")
+      val task = Task(1, "Task1", DateTime.now(), DateTime.now(), 1, None, location, Json.obj())
 
       // format like: bounds = "MinX,MinY,MaxX,MaxY"
       PriorityRule("contains", "location", "0,0,1,1", "bounds")

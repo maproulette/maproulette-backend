@@ -64,14 +64,14 @@ case class PriorityRule(operator: String, key: String, value: String, valueType:
   private def locationInBounds(
       operator: String,
       value: String,
-      location: Option[String]
+      location: Option[JsObject]
   ): Boolean = {
     // eg. Some({"type":"Point","coordinates":[-120.18699365,48.47991855]})
     location match {
       case Some(loc) =>
         // MinX,MinY,MaxX,MaxY
         val bbox: List[Double] = Utils.toDoubleList(value).getOrElse(List(0, 0, 0, 0))
-        val coordinates        = (Json.parse(loc) \ "coordinates").as[List[Double]]
+        val coordinates        = (loc \ "coordinates").as[List[Double]]
         if (coordinates.length == 2) {
           val x        = coordinates(0)
           val y        = coordinates(1)
@@ -138,12 +138,12 @@ case class ChallengeExtra(
     taskBundleIdProperty: Option[String] = None,
     isArchived: Boolean = false,
     reviewSetting: Int = Challenge.REVIEW_SETTING_NOT_REQUIRED,
-    taskWidgetLayout: Option[JsValue] = None,
+    taskWidgetLayout: Option[JsObject] = None,
     datasetUrl: Option[String] = None,
     systemArchivedAt: Option[DateTime] = None,
     presets: Option[List[String]] = None,
     requireConfirmation: Boolean = false,
-    mrTagMetrics: Option[JsValue] = None
+    mrTagMetrics: Option[JsObject] = None
 ) extends DefaultWrites
 
 case class ChallengeListing(
@@ -155,6 +155,75 @@ case class ChallengeListing(
     status: Option[Int],
     isArchived: Boolean
 )
+
+/**
+  * BaseChallenge is a flattened representation of the Challenge model for API responses.
+  * All nested fields from ChallengeGeneral, ChallengeCreation, ChallengePriority, and ChallengeExtra
+  * are exposed at the top level to provide a simpler, more straightforward JSON structure.
+  */
+case class BaseChallenge(
+    id: Long,
+    name: String,
+    created: DateTime,
+    modified: DateTime,
+    description: Option[String] = None,
+    deleted: Boolean = false,
+    isGlobal: Boolean = false,
+    requireConfirmation: Boolean = false,
+    requireRejectReason: Boolean = false,
+    infoLink: Option[String] = None,
+    // Fields from ChallengeGeneral
+    owner: Long,
+    parent: Long,
+    instruction: String,
+    difficulty: Int = Challenge.DIFFICULTY_NORMAL,
+    blurb: Option[String] = None,
+    enabled: Boolean = false,
+    featured: Boolean = false,
+    cooperativeType: Int = 0,
+    popularity: Option[Int] = None,
+    checkinComment: String = "",
+    checkinSource: String = "",
+    requiresLocal: Boolean = false,
+    // Fields from ChallengeCreation
+    overpassQL: Option[String] = None,
+    remoteGeoJson: Option[String] = None,
+    overpassTargetType: Option[String] = None,
+    // Fields from ChallengePriority
+    defaultPriority: Int = Challenge.PRIORITY_HIGH,
+    highPriorityRule: Option[JsObject] = None,
+    mediumPriorityRule: Option[JsObject] = None,
+    lowPriorityRule: Option[JsObject] = None,
+    highPriorityBounds: Option[JsArray] = None,
+    mediumPriorityBounds: Option[JsArray] = None,
+    lowPriorityBounds: Option[JsArray] = None,
+    // Fields from ChallengeExtra
+    defaultZoom: Int = Challenge.DEFAULT_ZOOM,
+    minZoom: Int = Challenge.MIN_ZOOM,
+    maxZoom: Int = Challenge.MAX_ZOOM,
+    updateTasks: Boolean = false,
+    limitTags: Boolean = false,
+    limitReviewTags: Boolean = false,
+    isArchived: Boolean = false,
+    reviewSetting: Int = Challenge.REVIEW_SETTING_NOT_REQUIRED,
+    defaultBasemap: Option[Int] = None,
+    defaultBasemapId: Option[String] = None,
+    customBasemap: Option[String] = None,
+    exportableProperties: Option[String] = None,
+    osmIdProperty: Option[String] = None,
+    taskBundleIdProperty: Option[String] = None,
+    taskWidgetLayout: Option[JsObject] = None,
+    taskStyles: Option[JsArray] = None,
+    // Status and location fields
+    status: Option[Int] = Some(0),
+    statusMessage: Option[String] = None,
+    lastTaskRefresh: Option[DateTime] = None,
+    dataOriginDate: Option[DateTime] = None,
+    location: Option[JsObject] = None,
+    bounding: Option[JsObject] = None,
+    completionPercentage: Option[Int] = Some(0),
+    completionMetrics: CompletionMetrics = CompletionMetrics()
+) extends DefaultWrites
 
 /**
   * The ChallengeFormFix case class is built so that we can nest the form objects as there is a limit
@@ -182,7 +251,7 @@ case class Challenge(
     location: Option[String] = None,
     bounding: Option[String] = None,
     completionPercentage: Option[Int] = Some(0),
-    tasksRemaining: Option[Int] = Some(0)
+    completionMetrics: CompletionMetrics = CompletionMetrics()
 ) extends BaseObject[Long]
     with DefaultWrites
     with Identifiable {
@@ -259,8 +328,7 @@ case class Challenge(
 
           // Extract coordinates from task geometries
           try {
-            val geometries = Json.parse(task.geometries)
-            val features   = (geometries \ "features").as[List[JsValue]]
+            val features = (task.geometries \ "features").as[List[JsValue]]
             if (features.nonEmpty) {
               // Check if any feature is within bounds (important for ways/relations with multiple features)
               features.exists(feature => {
@@ -535,6 +603,12 @@ object Challenge extends CommonField {
     ChallengePriority(),
     ChallengeExtra()
   )
+}
+
+object BaseChallenge {
+  import org.maproulette.models.utils.BaseChallengeWrites
+  val writes                                              = new Object with BaseChallengeWrites
+  implicit val baseChallengeWrites: Writes[BaseChallenge] = writes.baseChallengeWrites
 }
 
 case class ArchivableChallenge(

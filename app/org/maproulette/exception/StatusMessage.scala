@@ -14,6 +14,9 @@ trait StatusMessages {
   implicit val statusMessageReads  = StatusMessage.statusMessageReads
 }
 
+// TODO: `message` is JsValue because callers pass both JsString and JsObject.
+// We should fix this polymorphism so that we can make the Swagger type for it
+// stricter/more accurate.
 case class StatusMessage(status: String, message: JsValue)
 
 object StatusMessage {

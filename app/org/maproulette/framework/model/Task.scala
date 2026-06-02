@@ -4,7 +4,6 @@
  */
 package org.maproulette.framework.model
 
-import org.apache.commons.lang3.StringUtils
 import org.joda.time.DateTime
 import org.maproulette.data.{ItemType, TaskType}
 import org.maproulette.framework.model.{Challenge, Identifiable, MapillaryImage}
@@ -57,9 +56,9 @@ case class Task(
     override val modified: DateTime,
     parent: Long,
     instruction: Option[String] = None,
-    location: Option[String] = None,
-    geometries: String,
-    cooperativeWork: Option[String] = None,
+    location: Option[JsObject] = None,
+    geometries: JsObject,
+    cooperativeWork: Option[JsObject] = None,
     status: Option[Int] = None,
     mappedOn: Option[DateTime] = None,
     completedTimeSpent: Option[Long] = None,
@@ -71,7 +70,9 @@ case class Task(
     bundleId: Option[Long] = None,
     isBundlePrimary: Option[Boolean] = None,
     mapillaryImages: Option[List[MapillaryImage]] = None,
-    errorTags: String = ""
+    errorTags: String = "",
+    skipCount: Int = 0,
+    archived: Boolean = false
 ) extends BaseObject[Long]
     with DefaultReads
     with LowPriorityDefaultReads
@@ -110,13 +111,11 @@ case class Task(
   }
 
   def getGeometryProperties(): List[Map[String, String]] = {
-    if (StringUtils.isNotEmpty(this.geometries)) {
-      val geojson = Json.parse(this.geometries)
-      (geojson \ "features")
-        .as[List[JsValue]]
-        .map(json => Utils.getProperties(json, "properties").as[Map[String, String]])
-    } else {
-      List.empty
+    (this.geometries \ "features").asOpt[List[JsValue]] match {
+      case Some(features) =>
+        features.map(json => Utils.getProperties(json, "properties").as[Map[String, String]])
+      case None =>
+        List.empty
     }
   }
 }
@@ -131,29 +130,108 @@ object Task extends CommonField {
   val FIELD_BUNDLE_PRIMARY = "is_bundle_primary"
   val FIELD_MAPPED_ON      = "mapped_on"
 
+  // `Task` has 23 fields, which exceeds Scala 2's 22-element tuple/unapply cap,
+  // so `Json.writes[Task]` / `Json.reads[Task]` macros can't be used. The manual
+  // Writes/Reads below produce the same JSON shape the macros would.
+  private def taskObjectWrites(
+      o: Task
+  )(
+      implicit mapillaryWrites: Writes[MapillaryImage],
+      reviewWrites: Writes[TaskReviewFields]
+  ): JsObject =
+    Json.obj(
+      "id"                  -> o.id,
+      "name"                -> o.name,
+      "created"             -> o.created,
+      "modified"            -> o.modified,
+      "parent"              -> o.parent,
+      "instruction"         -> o.instruction,
+      "location"            -> o.location,
+      "geometries"          -> o.geometries,
+      "cooperativeWork"     -> o.cooperativeWork,
+      "status"              -> o.status,
+      "mappedOn"            -> o.mappedOn,
+      "completedTimeSpent"  -> o.completedTimeSpent,
+      "completedBy"         -> o.completedBy,
+      "review"              -> o.review,
+      "priority"            -> o.priority,
+      "changesetId"         -> o.changesetId,
+      "completionResponses" -> o.completionResponses,
+      "bundleId"            -> o.bundleId,
+      "isBundlePrimary"     -> o.isBundlePrimary,
+      "mapillaryImages"     -> o.mapillaryImages,
+      "errorTags"           -> o.errorTags,
+      "skipCount"           -> o.skipCount,
+      "archived"            -> o.archived
+    )
+
+  private def taskObjectReads(
+      json: JsValue
+  )(
+      implicit mapillaryReads: Reads[MapillaryImage],
+      reviewReads: Reads[TaskReviewFields]
+  ): JsResult[Task] =
+    for {
+      id                  <- (json \ "id").validate[Long]
+      name                <- (json \ "name").validate[String]
+      created             <- (json \ "created").validate[DateTime]
+      modified            <- (json \ "modified").validate[DateTime]
+      parent              <- (json \ "parent").validate[Long]
+      instruction         <- (json \ "instruction").validateOpt[String]
+      location            <- (json \ "location").validateOpt[JsObject]
+      geometries          <- (json \ "geometries").validate[JsObject]
+      cooperativeWork     <- (json \ "cooperativeWork").validateOpt[JsObject]
+      status              <- (json \ "status").validateOpt[Int]
+      mappedOn            <- (json \ "mappedOn").validateOpt[DateTime]
+      completedTimeSpent  <- (json \ "completedTimeSpent").validateOpt[Long]
+      completedBy         <- (json \ "completedBy").validateOpt[Long]
+      review              <- (json \ "review").validate[TaskReviewFields]
+      priority            <- (json \ "priority").validate[Int]
+      changesetId         <- (json \ "changesetId").validateOpt[Long]
+      completionResponses <- (json \ "completionResponses").validateOpt[String]
+      bundleId            <- (json \ "bundleId").validateOpt[Long]
+      isBundlePrimary     <- (json \ "isBundlePrimary").validateOpt[Boolean]
+      mapillaryImages     <- (json \ "mapillaryImages").validateOpt[List[MapillaryImage]]
+      errorTags           <- (json \ "errorTags").validate[String]
+      skipCount           <- (json \ "skipCount").validate[Int]
+      archived            <- (json \ "archived").validate[Boolean]
+    } yield Task(
+      id,
+      name,
+      created,
+      modified,
+      parent,
+      instruction,
+      location,
+      geometries,
+      cooperativeWork,
+      status,
+      mappedOn,
+      completedTimeSpent,
+      completedBy,
+      review,
+      priority,
+      changesetId,
+      completionResponses,
+      bundleId,
+      isBundlePrimary,
+      mapillaryImages,
+      errorTags,
+      skipCount,
+      archived
+    )
+
   implicit object TaskFormat extends Format[Task] {
     override def writes(o: Task): JsValue = {
       implicit val mapillaryWrites: Writes[MapillaryImage] = Json.writes[MapillaryImage]
       implicit val reviewWrites: Writes[TaskReviewFields]  = Json.writes[TaskReviewFields]
-      implicit val taskWrites: Writes[Task]                = Json.writes[Task]
-      var original                                         = Json.toJson(o)(Json.writes[Task])
-      var updatedLocation = o.location match {
-        case Some(l) => Utils.insertIntoJson(original, "location", Json.parse(l), true)
-        case None    => original
-      }
-
-      original = Utils.insertIntoJson(updatedLocation, "geometries", Json.parse(o.geometries), true)
-      var updated = o.cooperativeWork match {
-        case Some(cw) => Utils.insertIntoJson(original, "cooperativeWork", Json.parse(cw), true)
-        case None     => original
-      }
+      implicit val taskWrites: Writes[Task]                = Writes(taskObjectWrites)
+      var updated                                          = Json.toJson(o)(taskWrites)
 
       // Move review fields up to top level
       updated = o.review.reviewStatus match {
-        case Some(r) => {
-          Utils.insertIntoJson(updated, "reviewStatus", r, true)
-        }
-        case None => updated
+        case Some(r) => Utils.insertIntoJson(updated, "reviewStatus", r, true)
+        case None    => updated
       }
       updated = o.review.reviewRequestedBy match {
         case Some(r) => Utils.insertIntoJson(updated, "reviewRequestedBy", r, true)
@@ -168,10 +246,8 @@ object Task extends CommonField {
         case None    => updated
       }
       updated = o.review.metaReviewStatus match {
-        case Some(r) => {
-          Utils.insertIntoJson(updated, "metaReviewStatus", r, true)
-        }
-        case None => updated
+        case Some(r) => Utils.insertIntoJson(updated, "metaReviewStatus", r, true)
+        case None    => updated
       }
       updated = o.review.metaReviewedBy match {
         case Some(r) => Utils.insertIntoJson(updated, "metaReviewedBy", r, true)
@@ -194,7 +270,7 @@ object Task extends CommonField {
         case None    => updated
       }
 
-      Utils.insertIntoJson(updated, "geometries", Json.parse(o.geometries), true)
+      updated
     }
 
     override def reads(json: JsValue): JsResult[Task] = {
@@ -202,7 +278,13 @@ object Task extends CommonField {
       implicit val reviewReads: Reads[TaskReviewFields]  = Json.reads[TaskReviewFields]
 
       val jsonWithReview = Utils.insertIntoJson(json, "review", Map[String, String](), false)
-      Json.fromJson[Task](jsonWithReview)(Json.reads[Task])
+      // `skipCount` and `archived` are server-managed columns that default to 0 / false
+      // on first insert. Insert the defaults here so older clients (and existing
+      // POST bodies) that don't supply these fields still parse cleanly.
+      val withSkipDefault = Utils.insertIntoJson(jsonWithReview, "skipCount", 0, false)
+      val withArchivedDefault =
+        Utils.insertIntoJson(withSkipDefault, "archived", false, false)
+      taskObjectReads(withArchivedDefault)
     }
   }
 
@@ -386,5 +468,5 @@ object Task extends CommonField {
     }
 
   def emptyTask(parentId: Long): Task =
-    Task(-1, "", DateTime.now(), DateTime.now(), parentId, Some(""), None, "")
+    Task(-1, "", DateTime.now(), DateTime.now(), parentId, Some(""), None, Json.obj())
 }
