@@ -323,6 +323,9 @@ class TaskDAL @Inject() (
   )(implicit id: Long, c: Option[Connection] = None): Option[Task] = {
     this.permission.hasObjectWriteAccess(element, user)
     validateGeoJson(element.geometries)
+    // Add type: FeatureCollection (some legacy clients omit it, but we want
+    // to make sure GeoJSONs we store in the database are well formed and valid).
+    val geoJson = element.geometries + ("type" -> JsString("FeatureCollection"))
     // get the parent challenge, as we need the priority information
     val parentChallenge = this.manager.challenge.retrieveById(element.parent) match {
       case Some(c) => c
@@ -340,7 +343,7 @@ class TaskDAL @Inject() (
     }(id, true, true)
     this.withMRTransaction { implicit c =>
       val result =
-        extractCooperativeWork(element.parent, element.geometries, element.cooperativeWork)
+        extractCooperativeWork(element.parent, geoJson, element.cooperativeWork)
       val geometries      = result._1
       var cooperativeWork = result._2
 
@@ -430,8 +433,11 @@ class TaskDAL @Inject() (
     * a 4xx response back to the client.
     */
   private def validateGeoJson(json: JsObject): Unit = {
-    (json \ "type").asOpt[String] match {
-      case Some("FeatureCollection") => // ok
+    (json \ "type").toOption match {
+      // Some legacy clients omit 'type' on the FeatureCollection; let's be
+      // nice to them and normalize it for them instead of returning 400
+      case None                                => // ok
+      case Some(JsString("FeatureCollection")) => // ok
       case _ =>
         throw new InvalidException("Task GeoJSON must have type 'FeatureCollection'")
     }
