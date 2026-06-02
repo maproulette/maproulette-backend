@@ -322,6 +322,7 @@ class TaskDAL @Inject() (
       user: User
   )(implicit id: Long, c: Option[Connection] = None): Option[Task] = {
     this.permission.hasObjectWriteAccess(element, user)
+    validateGeoJson(element.geometries)
     // get the parent challenge, as we need the priority information
     val parentChallenge = this.manager.challenge.retrieveById(element.parent) match {
       case Some(c) => c
@@ -420,6 +421,41 @@ class TaskDAL @Inject() (
       val updatedElement = element.copy(id = updatedTaskId)
       this.cacheManager.cache.remove(updatedTaskId)
       Some(updatedElement)
+    }
+  }
+
+  /**
+    * Ensure that the given JSON object is a valid and non-empty GeoJSON
+    * FeatureCollection. Raises an error if not, which will be sent as
+    * a 4xx response back to the client.
+    */
+  private def validateGeoJson(json: JsObject): Unit = {
+    (json \ "type").asOpt[String] match {
+      case Some("FeatureCollection") => // ok
+      case _ =>
+        throw new InvalidException("Task GeoJSON must have type 'FeatureCollection'")
+    }
+    val features = (json \ "features").toOption match {
+      case Some(JsArray(arr)) => arr
+      case _ =>
+        throw new InvalidException("Task GeoJSON must contain a 'features' array")
+    }
+    if (features.isEmpty) {
+      throw new InvalidException("Task GeoJSON 'features' array must not be empty")
+    }
+    features.zipWithIndex.foreach {
+      case (feature: JsObject, i) =>
+        (feature \ "geometry").toOption match {
+          case Some(_: JsObject) => // ok
+          case _ =>
+            throw new InvalidException(
+              s"Task GeoJSON feature at index $i must have a 'geometry' field"
+            )
+        }
+      case (_, i) =>
+        throw new InvalidException(
+          s"Task GeoJSON feature at index $i must be a JSON object"
+        )
     }
   }
 
