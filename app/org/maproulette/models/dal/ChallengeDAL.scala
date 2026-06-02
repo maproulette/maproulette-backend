@@ -1226,7 +1226,7 @@ class ChallengeDAL @Inject() (
   )(implicit id: Long, c: Option[Connection] = None): List[Task] = {
     // add a child caching option that will keep a list of children for the parent
     this.withMRConnection { implicit c =>
-      val geometryParser = this.taskRepository.getTaskParser(this.taskRepository.updateAndRetrieve)
+      val geometryParser = this.taskRepository.getTaskParser()
       val offset         = page * limit;
       val query =
         s"""SELECT ${taskDAL.retrieveColumns}

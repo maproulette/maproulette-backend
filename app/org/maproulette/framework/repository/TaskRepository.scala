@@ -5,7 +5,7 @@
 
 package org.maproulette.framework.repository
 
-import anorm.SqlParser.{get, scalar, str}
+import anorm.SqlParser.scalar
 import anorm.ToParameterValue
 import anorm._, postgresql._
 import javax.inject.{Inject, Singleton}
@@ -43,35 +43,9 @@ class TaskRepository @Inject() (override val db: Database, config: Config)
           "WHERE tasks.id = {id}"
         SQL(query)
           .on(Symbol("id") -> id)
-          .as(this.getTaskParser(this.updateAndRetrieve).singleOpt)
+          .as(this.getTaskParser().singleOpt)
       }
     }(id)
-  }
-
-  /**
-    * Allows us to lazy update the geojson data
-    *
-    * @param taskId The identifier of the task
-    */
-  def updateAndRetrieve(
-      taskId: Long,
-      geojson: Option[String],
-      location: Option[String],
-      cooperativeWork: Option[String]
-  ): (String, Option[String], Option[String]) = {
-    geojson match {
-      case Some(g) => (g, location, cooperativeWork)
-      case None =>
-        this.withMRTransaction { implicit c =>
-          SQL("SELECT * FROM update_geometry({id})")
-            .on(Symbol("id") -> taskId)
-            .as((str("geo") ~ get[Option[String]]("loc") ~ get[Option[String]]("fix_geo")).*)
-            .headOption match {
-            case Some(values) => (values._1._1, values._1._2, values._2)
-            case None         => throw new Exception("Failed to retrieve task data")
-          }
-        }
-    }
   }
 
   /**
