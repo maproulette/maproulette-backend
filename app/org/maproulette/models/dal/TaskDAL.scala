@@ -35,7 +35,7 @@ import play.api.libs.json.JodaReads._
 import play.api.libs.json._
 import play.api.libs.ws.WSClient
 
-import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.{Future, Promise}
 import scala.util.control.Exception.allCatch
 import scala.util.{Failure, Success, Try}
