@@ -1959,11 +1959,6 @@ class ChallengeController @Inject() (
                 this.dal.updateTaskPriorities(user, overrideValidation = true)(id)
               this.dalManager.task.clearCaches
               this.dal.clearCaches
-              // Surface an honest receipt of what the recompute did. `tasksWritten`
-              // is the net change in the task count at each tier (post minus pre):
-              // positive means tasks were promoted into the tier, negative means
-              // tasks left it. All zeros means the distribution didn't shift —
-              // either nothing matched, or movements perfectly offset.
               val postCounts: Map[Int, Long] = this.dal.countTasksByPriority(id)
               val highCount: Long            = postCounts.getOrElse(Challenge.PRIORITY_HIGH, 0L)
               val mediumCount: Long          = postCounts.getOrElse(Challenge.PRIORITY_MEDIUM, 0L)
