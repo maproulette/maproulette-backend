@@ -1401,48 +1401,6 @@ class ChallengeDAL @Inject() (
   }
 
   /**
-    * Dry-run `updateTaskPriorities`: computes, but does NOT persist, the priority
-    * that every task in the challenge would receive under the supplied draft
-    * priority config. Used by the editor preview so the UI can show tier
-    * membership that is byte-for-byte consistent with what a subsequent save
-    * would write — including rule-based matches, which the frontend can't
-    * evaluate because it doesn't ship per-task OSM tags.
-    */
-  def previewTaskPriorities(
-      user: User,
-      draft: ChallengePriority
-  )(implicit id: Long, c: Option[Connection] = None): Map[Long, Int] = {
-    this.permission.hasWriteAccess(ChallengeType(), user)
-    this.withMRConnection { implicit c =>
-      val persisted = this._retrieveById(caching = false) match {
-        case Some(c) => c
-        case None =>
-          throw new NotFoundException(
-            s"Could not preview priorities — no challenge with id $id found."
-          )
-      }
-      // Splice the draft priority config onto a copy of the persisted challenge
-      // so `task.getTaskPriority` sees the user's in-progress rules/bounds
-      // while still reading tasks from the live DB.
-      val draftChallenge           = persisted.copy(priority = draft)
-      val result                   = scala.collection.mutable.LongMap[Int]()
-      var pointer                  = 0
-      var currentTasks: List[Task] = List.empty
-      do {
-        currentTasks = listChildren(DEFAULT_NUM_CHILDREN_LIST, pointer)
-        currentTasks.foreach { task =>
-          val p =
-            try task.getTaskPriority(draftChallenge)
-            catch { case _: Exception => task.priority }
-          result.put(task.id, p)
-        }
-        pointer += 1
-      } while (currentTasks.size >= DEFAULT_NUM_CHILDREN_LIST)
-      result.toMap
-    }
-  }
-
-  /**
     * Lists the children of the parent, override the base functionality and includes the geojson
     * as part of the query so that it doesn't have to fetch it each and every time.
     *
