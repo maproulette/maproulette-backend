@@ -103,6 +103,61 @@ class CommentRepository @Inject() (override val db: Database) extends Repository
   }
 
   /**
+    * Searches task comments by a search term, scoped to comments the requesting
+    * user authored or comments on challenges the user owns. Callers must supply
+    * the authenticated user's ids; there is no unscoped variant.
+    *
+    * @param searchTerm The term to search within the comments
+    * @param userId The requesting user's internal id (matches challenges.owner_id)
+    * @param userOsmId The requesting user's OSM id (matches task_comments.osm_id)
+    * @param limit The maximum number of comments to return
+    * @param page The page number for pagination
+    * @return A list of matching Comments
+    */
+  def searchComments(
+      searchTerm: String,
+      userId: Long,
+      userOsmId: Long,
+      limit: Int = 25,
+      page: Int = 0
+  )(implicit c: Option[Connection] = None): List[Comment] = {
+    withMRConnection { implicit c =>
+      val searchFilter =
+        if (searchTerm.nonEmpty) "AND task_comments.comment ILIKE {searchTerm}"
+        else ""
+      val query =
+        s"""
+        SELECT task_comments.id, task_comments.osm_id, users.name, users.avatar_url,
+        task_comments.task_id, task_comments.challenge_id, task_comments.project_id,
+        task_comments.created, task_comments.comment, task_comments.action_id, task_comments.edited
+        FROM task_comments
+        INNER JOIN users ON users.osm_id = task_comments.osm_id
+        WHERE (
+          task_comments.osm_id = {userOsmId}
+          OR EXISTS (
+            SELECT 1 FROM challenges ch
+            WHERE ch.id = task_comments.challenge_id AND ch.owner_id = {userId}
+          )
+        )
+        $searchFilter
+        ORDER BY task_comments.created DESC
+        LIMIT {limit}
+        OFFSET {offset}
+        """
+
+      SQL(query)
+        .on(
+          "searchTerm" -> s"%$searchTerm%",
+          "userId"     -> userId,
+          "userOsmId"  -> userOsmId,
+          "limit"      -> limit,
+          "offset"     -> (limit * page).toLong
+        )
+        .as(CommentRepository.parser.*)
+    }
+  }
+
+  /**
     * Add comment to a task
     *
     * @param user     The user adding the comment

@@ -115,6 +115,13 @@ class Scheduler @Inject() (
     Config.KEY_SCHEDULER_UPDATE_CHALLENGE_COMPLETION_INTERVAL
   )
 
+  schedule(
+    "rebuildDirtyTileCells",
+    "Rebuilding Dirty Tile Cells",
+    30.seconds,
+    Config.KEY_SCHEDULER_REBUILD_DIRTY_TILE_CELLS_INTERVAL
+  )
+
   scheduleAtTime(
     "sendCountNotificationDailyEmails",
     "Sending Count Notification Daily Emails",

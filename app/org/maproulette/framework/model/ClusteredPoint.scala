@@ -5,7 +5,7 @@
 package org.maproulette.framework.model
 
 import org.joda.time.DateTime
-import play.api.libs.json.{JsValue, Json, Reads, Writes}
+import play.api.libs.json.{JsObject, Json, Reads, Writes}
 import play.api.libs.json.JodaWrites._
 import play.api.libs.json.JodaReads._
 
@@ -56,7 +56,7 @@ case class ClusteredPoint(
     parentId: Long,
     parentName: String,
     point: Point,
-    bounding: JsValue,
+    bounding: JsObject,
     blurb: String,
     modified: DateTime,
     difficulty: Int,

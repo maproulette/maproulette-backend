@@ -1,5 +1,6 @@
 ###
 # tags: [ Follow ]
+# operationId: follow_get_users_being_followed_by_a_user
 # summary: Get users being followed by a user
 # description: Get users being followed by a user
 # responses:
@@ -19,6 +20,7 @@ GET    /user/:userId/following                      @org.maproulette.framework.c
 
 ###
 # tags: [ Follow ]
+# operationId: follow_get_users_following_a_user
 # summary: Get users following a user
 # description: Get users following a user
 # responses:
@@ -38,6 +40,7 @@ GET    /user/:userId/followers                      @org.maproulette.framework.c
 
 ###
 # tags: [ Follow ]
+# operationId: follow_follow_a_user
 # summary: Follow a user
 # description: Begin following a user's MapRoulette activity
 # responses:
@@ -57,6 +60,7 @@ POST    /user/:userId/follow                        @org.maproulette.framework.c
 
 ###
 # tags: [ Follow ]
+# operationId: follow_stop_following_a_user
 # summary: Stop following a user
 # description: Stop following a user's MapRoulette activity
 # responses:
@@ -76,6 +80,7 @@ DELETE /user/:userId/follow                         @org.maproulette.framework.c
 
 ###
 # tags: [ Follow ]
+# operationId: follow_block_a_follower
 # summary: Block a follower
 # description: Prevent a user from following this user
 # responses:
@@ -95,6 +100,7 @@ POST    /user/:userId/block                         @org.maproulette.framework.c
 
 ###
 # tags: [ Follow ]
+# operationId: follow_stop_blocking_a_follower
 # summary: Stop blocking a follower
 # description: Remove block preventing a user from following this user
 # responses:

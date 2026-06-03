@@ -17,7 +17,7 @@ import org.maproulette.framework.psql.{Query, SQLUtils}
 import org.maproulette.framework.service.{GrantService, ServiceManager}
 import org.maproulette.models.dal.ChallengeDAL
 import play.api.db.Database
-import play.api.libs.json.{JsResultException, Json}
+import play.api.libs.json.{JsObject, JsResultException, Json}
 
 import java.sql.Connection
 import javax.inject.{Inject, Singleton}
@@ -134,7 +134,7 @@ class UserRepository @Inject() (
           Symbol("isReviewer")               -> user.settings.isReviewer,
           Symbol("theme")                    -> user.settings.theme,
           Symbol("allowFollowing")           -> user.settings.allowFollowing,
-          Symbol("properties")               -> user.properties,
+          Symbol("properties")               -> user.properties.map(Json.stringify),
           Symbol("seeTagFixSuggestions")     -> user.settings.seeTagFixSuggestions,
           Symbol("disableTaskConfirm")       -> user.settings.disableTaskConfirm,
           Symbol("showPriorityMarkerColors") -> user.settings.showPriorityMarkerColors
@@ -519,13 +519,14 @@ object UserRepository {
       get[Option[Long]]("users.followers_group") ~
       get[Option[Boolean]]("users.see_tag_fix_suggestions") ~
       get[Option[Boolean]]("users.disable_task_confirm") ~
-      get[Option[Boolean]]("users.show_priority_marker_colors") map {
+      get[Option[Boolean]]("users.show_priority_marker_colors") ~
+      get[Option[String]]("users.plugins").? map {
       case id ~ osmId ~ created ~ modified ~ osmCreated ~ displayName ~ description ~ avatarURL ~
             homeLocation ~ apiKey ~ oauthToken ~ defaultEditor ~ defaultBasemap ~
             defaultBasemapId ~ customBasemapList ~
             email ~ emailOptIn ~ leaderboardOptOut ~ needsReview ~ isReviewer ~ locale ~ theme ~
             properties ~ score ~ achievements ~ allowFollowing ~ followingGroupId ~ followersGroupId ~
-            seeTagFixSuggestions ~ disableTaskConfirm ~ showPriorityMarkerColors =>
+            seeTagFixSuggestions ~ disableTaskConfirm ~ showPriorityMarkerColors ~ plugins =>
         val locationWKT = homeLocation match {
           case Some(wkt) => new WKTReader().read(wkt).asInstanceOf[Point]
           case None      => new GeometryFactory().createPoint(new Coordinate(0, 0))
@@ -573,9 +574,10 @@ object UserRepository {
             customBasemaps,
             seeTagFixSuggestions,
             disableTaskConfirm,
-            showPriorityMarkerColors
+            showPriorityMarkerColors,
+            plugins.flatten
           ),
-          properties,
+          properties.map(Json.parse(_).as[JsObject]),
           score,
           followingGroupId,
           followersGroupId,

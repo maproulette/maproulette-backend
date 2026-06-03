@@ -14,6 +14,7 @@ import org.maproulette.framework.model._
 import org.maproulette.framework.psql._
 import org.maproulette.framework.psql.filter._
 import org.maproulette.framework.repository.{ChallengeRepository, ProjectRepository}
+import anorm._
 import org.maproulette.permissions.Permission
 import org.maproulette.session.SearchParameters
 import org.slf4j.LoggerFactory
@@ -236,6 +237,69 @@ class ProjectService @Inject() (
       order = order
     )
     this.query(query)
+  }
+
+  def search(
+      search: String,
+      limit: Int = 25,
+      onlyEnabled: Boolean = false
+  ): List[Project] = {
+    val isNumeric     = search.matches("^\\d+$")
+    val searchLong    = if (isNumeric) Some(search.toLong) else None
+    val searchPattern = if (search.nonEmpty) s"%$search%" else "%"
+    val enabledClause = if (onlyEnabled) "enabled = true AND " else ""
+
+    repository.withMRConnection { implicit c =>
+      val parser = ProjectRepository.parser(id =>
+        this.serviceManager.grant.retrieveGrantsOn(GrantTarget.project(id), User.superUser)
+      )
+
+      if (isNumeric && searchLong.isDefined) {
+        SQL(
+          s"SELECT * FROM projects WHERE id = {id}${if (onlyEnabled) " AND enabled = true" else ""}"
+        ).on("id" -> searchLong.get)
+          .as(parser.*)
+      } else if (search.nonEmpty) {
+        SQL(s"""SELECT * FROM projects
+              WHERE ${enabledClause}(
+              LOWER(name) LIKE LOWER({search})
+              OR LOWER(display_name) LIKE LOWER({search})
+              OR (name <> '' AND octet_length(LEFT(name, 255)) <= 255 AND octet_length({exact}) <= 255 AND (
+                LEVENSHTEIN(LOWER(LEFT(name, 255)), LOWER(LEFT({exact}, 255))) < 3 OR
+                METAPHONE(LOWER(LEFT(name, 255)), 4) = METAPHONE(LOWER(LEFT({exact}, 255)), 4)
+              ))
+              OR (name <> '' AND SOUNDEX(LOWER(name)) = SOUNDEX(LOWER({exact})))
+              OR (display_name <> '' AND octet_length(LEFT(display_name, 255)) <= 255 AND octet_length({exact}) <= 255 AND (
+                LEVENSHTEIN(LOWER(LEFT(display_name, 255)), LOWER(LEFT({exact}, 255))) < 3 OR
+                METAPHONE(LOWER(LEFT(display_name, 255)), 4) = METAPHONE(LOWER(LEFT({exact}, 255)), 4)
+              ))
+              OR (display_name <> '' AND SOUNDEX(LOWER(display_name)) = SOUNDEX(LOWER({exact})))
+              )
+              ORDER BY
+                CASE
+                  WHEN LOWER(name) = LOWER({exact}) OR LOWER(display_name) = LOWER({exact}) THEN 0
+                  WHEN LOWER(name) LIKE LOWER({prefix}) OR LOWER(display_name) LIKE LOWER({prefix}) THEN 1
+                  WHEN LOWER(name) LIKE LOWER({search}) OR LOWER(display_name) LIKE LOWER({search}) THEN 2
+                  ELSE LEAST(
+                    CASE WHEN name <> '' AND octet_length(LEFT(name, 255)) <= 255 AND octet_length({exact}) <= 255
+                         THEN LEVENSHTEIN(LOWER(LEFT(name, 255)), LOWER(LEFT({exact}, 255))) ELSE 999 END,
+                    CASE WHEN display_name <> '' AND octet_length(LEFT(display_name, 255)) <= 255 AND octet_length({exact}) <= 255
+                         THEN LEVENSHTEIN(LOWER(LEFT(display_name, 255)), LOWER(LEFT({exact}, 255))) ELSE 999 END
+                  ) + 3
+                END ASC,
+                name ASC
+              LIMIT {limit}""")
+          .on(
+            "search" -> searchPattern,
+            "exact"  -> search,
+            "prefix" -> (search + "%"),
+            "limit"  -> limit
+          )
+          .as(parser.*)
+      } else {
+        List.empty
+      }
+    }
   }
 
   /**

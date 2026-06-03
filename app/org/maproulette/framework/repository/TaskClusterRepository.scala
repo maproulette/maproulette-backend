@@ -11,17 +11,27 @@ import anorm.~
 import anorm._
 import anorm.SqlParser.{get, int, str}
 import javax.inject.{Inject, Singleton}
-import org.maproulette.session.SearchParameters
+import org.maproulette.session.{SearchParameters, SearchLocation}
 import org.maproulette.framework.psql.{Query, Order, Paging}
-import org.maproulette.framework.model.{ClusteredPoint, Point, TaskCluster}
+import org.maproulette.framework.model.{
+  ClusteredPoint,
+  OverlappingTaskMarker,
+  Point,
+  TaskCluster,
+  TaskClusterSummary,
+  TaskMarker,
+  TaskMarkerLocation
+}
 import play.api.db.Database
 import play.api.libs.json._
 
 import org.maproulette.models.dal.ChallengeDAL
 
 @Singleton
-class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: ChallengeDAL)
-    extends RepositoryMixin {
+class TaskClusterRepository @Inject() (
+    override val db: Database,
+    challengeDAL: ChallengeDAL
+) extends RepositoryMixin {
   implicit val baseTable: String = "tasks"
 
   val DEFAULT_NUMBER_OF_POINTS = 100
@@ -202,6 +212,83 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
     }
   }
 
+  /**
+    * Simple query for challenge tasks in a bounding box with pagination
+    *
+    * @param bounds       The bounding box to search within
+    * @param challengeIds List of challenge IDs to filter by (optional)
+    * @param limit        Maximum number of results per page
+    * @param offset       Offset for pagination
+    * @return Tuple of (total count, list of tasks)
+    */
+  def queryChallengeTasksInBounds(
+      bounds: Option[SearchLocation],
+      challengeIds: Option[List[Long]],
+      limit: Int,
+      offset: Int
+  ): (Int, List[ClusteredPoint]) = {
+    this.withMRTransaction { implicit c =>
+      var whereConditions = List(
+        "c.deleted = false",
+        "c.enabled = true",
+        "c.is_archived = false",
+        "tasks.location IS NOT NULL"
+      )
+
+      // Add bounding box filter
+      bounds.foreach { b =>
+        whereConditions = whereConditions :+
+          s"ST_Intersects(tasks.location, ST_MakeEnvelope(${b.left}, ${b.bottom}, ${b.right}, ${b.top}, 4326))"
+      }
+
+      // Add challenge ID filter
+      challengeIds.foreach { ids =>
+        if (ids.nonEmpty) {
+          whereConditions = whereConditions :+ s"c.id IN (${ids.mkString(",")})"
+        }
+      }
+
+      val whereClause = whereConditions.mkString(" AND ")
+
+      // Count query
+      val countQuery = s"""
+        SELECT COUNT(DISTINCT tasks.id) as count
+        FROM tasks
+        INNER JOIN challenges c ON c.id = tasks.parent_id
+        WHERE $whereClause
+      """
+      val count      = SQL(countQuery).as(int("count").single)
+
+      // Data query with pagination
+      val dataQuery = s"""
+        SELECT tasks.id, tasks.name, tasks.parent_id, c.name, tasks.instruction, tasks.status, 
+               tasks.mapped_on, tasks.completed_time_spent, tasks.completed_by,
+               tasks.bundle_id, tasks.is_bundle_primary, tasks.cooperative_work_json::TEXT as cooperative_work,
+               NULL::INTEGER as "task_review.review_status",
+               NULL::BIGINT as "task_review.review_requested_by",
+               NULL::BIGINT as "task_review.reviewed_by",
+               NULL::TIMESTAMP as "task_review.reviewed_at",
+               NULL::TIMESTAMP as "task_review.review_started_at",
+               NULL::BIGINT[] as "task_review.additional_reviewers",
+               NULL::INTEGER as "task_review.meta_review_status",
+               NULL::BIGINT as "task_review.meta_reviewed_by",
+               NULL::TIMESTAMP as "task_review.meta_reviewed_at",
+               ST_AsGeoJSON(tasks.location) AS location, 
+               tasks.priority, 
+               l.user_id as locked_by
+        FROM tasks
+        INNER JOIN challenges c ON c.id = tasks.parent_id
+        LEFT JOIN locked l ON l.item_id = tasks.id AND l.item_type = 2
+        WHERE $whereClause
+        ORDER BY tasks.id
+        LIMIT $limit OFFSET $offset
+      """
+      val results   = SQL(dataQuery).as(this.pointParser.*)
+
+      (count, results)
+    }
+  }
+
   private def getTaskClusterParser(params: SearchParameters): anorm.RowParser[Serializable] = {
     int("kmeans") ~ int("numberOfPoints") ~ get[Option[Long]]("taskId") ~
       get[Option[Int]]("taskStatus") ~ get[Option[Int]]("taskPriority") ~ get[Option[String]](
@@ -222,13 +309,432 @@ class TaskClusterRepository @Inject() (override val db: Database, challengeDAL: 
             taskPriority,
             params,
             point,
-            Json.parse(bounding),
+            Json.parse(bounding).as[JsObject],
             challengeIds,
-            geojson.map(Json.parse(_))
+            geojson.map(Json.parse(_).as[JsObject])
           )
         } else {
           None
         }
     }
   }
+
+  private def getTaskClusterSummaryParser(): anorm.RowParser[Serializable] = {
+    int("kmeans") ~ int("numberOfPoints") ~ get[Option[Long]]("taskId") ~
+      get[Option[Int]]("taskStatus") ~
+      str("geom") ~ str("bounding") map {
+      case kmeans ~ totalPoints ~ taskId ~ taskStatus ~ geom ~ bounding =>
+        val locationJSON = Json.parse(geom)
+        val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
+        // Let's check to make sure we received valid number of coordinates.
+        if (coordinates.length > 1) {
+          val point = Point(coordinates(1), coordinates.head)
+          TaskClusterSummary(
+            kmeans,
+            totalPoints,
+            taskId,
+            taskStatus,
+            point,
+            Json.parse(bounding).as[JsObject]
+          )
+        } else {
+          None
+        }
+    }
+  }
+
+  /**
+    * Queries task markers
+    *
+    * @param statuses List of task status filters
+    * @param global   Whether to include global challenges
+    * @return List of task markers
+    */
+  def queryTaskMarkers(
+      statuses: List[Int],
+      global: Boolean
+  ): List[TaskMarker] = {
+    // Use a global bounding box covering the entire world
+    val worldBoundingBox = SearchLocation(-180.0, -90.0, 180.0, 90.0)
+    this.queryTaskMarkersWithBoundingBox(statuses, global, worldBoundingBox)
+  }
+
+  def queryTaskMarkersClustered(
+      statuses: List[Int],
+      global: Boolean,
+      boundingBox: SearchLocation,
+      keywords: Option[String] = None,
+      difficulty: Option[Int] = None
+  ): List[TaskClusterSummary] = {
+    this.withMRTransaction { implicit c =>
+      val left       = boundingBox.left
+      val bottom     = boundingBox.bottom
+      val right      = boundingBox.right
+      val top        = boundingBox.top
+      val statusList = statuses.mkString(",")
+
+      val keywordList   = parseKeywords(keywords)
+      val keywordParams = keywordNamedParameters(keywordList)
+
+      // Build joins for keywords filtering if keywords are provided
+      val joins = if (keywordList.nonEmpty) {
+        " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id" +
+          " INNER JOIN tags tags_table ON toc.tag_id = tags_table.id"
+      } else ""
+
+      val query = s"""
+WITH eligible_challenges AS MATERIALIZED (
+  SELECT c.id
+  FROM challenges c
+  INNER JOIN projects p ON p.id = c.parent_id
+  ${joins}
+  WHERE c.deleted = false
+    AND c.enabled = true
+    AND c.is_archived = false
+    AND p.deleted = false
+    AND p.enabled = true
+    ${if (!global) "AND c.is_global = false" else ""}
+    ${difficulty.map(d => s"AND c.difficulty = $d").getOrElse("")}
+    ${keywordInClause("tags_table.name", keywordList)}
+),
+filtered_tasks AS MATERIALIZED (
+  SELECT DISTINCT
+    t.id AS taskId,
+    t.status AS taskStatus,
+    t.location AS taskLocation
+  FROM tasks t
+  WHERE t.parent_id IN (SELECT id FROM eligible_challenges)
+    AND t.location && ST_MakeEnvelope($left, $bottom, $right, $top, 4326)
+    ${if (statuses.nonEmpty) s"AND t.status IN ($statusList)" else ""}
+    AND t.location IS NOT NULL
+),
+cluster_input AS (
+  SELECT
+    *,
+    LEAST(COUNT(*) OVER (), 50) AS cluster_count
+  FROM filtered_tasks
+),
+task_clusters AS (
+  SELECT
+    *,
+    ST_ClusterKMeans(taskLocation, cluster_count::int) OVER () AS kmeans
+  FROM cluster_input
+)
+SELECT
+  kmeans,
+  COUNT(*) AS numberOfPoints,
+  CASE WHEN COUNT(*) = 1 THEN (ARRAY_AGG(taskId))[1] END AS taskId,
+  CASE WHEN COUNT(*) = 1 THEN (ARRAY_AGG(taskStatus))[1] END AS taskStatus,
+  ST_AsGeoJSON(ST_Centroid(ST_Collect(taskLocation))) AS geom,
+  ST_AsGeoJSON(ST_ConvexHull(ST_Collect(taskLocation))) AS bounding
+FROM task_clusters
+GROUP BY kmeans
+ORDER BY kmeans;
+"""
+      SQL(query)
+        .on(keywordParams: _*)
+        .as(this.getTaskClusterSummaryParser().*)
+        .filter(_ != None)
+        .asInstanceOf[List[TaskClusterSummary]]
+    }
+  }
+
+  /**
+    * Queries task markers with bounding box filtering
+    *
+    * @param statuses List of task status filters
+    * @param global   Whether to include global challenges
+    * @param boundingBox   Search parameters including bounding box
+    * @return List of task markers within the bounding box
+    */
+  def queryTaskMarkersWithBoundingBox(
+      statuses: List[Int],
+      global: Boolean,
+      boundingBox: SearchLocation,
+      keywords: Option[String] = None,
+      difficulty: Option[Int] = None
+  ): List[TaskMarker] = {
+    this.withMRTransaction { implicit c =>
+      val keywordList   = parseKeywords(keywords)
+      val keywordParams = keywordNamedParameters(keywordList)
+
+      var query =
+        """
+    SELECT DISTINCT tasks.id, ST_AsGeoJSON(tasks.location) AS location, tasks.status, tasks.priority,
+           tasks.bundle_id, l.user_id as locked_by
+        FROM tasks
+        INNER JOIN challenges c ON c.id = tasks.parent_id
+        INNER JOIN projects p ON p.id = c.parent_id
+        LEFT JOIN locked l ON l.item_id = tasks.id AND l.item_type = 2
+    """
+
+      // Add joins for keywords filtering if keywords are provided
+      if (keywordList.nonEmpty) {
+        query += " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id"
+        query += " INNER JOIN tags t ON toc.tag_id = t.id"
+      }
+
+      query += """
+        WHERE c.deleted = false
+        AND c.enabled = true
+        AND c.is_archived = false
+        AND p.deleted = false
+        AND p.enabled = true
+        AND tasks.location IS NOT NULL
+    """
+
+      if (!global) {
+        query += " AND c.is_global = false"
+      }
+
+      if (statuses.nonEmpty) {
+        query += s" AND tasks.status IN (${statuses.mkString(",")})"
+      }
+
+      // Filter by keywords if provided (bound as parameters, not interpolated)
+      if (keywordList.nonEmpty) {
+        query += " " + keywordInClause("t.name", keywordList)
+      }
+
+      // Filter by difficulty if provided
+      difficulty.foreach { diff =>
+        query += s" AND c.difficulty = $diff"
+      }
+
+      var left   = boundingBox.left
+      var bottom = boundingBox.bottom
+      var right  = boundingBox.right
+      var top    = boundingBox.top
+      query += s" AND ST_Intersects(tasks.location, ST_MakeEnvelope($left, $bottom, $right, $top, 4326))"
+
+      SQL(query)
+        .on(keywordParams: _*)
+        .as(
+          (int("id") ~ str("location") ~ int("status") ~ int("priority") ~ get[Option[Long]](
+            "bundle_id"
+          ) ~ get[Option[Long]]("locked_by")).map {
+            case id ~ location ~ status ~ priority ~ bundleId ~ lockedBy =>
+              val locationJSON = Json.parse(location)
+              val coordinates  = (locationJSON \ "coordinates").as[List[Double]]
+              TaskMarker(
+                id,
+                TaskMarkerLocation(coordinates(1), coordinates.head),
+                status,
+                priority,
+                bundleId,
+                lockedBy
+              )
+          }.*
+        )
+    }
+  }
+
+  /**
+    * Queries task markers with bounding box filtering and overlap detection.
+    * Uses PostGIS ST_ClusterDBSCAN to detect tasks at the same location.
+    *
+    * @param statuses List of task status filters
+    * @param global   Whether to include global challenges
+    * @param boundingBox   Search parameters including bounding box
+    * @param keywords Optional comma-separated list of keywords to filter by
+    * @param difficulty Optional difficulty level to filter by
+    * @return Tuple of (single task markers, overlapping task markers)
+    */
+  def queryTaskMarkersWithOverlaps(
+      statuses: List[Int],
+      global: Boolean,
+      boundingBox: SearchLocation,
+      keywords: Option[String] = None,
+      difficulty: Option[Int] = None
+  ): (List[TaskMarker], List[OverlappingTaskMarker]) = {
+    this.withMRTransaction { implicit c =>
+      val left       = boundingBox.left
+      val bottom     = boundingBox.bottom
+      val right      = boundingBox.right
+      val top        = boundingBox.top
+      val statusList = statuses.mkString(",")
+
+      val keywordList   = parseKeywords(keywords)
+      val keywordParams = keywordNamedParameters(keywordList)
+
+      // Build joins for keywords filtering if keywords are provided
+      val keywordJoins = if (keywordList.nonEmpty) {
+        " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id" +
+          " INNER JOIN tags tags_table ON toc.tag_id = tags_table.id"
+      } else ""
+
+      val keywordFilter = keywordInClause("tags_table.name", keywordList)
+
+      val difficultyFilter = difficulty.map(d => s"AND c.difficulty = $d").getOrElse("")
+
+      val globalFilter = if (!global) "AND c.is_global = false" else ""
+
+      val statusFilter = if (statuses.nonEmpty) s"AND tasks.status IN ($statusList)" else ""
+
+      // Use PostGIS ST_ClusterDBSCAN for efficient overlap detection
+      // eps = 0.000001 degrees (~0.1 meters), minpoints = 1 to include all points
+      val query = s"""
+        SELECT
+          tasks.id,
+          ST_Y(tasks.location) as lat,
+          ST_X(tasks.location) as lng,
+          tasks.status,
+          tasks.priority,
+          tasks.bundle_id,
+          l.user_id as locked_by,
+          ST_ClusterDBSCAN(tasks.location, eps := 0.000001, minpoints := 1) OVER () as cluster_id
+        FROM tasks
+        INNER JOIN challenges c ON c.id = tasks.parent_id
+        INNER JOIN projects p ON p.id = c.parent_id
+        LEFT JOIN locked l ON l.item_id = tasks.id AND l.item_type = 2
+        $keywordJoins
+        WHERE c.deleted = false
+          AND c.enabled = true
+          AND c.is_archived = false
+          AND p.deleted = false
+          AND p.enabled = true
+          AND tasks.location IS NOT NULL
+          AND ST_Intersects(tasks.location, ST_MakeEnvelope($left, $bottom, $right, $top, 4326))
+          $globalFilter
+          $statusFilter
+          $keywordFilter
+          $difficultyFilter
+      """
+
+      val allTasks = SQL(query)
+        .on(keywordParams: _*)
+        .as(
+          (get[Long]("id") ~ get[Double]("lat") ~ get[Double]("lng") ~ get[Int]("status") ~ get[
+            Int
+          ](
+            "priority"
+          ) ~ get[Option[Long]]("bundle_id") ~ get[Option[Long]]("locked_by") ~ get[Int](
+            "cluster_id"
+          )).map {
+            case taskId ~ lat ~ lng ~ status ~ priority ~ bundleId ~ lockedBy ~ clusterId =>
+              (
+                taskId,
+                TaskMarkerLocation(lat, lng),
+                status,
+                priority,
+                bundleId,
+                lockedBy,
+                clusterId
+              )
+          }.*
+        )
+
+      // Group by cluster_id
+      val clusters = allTasks.groupBy(_._7)
+
+      val singleMarkers     = scala.collection.mutable.ListBuffer[TaskMarker]()
+      val overlappingGroups = scala.collection.mutable.ListBuffer[OverlappingTaskMarker]()
+
+      clusters.values.foreach { clusterTasks =>
+        if (clusterTasks.length == 1) {
+          val (taskId, location, status, priority, bundleId, lockedBy, _) = clusterTasks.head
+          singleMarkers += TaskMarker(taskId, location, status, priority, bundleId, lockedBy)
+        } else {
+          val location = clusterTasks.head._2
+          val tasksInCluster = clusterTasks.map {
+            case (tId, tLoc, tStatus, tPriority, tBundleId, tLockedBy, _) =>
+              TaskMarker(tId, tLoc, tStatus, tPriority, tBundleId, tLockedBy)
+          }.toList
+          overlappingGroups += OverlappingTaskMarker(location, tasksInCluster)
+        }
+      }
+
+      (singleMarkers.toList, overlappingGroups.toList)
+    }
+  }
+
+  /**
+    * Counts task markers in the given bounding box
+    *
+    * @param statuses List of task status filters
+    * @param global   Whether to include global challenges
+    * @param boundingBox   Search parameters including bounding box
+    * @return Count of task markers
+    */
+  def queryCountTaskMarkers(
+      statuses: List[Int],
+      global: Boolean,
+      boundingBox: SearchLocation,
+      keywords: Option[String] = None,
+      difficulty: Option[Int] = None
+  ): Int = {
+    this.withMRTransaction { implicit c =>
+      val keywordList   = parseKeywords(keywords)
+      val keywordParams = keywordNamedParameters(keywordList)
+
+      var query =
+        """
+    SELECT COUNT(DISTINCT tasks.id) as count
+        FROM tasks
+        INNER JOIN challenges c ON c.id = tasks.parent_id
+        INNER JOIN projects p ON p.id = c.parent_id
+    """
+
+      // Add joins for keywords filtering if keywords are provided
+      if (keywordList.nonEmpty) {
+        query += " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id"
+        query += " INNER JOIN tags t ON toc.tag_id = t.id"
+      }
+
+      query += """
+        WHERE c.deleted = false
+        AND c.enabled = true
+        AND c.is_archived = false
+        AND p.deleted = false
+        AND p.enabled = true
+        AND tasks.location IS NOT NULL
+    """
+
+      if (!global) {
+        query += " AND c.is_global = false"
+      }
+
+      if (statuses.nonEmpty) {
+        query += s" AND tasks.status IN (${statuses.mkString(",")})"
+      }
+
+      // Filter by keywords if provided (bound as parameters, not interpolated)
+      if (keywordList.nonEmpty) {
+        query += " " + keywordInClause("t.name", keywordList)
+      }
+
+      // Filter by difficulty if provided
+      difficulty.foreach { diff =>
+        query += s" AND c.difficulty = $diff"
+      }
+
+      var left   = boundingBox.left
+      var bottom = boundingBox.bottom
+      var right  = boundingBox.right
+      var top    = boundingBox.top
+      query += s" AND ST_Intersects(tasks.location, ST_MakeEnvelope($left, $bottom, $right, $top, 4326))"
+
+      SQL(query).on(keywordParams: _*).as(int("count").single)
+    }
+  }
+
+  /** Split a comma-separated keyword string into normalized, non-empty terms. */
+  private def parseKeywords(keywords: Option[String]): List[String] =
+    keywords
+      .map(_.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty).toList)
+      .getOrElse(Nil)
+
+  /** Bound parameters (kw0, kw1, ...) for a parsed keyword list. */
+  private def keywordNamedParameters(keywordList: List[String]): Seq[NamedParameter] =
+    keywordList.zipWithIndex.map { case (kw, i) => NamedParameter(s"kw$i", kw) }
+
+  /**
+    * `AND LOWER(<column>) IN ({kw0}, {kw1}, ...)` clause for a parsed keyword
+    * list, or "" when empty. Values are bound (see keywordNamedParameters), not
+    * interpolated, so the keyword string cannot be a SQL-injection vector.
+    */
+  private def keywordInClause(column: String, keywordList: List[String]): String =
+    if (keywordList.isEmpty) ""
+    else
+      s"AND LOWER($column) IN (" + keywordList.indices.map(i => s"{kw$i}").mkString(", ") + ")"
 }

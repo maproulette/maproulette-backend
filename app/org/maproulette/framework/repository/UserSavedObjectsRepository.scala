@@ -227,4 +227,99 @@ class UserSavedObjectsRepository @Inject() (
         .execute()
     }
   }
+
+  /**
+    * Checks if a challenge is saved (favorited) by a user
+    *
+    * @param userId      The id of the user
+    * @param challengeId The id of the challenge
+    * @param c           The existing connection if any
+    * @return true if the challenge is saved by the user
+    */
+  def isChallengeSaved(userId: Long, challengeId: Long)(
+      implicit c: Option[Connection] = None
+  ): Boolean = {
+    this.withMRTransaction { implicit c =>
+      SQL(
+        s"""SELECT COUNT(*) FROM saved_challenges
+           |WHERE user_id = {uid} AND challenge_id = {cid}""".stripMargin
+      ).on(Symbol("uid") -> userId, Symbol("cid") -> challengeId)
+        .as(scalar[Long].single) > 0
+    }
+  }
+
+  /**
+    * Likes a challenge for the user
+    *
+    * @param userId      The id of the user
+    * @param challengeId the id of the challenge
+    * @param c           The existing connection if any
+    */
+  def likeChallenge(userId: Long, challengeId: Long)(
+      implicit c: Option[Connection] = None
+  ): Unit = {
+    this.withMRTransaction { implicit c =>
+      SQL(
+        s"""INSERT INTO challenge_likes (user_id, challenge_id)
+           | VALUES ({uid}, {cid}) ON
+           | CONFLICT (user_id, challenge_id) DO NOTHING""".stripMargin
+      ).on(Symbol("uid") -> userId, Symbol("cid") -> challengeId).executeInsert()
+    }
+  }
+
+  /**
+    * Unlikes a challenge from the users profile
+    *
+    * @param userId      The id of the user that has previously liked the challenge
+    * @param challengeId The id of the challenge to remove the like from
+    * @param c           The existing connection if any
+    */
+  def unlikeChallenge(userId: Long, challengeId: Long)(
+      implicit c: Option[Connection] = None
+  ): Unit = {
+    this.withMRTransaction { implicit c =>
+      SQL(
+        s"""DELETE FROM challenge_likes WHERE user_id = {uid} AND challenge_id = {cid}"""
+      ).on(Symbol("uid") -> userId, Symbol("cid") -> challengeId).execute()
+    }
+  }
+
+  /**
+    * Checks if a challenge is liked by a user
+    *
+    * @param userId      The id of the user
+    * @param challengeId The id of the challenge
+    * @param c           The existing connection if any
+    * @return true if the challenge is liked by the user
+    */
+  def isChallengeLiked(userId: Long, challengeId: Long)(
+      implicit c: Option[Connection] = None
+  ): Boolean = {
+    this.withMRTransaction { implicit c =>
+      SQL(
+        s"""SELECT COUNT(*) FROM challenge_likes
+           |WHERE user_id = {uid} AND challenge_id = {cid}""".stripMargin
+      ).on(Symbol("uid") -> userId, Symbol("cid") -> challengeId)
+        .as(scalar[Long].single) > 0
+    }
+  }
+
+  /**
+    * Gets the total like count for a challenge
+    *
+    * @param challengeId The id of the challenge
+    * @param c           The existing connection if any
+    * @return The total number of likes for the challenge
+    */
+  def getChallengeLikeCount(challengeId: Long)(
+      implicit c: Option[Connection] = None
+  ): Long = {
+    this.withMRTransaction { implicit c =>
+      SQL(
+        s"""SELECT COUNT(*) FROM challenge_likes
+           |WHERE challenge_id = {cid}""".stripMargin
+      ).on(Symbol("cid") -> challengeId)
+        .as(scalar[Long].single)
+    }
+  }
 }

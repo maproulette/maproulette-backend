@@ -11,7 +11,6 @@ import anorm.JodaParameterMetaData._
 import anorm.SqlParser._
 import anorm._
 import javax.inject.{Inject, Provider, Singleton}
-import org.apache.commons.lang3.StringUtils
 import org.joda.time.{DateTime, DateTimeZone}
 import org.locationtech.jts.geom.Envelope
 import org.maproulette.Config
@@ -70,7 +69,7 @@ class TaskDAL @Inject() (
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  val parser = this.getTaskParser(this.taskRepository.updateAndRetrieve)
+  val parser = this.getTaskParser()
 
   // The cache manager for that tasks
   override val cacheManager = this.taskRepository.cacheManager
@@ -196,9 +195,11 @@ class TaskDAL @Inject() (
             s"progression from ${cachedItem.status.getOrElse(0)} to $status not valid."
         )
       }
-      val priority                  = (value \ "priority").asOpt[Int].getOrElse(cachedItem.priority)
-      val geometries                = (value \ "geometries").asOpt[String].getOrElse(cachedItem.geometries)
-      val cooperativeWorkGeometries = (value \ "cooperativeWork").asOpt[String].getOrElse("")
+      val priority = (value \ "priority").asOpt[Int].getOrElse(cachedItem.priority)
+      val geometries: JsObject =
+        (value \ "geometries").asOpt[JsObject].getOrElse(cachedItem.geometries)
+      val cooperativeWork: Option[JsObject] =
+        (value \ "cooperativeWork").asOpt[JsObject]
       val changesetId =
         (value \ "changesetId").asOpt[Long].getOrElse(cachedItem.changesetId.getOrElse(-1L))
 
@@ -241,11 +242,7 @@ class TaskDAL @Inject() (
             reviewedAt = reviewedAt
           ),
           geometries = geometries,
-          cooperativeWork = if (StringUtils.isEmpty(cooperativeWorkGeometries)) {
-            None
-          } else {
-            Some(cooperativeWorkGeometries)
-          },
+          cooperativeWork = cooperativeWork,
           priority = priority,
           changesetId = Some(changesetId)
         ),
@@ -325,6 +322,10 @@ class TaskDAL @Inject() (
       user: User
   )(implicit id: Long, c: Option[Connection] = None): Option[Task] = {
     this.permission.hasObjectWriteAccess(element, user)
+    validateGeoJson(element.geometries)
+    // Add type: FeatureCollection (some legacy clients omit it, but we want
+    // to make sure GeoJSONs we store in the database are well formed and valid).
+    val geoJson = element.geometries + ("type" -> JsString("FeatureCollection"))
     // get the parent challenge, as we need the priority information
     val parentChallenge = this.manager.challenge.retrieveById(element.parent) match {
       case Some(c) => c
@@ -342,7 +343,7 @@ class TaskDAL @Inject() (
     }(id, true, true)
     this.withMRTransaction { implicit c =>
       val result =
-        extractCooperativeWork(element.parent, element.geometries, element.cooperativeWork)
+        extractCooperativeWork(element.parent, geoJson, element.cooperativeWork)
       val geometries      = result._1
       var cooperativeWork = result._2
 
@@ -427,6 +428,44 @@ class TaskDAL @Inject() (
   }
 
   /**
+    * Ensure that the given JSON object is a valid and non-empty GeoJSON
+    * FeatureCollection. Raises an error if not, which will be sent as
+    * a 4xx response back to the client.
+    */
+  private def validateGeoJson(json: JsObject): Unit = {
+    (json \ "type").toOption match {
+      // Some legacy clients omit 'type' on the FeatureCollection; let's be
+      // nice to them and normalize it for them instead of returning 400
+      case None                                => // ok
+      case Some(JsString("FeatureCollection")) => // ok
+      case _ =>
+        throw new InvalidException("Task GeoJSON must have type 'FeatureCollection'")
+    }
+    val features = (json \ "features").toOption match {
+      case Some(JsArray(arr)) => arr
+      case _ =>
+        throw new InvalidException("Task GeoJSON must contain a 'features' array")
+    }
+    if (features.isEmpty) {
+      throw new InvalidException("Task GeoJSON 'features' array must not be empty")
+    }
+    features.zipWithIndex.foreach {
+      case (feature: JsObject, i) =>
+        (feature \ "geometry").toOption match {
+          case Some(_: JsObject) => // ok
+          case _ =>
+            throw new InvalidException(
+              s"Task GeoJSON feature at index $i must have a 'geometry' field"
+            )
+        }
+      case (_, i) =>
+        throw new InvalidException(
+          s"Task GeoJSON feature at index $i must be a JSON object"
+        )
+    }
+  }
+
+  /**
     * Function that extracts the cooperativeWork from the geometries
     *
     * @param parentId     The parent Id of the challenge (for marking this challenge has fixes)
@@ -435,20 +474,19 @@ class TaskDAL @Inject() (
     */
   private def extractCooperativeWork(
       parentId: Long,
-      geometries: String,
-      cooperativeWork: Option[String]
+      geometries: JsObject,
+      cooperativeWork: Option[JsObject]
   )(
       implicit c: Option[Connection] = None
   ): (String, Option[String]) = {
     this.withMRTransaction { implicit c =>
-      var cooperativeWorkJson = cooperativeWork
+      var cooperativeWorkJson: Option[String] = cooperativeWork.map(Json.stringify)
 
-      val geoJson   = Json.parse(geometries)
-      var workMatch = (geoJson \\ "cooperativeWork")
+      var workMatch = (geometries \\ "cooperativeWork")
       if (workMatch.isEmpty) {
         // Check to see if our cooperative work JSON was changed into a string due
         // to being a feature property (which are always converted to strings)
-        val parentMatch = (geoJson \\ "maproulette")
+        val parentMatch = (geometries \\ "maproulette")
         if (!parentMatch.isEmpty) {
           workMatch = (Json.parse(Utils.unescapeStringifiedJSON(parentMatch.head.toString())) \\ "cooperativeWork")
         }
@@ -458,10 +496,10 @@ class TaskDAL @Inject() (
         cooperativeWorkJson = Some(workMatch.head.toString())
       }
 
-      val attachments   = (geoJson \ "attachments").toOption
+      val attachments   = (geometries \ "attachments").toOption
       val mrTransformer = (__ \ "properties" \ "maproulette").json.prune
       val extractedGeometries = JsArray(
-        (geoJson \ "features")
+        (geometries \ "features")
           .as[JsArray]
           .value
           .map {
@@ -891,7 +929,9 @@ class TaskDAL @Inject() (
                       true
                     } else {
                       val feature =
-                        GeoJSONFactory.create(task.geometries).asInstanceOf[FeatureCollection]
+                        GeoJSONFactory
+                          .create(Json.stringify(task.geometries))
+                          .asInstanceOf[FeatureCollection]
                       val reader   = new GeoJSONReader()
                       val envelope = new Envelope()
                       feature.getFeatures.foreach(f => {
@@ -998,6 +1038,7 @@ class TaskDAL @Inject() (
                       LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                       WHERE tasks.id > $currentTaskId AND tasks.parent_id = $parentId
                       AND status IN ({statusList})
+                      AND NOT tasks.archived
                       ORDER BY tasks.id ASC LIMIT 1"""
       val slist = statusList.getOrElse(Task.statusMap.keys.toSeq) match {
         case Nil => Task.statusMap.keys.toSeq
@@ -1012,6 +1053,7 @@ class TaskDAL @Inject() (
                               LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                               WHERE tasks.parent_id = $parentId
                               AND status IN ({statusList})
+                              AND NOT tasks.archived
                               ORDER BY tasks.id ASC LIMIT 1"""
           SQL(loopQuery).on(Symbol("statusList") -> slist).as(lp.*).headOption
       }
@@ -1042,6 +1084,7 @@ class TaskDAL @Inject() (
                       LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                       WHERE tasks.id < $currentTaskId AND tasks.parent_id = $parentId
                       AND status IN ({statusList})
+                      AND NOT tasks.archived
                       ORDER BY tasks.id DESC LIMIT 1"""
       val slist = statusList.getOrElse(Task.statusMap.keys.toSeq) match {
         case Nil => Task.statusMap.keys.toSeq
@@ -1057,6 +1100,7 @@ class TaskDAL @Inject() (
                               LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                               WHERE tasks.parent_id = $parentId
                               AND status IN ({statusList})
+                              AND NOT tasks.archived
                               ORDER BY tasks.id DESC LIMIT 1"""
           SQL(loopQuery).on(Symbol("statusList") -> slist).as(lp.*).headOption
       }
@@ -1165,7 +1209,8 @@ class TaskDAL @Inject() (
         }
         val whereClause = new StringBuilder(s"""WHERE tasks.parent_id = $challengeId AND
               (l.id IS NULL OR l.user_id = ${user.id}) AND
-              tasks.status IN ({statusList})
+              tasks.status IN ({statusList}) AND
+              NOT tasks.archived
             """)
         parameters += (Symbol("statusList") -> ToParameterValue
           .apply[List[Int]]
@@ -1261,10 +1306,10 @@ class TaskDAL @Inject() (
           parameters ++= addChallengeTagMatchingToQuery(params, whereClause, joinClause)
           parameters ++= addSearchToQuery(params, whereClause)
 
-          //add a where clause that just makes sure that any random challenge retrieved actually has some tasks in it
+          //add a where clause that just makes sure that any random challenge retrieved actually has some non-archived tasks in it
           appendInWhereClause(
             whereClause,
-            "1 = (SELECT 1 FROM tasks WHERE parent_id = c.id LIMIT 1)"
+            "1 = (SELECT 1 FROM tasks WHERE parent_id = c.id AND NOT archived LIMIT 1)"
           )
 
           val query =
@@ -1305,6 +1350,7 @@ class TaskDAL @Inject() (
             tasks.parent_id = $challengeId AND
             (l.id IS NULL ${selfLockedClause}) AND
             tasks.status IN (0, 3, 6) AND
+            NOT tasks.archived AND
             NOT tasks.id IN (
                 SELECT task_id FROM status_actions
                 WHERE osm_user_id = ${user.osmProfile.id} AND created >= NOW() - '1 hour'::INTERVAL)
@@ -1484,20 +1530,6 @@ class TaskDAL @Inject() (
     }
   }
 
-  /**
-    * A temporary solution that will allow us to lazy update the geojson data
-    *
-    * @param taskId The identifier of the task
-    */
-  def updateAndRetrieve(
-      taskId: Long,
-      geojson: Option[String],
-      location: Option[String],
-      cooperativeWork: Option[String]
-  )(implicit c: Option[Connection] = None): (String, Option[String], Option[String]) = {
-    this.taskRepository.updateAndRetrieve(taskId, geojson, location, cooperativeWork)
-  }
-
   case class TaskSummary(
       taskId: Long,
       parent: Long,
@@ -1520,6 +1552,58 @@ class TaskDAL @Inject() (
       bundleId: Option[Long],
       isBundlePrimary: Option[Boolean]
   )
+
+  /**
+    * Searches for tasks by name using ILIKE. Returns lightweight JSON results
+    * (no geometry data) for performance on large task tables.
+    *
+    * @param searchString The string to search for in task names
+    * @param limit The maximum number of results to return
+    * @return A list of JsObjects with task id, name, status, and parent challenge info
+    */
+  def search(
+      searchString: String,
+      limit: Int = 25
+  )(implicit c: Option[Connection] = None): List[JsObject] = {
+    if (searchString.isEmpty) {
+      List.empty
+    } else {
+      this.withMRConnection { implicit c =>
+        val searchPattern = s"%${searchString.replace("'", "''")}%"
+        val query =
+          """SELECT t.id, t.name, t.status, t.parent_id,
+                    c.name AS challenge_name
+             FROM tasks t
+             INNER JOIN challenges c ON c.id = t.parent_id
+             INNER JOIN projects p ON p.id = c.parent_id
+             WHERE c.deleted = false AND p.deleted = false
+             AND t.name ILIKE {search}
+             ORDER BY t.name ASC
+             LIMIT {limit}"""
+        SQL(query)
+          .on(
+            "search" -> searchPattern,
+            "limit"  -> limit
+          )
+          .as(
+            (get[Long]("id") ~
+              get[String]("name") ~
+              get[Option[Int]]("status") ~
+              get[Long]("parent_id") ~
+              get[String]("challenge_name")).map {
+              case id ~ name ~ status ~ parentId ~ challengeName =>
+                Json.obj(
+                  "id"            -> id,
+                  "name"          -> name,
+                  "status"        -> status,
+                  "parent"        -> parentId,
+                  "challengeName" -> challengeName
+                )
+            }.*
+          )
+      }
+    }
+  }
 
 }
 

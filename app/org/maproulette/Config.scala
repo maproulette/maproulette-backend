@@ -338,6 +338,10 @@ object Config {
     s"$SUB_GROUP_SCHEDULER.archiveChallenges.staleTimeInMonths"
   val KEY_SCHEDULER_UPDATE_CHALLENGE_COMPLETION_INTERVAL =
     s"$SUB_GROUP_SCHEDULER.updateChallengeCompletionMetrics.interval"
+  // Drains the dirty-cell queue and keeps the pre-computed tile pyramid fresh.
+  // Set to an empty string to disable (e.g. integration tests).
+  val KEY_SCHEDULER_REBUILD_DIRTY_TILE_CELLS_INTERVAL =
+    s"$SUB_GROUP_SCHEDULER.rebuildDirtyTileCells.interval"
   val KEY_SCHEDULER_NOTIFICATION_DIGEST_EMAIL_INTERVAL =
     s"$SUB_GROUP_SCHEDULER.notifications.digestEmail.interval"
   val KEY_SCHEDULER_NOTIFICATION_DIGEST_EMAIL_START =
@@ -348,12 +352,11 @@ object Config {
   val KEY_SCHEDULER_SNAPSHOT_CHALLENGES_INTERVAL =
     s"$SUB_GROUP_SCHEDULER.challengesSnapshot.interval"
   val KEY_SCHEDULER_SNAPSHOT_CHALLENGES_START = s"$SUB_GROUP_SCHEDULER.challengesSnapshot.startTime"
-
-  val KEY_MAPROULETTE_FRONTEND = s"$GROUP_MAPROULETTE.frontend"
-  val SUB_GROUP_MAPILLARY      = s"$GROUP_MAPROULETTE.mapillary"
-  val KEY_MAPILLARY_HOST       = s"$SUB_GROUP_MAPILLARY.host"
-  val KEY_MAPILLARY_CLIENT_ID  = s"$SUB_GROUP_MAPILLARY.clientId"
-  val KEY_MAPILLARY_BORDER     = s"$SUB_GROUP_MAPILLARY.border"
+  val KEY_MAPROULETTE_FRONTEND                = s"$GROUP_MAPROULETTE.frontend"
+  val SUB_GROUP_MAPILLARY                     = s"$GROUP_MAPROULETTE.mapillary"
+  val KEY_MAPILLARY_HOST                      = s"$SUB_GROUP_MAPILLARY.host"
+  val KEY_MAPILLARY_CLIENT_ID                 = s"$SUB_GROUP_MAPILLARY.clientId"
+  val KEY_MAPILLARY_BORDER                    = s"$SUB_GROUP_MAPILLARY.border"
 
   val GROUP_OSM                         = "osm"
   val KEY_OSM_SERVER                    = s"$GROUP_OSM.server"

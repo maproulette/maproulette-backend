@@ -1,13 +1,20 @@
 ---
-  - type: play\.api\.libs\.json\.jsvalue
-    specAsParameter: []
-    specAsProperty:
-      type: string
   - type: play\.api\.libs\.json\.jsobject
     specAsParameter: []
     specAsProperty:
       type: object
-  - type: play\.api\.libs\.oauth\.requesttoken
+      additionalProperties: true
+  - type: play\.api\.libs\.json\.jsarray
     specAsParameter: []
     specAsProperty:
-      type: object
+      type: array
+      items: {}
+  # Type generic JS values as 'any'. Client libraries will treat this
+  # broadly (e.g. openapi-typescript will convert this to 'unknown'),
+  # so consumers are forced to narrow the type manually when they use
+  # it. Since the ergonomics of this aren't great, you should use a
+  # more specific type (like JsObject or JsArray) over JsValue when
+  # possible.
+  - type: play\.api\.libs\.json\.jsvalue
+    specAsParameter: []
+    specAsProperty: {}

@@ -12,7 +12,7 @@ import org.joda.time.format.DateTimeFormat
 import org.maproulette.Config
 import org.maproulette.cache.CacheObject
 import org.maproulette.framework.psql.CommonField
-import org.maproulette.utils.{Crypto, Utils}
+import org.maproulette.utils.Crypto
 import org.maproulette.data._
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
@@ -165,6 +165,7 @@ object Follower {
   *                          6=skin-purple, 7=skin-purple-light, 8=skin-red, 9=skin-red-light, 10=skin-yellow, 11=skin-yellow-light
   * @param customBasemaps    Custom basemaps defined by user, which basemap to show is the name selected by the defaultBasemap.
   * @param showPriorityMarkerColors If true, display task priority as colored outlines on map markers (high=red, medium=orange, low=teal)
+  * @param plugins           User's installed plugins configuration stored as JSON string
   */
 case class UserSettings(
     defaultEditor: Option[Int] = None,
@@ -181,7 +182,8 @@ case class UserSettings(
     customBasemaps: Option[List[CustomBasemap]] = None,
     seeTagFixSuggestions: Option[Boolean] = None,
     disableTaskConfirm: Option[Boolean] = None,
-    showPriorityMarkerColors: Option[Boolean] = None
+    showPriorityMarkerColors: Option[Boolean] = None,
+    plugins: Option[String] = None
 ) {
   def getTheme: String = theme match {
     case Some(t) =>
@@ -224,7 +226,7 @@ case class User(
     apiKey: Option[String] = None,
     guest: Boolean = false,
     settings: UserSettings = UserSettings(),
-    properties: Option[String] = None,
+    properties: Option[JsObject] = None,
     score: Option[Int] = None,
     followingGroupId: Option[Long] = None,
     followersGroupId: Option[Long] = None,
@@ -299,30 +301,9 @@ object User extends CommonField {
   val FIELD_NEEDS_REVIEW        = "needs_review"
   val FIELD_IS_REVIEWER         = "is_reviewer"
 
-  implicit object UserFormat extends Format[User] {
-    override def writes(o: User): JsValue = {
-      implicit val taskWrites: Writes[User] = Json.writes[User]
-      val original                          = Json.toJson(o)(Json.writes[User])
-      val updated = o.properties match {
-        case Some(p) => Utils.insertIntoJson(original, "properties", Json.parse(p), true)
-        case None    => original
-      }
-      Utils.insertIntoJson(updated, "properties", Json.parse(o.properties.getOrElse("{}")), true)
-    }
-
-    override def reads(json: JsValue): JsResult[User] = {
-      val modifiedJson: JsValue = (json \ "properties").toOption match {
-        case Some(p) =>
-          p match {
-            case props: JsString => json
-            case _ =>
-              json.as[JsObject] ++ Json.obj("properties" -> p.toString())
-          }
-        case None => json
-      }
-      Json.fromJson[User](modifiedJson)(Json.reads[User])
-    }
-  }
+  implicit val userWrites: Writes[User] = Json.writes[User]
+  implicit val userReads: Reads[User]   = Json.reads[User]
+  implicit val UserFormat: Format[User] = Format(userReads, userWrites)
 
   val DEFAULT_GUEST_USER_ID = -998
   val DEFAULT_SUPER_USER_ID = -999
