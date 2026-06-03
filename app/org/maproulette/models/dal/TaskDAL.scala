@@ -502,11 +502,9 @@ class TaskDAL @Inject() (
         (geometries \ "features")
           .as[JsArray]
           .value
-          .map {
+          .collect {
             case value: JsObject => value.transform(mrTransformer).getOrElse(value)
-            case _               => // do nothing
           }
-          .asInstanceOf[ArrayBuffer[JsObject]]
       )
 
       // Set the correct cooperative type on the parent challenge
