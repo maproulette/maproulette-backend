@@ -1316,13 +1316,8 @@ class ChallengeController @Inject() (
     * @return A Json representation of the object
     */
   override def inject(obj: Challenge)(implicit request: Request[Any]): JsValue = {
-    val tags     = this.tagService.listByChallenge(obj.id)
-    val withTags = Utils.insertIntoJson(Json.toJson(obj), Tag.TABLE, Json.toJson(tags.map(_.name)))
-    Utils.insertIntoJson(
-      withTags,
-      "isRecomputingPriorities",
-      this.dal.isRecomputingPriorities(obj.id)
-    )
+    val tags = this.tagService.listByChallenge(obj.id)
+    Utils.insertIntoJson(Json.toJson(obj), Tag.TABLE, Json.toJson(tags.map(_.name)))
   }
 
   /**

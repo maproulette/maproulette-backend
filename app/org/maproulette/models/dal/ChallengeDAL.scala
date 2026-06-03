@@ -57,40 +57,6 @@ class ChallengeDAL @Inject() (
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  // Process-local bookkeeping for the UI's recompute indicator. The visibility
-  // window keeps fast recomputes on screen long enough for the frontend's 3s
-  // poll to catch them; the inFlight counter keeps it on across overlapping
-  // saves.
-  private case class RecomputeState(
-      inFlight: java.util.concurrent.atomic.AtomicInteger,
-      visibleUntil: java.util.concurrent.atomic.AtomicLong
-  )
-  private val recomputeStates  = scala.collection.concurrent.TrieMap.empty[Long, RecomputeState]
-  private val MIN_INDICATOR_MS = 3000L
-
-  private def recomputeStateFor(id: Long): RecomputeState =
-    recomputeStates.getOrElseUpdate(
-      id,
-      RecomputeState(
-        new java.util.concurrent.atomic.AtomicInteger(0),
-        new java.util.concurrent.atomic.AtomicLong(0L)
-      )
-    )
-
-  def isRecomputingPriorities(id: Long): Boolean =
-    recomputeStates.get(id).exists { s =>
-      s.inFlight.get() > 0 || s.visibleUntil.get() > System.currentTimeMillis()
-    }
-
-  private def beginRecompute(id: Long): Unit =
-    recomputeStateFor(id).inFlight.incrementAndGet()
-
-  private def endRecompute(id: Long): Unit =
-    recomputeStates.get(id).foreach { s =>
-      s.inFlight.decrementAndGet()
-      s.visibleUntil.set(System.currentTimeMillis() + MIN_INDICATOR_MS)
-    }
-
   // The manager for the challenge cache
   override val cacheManager = new CacheManager[Long, Challenge](config, Config.CACHE_ID_CHALLENGES)
   // The name of the challenge table
@@ -1073,7 +1039,6 @@ class ChallengeDAL @Inject() (
         }
     }
     if (updatedPriorityRules) {
-      beginRecompute(id)
       Future {
         try updateTaskPriorities(user, overrideValidation = true)
         catch {
@@ -1082,8 +1047,6 @@ class ChallengeDAL @Inject() (
               s"updateTaskPriorities failed for challenge $id: ${t.getClass.getName}: ${t.getMessage}",
               t
             )
-        } finally {
-          endRecompute(id)
         }
       }
     }
