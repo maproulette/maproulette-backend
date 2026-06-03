@@ -660,7 +660,10 @@ class ChallengeProvider @Inject() (
                     } catch {
                       case e: Exception =>
                         partial = true
-                        logger.error(e.getMessage, e)
+                        logger.error(
+                          s"Failed to build overpass task for challenge ${challenge.id}: ${e.getMessage}",
+                          e
+                        )
                     }
                   }
                   partial match {
@@ -801,7 +804,7 @@ class ChallengeProvider @Inject() (
     } catch {
       // this task could fail on unique key violation, we need to ignore them
       case e: Exception =>
-        logger.error(e.getMessage)
+        logger.error(s"Failed to create task '$name' in challenge ${parent.id}: ${e.getMessage}", e)
         None
     }
   }
