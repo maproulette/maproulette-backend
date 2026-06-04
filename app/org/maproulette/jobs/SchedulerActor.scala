@@ -209,7 +209,7 @@ class SchedulerActor @Inject() (
                   SET location = (SELECT ST_Centroid(ST_Collect(ST_Makevalid(location)))
                                  FROM tasks
                                  WHERE parent_id = ${id}),
-                      bounding = (SELECT ST_SetSRID(ST_Extent(location)::geometry, 4326)
+                      bounding = (SELECT ST_Envelope(ST_Expand(ST_SetSRID(ST_Extent(location), 4326), 0.0001))
                                  FROM tasks
                                  WHERE parent_id = ${id}),
                       last_updated = NOW(),
