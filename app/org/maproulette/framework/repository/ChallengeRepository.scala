@@ -158,51 +158,6 @@ class ChallengeRepository @Inject() (override val db: Database) extends Reposito
     }
   }
 
-  /**
-    * Refreshes the 'completion_percentage' metric for all active (neither deleted nor archived) challenges.
-    *
-    * <p>The 'completion_percentage' metric quantifies the ratio of completed tasks within a challenge,
-    * expressed as a percentage. It is computed by the formula:
-    * (completedTaskCount / totalTasks) * 100.
-    *
-    * <p>The PostgreSQL index 'idx_tasks_status_non_zero' was created to avoid a full table scan of the tasks table,
-    * significantly reducing query execution time.
-    */
-  def updateCompletionMetricsOfActiveChallenges()(implicit c: Option[Connection] = None): Unit = {
-    withMRConnection { implicit c =>
-      SQL(
-        s"""
-           |UPDATE challenges
-           |SET completion_percentage = new_completion_percentage, tasks_remaining = new_tasks_remaining
-           |FROM (
-           |    SELECT
-           |        challenges.id AS challenge_id,
-           |        completed_task_counts.completed_tasks * 100 / total_task_counts.total_tasks AS new_completion_percentage,
-           |        total_task_counts.total_tasks - completed_task_counts.completed_tasks AS new_tasks_remaining
-           |    FROM
-           |        challenges
-           |    JOIN (
-           |        SELECT
-           |            parent_id,
-           |            COUNT(*) AS total_tasks
-           |        FROM tasks
-           |        GROUP BY parent_id
-           |    ) AS total_task_counts ON challenges.id = total_task_counts.parent_id
-           |    JOIN (
-           |        SELECT
-           |            parent_id,
-           |            COUNT(*) AS completed_tasks
-           |        FROM tasks
-           |        WHERE status != 0
-           |        GROUP BY parent_id
-           |    ) AS completed_task_counts ON challenges.id = completed_task_counts.parent_id
-           |    WHERE NOT deleted and NOT is_archived
-           |) AS updated_challenges
-           |WHERE challenges.id = updated_challenges.challenge_id;
-        """.stripMargin
-      ).execute()
-    }
-  }
 }
 
 object ChallengeRepository {
@@ -272,14 +227,17 @@ object ChallengeRepository {
       get[Boolean]("challenges.require_confirmation") ~
       get[Boolean]("challenges.require_reject_reason") ~
       get[Option[JsValue]]("challenges.task_widget_layout") ~
-      get[Option[DateTime]]("challenges.system_archived_at") map {
+      get[Option[DateTime]]("challenges.system_archived_at") ~
+      get[Option[JsValue]]("challenges.completion_metrics") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
             checkin_source ~ overpassql ~ overpassTargetType ~ remoteGeoJson ~ status ~ statusMessage ~ defaultPriority ~ highPriorityRule ~
             mediumPriorityRule ~ lowPriorityRule ~ highPriorityBounds ~ mediumPriorityBounds ~ lowPriorityBounds ~ defaultZoom ~ minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~
             customBasemap ~ updateTasks ~ exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ requiresLocal ~ location ~ bounding ~
-            deleted ~ isGlobal ~ virtualParents ~ isArchived ~ reviewSetting ~ datasetUrl ~ requireConfirmation ~ requireRejectReason ~ taskWidgetLayout ~ systemArchivedAt =>
+            deleted ~ isGlobal ~ virtualParents ~ isArchived ~ reviewSetting ~ datasetUrl ~ requireConfirmation ~ requireRejectReason ~ taskWidgetLayout ~ systemArchivedAt ~ completionMetricsJson =>
+        val completionMetrics =
+          completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         val hpr = highPriorityRule match {
           case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
           case r                                                                => r
@@ -360,7 +318,9 @@ object ChallengeRepository {
           lastTaskRefresh,
           dataOriginDate,
           location,
-          bounding
+          bounding,
+          Some(CompletionMetrics.completionPercentage(completionMetrics)),
+          completionMetrics
         )
     }
   }

@@ -129,8 +129,6 @@ class ChallengeDAL @Inject() (
       get[Int]("challenges.review_setting") ~
       get[Option[String]]("challenges.dataset_url") ~
       get[Option[JsValue]]("challenges.task_widget_layout") ~
-      get[Option[Int]]("challenges.completion_percentage") ~
-      get[Option[Int]]("challenges.tasks_remaining") ~
       get[Boolean]("challenges.require_confirmation") ~
       get[Boolean]("challenges.require_reject_reason") ~
       get[Option[JsValue]]("challenges.completion_metrics") map {
@@ -142,7 +140,9 @@ class ChallengeDAL @Inject() (
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
             requiresLocal ~ deleted ~ isGlobal ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~
-            completionPercentage ~ tasksRemaining ~ requireConfirmation ~ requireRejectReason ~ completionMetricsJson =>
+            requireConfirmation ~ requireRejectReason ~ completionMetricsJson =>
+        val completionMetrics =
+          completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         new Challenge(
           id,
           name,
@@ -210,8 +210,8 @@ class ChallengeDAL @Inject() (
           dataOriginDate,
           location,
           bounding,
-          completionPercentage,
-          completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
+          Some(CompletionMetrics.completionPercentage(completionMetrics)),
+          completionMetrics
         )
     }
   }
@@ -279,8 +279,6 @@ class ChallengeDAL @Inject() (
       get[Option[String]]("challenges.dataset_url") ~
       get[Option[JsValue]]("challenges.task_widget_layout") ~
       get[Option[DateTime]]("challenges.system_archived_at") ~
-      get[Option[Int]]("challenges.completion_percentage") ~
-      get[Option[Int]]("challenges.tasks_remaining") ~
       get[Boolean]("challenges.require_confirmation") ~
       get[Boolean]("challenges.require_reject_reason") ~
       get[Option[JsValue]]("challenges.completion_metrics") map {
@@ -292,8 +290,10 @@ class ChallengeDAL @Inject() (
             customBasemap ~ updateTasks ~ exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~
             preferredReviewTags ~ limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~
             dataOriginDate ~ location ~ bounding ~ requiresLocal ~ deleted ~ isGlobal ~ virtualParents ~
-            presets ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ systemArchivedAt ~ completionPercentage ~
-            tasksRemaining ~ requireConfirmation ~ requireRejectReason ~ completionMetricsJson =>
+            presets ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ systemArchivedAt ~
+            requireConfirmation ~ requireRejectReason ~ completionMetricsJson =>
+        val completionMetrics =
+          completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         new Challenge(
           id,
           name,
@@ -360,8 +360,8 @@ class ChallengeDAL @Inject() (
           dataOriginDate,
           location,
           bounding,
-          completionPercentage,
-          completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
+          Some(CompletionMetrics.completionPercentage(completionMetrics)),
+          completionMetrics
         )
     }
   }
@@ -424,7 +424,6 @@ class ChallengeDAL @Inject() (
       get[Option[DateTime]]("challenges.data_origin_date") ~
       get[Option[String]]("locationJSON") ~
       get[Option[String]]("boundingJSON") ~
-      get[Option[Int]]("challenges.completion_percentage") ~
       get[Option[JsValue]]("challenges.completion_metrics") map {
       case id ~ name ~ created ~ modified ~ description ~ deleted ~ isGlobal ~ requireConfirmation ~ requireRejectReason ~
             infoLink ~ ownerId ~ parentId ~ instruction ~ difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~
@@ -433,8 +432,10 @@ class ChallengeDAL @Inject() (
             mediumPriorityBounds ~ lowPriorityBounds ~ defaultZoom ~ minZoom ~ maxZoom ~ updateTasks ~ limitTags ~
             limitReviewTags ~ isArchived ~ reviewSetting ~ defaultBasemap ~ defaultBasemapId ~ customBasemap ~
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ taskWidgetLayout ~ taskStyles ~ status ~
-            statusMessage ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~ completionPercentage ~
+            statusMessage ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
             completionMetricsJson =>
+        val completionMetrics =
+          completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         val hpr = highPriorityRule.map(Json.parse(_).as[JsObject])
         val mpr = mediumPriorityRule.map(Json.parse(_).as[JsObject])
         val lpr = lowPriorityRule.map(Json.parse(_).as[JsObject])
@@ -498,10 +499,8 @@ class ChallengeDAL @Inject() (
           dataOriginDate,
           location.map(Json.parse(_).as[JsObject]),
           bounding.map(Json.parse(_).as[JsObject]),
-          completionPercentage,
-          completionMetricsJson
-            .flatMap(_.asOpt[CompletionMetrics])
-            .getOrElse(CompletionMetrics())
+          Some(CompletionMetrics.completionPercentage(completionMetrics)),
+          completionMetrics
         )
     }
   }

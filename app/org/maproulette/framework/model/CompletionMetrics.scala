@@ -33,4 +33,15 @@ object CompletionMetrics {
     Json.using[Json.WithDefaultValues].reads[CompletionMetrics].map { m =>
       m.copy(tasksRemaining = m.available + m.skipped + m.tooHard)
     }
+
+  def completionPercentage(m: CompletionMetrics): Int = {
+    val completable = m.total - m.deleted - m.disabled
+    if (completable <= 0) 0
+    else {
+      val pct = math
+        .round((m.fixed + m.falsePositive + m.alreadyFixed).toDouble * 100 / completable)
+        .toInt
+      pct.max(0).min(100)
+    }
+  }
 }

@@ -90,8 +90,6 @@ class SchedulerActor @Inject() (
       this.handleSendCountNotificationEmails(action, UserNotification.NOTIFICATION_EMAIL_WEEKLY)
     case RunJob("archiveChallenges", action) =>
       this.handleArchiveChallenges(action)
-    case RunJob("updateChallengeCompletionMetrics", action) =>
-      this.handleUpdateChallengeCompletionMetrics(action)
     case RunJob("rebuildDirtyTileCells", action) =>
       this.rebuildDirtyTileCells(action)
   }
@@ -743,23 +741,6 @@ class SchedulerActor @Inject() (
     val totalTime = System.currentTimeMillis - start
     logger.info(
       s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
-    )
-  }
-
-  /**
-    * Updates completion metrics for all active challenges.
-    *
-    * @param action An action descriptor, providing more context for logging.
-    */
-  def handleUpdateChallengeCompletionMetrics(action: String): Unit = {
-    val startTime = System.currentTimeMillis
-    logger.info(s"Scheduled Task '$action': Starting run")
-
-    this.serviceManager.challenge.updateCompletionMetricsOfActiveChallenges()
-
-    val elapsedTime = System.currentTimeMillis - startTime
-    logger.info(
-      s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", elapsedTime)}ms"
     )
   }
 
