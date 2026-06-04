@@ -336,8 +336,6 @@ object Config {
     s"$SUB_GROUP_SCHEDULER.archiveChallenges.startTime"
   val KEY_SCHEDULER_ARCHIVE_CHALLENGES_STALE_TIME_IN_MONTHS =
     s"$SUB_GROUP_SCHEDULER.archiveChallenges.staleTimeInMonths"
-  val KEY_SCHEDULER_UPDATE_CHALLENGE_COMPLETION_INTERVAL =
-    s"$SUB_GROUP_SCHEDULER.updateChallengeCompletionMetrics.interval"
   // Drains the dirty-cell queue and keeps the pre-computed tile pyramid fresh.
   // Set to an empty string to disable (e.g. integration tests).
   val KEY_SCHEDULER_REBUILD_DIRTY_TILE_CELLS_INTERVAL =

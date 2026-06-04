@@ -121,11 +121,4 @@ class ChallengeService @Inject() (
     val result = this.repository.archiveChallenge(challengeId, archiving, systemArchive)
     result
   }
-
-  /**
-    * Refreshes the 'completion_percentage' metric for all active (neither deleted nor archived) challenges.
-    */
-  def updateCompletionMetricsOfActiveChallenges(): Unit = {
-    this.repository.updateCompletionMetricsOfActiveChallenges();
-  }
 }
