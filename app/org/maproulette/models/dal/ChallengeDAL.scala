@@ -1037,16 +1037,10 @@ class ChallengeDAL @Inject() (
           }
         }
     }
+    // update the task priorities in the background
     if (updatedPriorityRules) {
       Future {
-        try updateTaskPriorities(user, overrideValidation = true)
-        catch {
-          case t: Throwable =>
-            logger.error(
-              s"updateTaskPriorities failed for challenge $id: ${t.getClass.getName}: ${t.getMessage}",
-              t
-            )
-        }
+        updateTaskPriorities(user, overrideValidation = true)
       }
     }
 

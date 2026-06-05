@@ -1959,6 +1959,11 @@ class ChallengeController @Inject() (
                 this.dal.updateTaskPriorities(user, overrideValidation = true)(id)
               this.dalManager.task.clearCaches
               this.dal.clearCaches
+              // Surface an honest receipt of what the recompute did. `tasksUpdated`
+              // is the number of task rows the DB actually changed at each tier,
+              // measured by COUNT(*) after the writes commit. A response with all
+              // zeros is the signal that either no tasks matched any tier (default
+              // priority covers everything) or the recompute short-circuited.
               val postCounts: Map[Int, Long] = this.dal.countTasksByPriority(id)
               val highCount: Long            = postCounts.getOrElse(Challenge.PRIORITY_HIGH, 0L)
               val mediumCount: Long          = postCounts.getOrElse(Challenge.PRIORITY_MEDIUM, 0L)
