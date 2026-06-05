@@ -14,8 +14,11 @@
 #   - name: id
 #     in: path
 #     description: The id of the task to fetch and claim
+#   - name: includeTags
+#     in: query
+#     description: If true, include MR tags on the returned task. Defaults to false.
 ###
-GET     /task/:id/review/start                       @org.maproulette.framework.controller.TaskReviewController.startTaskReview(id:Long)
+GET     /task/:id/review/start                       @org.maproulette.framework.controller.TaskReviewController.startTaskReview(id:Long, includeTags:Boolean ?= false)
 ###
 # tags: [ Review ]
 # operationId: review_cancels_a_claim_on_a_task_for_review
@@ -177,8 +180,11 @@ GET     /tasks/reviewed                          @org.maproulette.framework.cont
 #   - name: r
 #     in: query
 #     description: The search string used to match the Reviewer names. (reviewed_by)
+#   - name: includeTags
+#     in: query
+#     description: If true, include MR tags on the returned task. Defaults to false.
 ###
-GET     /tasks/review/next                       @org.maproulette.framework.controller.TaskReviewController.nextTaskReview(onlySaved:Boolean ?= false, sort:String ?= "", order:String ?= "ASC", lastTaskId:Long ?= -1, excludeOtherReviewers:Boolean ?= false, asMetaReview: Boolean ?= false)
+GET     /tasks/review/next                       @org.maproulette.framework.controller.TaskReviewController.nextTaskReview(onlySaved:Boolean ?= false, sort:String ?= "", order:String ?= "ASC", lastTaskId:Long ?= -1, excludeOtherReviewers:Boolean ?= false, asMetaReview: Boolean ?= false, includeTags:Boolean ?= false)
 ###
 # tags: [ Review ]
 # operationId: review_retrieves_nearby_tasks
