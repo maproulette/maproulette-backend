@@ -46,7 +46,7 @@ trait MRSchemaTypes {
   // with https://www.npmjs.com/package/graphql-type-json
   implicit val graphQLJsObject: ScalarType[JsObject] = ScalarType[JsObject](
     "JSONObject",
-    coerceOutput = (value, _) => value,
+    coerceOutput = (value, _) => Json.stringify(value),
     coerceUserInput = {
       case v: JsObject => Right(v)
       case _           => Left(JsonCoerceViolation)
@@ -55,7 +55,7 @@ trait MRSchemaTypes {
   )
   implicit val graphQLJsArray: ScalarType[JsArray] = ScalarType[JsArray](
     "JSONArray",
-    coerceOutput = (value, _) => value,
+    coerceOutput = (value, _) => Json.stringify(value),
     coerceUserInput = {
       case v: JsArray => Right(v)
       case _          => Left(JsonCoerceViolation)

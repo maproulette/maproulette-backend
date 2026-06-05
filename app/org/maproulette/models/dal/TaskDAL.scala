@@ -35,7 +35,7 @@ import play.api.libs.json.JodaReads._
 import play.api.libs.json._
 import play.api.libs.ws.WSClient
 
-import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.{Future, Promise}
 import scala.util.control.Exception.allCatch
 import scala.util.{Failure, Success, Try}
@@ -502,11 +502,9 @@ class TaskDAL @Inject() (
         (geometries \ "features")
           .as[JsArray]
           .value
-          .map {
+          .collect {
             case value: JsObject => value.transform(mrTransformer).getOrElse(value)
-            case _               => // do nothing
           }
-          .asInstanceOf[ArrayBuffer[JsObject]]
       )
 
       // Set the correct cooperative type on the parent challenge
