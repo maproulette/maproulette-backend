@@ -95,6 +95,10 @@ class Config @Inject() (implicit val configuration: Configuration) {
     this.config
       .getOptional[String](Config.KEY_TASK_LOCK_EXPIRY)
       .getOrElse(Config.DEFAULT_TASK_LOCK_EXPIRY)
+  lazy val taskLockExpiryReminderLeadTime: String =
+    this.config
+      .getOptional[String](Config.KEY_SCHEDULER_TASK_LOCK_EXPIRY_REMINDER_LEAD_TIME)
+      .getOrElse(Config.DEFAULT_TASK_LOCK_EXPIRY_REMINDER_LEAD_TIME)
   lazy val taskScoreFixed: Int =
     this.config
       .getOptional[Int](Config.KEY_TASK_SCORE_FIXED)
@@ -344,6 +348,11 @@ object Config {
     s"$SUB_GROUP_SCHEDULER.notifications.digestEmail.interval"
   val KEY_SCHEDULER_NOTIFICATION_DIGEST_EMAIL_START =
     s"$SUB_GROUP_SCHEDULER.notifications.digestEmail.startTime"
+  val KEY_SCHEDULER_TASK_LOCK_EXPIRY_REMINDER_INTERVAL =
+    s"$SUB_GROUP_SCHEDULER.notifications.taskLockExpiryReminder.interval"
+  val KEY_SCHEDULER_TASK_LOCK_EXPIRY_REMINDER_LEAD_TIME =
+    s"$SUB_GROUP_SCHEDULER.notifications.taskLockExpiryReminder.leadTime"
+  val DEFAULT_TASK_LOCK_EXPIRY_REMINDER_LEAD_TIME = "10 minutes"
   val KEY_SCHEDULER_SNAPSHOT_USER_METRICS = s"$SUB_GROUP_SCHEDULER.userMetricsSnapshot.interval"
   val KEY_SCHEDULER_SNAPSHOT_USER_METRICS_START =
     s"$SUB_GROUP_SCHEDULER.userMetricsSnapshot.startTime"

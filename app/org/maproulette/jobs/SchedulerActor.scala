@@ -92,6 +92,8 @@ class SchedulerActor @Inject() (
       this.handleArchiveChallenges(action)
     case RunJob("rebuildDirtyTileCells", action) =>
       this.rebuildDirtyTileCells(action)
+    case RunJob("sendTaskLockExpiryReminders", action) =>
+      this.sendTaskLockExpiryReminders(action)
   }
 
   /** Leaf cells recomputed per drain transaction. */
@@ -629,6 +631,75 @@ class SchedulerActor @Inject() (
     val totalTime = System.currentTimeMillis - start
     logger.info(
       s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms"
+    )
+  }
+
+  /**
+    * Emails users whose held task locks are within `taskLockExpiryReminderLeadTime`
+    * of being cleaned up by `cleanLocks`. Only fires for users who have opted in
+    * via the `task_unlock_warning` subscription. Marks each lock as reminded in
+    * the same UPDATE that selects it, so overlapping runs cannot double-send.
+    */
+  def sendTaskLockExpiryReminders(action: String): Unit = {
+    val start = System.currentTimeMillis
+    logger.info(s"Scheduled Task '$action': Starting run")
+
+    val reminders = db.withTransaction { implicit c =>
+      SQL(s"""
+        |UPDATE locked
+        |SET reminder_sent_at = NOW()
+        |WHERE id IN (
+        |  SELECT l.id FROM locked l
+        |  JOIN user_notification_subscriptions s ON s.user_id = l.user_id
+        |  JOIN users u ON u.id = l.user_id
+        |  WHERE l.item_type = ${org.maproulette.data.Actions.ITEM_TYPE_TASK}
+        |    AND l.reminder_sent_at IS NULL
+        |    AND AGE(NOW(), l.locked_time) >
+        |          ('${config.taskLockExpiry}'::INTERVAL - '${config.taskLockExpiryReminderLeadTime}'::INTERVAL)
+        |    AND s.task_unlock_warning = ${UserNotification.NOTIFICATION_EMAIL_IMMEDIATE}
+        |    AND u.email IS NOT NULL AND u.email <> ''
+        |)
+        |RETURNING
+        |  locked.user_id,
+        |  locked.item_id AS task_id,
+        |  (SELECT email FROM users WHERE id = locked.user_id) AS email,
+        |  (SELECT c.name FROM tasks t JOIN challenges c ON c.id = t.parent_id
+        |     WHERE t.id = locked.item_id) AS challenge_name,
+        |  GREATEST(
+        |    CEIL(EXTRACT(EPOCH FROM
+        |      ('${config.taskLockExpiry}'::INTERVAL - AGE(NOW(), locked.locked_time))
+        |    ) / 60)::INT,
+        |    0
+        |  ) AS minutes_until_unlock
+        """.stripMargin)
+        .as((
+          long("user_id") ~
+            long("task_id") ~
+            get[Option[String]]("email") ~
+            get[Option[String]]("challenge_name") ~
+            int("minutes_until_unlock")
+        ).map { case userId ~ taskId ~ email ~ challengeName ~ minutesUntilUnlock =>
+          (userId, taskId, email, challengeName, minutesUntilUnlock)
+        }.*)
+    }
+
+    reminders.foreach { case (_, taskId, email, challengeName, minutesUntilUnlock) =>
+      try {
+        email match {
+          case Some(address) if address.nonEmpty =>
+            this.emailProvider
+              .emailTaskUnlockWarning(address, taskId, challengeName, minutesUntilUnlock.toLong)
+          case _ => // no address; nothing to do
+        }
+      } catch {
+        case e: Exception =>
+          logger.error(s"Failed to send task lock expiry reminder for task $taskId: $e")
+      }
+    }
+
+    val totalTime = System.currentTimeMillis - start
+    logger.info(
+      s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", totalTime)}ms. ${reminders.size} reminder(s) sent"
     )
   }
 

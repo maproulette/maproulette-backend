@@ -77,15 +77,18 @@ class NotificationSubscriptionRepository @Inject() (
         """
         |INSERT INTO user_notification_subscriptions (user_id, system, mention, review_approved,
         |                                             review_rejected, review_again, challenge_completed, team,
-        |                                             follow, meta_review, review_count, revision_count)
+        |                                             follow, meta_review, review_count, revision_count,
+        |                                             task_unlock_warning)
         |VALUES({userId}, {system}, {mention}, {reviewApproved}, {reviewRejected}, {reviewAgain},
-        |       {challengeCompleted}, {team}, {follow}, {metaReview}, {reviewCount}, {revisionCount})
+        |       {challengeCompleted}, {team}, {follow}, {metaReview}, {reviewCount}, {revisionCount},
+        |       {taskUnlockWarning})
         |ON CONFLICT (user_id) DO
         |UPDATE SET system=EXCLUDED.system, mention=EXCLUDED.mention,
         |           review_approved=EXCLUDED.review_approved, review_rejected=EXCLUDED.review_rejected,
-        |           review_again=EXCLUDED.review_again, challenge_completed=EXCLUDED.challenge_completed, 
+        |           review_again=EXCLUDED.review_again, challenge_completed=EXCLUDED.challenge_completed,
         |           team=EXCLUDED.team, follow=EXCLUDED.follow, meta_review=EXCLUDED.meta_review,
-        |           review_count=EXCLUDED.review_count, revision_count=EXCLUDED.revision_count
+        |           review_count=EXCLUDED.review_count, revision_count=EXCLUDED.revision_count,
+        |           task_unlock_warning=EXCLUDED.task_unlock_warning
         """.stripMargin
       ).on(
           Symbol("userId")             -> userId,
@@ -99,7 +102,8 @@ class NotificationSubscriptionRepository @Inject() (
           Symbol("follow")             -> subscriptions.follow,
           Symbol("metaReview")         -> subscriptions.metaReview,
           Symbol("reviewCount")        -> subscriptions.reviewCount,
-          Symbol("revisionCount")      -> subscriptions.revisionCount
+          Symbol("revisionCount")      -> subscriptions.revisionCount,
+          Symbol("taskUnlockWarning")  -> subscriptions.taskUnlockWarning
         )
         .executeUpdate()
     }
@@ -121,9 +125,11 @@ object NotificationSubscriptionRepository {
       get[Int]("follow") ~
       get[Int]("meta_review") ~
       get[Int]("review_count") ~
-      get[Int]("revision_count") map {
+      get[Int]("revision_count") ~
+      get[Int]("task_unlock_warning") map {
       case id ~ userId ~ system ~ mention ~ reviewApproved ~ reviewRejected ~ reviewAgain ~
-            challengeCompleted ~ team ~ follow ~ metaReview ~ reviewCount ~ revisionCount =>
+            challengeCompleted ~ team ~ follow ~ metaReview ~ reviewCount ~ revisionCount ~
+            taskUnlockWarning =>
         NotificationSubscriptions(
           id,
           userId,
@@ -137,7 +143,8 @@ object NotificationSubscriptionRepository {
           follow,
           metaReview,
           reviewCount,
-          revisionCount
+          revisionCount,
+          taskUnlockWarning
         )
     }
   }

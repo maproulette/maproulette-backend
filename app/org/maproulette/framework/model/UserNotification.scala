@@ -82,6 +82,8 @@ object UserNotification extends CommonField {
   val NOTIFICATION_TYPE_CHALLENGE_COMMENT_NAME          = "Challenge Comment"
   val NOTIFICATION_TYPE_CHALLENGE_UNLOCK_REQUESTED      = 15
   val NOTIFICATION_TYPE_CHALLENGE_UNLOCK_REQUESTED_NAME = "Challenge Unlock Requested"
+  val NOTIFICATION_TYPE_TASK_UNLOCK_WARNING             = 16
+  val NOTIFICATION_TYPE_TASK_UNLOCK_WARNING_NAME        = "Task Lock Expiring Soon"
 
   val notificationTypeMap = Map(
     NOTIFICATION_TYPE_SYSTEM                     -> NOTIFICATION_TYPE_SYSTEM_NAME,
@@ -97,7 +99,8 @@ object UserNotification extends CommonField {
     NOTIFICATION_TYPE_FOLLOW                     -> NOTIFICATION_TYPE_FOLLOW_NAME,
     NOTIFICATION_TYPE_MAPPER_CHALLENGE_COMPLETED -> NOTIFICATION_TYPE_MAPPER_CHALLENGE_COMPLETED_NAME,
     NOTIFICATION_TYPE_CHALLENGE_COMMENT          -> NOTIFICATION_TYPE_CHALLENGE_COMMENT_NAME,
-    NOTIFICATION_TYPE_CHALLENGE_UNLOCK_REQUESTED -> NOTIFICATION_TYPE_CHALLENGE_UNLOCK_REQUESTED_NAME
+    NOTIFICATION_TYPE_CHALLENGE_UNLOCK_REQUESTED -> NOTIFICATION_TYPE_CHALLENGE_UNLOCK_REQUESTED_NAME,
+    NOTIFICATION_TYPE_TASK_UNLOCK_WARNING        -> NOTIFICATION_TYPE_TASK_UNLOCK_WARNING_NAME
   )
 
   val NOTIFICATION_IGNORE          = 0 // ignore notification
@@ -122,7 +125,8 @@ case class NotificationSubscriptions(
     val follow: Int,
     val metaReview: Int,
     val reviewCount: Int,
-    val revisionCount: Int
+    val revisionCount: Int,
+    val taskUnlockWarning: Int = UserNotification.NOTIFICATION_EMAIL_NONE
 )
 object NotificationSubscriptions {
   implicit val notificationSubscriptionReads: Reads[NotificationSubscriptions] =

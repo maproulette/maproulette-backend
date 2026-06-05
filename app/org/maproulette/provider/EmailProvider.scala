@@ -108,6 +108,35 @@ class EmailProvider @Inject() (mailerClient: MailerClient, config: Config) {
     mailerClient.send(email)
   }
 
+  def emailTaskUnlockWarning(
+      toAddress: String,
+      taskId: Long,
+      challengeName: Option[String],
+      minutesUntilUnlock: Long
+  ) = {
+    val emailSubject = s"Your MapRoulette task lock will expire soon"
+    val challengeLine = challengeName match {
+      case Some(name) => s"\nChallenge: ${name}"
+      case None       => ""
+    }
+    val taskLink = s"${config.getPublicOrigin.get}/task/${taskId}"
+    val emailBody = s"""
+      |Your lock on a MapRoulette task is going to expire in approximately
+      |${minutesUntilUnlock} minute(s). Once it expires, another mapper may
+      |claim the task, which can cause conflicts with any work you have in
+      |progress (for example in JOSM).
+      |
+      |Task: ${taskId}${challengeLine}
+      |
+      |To keep the task locked, visit it in MapRoulette before it expires:
+      |${taskLink}
+      |${this.notificationFooter}""".stripMargin
+
+    val email =
+      Email(emailSubject, config.getEmailFrom.get, Seq(toAddress), bodyText = Some(emailBody))
+    mailerClient.send(email)
+  }
+
   private def notificationFooter: String = {
     val urlPrefix = config.getPublicOrigin.get
     s"""

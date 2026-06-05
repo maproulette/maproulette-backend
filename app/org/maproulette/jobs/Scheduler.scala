@@ -115,6 +115,13 @@ class Scheduler @Inject() (
     Config.KEY_SCHEDULER_REBUILD_DIRTY_TILE_CELLS_INTERVAL
   )
 
+  schedule(
+    "sendTaskLockExpiryReminders",
+    "Sending Task Lock Expiry Reminders",
+    1.minute,
+    Config.KEY_SCHEDULER_TASK_LOCK_EXPIRY_REMINDER_INTERVAL
+  )
+
   scheduleAtTime(
     "sendCountNotificationDailyEmails",
     "Sending Count Notification Daily Emails",
