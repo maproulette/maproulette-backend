@@ -1955,25 +1955,18 @@ class ChallengeController @Inject() (
         } else {
           this.dal.update(filtered, user)(id) match {
             case Some(updated) =>
-              val (highWrites, mediumWrites, lowWrites) =
-                this.dal.updateTaskPriorities(user, overrideValidation = true)(id)
+              this.dal.updateTaskPriorities(user, overrideValidation = true)(id)
               this.dalManager.task.clearCaches
               this.dal.clearCaches
-              // Surface an honest receipt of what the recompute did. `tasksUpdated`
-              // is the number of task rows the DB actually changed at each tier,
-              // measured by COUNT(*) after the writes commit. A response with all
-              // zeros is the signal that either no tasks matched any tier (default
-              // priority covers everything) or the recompute short-circuited.
+              // Surface the post-recompute priority distribution so the editor
+              // can confirm what landed in the DB. All zeros means either no
+              // tasks matched any tier (default priority covers everything) or
+              // the recompute short-circuited.
               val postCounts: Map[Int, Long] = this.dal.countTasksByPriority(id)
               val highCount: Long            = postCounts.getOrElse(Challenge.PRIORITY_HIGH, 0L)
               val mediumCount: Long          = postCounts.getOrElse(Challenge.PRIORITY_MEDIUM, 0L)
               val lowCount: Long             = postCounts.getOrElse(Challenge.PRIORITY_LOW, 0L)
               val receipt = Json.obj(
-                "tasksWritten" -> Json.obj(
-                  "high"   -> highWrites,
-                  "medium" -> mediumWrites,
-                  "low"    -> lowWrites
-                ),
                 "tasksByPriority" -> Json.obj(
                   "high"   -> highCount,
                   "medium" -> mediumCount,

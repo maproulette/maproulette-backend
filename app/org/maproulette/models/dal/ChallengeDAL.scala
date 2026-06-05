@@ -1076,12 +1076,11 @@ class ChallengeDAL @Inject() (
   }
 
   /**
-    * Runs through the tasks in batches and recomputes each task's priority from the
-    * challenge's current rules and bounds. Genuine failures raise: a missing challenge
-    * throws `NotFoundException`, lack of permission throws, and a DB error propagates.
-    * Returns a `(high, medium, low)` tuple of the number of task rows written at each
-    * level. A `(0, 0, 0)` result is a legitimate outcome (e.g. no valid rules/bounds, or
-    * no tasks matched any tier), not a failure signal.
+    * Recomputes each task's priority from the challenge's current rules and bounds
+    * using a single SQL UPDATE. Genuine failures raise: a missing challenge throws
+    * `NotFoundException`, lack of permission throws, an untranslatable rule throws
+    * `InvalidException`, and a DB error propagates. Callers that need a
+    * post-recompute priority distribution can read it with `countTasksByPriority`.
     *
     * @param user The user executing the request
     * @param id   The id of the challenge
@@ -1090,7 +1089,7 @@ class ChallengeDAL @Inject() (
   def updateTaskPriorities(
       user: User,
       overrideValidation: Boolean = false
-  )(implicit id: Long, c: Option[Connection] = None): (Int, Int, Int) = {
+  )(implicit id: Long, c: Option[Connection] = None): Unit = {
     this.permission.hasWriteAccess(ChallengeType(), user)
     this.withMRConnection { implicit c =>
       // Bypass the challenge cache so freshly-updated priority rules/bounds are
@@ -1102,75 +1101,242 @@ class ChallengeDAL @Inject() (
             s"Could not update priorties for tasks, no challenge with id $id found."
           )
       }
-      // make sure that at least one of the challenges is valid
-      if (overrideValidation || Challenge.isValidRule(challenge.priority.highPriorityRule) ||
+      val hasRules =
+        Challenge.isValidRule(challenge.priority.highPriorityRule) ||
           Challenge.isValidRule(challenge.priority.mediumPriorityRule) ||
-          Challenge.isValidRule(challenge.priority.lowPriorityRule) ||
-          Challenge.isValidBounds(challenge.priority.highPriorityBounds) ||
+          Challenge.isValidRule(challenge.priority.lowPriorityRule)
+      val hasBounds =
+        Challenge.isValidBounds(challenge.priority.highPriorityBounds) ||
           Challenge.isValidBounds(challenge.priority.mediumPriorityBounds) ||
-          Challenge.isValidBounds(challenge.priority.lowPriorityBounds)) {
-        var pointer                  = 0
-        var currentTasks: List[Task] = List.empty
-        var highWrites               = 0
-        var mediumWrites             = 0
-        var lowWrites                = 0
-        do {
-          // listChildren's second argument is the *page number*, and it computes
-          // offset = page * limit internally. The previous `pointer * limit`
-          // expression was being multiplied by limit a second time, so after
-          // the first 1000 tasks the offset jumped to 1,000,000 and every
-          // subsequent batch came back empty, leaving any task beyond row 1000
-          // with its old priority.
-          currentTasks = listChildren(DEFAULT_NUM_CHILDREN_LIST, pointer)
+          Challenge.isValidBounds(challenge.priority.lowPriorityBounds)
 
-          // Evaluate per task with a guard: a single malformed rule/bound shouldn't
-          // abort the whole recompute and leave the batch half-written. On failure
-          // we preserve the task's current priority so it stays internally consistent.
-          val evaluated: List[(Task, Int)] = currentTasks.map { task =>
-            val p =
-              try task.getTaskPriority(challenge)
-              catch { case _: Exception => task.priority }
-            (task, p)
-          }
-          val highPriorityTasks   = evaluated.collect { case (t, Challenge.PRIORITY_HIGH)   => t }
-          val mediumPriorityTasks = evaluated.collect { case (t, Challenge.PRIORITY_MEDIUM) => t }
-          val lowPriorityTasks    = evaluated.collect { case (t, Challenge.PRIORITY_LOW)    => t }
-
-          if (highPriorityTasks.nonEmpty) {
-            val highPriorityIds = highPriorityTasks.map(_.id).mkString(",")
-            highWrites +=
-              SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_HIGH} WHERE id IN (#$highPriorityIds)"""
-                .executeUpdate()
-          }
-          if (mediumPriorityTasks.nonEmpty) {
-            val mediumPriorityIds = mediumPriorityTasks.map(_.id).mkString(",")
-            mediumWrites +=
-              SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_MEDIUM} WHERE id IN (#$mediumPriorityIds)"""
-                .executeUpdate()
-          }
-          if (lowPriorityTasks.nonEmpty) {
-            val lowPriorityIds = lowPriorityTasks.map(_.id).mkString(",")
-            lowWrites +=
-              SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_LOW} WHERE id IN (#$lowPriorityIds)"""
-                .executeUpdate()
-          }
-          pointer += 1
-        } while (currentTasks.size >= DEFAULT_NUM_CHILDREN_LIST)
+      if (overrideValidation || hasRules || hasBounds) {
+        recomputePriorities(challenge)
         this.taskDAL.clearCaches
-        (highWrites, mediumWrites, lowWrites)
-      } else {
-        (0, 0, 0)
       }
+    }
+  }
+
+  // Persists the recomputed priority for every task in the challenge in a single
+  // statement: the `computed` CTE evaluates the CASE expression once per row, the
+  // UPDATE then filters by `IS DISTINCT FROM` so rows already at the computed
+  // priority aren't rewritten (which would fire triggers needlessly), and
+  // RETURNING streams the post-update priority of the rows that actually changed
+  // so we can group them by tier. Returns count of rows written at each tier.
+  private def recomputePriorities(
+      challenge: Challenge
+  )(implicit id: Long, c: Connection): Map[Int, Long] = {
+    val (expr, params) = buildPriorityCaseExpression(challenge)
+    val allParams      = params :+ NamedParameter("pid", id)
+    SQL(
+      s"""WITH computed AS (
+            SELECT id, ($expr) AS priority FROM tasks WHERE parent_id = {pid}
+          ), updated AS (
+            UPDATE tasks SET priority = computed.priority FROM computed
+            WHERE tasks.id = computed.id
+              AND tasks.priority IS DISTINCT FROM computed.priority
+            RETURNING tasks.priority
+          )
+          SELECT priority, COUNT(*) AS cnt FROM updated GROUP BY priority"""
+    ).on(allParams: _*)
+      .as(
+        (SqlParser.int("priority") ~ SqlParser.long("cnt")).map { case p ~ cnt => (p, cnt) }.*
+      )
+      .toMap
+  }
+
+  // User-supplied strings (GeoJSON bounds, rule keys/values) must be bound as
+  // anorm parameters rather than inlined: the Postgres JDBC driver pre-parses
+  // statement text for ODBC-style {…} escape syntax, and GeoJSON contains {}.
+  private def buildPriorityCaseExpression(
+      challenge: Challenge
+  ): (String, Seq[NamedParameter]) = {
+    val default = challenge.priority.defaultPriority
+    val params  = scala.collection.mutable.ListBuffer.empty[NamedParameter]
+
+    def bind(value: String): String = {
+      val name = s"p${params.size}"
+      params += NamedParameter(name, value)
+      s"{$name}"
+    }
+
+    def boundsSql(boundsJson: String): Option[String] = {
+      val geoms = extractBoundsGeometries(boundsJson)
+      if (geoms.isEmpty) None
+      else
+        Some(
+          geoms
+            .map(g => s"ST_Intersects(geom, ST_GeomFromGeoJSON(${bind(g)}))")
+            .mkString("(geom IS NOT NULL AND (", " OR ", "))")
+        )
+    }
+
+    // NOTE: For multi-feature tasks (FeatureCollections), this differs subtly
+    // from `Task.scala`'s in-memory evaluator. The frontend asks "does any one
+    // feature satisfy the whole compound rule?" because each leaf check runs
+    // its own EXISTS over the features array, so `k1=v1 AND k2=v2` matches
+    // when one feature has `k1=v1` and a *different* feature has `k2=v2`. This
+    // only affects unusual GeoJSON (e.g. OSM relations modeled as multi-
+    // feature collections); single-feature tasks evaluate identically.
+    def ruleSql(ruleJson: JsValue): Option[String] = {
+      val joiner =
+        if ((ruleJson \ "condition").asOpt[String].exists(_.equalsIgnoreCase("OR"))) " OR "
+        else " AND "
+      val rules = (ruleJson \ "rules").asOpt[List[JsValue]].getOrElse(Nil)
+      val translated = rules.map { r =>
+        if ((r \ "rules").asOpt[JsValue].isDefined) ruleSql(r) else singleRuleSql(r)
+      }
+      if (rules.isEmpty || translated.exists(_.isEmpty)) None
+      else {
+        val parts = translated.flatten
+        Some(if (parts.size == 1) parts.head else parts.mkString("(", joiner, ")"))
+      }
+    }
+
+    def singleRuleSql(rule: JsValue): Option[String] =
+      try {
+        val valueRaw  = (rule \ "value").as[String]
+        val valueType = (rule \ "type").as[String]
+        val operator  = (rule \ "operator").as[String]
+        if (valueType == "bounds") boundsRuleSql(valueRaw, operator)
+        else propertyRuleSql(valueRaw, valueType, operator)
+      } catch { case scala.util.control.NonFatal(_) => None }
+
+    def boundsRuleSql(valueRaw: String, operator: String): Option[String] = {
+      // `Try` rejects unparseable parts and `_.isFinite` rejects NaN/±Infinity —
+      // both would otherwise inline as invalid SQL and abort the whole UPDATE.
+      val parsed = valueRaw
+        .split(",")
+        .map(s => scala.util.Try(s.trim.toDouble).toOption.filter(_.isFinite))
+      if (parsed.length != 4 || parsed.exists(_.isEmpty)) None
+      else {
+        val bbox = parsed.map(_.get)
+        val env  = s"ST_MakeEnvelope(${bbox(0)}, ${bbox(1)}, ${bbox(2)}, ${bbox(3)}, 4326)"
+        operator match {
+          case "contains"     => Some(s"(location IS NOT NULL AND location && $env)")
+          case "not_contains" => Some(s"(location IS NOT NULL AND NOT (location && $env))")
+          case _              => None
+        }
+      }
+    }
+
+    def propertyRuleSql(
+        valueRaw: String,
+        valueType: String,
+        operator: String
+    ): Option[String] = valueRaw.split("\\.", 2) match {
+      case Array(rawKey, rawValue) =>
+        val keyParam    = bind(rawKey)
+        val valueParam  = bind(rawValue)
+        val doubleRegex = "^[+-]?([0-9]+\\.?[0-9]*|\\.[0-9]+)([eE][+-]?[0-9]+)?$"
+        val longRegex   = "^[+-]?[0-9]+$"
+        val check: Option[String] = (valueType, operator) match {
+          case ("string", "equal")        => Some(s"p.v = $valueParam")
+          case ("string", "not_equal")    => Some(s"p.v <> $valueParam")
+          case ("string", "contains")     => Some(s"position($valueParam IN p.v) > 0")
+          case ("string", "not_contains") => Some(s"position($valueParam IN p.v) = 0")
+          case ("string", "is_empty")     => Some("(p.v IS NULL OR p.v = '')")
+          case ("string", "is_not_empty") => Some("(p.v IS NOT NULL AND p.v <> '')")
+          case ("double", op) =>
+            for {
+              sqlOp <- numericOp(op)
+              n     <- scala.util.Try(rawValue.toDouble).toOption.filter(_.isFinite)
+            } yield s"(p.v ~ '$doubleRegex' AND p.v::double precision $sqlOp $n)"
+          case ("integer" | "long", op) =>
+            for {
+              sqlOp <- numericOp(op)
+              n     <- scala.util.Try(rawValue.toLong).toOption
+            } yield s"(p.v ~ '$longRegex' AND p.v::bigint $sqlOp $n)"
+          case _ => None
+        }
+        // jsonb_typeof guards keep one malformed task from aborting the UPDATE;
+        // jsonb_build_*() instead of '[]'/'{}' literals to avoid braces in the
+        // statement text (see method-level note).
+        check.map { c =>
+          s"(geojson IS NOT NULL AND EXISTS (SELECT 1 FROM jsonb_array_elements(" +
+            "CASE WHEN jsonb_typeof(geojson -> 'features') = 'array' " +
+            "THEN geojson -> 'features' ELSE jsonb_build_array() END" +
+            ") AS f, jsonb_each_text(" +
+            "CASE WHEN jsonb_typeof(f -> 'properties') = 'object' " +
+            "THEN f -> 'properties' ELSE jsonb_build_object() END" +
+            s") AS p(k, v) WHERE LOWER(p.k) = LOWER($keyParam) AND $c))"
+        }
+      case _ => None
+    }
+
+    def levelWhen(
+        boundsOpt: Option[String],
+        ruleOpt: Option[String],
+        priority: Int
+    ): Option[String] = {
+      val parts = List(
+        boundsOpt.flatMap(boundsSql),
+        ruleOpt.filter(r => Challenge.isValidRule(Some(r))).map { r =>
+          ruleSql(Json.parse(r)).getOrElse(
+            throw new InvalidException(s"Priority rule can't be translated to SQL: $r")
+          )
+        }
+      ).flatten
+      if (parts.isEmpty) None else Some(s"WHEN ${parts.mkString(" OR ")} THEN $priority")
+    }
+
+    val whens = List(
+      levelWhen(
+        challenge.priority.highPriorityBounds,
+        challenge.priority.highPriorityRule,
+        Challenge.PRIORITY_HIGH
+      ),
+      levelWhen(
+        challenge.priority.mediumPriorityBounds,
+        challenge.priority.mediumPriorityRule,
+        Challenge.PRIORITY_MEDIUM
+      ),
+      levelWhen(
+        challenge.priority.lowPriorityBounds,
+        challenge.priority.lowPriorityRule,
+        Challenge.PRIORITY_LOW
+      )
+    ).flatten
+
+    val expr =
+      if (whens.isEmpty) default.toString
+      else s"CASE ${whens.mkString(" ")} ELSE $default END"
+
+    (expr, params.toSeq)
+  }
+
+  private def numericOp(op: String): Option[String] = op match {
+    case "==" => Some("=")
+    case "!=" => Some("<>")
+    case "<"  => Some("<")
+    case "<=" => Some("<=")
+    case ">"  => Some(">")
+    case ">=" => Some(">=")
+    case _    => None
+  }
+
+  private def extractBoundsGeometries(boundsJson: String): List[String] = {
+    try {
+      val features = Json.parse(boundsJson) match {
+        case arr: JsArray => arr.value.toList
+        case obj          => List(obj)
+      }
+      features.flatMap { feat =>
+        val geom = (feat \ "geometry").asOpt[JsValue].getOrElse(feat)
+        if ((geom \ "type").asOpt[String].isDefined) Some(Json.stringify(geom)) else None
+      }
+    } catch {
+      case scala.util.control.NonFatal(_) => Nil
     }
   }
 
   /**
     * Dry-run `updateTaskPriorities`: computes, but does NOT persist, the priority
     * that every task in the challenge would receive under the supplied draft
-    * priority config. Used by the editor preview so the UI can show tier
-    * membership that is byte-for-byte consistent with what a subsequent save
-    * would write — including rule-based matches, which the frontend can't
-    * evaluate because it doesn't ship per-task OSM tags.
+    * priority config. Routes through the same SQL CASE expression the save path
+    * uses, so the editor preview is byte-for-byte consistent with what a
+    * subsequent save would write — including rule-based matches, which the
+    * frontend can't evaluate because it doesn't ship per-task OSM tags.
     */
   def previewTaskPriorities(
       user: User,
@@ -1186,23 +1352,20 @@ class ChallengeDAL @Inject() (
           )
       }
       // Splice the draft priority config onto a copy of the persisted challenge
-      // so `task.getTaskPriority` sees the user's in-progress rules/bounds
-      // while still reading tasks from the live DB.
-      val draftChallenge           = persisted.copy(priority = draft)
-      val result                   = scala.collection.mutable.LongMap[Int]()
-      var pointer                  = 0
-      var currentTasks: List[Task] = List.empty
-      do {
-        currentTasks = listChildren(DEFAULT_NUM_CHILDREN_LIST, pointer)
-        currentTasks.foreach { task =>
-          val p =
-            try task.getTaskPriority(draftChallenge)
-            catch { case _: Exception => task.priority }
-          result.put(task.id, p)
-        }
-        pointer += 1
-      } while (currentTasks.size >= DEFAULT_NUM_CHILDREN_LIST)
-      result.toMap
+      // so the CASE translation sees the user's in-progress rules/bounds while
+      // still reading tasks from the live DB.
+      val draftChallenge = persisted.copy(priority = draft)
+      val (expr, params) = buildPriorityCaseExpression(draftChallenge)
+      val allParams      = params :+ NamedParameter("pid", id)
+      SQL(
+        s"SELECT id, ($expr) AS computed_priority FROM tasks WHERE parent_id = {pid}"
+      ).on(allParams: _*)
+        .as(
+          (SqlParser.long("id") ~ SqlParser.int("computed_priority")).map {
+            case i ~ p => (i, p)
+          }.*
+        )
+        .toMap
     }
   }
 
