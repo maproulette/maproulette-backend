@@ -1079,11 +1079,8 @@ class ChallengeDAL @Inject() (
     * Recomputes each task's priority from the challenge's current rules and bounds
     * using a single SQL UPDATE. Genuine failures raise: a missing challenge throws
     * `NotFoundException`, lack of permission throws, an untranslatable rule throws
-    * `InvalidException`, and a DB error propagates. Returns a `(high, medium, low)`
-    * tuple of the number of task rows whose priority actually changed at each tier
-    * (no-op rows — those whose computed priority matches what's already stored —
-    * are not counted). A `(0, 0, 0)` result is legitimate (e.g. no valid rules,
-    * no tasks shifted), not a failure signal.
+    * `InvalidException`, and a DB error propagates. Callers that need a
+    * post-recompute priority distribution can read it with `countTasksByPriority`.
     *
     * @param user The user executing the request
     * @param id   The id of the challenge
@@ -1092,7 +1089,7 @@ class ChallengeDAL @Inject() (
   def updateTaskPriorities(
       user: User,
       overrideValidation: Boolean = false
-  )(implicit id: Long, c: Option[Connection] = None): (Int, Int, Int) = {
+  )(implicit id: Long, c: Option[Connection] = None): Unit = {
     this.permission.hasWriteAccess(ChallengeType(), user)
     this.withMRConnection { implicit c =>
       // Bypass the challenge cache so freshly-updated priority rules/bounds are
@@ -1114,34 +1111,31 @@ class ChallengeDAL @Inject() (
           Challenge.isValidBounds(challenge.priority.lowPriorityBounds)
 
       if (overrideValidation || hasRules || hasBounds) {
-        val writes = recomputePriorities(challenge)
+        recomputePriorities(challenge)
         this.taskDAL.clearCaches
-        (
-          writes.getOrElse(Challenge.PRIORITY_HIGH, 0L).toInt,
-          writes.getOrElse(Challenge.PRIORITY_MEDIUM, 0L).toInt,
-          writes.getOrElse(Challenge.PRIORITY_LOW, 0L).toInt
-        )
-      } else {
-        (0, 0, 0)
       }
     }
   }
 
   // Persists the recomputed priority for every task in the challenge in a single
-  // data-modifying CTE: the UPDATE is filtered by `IS DISTINCT FROM` so rows that
-  // already match the computed priority aren't rewritten, and RETURNING streams
-  // the post-update priority of the rows that actually changed so we can group
-  // them by tier. Returns count of rows written at each priority tier.
+  // statement: the `computed` CTE evaluates the CASE expression once per row, the
+  // UPDATE then filters by `IS DISTINCT FROM` so rows already at the computed
+  // priority aren't rewritten (which would fire triggers needlessly), and
+  // RETURNING streams the post-update priority of the rows that actually changed
+  // so we can group them by tier. Returns count of rows written at each tier.
   private def recomputePriorities(
       challenge: Challenge
   )(implicit id: Long, c: Connection): Map[Int, Long] = {
     val (expr, params) = buildPriorityCaseExpression(challenge)
     val allParams      = params :+ NamedParameter("pid", id)
     SQL(
-      s"""WITH updated AS (
-            UPDATE tasks SET priority = $expr
-            WHERE parent_id = {pid} AND priority IS DISTINCT FROM ($expr)
-            RETURNING priority
+      s"""WITH computed AS (
+            SELECT id, ($expr) AS priority FROM tasks WHERE parent_id = {pid}
+          ), updated AS (
+            UPDATE tasks SET priority = computed.priority FROM computed
+            WHERE tasks.id = computed.id
+              AND tasks.priority IS DISTINCT FROM computed.priority
+            RETURNING tasks.priority
           )
           SELECT priority, COUNT(*) AS cnt FROM updated GROUP BY priority"""
     ).on(allParams: _*)
@@ -1177,6 +1171,13 @@ class ChallengeDAL @Inject() (
         )
     }
 
+    // NOTE: For multi-feature tasks (FeatureCollections), this differs subtly
+    // from `Task.scala`'s in-memory evaluator. The frontend asks "does any one
+    // feature satisfy the whole compound rule?" because each leaf check runs
+    // its own EXISTS over the features array, so `k1=v1 AND k2=v2` matches
+    // when one feature has `k1=v1` and a *different* feature has `k2=v2`. This
+    // only affects unusual GeoJSON (e.g. OSM relations modeled as multi-
+    // feature collections); single-feature tasks evaluate identically.
     def ruleSql(ruleJson: JsValue): Option[String] = {
       val joiner =
         if ((ruleJson \ "condition").asOpt[String].exists(_.equalsIgnoreCase("OR"))) " OR "
