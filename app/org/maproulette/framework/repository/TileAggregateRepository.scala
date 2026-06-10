@@ -40,8 +40,10 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
   private val WEB_MERCATOR_EXTENT = 20037508.342789244
 
   // A cell at display zoom z is a slippy tile at zoom z + CELL_BITS, so each
-  // display tile is a 2^CELL_BITS square of cells. Must match evolution 107.
-  private val CELL_BITS = 4
+  // display tile is a 2^CELL_BITS square of cells. CELL_BITS = 3 -> 8x8 = 64
+  // cells per display tile; a smaller value means coarser bins and therefore
+  // larger clusters. Must match the tile evolutions (107, lowered by 119).
+  private val CELL_BITS = 3
 
   /** Highest display zoom served as pre-computed grid cells. */
   val MAX_CELL_ZOOM = 11
