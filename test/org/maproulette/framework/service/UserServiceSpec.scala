@@ -445,8 +445,10 @@ class UserServiceSpec(implicit val application: Application) extends FrameworkHe
     "get user mappers for challenge" in {
       val result = this.userService.getChallengeMappers(randomChallenge.id)
 
+      // getChallengeMappers makes no ordering guarantee, so assert membership rather
+      // than relying on a specific row order (which differs across Postgres instances).
       result.size mustEqual 2
-      result.head.id mustEqual randomUser.id
+      result.map(_.id) must contain(randomUser.id)
     }
 
     "complex query" in {
