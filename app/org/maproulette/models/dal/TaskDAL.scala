@@ -496,16 +496,8 @@ class TaskDAL @Inject() (
         cooperativeWorkJson = Some(workMatch.head.toString())
       }
 
-      val attachments   = (geometries \ "attachments").toOption
-      val mrTransformer = (__ \ "properties" \ "maproulette").json.prune
-      val extractedGeometries = JsArray(
-        (geometries \ "features")
-          .as[JsArray]
-          .value
-          .collect {
-            case value: JsObject => value.transform(mrTransformer).getOrElse(value)
-          }
-      )
+      val attachments         = (geometries \ "attachments").toOption
+      val extractedGeometries = this.pruneMapRouletteProperties(geometries)
 
       // Set the correct cooperative type on the parent challenge
       cooperativeWorkJson match {
@@ -541,6 +533,26 @@ class TaskDAL @Inject() (
         cooperativeWorkJson
       )
     }
+  }
+
+  /**
+    * Extracts the features from a FeatureCollection, removing any embedded
+    * "maproulette" object from each feature's properties. Non-object entries
+    * in the features array are dropped.
+    *
+    * @param geometries The geojson FeatureCollection containing the features
+    * @return The features with any maproulette properties pruned
+    */
+  private[dal] def pruneMapRouletteProperties(geometries: JsObject): JsArray = {
+    val mrTransformer = (__ \ "properties" \ "maproulette").json.prune
+    JsArray(
+      (geometries \ "features")
+        .as[JsArray]
+        .value
+        .collect {
+          case value: JsObject => value.transform(mrTransformer).getOrElse(value)
+        }
+    )
   }
 
   /**
