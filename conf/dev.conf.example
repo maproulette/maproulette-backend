@@ -6,6 +6,11 @@ include "application.conf"
 play.http.secret.key = "DEVLOCAL_1z8rvducX6AaMTXQl4olw71YHj3MCFpRXXTB73TNnTc="
 play.http.secret.key = ${?APPLICATION_SECRET}
 
+# Use a mocked mailer so that it logs to the console. Use the debug option when necessary.
+# Refer to https://github.com/playframework/play-mailer/blob/main/samples/runtimeDI/conf/application.conf
+play.mailer.mock=true
+play.mailer.debug=false
+
 db.default {
   url="jdbc:postgresql://localhost:5432/mp_dev"
   url=${?MR_DATABASE_URL}
