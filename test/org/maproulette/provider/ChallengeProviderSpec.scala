@@ -20,7 +20,8 @@ import scala.concurrent.duration.Duration
 import scala.jdk.CollectionConverters._
 
 class ChallengeProviderSpec extends PlaySpec with MockitoSugar {
-  val repository: ChallengeProvider = new ChallengeProvider(null, null, null, null, null)
+  val repository: ChallengeProvider =
+    new ChallengeProvider(null, null, null, null, null, null)(null)
 
   val challengeWithOsmId = Challenge(
     1,

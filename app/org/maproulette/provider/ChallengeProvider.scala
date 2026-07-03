@@ -4,6 +4,7 @@
  */
 package org.maproulette.provider
 
+import java.sql.Connection
 import java.util.UUID
 import javax.inject.{Inject, Singleton}
 import org.apache.commons.lang3.StringUtils
@@ -14,7 +15,7 @@ import org.maproulette.framework.model.{Challenge, Task, User}
 import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}
 import org.maproulette.utils.Utils
 import org.slf4j.LoggerFactory
-import play.api.db.Database
+import play.api.db.{Database, NamedDatabase}
 import play.api.http.Status
 import play.api.libs.json._
 import play.api.libs.ws.WSClient
@@ -32,14 +33,25 @@ class ChallengeProvider @Inject() (
     taskDAL: TaskDAL,
     config: Config,
     ws: WSClient,
-    db: Database
-) extends DefaultReads {
-
-  import scala.concurrent.ExecutionContext.Implicits.global
+    db: Database,
+    @NamedDatabase("background") backgroundDb: Database
+)(implicit ec: TaskBuilderExecutionContext)
+    extends DefaultReads {
 
   private val RS = 0x1E.toChar // RS (record separator) control character
 
   private val logger = LoggerFactory.getLogger(this.getClass)
+
+  /**
+    * Runs a block using a connection borrowed from the dedicated background
+    * pool so that heavy, long-held build operations (e.g. bulk task deletes,
+    * recomputing task priorities) don't draw from the default pool, which can
+    * starve normal HTTP requests and cause 503 errors.
+    */
+  private def withBackgroundPool[T](block: Option[Connection] => T): T =
+    this.backgroundDb.withConnection { c =>
+      block(Some(c))
+    }
 
   def rebuildTasks(user: User, challenge: Challenge, removeUnmatched: Boolean = false): Boolean =
     this.buildTasks(user, challenge, None, removeUnmatched)
@@ -55,7 +67,9 @@ class ChallengeProvider @Inject() (
       Future {
         logger.debug("Creating tasks for overpass query: " + challenge.creation.overpassQL.get)
         if (removeUnmatched) {
-          this.challengeDAL.removeIncompleteTasks(user)(challenge.id)
+          this.withBackgroundPool { c =>
+            this.challengeDAL.removeIncompleteTasks(user)(challenge.id, c)
+          }
         }
 
         this.buildOverpassQLTasks(challenge, user)
@@ -77,7 +91,9 @@ class ChallengeProvider @Inject() (
           )
           Future {
             if (removeUnmatched) {
-              this.challengeDAL.removeIncompleteTasks(user)(challenge.id)
+              this.withBackgroundPool { c =>
+                this.challengeDAL.removeIncompleteTasks(user)(challenge.id, c)
+              }
             }
 
             if (isLineByLineGeoJson(splitJson)) {
@@ -117,8 +133,10 @@ class ChallengeProvider @Inject() (
 
             //we need to reapply task priority rules since task locations were updated
             Future {
-              this.challengeDAL.updateTaskPriorities(user)(challenge.id)
-              this.challengeDAL.updateBoundingBox()(challenge.id)
+              this.withBackgroundPool { c =>
+                this.challengeDAL.updateTaskPriorities(user)(challenge.id, c)
+                this.challengeDAL.updateBoundingBox()(challenge.id, c)
+              }
             }
           }.recover {
             case e: Exception =>
@@ -218,7 +236,9 @@ class ChallengeProvider @Inject() (
   ): Unit = {
     this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_BUILDING), user)(challenge.id)
     if (removeUnmatched) {
-      this.challengeDAL.removeIncompleteTasks(user)(challenge.id)
+      this.withBackgroundPool { c =>
+        this.challengeDAL.removeIncompleteTasks(user)(challenge.id, c)
+      }
     }
 
     val url     = filePrefix.replace("{x}", fileNumber.toString)
@@ -283,8 +303,10 @@ class ChallengeProvider @Inject() (
 
           //we need to reapply task priority rules since task locations were updated
           Future {
-            this.challengeDAL.updateTaskPriorities(user)(challenge.id)
-            this.challengeDAL.updateBoundingBox()(challenge.id)
+            this.withBackgroundPool { c =>
+              this.challengeDAL.updateTaskPriorities(user)(challenge.id, c)
+              this.challengeDAL.updateBoundingBox()(challenge.id, c)
+            }
           }
         }
       case Failure(f) =>
@@ -800,7 +822,9 @@ class ChallengeProvider @Inject() (
       newTask: Task
   ): Option[Task] = {
     try {
-      this.taskDAL.mergeUpdate(newTask, user)(newTask.id)
+      this.withBackgroundPool { c =>
+        this.taskDAL.mergeUpdate(newTask, user)(newTask.id, c)
+      }
     } catch {
       // this task could fail on unique key violation, we need to ignore them
       case e: Exception =>
