@@ -2,7 +2,7 @@ import org.joda.time.DateTime
 import org.maproulette.Config
 import org.maproulette.framework.model._
 import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}
-import org.maproulette.provider.ChallengeProvider
+import org.maproulette.provider.{ChallengeProvider, TaskBuilderExecutionContext}
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.{any, eq => eqM}
 import org.mockito.Mockito.{doAnswer, never, timeout, verify, when}
@@ -390,12 +390,14 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar {
       contentType: Option[String] = Some("application/json"),
       responseBody: String = ""
   ) {
-    val ws: WSClient               = mock[WSClient]
-    val wsRequest: WSRequest       = mock[WSRequest]
-    val wsResponse: WSResponse     = mock[WSResponse]
-    val challengeDAL: ChallengeDAL = mock[ChallengeDAL]
-    val taskDAL: TaskDAL           = mock[TaskDAL]
-    val db: Database               = mock[Database]
+    val ws: WSClient                             = mock[WSClient]
+    val wsRequest: WSRequest                     = mock[WSRequest]
+    val wsResponse: WSResponse                   = mock[WSResponse]
+    val challengeDAL: ChallengeDAL               = mock[ChallengeDAL]
+    val taskDAL: TaskDAL                         = mock[TaskDAL]
+    val db: Database                             = mock[Database]
+    val backgroundDb: Database                   = mock[Database]
+    implicit val ec: TaskBuilderExecutionContext = mock[TaskBuilderExecutionContext]
 
     when(ws.url(any[String])).thenReturn(wsRequest)
     when(wsRequest.withRequestTimeout(any[Duration])).thenReturn(wsRequest)
@@ -408,8 +410,14 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar {
     doAnswer { (invocation: InvocationOnMock) =>
       invocation.getArgument(0).asInstanceOf[Connection => Any](mock[Connection])
     }.when(db).withTransaction(any[Connection => Any])
+    doAnswer { (invocation: InvocationOnMock) =>
+      invocation.getArgument(0).asInstanceOf[Connection => Any](mock[Connection])
+    }.when(backgroundDb).withConnection(any[Connection => Any])
+    doAnswer { (invocation: InvocationOnMock) =>
+      invocation.getArgument(0).asInstanceOf[Runnable].run()
+    }.when(ec).execute(any[Runnable])
 
-    val provider = new ChallengeProvider(challengeDAL, taskDAL, config, ws, db)
+    val provider = new ChallengeProvider(challengeDAL, taskDAL, config, ws, db, backgroundDb)
   }
 
   "buildTasks with an overpass query" should {
