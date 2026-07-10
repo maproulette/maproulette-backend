@@ -69,19 +69,21 @@ class TaskReviewController @Inject() (
     * Gets and claims a task that needs to be reviewed.
     *
     * @param id Task id to work on
+    * @param includeTags If true, include MR tags on the returned task
     * @return
     */
-  def startTaskReview(id: Long): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.authenticatedRequest { implicit user =>
-      val task = this.taskRepository.retrieve(id) match {
-        case Some(t) => t
-        case None    => throw new NotFoundException(s"Task with $id not found, cannot start review.")
-      }
+  def startTaskReview(id: Long, includeTags: Boolean = false): Action[AnyContent] =
+    Action.async { implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        val task = this.taskRepository.retrieve(id) match {
+          case Some(t) => t
+          case None    => throw new NotFoundException(s"Task with $id not found, cannot start review.")
+        }
 
-      val result = this.service.startTaskReview(user, task)
-      Ok(Json.toJson(result))
+        val result = this.service.startTaskReview(user, task)
+        Ok(withTaskTagsIfRequested(result, includeTags))
+      }
     }
-  }
 
   /**
     * Releases a claim on a task that needs to be reviewed.
@@ -117,7 +119,8 @@ class TaskReviewController @Inject() (
       order: String,
       lastTaskId: Long = -1,
       excludeOtherReviewers: Boolean = false,
-      asMetaReview: Boolean = false
+      asMetaReview: Boolean = false,
+      includeTags: Boolean = false
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
       SearchParameters.withSearch { implicit params =>
@@ -145,12 +148,29 @@ class TaskReviewController @Inject() (
         )
         val nextTask = result match {
           case Some(task) =>
-            Ok(Json.toJson(this.service.startTaskReview(user, task)))
+            Ok(withTaskTagsIfRequested(this.service.startTaskReview(user, task), includeTags))
           case None =>
             throw new NotFoundException("No tasks found to review.")
         }
 
         nextTask
+      }
+    }
+  }
+
+  /**
+    * Serializes a (possibly absent) Task and, when requested, injects the task's
+    * MR tags into the resulting JSON so the review UI can render them without
+    * an extra round-trip.
+    */
+  private def withTaskTagsIfRequested(result: Option[Task], includeTags: Boolean): JsValue = {
+    if (!includeTags) {
+      Json.toJson(result)
+    } else {
+      result match {
+        case Some(task) =>
+          Utils.insertIntoJson(Json.toJson(task), "tags", Json.toJson(this.getTags(task.id)), true)
+        case None => Json.toJson(result)
       }
     }
   }
