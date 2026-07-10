@@ -498,4 +498,66 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar {
       verify(taskDAL, never()).mergeUpdate(any(), any())(any(), any())
     }
   }
+
+  private val plainFeatureGeojson =
+    """{"features":[{"id":"f1","geometry":{"type":"Point","coordinates":[1,2]},"properties":{}}]}"""
+
+  private val cooperativeFeatureGeojson =
+    """{"features":[{"id":"f1","geometry":{"type":"Point","coordinates":[1,2]},
+      |"properties":{"maproulette":"{\"cooperativeWork\":{\"meta\":{\"version\":2,\"type\":1}}}"}}]}""".stripMargin
+      .replaceAll("\n", "")
+
+  private def dummyTask(name: String): Task =
+    Task(
+      1,
+      name,
+      DateTime.now(),
+      DateTime.now(),
+      challengeWithoutOsmId.id,
+      Some(""),
+      None,
+      Json.obj("type" -> "FeatureCollection", "features" -> Json.arr())
+    )
+
+  private class TaskCreationFixture {
+    val challengeDAL: ChallengeDAL = mock[ChallengeDAL]
+    val taskDAL: TaskDAL           = mock[TaskDAL]
+    val provider =
+      new ChallengeProvider(challengeDAL, taskDAL, config, mock[WSClient], mock[Database])
+  }
+
+  "createTasksFromJson" should {
+    "reapply challenge priority rules after a non-cooperative bulk insert" in new TaskCreationFixture {
+      when(taskDAL.looksCooperative(any())).thenReturn(false)
+      when(taskDAL.bulkInsertNewTasks(any(), eqM(user), eqM(challengeWithoutOsmId))(any()))
+        .thenReturn(List(dummyTask("f1")))
+
+      provider.createTasksFromJson(user, challengeWithoutOsmId, plainFeatureGeojson)
+
+      verify(taskDAL).bulkInsertNewTasks(any(), eqM(user), eqM(challengeWithoutOsmId))(any())
+      verify(taskDAL, never()).bulkMergeNewTasks(any(), any(), any())(any())
+      verify(challengeDAL)
+        .updateTaskPriorities(eqM(user), any())(eqM(challengeWithoutOsmId.id), any())
+    }
+
+    "skip the priority recompute when the bulk insert creates no new tasks" in new TaskCreationFixture {
+      when(taskDAL.looksCooperative(any())).thenReturn(false)
+      when(taskDAL.bulkInsertNewTasks(any(), any(), any())(any())).thenReturn(List.empty)
+
+      provider.createTasksFromJson(user, challengeWithoutOsmId, plainFeatureGeojson)
+
+      verify(challengeDAL, never()).updateTaskPriorities(any(), any())(any(), any())
+    }
+
+    "route cooperative tasks through bulkMergeNewTasks and skip the priority recompute" in new TaskCreationFixture {
+      when(taskDAL.looksCooperative(any())).thenReturn(true)
+      when(taskDAL.bulkMergeNewTasks(any(), any(), any())(any())).thenReturn(List(dummyTask("f1")))
+
+      provider.createTasksFromJson(user, challengeWithoutOsmId, cooperativeFeatureGeojson)
+
+      verify(taskDAL).bulkMergeNewTasks(any(), eqM(user), eqM(challengeWithoutOsmId))(any())
+      verify(taskDAL, never()).bulkInsertNewTasks(any(), any(), any())(any())
+      verify(challengeDAL, never()).updateTaskPriorities(any(), any())(any(), any())
+    }
+  }
 }

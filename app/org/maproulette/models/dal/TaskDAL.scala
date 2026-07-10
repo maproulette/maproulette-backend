@@ -35,6 +35,7 @@ import play.api.libs.json.JodaReads._
 import play.api.libs.json._
 import play.api.libs.ws.WSClient
 
+import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.{Future, Promise}
 import scala.util.control.Exception.allCatch
@@ -361,10 +362,26 @@ class TaskDAL @Inject() (
     // Chunk so the progress poll sees the count climb step-by-step instead of
     // jumping from 0 to N at the final commit, and so very large challenges
     // don't push a single multi-MB parameter through one statement.
-    tasks.grouped(BulkInsertChunkSize).flatMap(bulkInsertChunk(_, parent)).toList
+    dedupeTasksByName(tasks).grouped(BulkInsertChunkSize).flatMap(bulkInsertChunk(_, parent)).toList
   }
 
   private val BulkInsertChunkSize = 5000
+
+  /**
+    * If the same (case-insensitive) name appears more than once in a batch, keep
+    * only the last occurrence. The bulk INSERT below uses
+    * ON CONFLICT (parent_id, lower(name)) DO NOTHING rather than an upsert,
+    * because Postgres rejects a single statement's ON CONFLICT DO UPDATE
+    * touching the same conflict target twice — so duplicates within one batch
+    * must be resolved in Scala first. This also matches the last-write-wins
+    * semantics create_update_task gave us previously (each duplicate would
+    * overwrite the last via its own upsert).
+    */
+  private[dal] def dedupeTasksByName(tasks: List[Task]): List[Task] = {
+    val lastByName = mutable.LinkedHashMap.empty[String, Task]
+    tasks.foreach(t => lastByName(t.name.toLowerCase) = t)
+    lastByName.values.toList
+  }
 
   /** Recursive lookup; geometries is already a parsed JsObject so this is cheap. */
   def looksCooperative(geometries: JsObject): Boolean =
