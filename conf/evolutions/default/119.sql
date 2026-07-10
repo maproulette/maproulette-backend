@@ -6,7 +6,7 @@
 -- the sendTaskLockExpiryReminders job does not email the same user about
 -- the same lock more than once.
 ALTER TABLE IF EXISTS locked
-  ADD COLUMN reminder_sent_at timestamp without time zone DEFAULT NULL;;
+  ADD COLUMN IF NOT EXISTS reminder_sent_at timestamp with time zone DEFAULT NULL;;
 
 -- New per-user subscription controlling task-lock-expiry reminder emails.
 -- Defaults to NOTIFICATION_EMAIL_NONE (1) so the reminder is opt-in.
