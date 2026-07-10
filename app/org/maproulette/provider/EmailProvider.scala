@@ -119,7 +119,7 @@ class EmailProvider @Inject() (mailerClient: MailerClient, config: Config) {
       case Some(name) => s"\nChallenge: ${name}"
       case None       => ""
     }
-    val taskLink = s"${config.getPublicOrigin.get}/task/${taskId}"
+    val taskLink  = s"${config.getPublicOrigin.get}/task/${taskId}"
     val emailBody = s"""
       |Your lock on a MapRoulette task is going to expire in approximately
       |${minutesUntilUnlock} minute(s). Once it expires, another mapper may

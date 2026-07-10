@@ -672,29 +672,33 @@ class SchedulerActor @Inject() (
         |    0
         |  ) AS minutes_until_unlock
         """.stripMargin)
-        .as((
-          long("user_id") ~
-            long("task_id") ~
-            get[Option[String]]("email") ~
-            get[Option[String]]("challenge_name") ~
-            int("minutes_until_unlock")
-        ).map { case userId ~ taskId ~ email ~ challengeName ~ minutesUntilUnlock =>
-          (userId, taskId, email, challengeName, minutesUntilUnlock)
-        }.*)
+        .as(
+          (
+            long("user_id") ~
+              long("task_id") ~
+              get[Option[String]]("email") ~
+              get[Option[String]]("challenge_name") ~
+              int("minutes_until_unlock")
+          ).map {
+            case userId ~ taskId ~ email ~ challengeName ~ minutesUntilUnlock =>
+              (userId, taskId, email, challengeName, minutesUntilUnlock)
+          }.*
+        )
     }
 
-    reminders.foreach { case (_, taskId, email, challengeName, minutesUntilUnlock) =>
-      try {
-        email match {
-          case Some(address) if address.nonEmpty =>
-            this.emailProvider
-              .emailTaskUnlockWarning(address, taskId, challengeName, minutesUntilUnlock.toLong)
-          case _ => // no address; nothing to do
+    reminders.foreach {
+      case (_, taskId, email, challengeName, minutesUntilUnlock) =>
+        try {
+          email match {
+            case Some(address) if address.nonEmpty =>
+              this.emailProvider
+                .emailTaskUnlockWarning(address, taskId, challengeName, minutesUntilUnlock.toLong)
+            case _ => // no address; nothing to do
+          }
+        } catch {
+          case e: Exception =>
+            logger.error(s"Failed to send task lock expiry reminder for task $taskId: $e")
         }
-      } catch {
-        case e: Exception =>
-          logger.error(s"Failed to send task lock expiry reminder for task $taskId: $e")
-      }
     }
 
     val totalTime = System.currentTimeMillis - start
