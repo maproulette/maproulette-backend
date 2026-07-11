@@ -601,6 +601,16 @@ class TaskDAL @Inject() (
       throw new IllegalAccessException("Guest users cannot make edits to tasks.")
     }
 
+    for (task <- tasks) {
+      this.manager.challenge.retrieveById(task.parent) match {
+        case Some(parentChallenge) if parentChallenge.extra.paused =>
+          throw new InvalidException(
+            "This challenge is currently paused. Tasks cannot be completed until it is resumed."
+          )
+        case _ => // challenge not paused, or not found (shouldn't happen) - allow
+      }
+    }
+
     var primaryTask = if (isBundle) {
       primaryTaskId
         .flatMap(id => tasks.find(_.id == id))

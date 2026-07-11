@@ -56,6 +56,7 @@ trait ChallengeWrites extends DefaultWrites {
         "limitTags"           -> JsBoolean(o.limitTags),
         "limitReviewTags"     -> JsBoolean(o.limitReviewTags),
         "isArchived"          -> JsBoolean(o.isArchived),
+        "paused"              -> JsBoolean(o.paused),
         "reviewSetting"       -> JsNumber(o.reviewSetting),
         "requireConfirmation" -> JsBoolean(o.requireConfirmation)
       )
@@ -175,7 +176,8 @@ trait ChallengeReads extends DefaultReads {
             presets = (jsonWithExtras \ "presets").asOpt[List[String]],
             requireConfirmation =
               (jsonWithExtras \ "requireConfirmation").asOpt[Boolean].getOrElse(false),
-            mrTagMetrics = (jsonWithExtras \ "mrTagMetrics").asOpt[JsObject]
+            mrTagMetrics = (jsonWithExtras \ "mrTagMetrics").asOpt[JsObject],
+            paused = (jsonWithExtras \ "paused").asOpt[Boolean].getOrElse(false)
           )
         )
       } catch {
@@ -243,6 +245,7 @@ trait BaseChallengeWrites extends DefaultWrites {
         "limitTags"           -> JsBoolean(bc.limitTags),
         "limitReviewTags"     -> JsBoolean(bc.limitReviewTags),
         "isArchived"          -> JsBoolean(bc.isArchived),
+        "paused"              -> JsBoolean(bc.paused),
         "reviewSetting"       -> JsNumber(bc.reviewSetting),
         "completionMetrics"   -> Json.toJson(bc.completionMetrics)
       )
