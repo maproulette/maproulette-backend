@@ -138,18 +138,9 @@ class TaskDAL @Inject() (
         }
       case Right(task) =>
         this.permission.hasObjectReadAccess(task, user)
-
-        // TODO(ljdelight): This block was identified by a profile, it's too slow.
-        //  When a ton of tasks are scanned and the projects are fetched, it's not using the cache.
-        //  The goal here is to be able to use a task id and quickly get the project... however the
-        //  serviceManager.challenge does not have a cache manager. It looks like this needs added.
-        this.serviceManager.project.cacheManager.withOptionCaching { () =>
-          this.withMRConnection { implicit c =>
-            SQL"""SELECT p.* FROM projects p
-             INNER JOIN challenges c ON c.parent_id = p.id
-             WHERE c.id = ${task.parent}
-           """.as(projectParser.*).headOption
-          }
+        this.manager.challenge.retrieveById(task.parent) match {
+          case Some(challenge) => this.serviceManager.project.retrieve(challenge.general.parent)
+          case None            => None
         }
     }
   }
@@ -337,10 +328,16 @@ class TaskDAL @Inject() (
     // before clearing the cache grab the cachedItem
     // by setting the delete implicit to true we clear out the cache for the element
     // The cachedItem could be
-    val cachedItem = this.cacheManager.withUpdatingCache(Long => retrieveById) {
-      implicit cachedItem =>
-        Some(cachedItem)
-    }(id, true, true)
+    // For new tasks (id <= 0, e.g. insert() passes -1) there is nothing to look up, so
+    // skip the guaranteed-miss cache/DB lookup entirely.
+    val cachedItem = if (id > 0) {
+      this.cacheManager.withUpdatingCache(Long => retrieveById) {
+        implicit cachedItem =>
+          Some(cachedItem)
+      }(id, true, true)
+    } else {
+      None
+    }
     this.withMRTransaction { implicit c =>
       val result =
         extractCooperativeWork(element.parent, geoJson, element.cooperativeWork)
