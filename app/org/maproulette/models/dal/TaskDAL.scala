@@ -331,9 +331,8 @@ class TaskDAL @Inject() (
     // For new tasks (id <= 0, e.g. insert() passes -1) there is nothing to look up, so
     // skip the guaranteed-miss cache/DB lookup entirely.
     val cachedItem = if (id > 0) {
-      this.cacheManager.withUpdatingCache(Long => retrieveById) {
-        implicit cachedItem =>
-          Some(cachedItem)
+      this.cacheManager.withUpdatingCache(Long => retrieveById) { implicit cachedItem =>
+        Some(cachedItem)
       }(id, true, true)
     } else {
       None
