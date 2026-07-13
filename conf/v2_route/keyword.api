@@ -1,5 +1,6 @@
 ###
 # tags: [ Tag ]
+# operationId: tag_batchUploadPost
 # deprecated: true
 # responses:
 #   '200':
@@ -24,6 +25,7 @@ POST    /tag                                        @org.maproulette.framework.c
 PUT     /tag/:id                                    @org.maproulette.framework.controller.TagController.update(id:Long)
 ###
 # tags: [ Tag ]
+# operationId: tag_batchUploadPut
 # deprecated: true
 # responses:
 #   '200':
@@ -56,6 +58,7 @@ DELETE  /tag/:id                                    @org.maproulette.framework.c
 GET     /tags                                       @org.maproulette.framework.controller.TagController.getTags(prefix: String ?= "", tagType: String ?= "", limit: Int ?= 10, page: Int ?= 0)
 ###
 # tags: [ Keyword ]
+# operationId: tag_keyword_create_a_keyword
 # summary: Create a Keyword
 # description: Will create a new Keyword from the supplied JSON in the body. When creating the Task, leave the ID field
 #               out of the body json, if updating (generally use the PUT method) include the ID field.
@@ -83,6 +86,7 @@ GET     /tags                                       @org.maproulette.framework.c
 POST    /keyword                                    @org.maproulette.framework.controller.TagController.insert
 ###
 # tags: [ Keyword ]
+# operationId: keyword_create_a_batch_of_keywords
 # summary: Create a batch of Keywords
 # description: Will create multiple new Keyword from the JSONArray supplied in the body. Each JSON object
 #               is basically a Keyword object that is processed similarly to the singular /keyword POST. If
@@ -109,6 +113,7 @@ POST    /keyword                                    @org.maproulette.framework.c
 POST    /keywords                                   @org.maproulette.framework.controller.TagController.batchUploadPost
 ###
 # tags: [ Keyword ]
+# operationId: keyword_updates_a_keyword
 # summary: Updates a Keyword
 # description: Will update an already existing Keyword from the supplied JSON in the body.
 # responses:
@@ -139,6 +144,7 @@ POST    /keywords                                   @org.maproulette.framework.c
 PUT     /keyword/:id                                @org.maproulette.framework.controller.TagController.update(id:Long)
 ###
 # tags: [ Keyword ]
+# operationId: keyword_update_a_batch_of_keywords
 # summary: Update a batch of Keywords
 # description: Will update multiple already existing Keywords from the JSONArray supplied in the body. Each JSON object
 #               is basically a Keyword object that is processed similarly to the singular /keyword POST. If a Keyword
@@ -165,6 +171,7 @@ PUT     /keyword/:id                                @org.maproulette.framework.c
 PUT     /keywords                                   @org.maproulette.framework.controller.TagController.batchUploadPut
 ###
 # tags: [ Keyword ]
+# operationId: keyword_retrieves_an_already_existing_keyword
 # summary: Retrieves an already existing Keyword
 # description: Retrieves an already existing Keyword based on the supplied ID in the URL.
 # responses:
@@ -184,6 +191,7 @@ PUT     /keywords                                   @org.maproulette.framework.c
 GET     /keyword/:id                                @org.maproulette.framework.controller.TagController.retrieve(id:Long)
 ###
 # tags: [ Keyword ]
+# operationId: keyword_deletes_an_existing_keyword
 # summary: Deletes an existing Keyword
 # description: Deletes an existing Keyword based on the supplied ID.
 # responses:
@@ -205,6 +213,7 @@ GET     /keyword/:id                                @org.maproulette.framework.c
 DELETE  /keyword/:id                                @org.maproulette.framework.controller.TagController.delete(id:Long)
 ###
 # tags: [ Keyword ]
+# operationId: keyword_finds_keywords
 # summary: Finds Keywords
 # description: Retrieves existing Keywords based on a prefix for the Keyword. So if search for "tes" will retrieve all Keywords that start with "tes", like "tester", "testing", "test". The search string is case insensitive.
 # responses:
@@ -233,6 +242,7 @@ DELETE  /keyword/:id                                @org.maproulette.framework.c
 GET     /keywords                                   @org.maproulette.framework.controller.TagController.getTags(prefix: String ?= "", tagType: String ?= "", limit: Int ?= 10, page: Int ?= 0)
 ###
 # tags: [ Keyword ]
+# operationId: keyword_toggle_keyword_status
 # summary: Toggle Keyword Status
 # description: Toggles a keyword's active/inactive status. Only available to super users.
 # responses:

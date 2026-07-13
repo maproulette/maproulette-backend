@@ -7,6 +7,7 @@ package org.maproulette.framework.mixins
 import anorm.SqlParser.get
 import anorm.{RowParser, ~}
 import org.joda.time.DateTime
+import play.api.libs.json.{JsObject, Json}
 
 import org.maproulette.framework.model.{TaskReview, TaskReviewFields, TaskWithReview, Task}
 
@@ -27,13 +28,7 @@ trait TaskParserMixin {
       "task_review.review_claimed_by, task_review.review_claimed_at, task_review.additional_reviewers, task_review.error_tags "
 
   // The anorm row parser to convert records from the task table to task objects
-  def getTaskParser(
-      updateAndRetrieve: (Long, Option[String], Option[String], Option[String]) => (
-          String,
-          Option[String],
-          Option[String]
-      )
-  ): RowParser[Task] = {
+  def getTaskParser(): RowParser[Task] = {
     get[Long]("tasks.id") ~
       get[String]("tasks.name") ~
       get[DateTime]("tasks.created") ~
@@ -42,7 +37,7 @@ trait TaskParserMixin {
       get[Option[String]]("tasks.instruction") ~
       get[Option[String]]("geo_location") ~
       get[Option[Int]]("tasks.status") ~
-      get[Option[String]]("geo_json") ~
+      get[String]("geo_json") ~
       get[Option[String]]("cooperative_work") ~
       get[Option[DateTime]]("tasks.mapped_on") ~
       get[Option[Long]]("tasks.completed_time_spent") ~
@@ -63,13 +58,15 @@ trait TaskParserMixin {
       get[Option[String]]("responses") ~
       get[Option[Long]]("tasks.bundle_id") ~
       get[Option[Boolean]]("tasks.is_bundle_primary") ~
-      get[Option[String]]("task_review.error_tags") map {
+      get[Option[String]]("task_review.error_tags") ~
+      get[Option[Int]]("tasks.skip_count") ~
+      get[Option[Boolean]]("tasks.archived") map {
       case id ~ name ~ created ~ modified ~ parent_id ~ instruction ~ location ~ status ~ geojson ~
             cooperativeWork ~ mappedOn ~ completedTimeSpent ~ completedBy ~ reviewStatus ~
             reviewRequestedBy ~ reviewedBy ~ reviewedAt ~ metaReviewedBy ~
             metaReviewStatus ~ metaReviewedAt ~ reviewStartedAt ~ reviewClaimedBy ~ reviewClaimedAt ~
-            additionalReviewers ~ priority ~ changesetId ~ responses ~ bundleId ~ isBundlePrimary ~ errorTags =>
-        val values = updateAndRetrieve(id, geojson, location, cooperativeWork)
+            additionalReviewers ~ priority ~ changesetId ~ responses ~ bundleId ~ isBundlePrimary ~ errorTags ~
+            skipCount ~ archived =>
         Task(
           id,
           name,
@@ -77,9 +74,9 @@ trait TaskParserMixin {
           modified,
           parent_id,
           instruction,
-          values._2,
-          values._1,
-          values._3,
+          location.map(Json.parse(_).as[JsObject]),
+          Json.parse(geojson).as[JsObject],
+          cooperativeWork.map(Json.parse(_).as[JsObject]),
           status,
           mappedOn,
           completedTimeSpent,
@@ -102,18 +99,14 @@ trait TaskParserMixin {
           responses,
           bundleId,
           isBundlePrimary,
-          errorTags = errorTags.getOrElse("")
+          errorTags = errorTags.getOrElse(""),
+          skipCount = skipCount.getOrElse(0),
+          archived = archived.getOrElse(false)
         )
     }
   }
 
-  def getTaskWithReviewParser(
-      updateAndRetrieve: (Long, Option[String], Option[String], Option[String]) => (
-          String,
-          Option[String],
-          Option[String]
-      )
-  ): RowParser[TaskWithReview] = {
+  def getTaskWithReviewParser(): RowParser[TaskWithReview] = {
     // tasks fields
     get[Long]("tasks.id") ~
       get[String]("tasks.name") ~
@@ -123,7 +116,7 @@ trait TaskParserMixin {
       get[Option[String]]("tasks.instruction") ~
       get[Option[String]]("geo_location") ~
       get[Option[Int]]("tasks.status") ~
-      get[Option[String]]("geo_json") ~
+      get[String]("geo_json") ~
       get[Option[String]]("cooperative_work") ~
       get[Option[DateTime]]("tasks.mapped_on") ~
       get[Option[Long]]("tasks.completed_time_spent") ~
@@ -146,6 +139,8 @@ trait TaskParserMixin {
       get[Option[DateTime]]("task_review.review_claimed_at") ~
       get[Option[List[Long]]]("task_review.additional_reviewers") ~
       get[Option[String]]("task_review.error_tags") ~
+      get[Option[Int]]("tasks.skip_count") ~
+      get[Option[Boolean]]("tasks.archived") ~
       // challenges and projects fields
       get[Option[String]]("challenge_name") ~
       get[Option[String]]("project_name") ~
@@ -159,9 +154,9 @@ trait TaskParserMixin {
             reviewStatus ~ reviewRequestedBy ~
             reviewedBy ~ reviewedAt ~ metaReviewedBy ~ metaReviewStatus ~ metaReviewedAt ~ reviewStartedAt ~
             reviewClaimedBy ~ reviewClaimedAt ~ additionalReviewers ~ errorTags ~
+            skipCount ~ archived ~
             challengeName ~ projectName ~ projectId ~
             reviewRequestedByUsername ~ reviewedByUsername =>
-        val values = updateAndRetrieve(id, geojson, location, cooperativeWork)
         TaskWithReview(
           Task(
             id,
@@ -170,9 +165,9 @@ trait TaskParserMixin {
             modified,
             parent_id,
             instruction,
-            values._2,
-            values._1,
-            values._3,
+            location.map(Json.parse(_).as[JsObject]),
+            Json.parse(geojson).as[JsObject],
+            cooperativeWork.map(Json.parse(_).as[JsObject]),
             status,
             mappedOn,
             completedTimeSpent,
@@ -195,7 +190,9 @@ trait TaskParserMixin {
             responses,
             bundleId,
             isBundlePrimary,
-            errorTags = errorTags.getOrElse("")
+            errorTags = errorTags.getOrElse(""),
+            skipCount = skipCount.getOrElse(0),
+            archived = archived.getOrElse(false)
           ),
           TaskReview(
             -1,

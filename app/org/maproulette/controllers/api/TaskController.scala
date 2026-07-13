@@ -25,6 +25,7 @@ import org.maproulette.framework.service.{ServiceManager, TagService, TaskCluste
 import org.maproulette.framework.mixins.TagsControllerMixin
 import org.maproulette.framework.repository.TaskRepository
 import org.maproulette.metrics.Metrics
+import org.maproulette.permissions.Permission
 import org.maproulette.models.dal.mixin.TagDALMixin
 import org.maproulette.models.dal.{DALManager, TaskDAL}
 import org.maproulette.provider.osm._
@@ -69,7 +70,8 @@ class TaskController @Inject() (
     changeService: ChangesetProvider,
     taskClusterService: TaskClusterService,
     override val bodyParsers: PlayBodyParsers,
-    taskRepository: TaskRepository
+    taskRepository: TaskRepository,
+    permission: Permission
 ) extends AbstractController(components)
     with CRUDController[Task]
     with TagsControllerMixin[Task] {
@@ -131,46 +133,21 @@ class TaskController @Inject() (
     this.updateGeometryData(super.updateUpdateBody(body, user))
 
   private def updateGeometryData(body: JsValue): JsValue = {
-    val updatedBody = (body \ "geometries").asOpt[String] match {
-      case Some(value) =>
-        // if it is a string, then it is either GeoJSON or a WKB
-        // just check to see if { is the first character and then we can assume it is GeoJSON
-        if (value.charAt(0) != '{') {
-          // TODO:
-          body
-        } else {
-          // just return the body because it handles this case correctly
-          body
-        }
-      case None =>
-        // if it maps to None then it simply could be that it is a JSON object
-        (body \ "geometries").asOpt[JsValue] match {
-          case Some(value) =>
-            // need to convert to a string for the case class otherwise validation will fail
-            Utils.insertIntoJson(body, "geometries", value.toString(), true)
-          case None =>
-            // if the geometries are not supplied then just leave it
-            body
-        }
-    }
-    (updatedBody \ "location").asOpt[String] match {
-      case Some(value) => updatedBody
-      case None =>
-        (updatedBody \ "location").asOpt[JsValue] match {
-          case Some(value) =>
-            Utils.insertIntoJson(updatedBody, "location", value.toString(), true)
-          case None => updatedBody
-        }
-    }
-    (updatedBody \ "cooperativeWork").asOpt[String] match {
-      case Some(value) => updatedBody
-      case None =>
-        (updatedBody \ "cooperativeWork").asOpt[JsValue] match {
-          case Some(value) =>
-            Utils.insertIntoJson(updatedBody, "cooperativeWork", value.toString(), true)
-          case None => updatedBody
-        }
-    }
+    // Detect JsValues that are strings containing embedded JSON objects,
+    // and parse them to real JsValues instead. This is so that old clients
+    // which submit task geometries, location, etc as stringified JSON instead
+    // of proper nested objects still work.
+    def normalize(json: JsValue, key: String): JsValue =
+      (json \ key).toOption match {
+        case Some(JsString(value)) if value.nonEmpty && value.charAt(0) == '{' =>
+          Utils.insertIntoJson(json, key, Json.parse(value), true)
+        case _ => json
+      }
+
+    val withGeometries      = normalize(body, "geometries")
+    val withLocation        = normalize(withGeometries, "location")
+    val withCooperativeWork = normalize(withLocation, "cooperativeWork")
+    withCooperativeWork
   }
 
   /**
@@ -297,8 +274,7 @@ class TaskController @Inject() (
 
       val xml = task.cooperativeWork match {
         case Some(cw) =>
-          val cooperativeWork = Json.parse(cw)
-          (cooperativeWork \ "file" \ "content").asOpt[String] match {
+          (cw \ "file" \ "content").asOpt[String] match {
             case Some(base64EncodedXML) =>
               new String(java.util.Base64.getDecoder.decode(base64EncodedXML))
             case None => throw new NotFoundException(s"Task $taskId does not offer change XML.")
@@ -365,6 +341,27 @@ class TaskController @Inject() (
           }
         case None =>
           throw new NotFoundException(s"Task with $taskId not found, unable to refresh lock.")
+      }
+    }
+  }
+
+  /**
+    * Retrieves multiple tasks by their IDs.
+    *
+    * @param taskIds Comma-separated string of task IDs to retrieve
+    * @return Array of Task objects
+    */
+  def getTasks(taskIds: String): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      val taskIdsList = Utils.toLongList(taskIds).getOrElse(List.empty[Long])
+      if (taskIdsList.isEmpty) {
+        BadRequest(Json.toJson(StatusMessage("KO", JsString("taskIds array cannot be empty"))))
+      } else {
+        val tasks = taskIdsList.flatMap(taskId => this.dal.retrieveById(taskId))
+        // Inject extra data (tags, mapillary) for each task, similar to the read method
+        // inject returns JsValue, so we collect them into a JsArray
+        val tasksWithInjectedData = tasks.map(task => this.inject(task))
+        Ok(JsArray(tasksWithInjectedData))
       }
     }
   }
@@ -515,7 +512,7 @@ class TaskController @Inject() (
       if (request.getQueryString("mapillary").getOrElse("false").toBoolean) {
         // build the envelope for the task geometries
         val taskFeatureCollection =
-          GeoJSONFactory.create(obj.geometries).asInstanceOf[FeatureCollection]
+          GeoJSONFactory.create(Json.stringify(obj.geometries)).asInstanceOf[FeatureCollection]
         val reader   = new GeoJSONReader()
         val envelope = new Envelope()
         taskFeatureCollection.getFeatures.foreach(f => {
@@ -825,4 +822,120 @@ class TaskController @Inject() (
       this.addTagstoItem(taskId, tagList.map(new Tag(-1, _, tagType = this.dal.tableName)), user)
     }
   }
+
+  def search(
+      search: String,
+      limit: Int = 25
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      val results = this.dal.search(search, limit)
+      Ok(Json.toJson(results))
+    }
+  }
+
+  /**
+    * Skip a task: increments skip_count, releases the caller's lock, and
+    * leaves status unchanged. Emits a task-released WebSocket event so
+    * map / table clients can update their lock view.
+    */
+  def skipTask(taskId: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      val task = this.dal.retrieveById(taskId) match {
+        case Some(t) => t
+        case None    => throw new NotFoundException(s"Task with $taskId not found, unable to skip.")
+      }
+
+      taskRepository.incrementSkipCount(taskId)
+
+      try {
+        this.dal.unlockItem(user, task)
+        webSocketProvider.sendMessage(
+          WebSocketMessages.taskReleased(task, Some(WebSocketMessages.userSummary(user)))
+        )
+      } catch {
+        case e: Exception => logger.warn(s"Skip unlock failed for task $taskId: ${e.getMessage}")
+      }
+
+      NoContent
+    }
+  }
+
+  /**
+    * Bulk delete: removes every task in the supplied `taskIds` list.
+    * Fails with 403 if the caller lacks write access to any task's parent
+    * project, or 404 if any id is missing.
+    */
+  def bulkDelete: Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      val taskIds = (request.body \ "taskIds").asOpt[List[Long]].getOrElse(List.empty)
+      if (taskIds.isEmpty) {
+        BadRequest(Json.toJson(StatusMessage("KO", JsString("taskIds must be a non-empty array"))))
+      } else {
+        val tasks   = resolveTasksWithWriteAccess(taskIds, user)
+        val deleted = taskRepository.bulkDeleteTasks(tasks.map(_.id))
+        Ok(Json.obj("requested" -> taskIds.length, "deleted" -> deleted))
+      }
+    }
+  }
+
+  /**
+    * Bulk archive / unarchive tasks. Same access semantics as `bulkDelete`:
+    * 403 on any unauthorized task, 404 on any missing id.
+    */
+  def bulkArchive: Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      val taskIds  = (request.body \ "taskIds").asOpt[List[Long]].getOrElse(List.empty)
+      val archived = (request.body \ "archived").asOpt[Boolean].getOrElse(true)
+      if (taskIds.isEmpty) {
+        BadRequest(Json.toJson(StatusMessage("KO", JsString("taskIds must be a non-empty array"))))
+      } else {
+        val tasks = resolveTasksWithWriteAccess(taskIds, user)
+        taskRepository.bulkArchiveTasks(tasks.map(_.id), archived)
+        webSocketProvider.sendMessage(
+          WebSocketMessages.tasksUpdated(tasks, Some(WebSocketMessages.userSummary(user)))
+        )
+        NoContent
+      }
+    }
+  }
+
+  /**
+    * Bulk reassign the reviewer on each task in `taskIds` to `userId`.
+    * Only tasks whose reviews are still open (status 0 or 3) are updated.
+    */
+  def bulkReassign: Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      val taskIds = (request.body \ "taskIds").asOpt[List[Long]].getOrElse(List.empty)
+      val userId  = (request.body \ "userId").asOpt[Long].getOrElse(-1L)
+      if (taskIds.isEmpty || userId < 0) {
+        BadRequest(
+          Json.toJson(StatusMessage("KO", JsString("taskIds and userId are required")))
+        )
+      } else {
+        val tasks   = resolveTasksWithWriteAccess(taskIds, user)
+        val updated = taskRepository.bulkReassignReviewer(tasks.map(_.id), userId)
+        Ok(Json.obj("requested" -> taskIds.length, "updated" -> updated))
+      }
+    }
+  }
+
+  /**
+    * Resolve each id to a task and assert the caller has write access on its
+    * parent project. Throws `NotFoundException` for any missing task or
+    * orphaned challenge, and `IllegalAccessException` from the first denial
+    * — both are mapped to 404/403 by the framework's exception handler.
+    */
+  private def resolveTasksWithWriteAccess(taskIds: List[Long], user: User): List[Task] =
+    taskIds.distinct.map { taskId =>
+      val task = this.dal
+        .retrieveById(taskId)
+        .getOrElse(throw new NotFoundException(s"Task $taskId not found"))
+      val challenge = dalManager.challenge
+        .retrieveById(task.parent)
+        .getOrElse(
+          throw new NotFoundException(s"Parent challenge ${task.parent} for task $taskId not found")
+        )
+      permission.hasWriteAccess(ProjectType(), user)(challenge.general.parent)
+      task
+    }
 }

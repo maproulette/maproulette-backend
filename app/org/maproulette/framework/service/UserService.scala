@@ -24,7 +24,7 @@ import org.maproulette.permissions.Permission
 import org.maproulette.session.SearchParameters
 import org.maproulette.utils.{Crypto, Utils, Writers}
 import org.slf4j.LoggerFactory
-import play.api.libs.json.{JsString, JsValue, Json}
+import play.api.libs.json.{JsObject, JsValue, Json}
 
 /**
   * @author mcuthbert
@@ -388,7 +388,7 @@ class UserService @Inject() (
   ): Option[User] = {
     val updateBody = Utils.insertIntoJson(Json.parse("{}"), "settings", Json.toJson(settings))
     this.update(id, properties match {
-      case Some(p) => Utils.insertIntoJson(updateBody, "properties", JsString(p.toString()))
+      case Some(p) => Utils.insertIntoJson(updateBody, "properties", p)
       case None    => updateBody
     }, user)
   }
@@ -468,10 +468,15 @@ class UserService @Inject() (
       val theme = (value \ "settings" \ "theme")
         .asOpt[Int]
         .getOrElse(cachedItem.settings.theme.getOrElse(-1))
-      val properties =
-        (value \ "properties").asOpt[String].getOrElse(cachedItem.properties.getOrElse("{}"))
+      val properties: JsObject =
+        (value \ "properties")
+          .asOpt[JsObject]
+          .getOrElse(cachedItem.properties.getOrElse(Json.obj()))
 
       val customBasemaps = (value \ "settings" \ "customBasemaps").asOpt[List[CustomBasemap]]
+      val plugins = (value \ "settings" \ "plugins")
+        .asOpt[String]
+        .orElse(cachedItem.settings.plugins)
 
       // If this user always requires a review, then they are not allowed to change it (except super users)
       if (user.settings.needsReview.getOrElse(0) == User.REVIEW_MANDATORY) {
@@ -510,7 +515,8 @@ class UserService @Inject() (
               customBasemaps,
               Some(seeTagFixSuggestions),
               Some(disableTaskConfirm),
-              Some(showPriorityMarkerColors)
+              Some(showPriorityMarkerColors),
+              plugins
             ),
             properties = Some(properties)
           ),
@@ -828,6 +834,66 @@ class UserService @Inject() (
   def unsaveChallenge(userId: Long, challengeId: Long, user: User): Unit = {
     this.permission.hasWriteAccess(UserType(), user)(userId)
     this.savedObjectsRepository.unsaveChallenge(userId, challengeId)
+  }
+
+  /**
+    * Checks if a challenge is saved (favorited) by a user
+    *
+    * @param userId The id of the user
+    * @param challengeId The id of the challenge
+    * @param user The user making the actual request
+    * @return true if the challenge is saved by the user
+    */
+  def isChallengeSaved(userId: Long, challengeId: Long, user: User): Boolean = {
+    this.permission.hasReadAccess(UserType(), user)(userId)
+    this.savedObjectsRepository.isChallengeSaved(userId, challengeId)
+  }
+
+  /**
+    * Likes a challenge for a user
+    *
+    * @param userId The id of the user to like the challenge for
+    * @param challengeId The id of the challenge to like
+    * @param user The user making the actual request
+    */
+  def likeChallenge(userId: Long, challengeId: Long, user: User): Unit = {
+    this.permission.hasWriteAccess(UserType(), user)(userId)
+    this.savedObjectsRepository.likeChallenge(userId, challengeId)
+  }
+
+  /**
+    * "Unlike" a challenge from a users profile
+    *
+    * @param userId The id of the user to unlike the challenge from
+    * @param challengeId The id of the challenge to unlike
+    * @param user The user making the actual request
+    */
+  def unlikeChallenge(userId: Long, challengeId: Long, user: User): Unit = {
+    this.permission.hasWriteAccess(UserType(), user)(userId)
+    this.savedObjectsRepository.unlikeChallenge(userId, challengeId)
+  }
+
+  /**
+    * Checks if a challenge is liked by a user
+    *
+    * @param userId The id of the user
+    * @param challengeId The id of the challenge
+    * @param user The user making the actual request
+    * @return true if the challenge is liked by the user
+    */
+  def isChallengeLiked(userId: Long, challengeId: Long, user: User): Boolean = {
+    this.permission.hasReadAccess(UserType(), user)(userId)
+    this.savedObjectsRepository.isChallengeLiked(userId, challengeId)
+  }
+
+  /**
+    * Gets the total like count for a challenge
+    *
+    * @param challengeId The id of the challenge
+    * @return The total number of likes for the challenge
+    */
+  def getChallengeLikeCount(challengeId: Long): Long = {
+    this.savedObjectsRepository.getChallengeLikeCount(challengeId)
   }
 
   /**

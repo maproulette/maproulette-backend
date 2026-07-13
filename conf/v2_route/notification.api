@@ -1,5 +1,6 @@
 ###
 # tags: [ Notification ]
+# operationId: notification_retrieves_users_notifications
 # summary: Retrieves Users notifications
 # description: Retrieves notifications generated for the user
 # responses:
@@ -42,6 +43,7 @@
 GET     /user/:userId/notifications                 @org.maproulette.framework.controller.NotificationController.getUserNotifications(userId:Long, limit:Int ?= 10, page:Int ?= 0, sort:String ?= "is_read", order:String ?= "ASC", notificationType:Option[Int], isRead:Option[Int], fromUsername:Option[String])
 ###
 # tags: [ Notification ]
+# operationId: notification_mark_user_notifications_as_read
 # summary: Mark user notifications as read
 # description: Marks user notifications as read
 # responses:
@@ -66,6 +68,7 @@ GET     /user/:userId/notifications                 @org.maproulette.framework.c
 PUT     /user/:userId/notifications                 @org.maproulette.framework.controller.NotificationController.markNotificationsRead(userId:Long)
 ###
 # tags: [ Notification ]
+# operationId: notification_mark_user_notifications_as_unread
 # summary: Mark user notifications as unread
 # description: Marks user notifications as unread
 # responses:
@@ -90,6 +93,7 @@ PUT     /user/:userId/notifications                 @org.maproulette.framework.c
 PUT     /user/:userId/notifications/unread          @org.maproulette.framework.controller.NotificationController.markNotificationsUnread(userId:Long)
 ###
 # tags: [ Notification ]
+# operationId: notification_delete_user_notifications
 # summary: Delete user notifications
 # description: Deletes the specified user notifications
 # responses:
@@ -114,6 +118,7 @@ PUT     /user/:userId/notifications/unread          @org.maproulette.framework.c
 PUT  /user/:userId/notifications/delete                 @org.maproulette.framework.controller.NotificationController.deleteNotifications(userId:Long)
 ###
 # tags: [ Notification ]
+# operationId: notification_retrieves_users_notification_subscriptions
 # summary: Retrieves Users notification subscriptions
 # description: Retrieves the user's subscriptions to the various notification types
 # responses:
@@ -135,6 +140,7 @@ PUT  /user/:userId/notifications/delete                 @org.maproulette.framewo
 GET     /user/:userId/notificationSubscriptions     @org.maproulette.framework.controller.NotificationController.getNotificationSubscriptions(userId:Long)
 ###
 # tags: [ Notification ]
+# operationId: notification_updates_users_notification_subscriptions
 # summary: Updates user's notification subscriptions
 # description: Updates the user's subscriptions to various notification types
 # responses:
@@ -157,6 +163,7 @@ GET     /user/:userId/notificationSubscriptions     @org.maproulette.framework.c
 PUT     /user/:userId/notificationSubscriptions     @org.maproulette.framework.controller.NotificationController.updateNotificationSubscriptions(userId:Long)
 ###
 # tags: [ Notification ]
+# operationId: notification_retrieves_system_notices
 # summary: Retrieves System Notices
 # description: Retrieves system notices set up from a third party
 ###

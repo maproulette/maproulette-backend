@@ -27,9 +27,10 @@ import org.maproulette.models.dal.mixin.{OwnerMixin, TagDALMixin}
 import org.maproulette.permissions.Permission
 import org.maproulette.session.SearchParameters
 import org.maproulette.utils.Utils
+import org.maproulette.framework.psql.SQLUtils
 import play.api.db.Database
 import play.api.libs.json.JodaReads._
-import play.api.libs.json.{JsString, JsValue, Json}
+import play.api.libs.json.{JsArray, JsObject, JsValue, Json}
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
@@ -128,10 +129,9 @@ class ChallengeDAL @Inject() (
       get[Int]("challenges.review_setting") ~
       get[Option[String]]("challenges.dataset_url") ~
       get[Option[JsValue]]("challenges.task_widget_layout") ~
-      get[Option[Int]]("challenges.completion_percentage") ~
-      get[Option[Int]]("challenges.tasks_remaining") ~
       get[Boolean]("challenges.require_confirmation") ~
-      get[Boolean]("challenges.require_reject_reason") map {
+      get[Boolean]("challenges.require_reject_reason") ~
+      get[Option[JsValue]]("challenges.completion_metrics") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
             checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~ status ~ statusMessage ~
@@ -140,32 +140,9 @@ class ChallengeDAL @Inject() (
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
             requiresLocal ~ deleted ~ isGlobal ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~
-            completionPercentage ~ tasksRemaining ~ requireConfirmation ~ requireRejectReason =>
-        val hpr = highPriorityRule match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
-          case r                                                                => r
-        }
-        val mpr = mediumPriorityRule match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
-          case r                                                                => r
-        }
-        val lpr = lowPriorityRule match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
-          case r                                                                => r
-        }
-        val hpb = highPriorityBounds match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
-          case r                                                                => r
-        }
-        val mpb = mediumPriorityBounds match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
-          case r                                                                => r
-        }
-        val lpb = lowPriorityBounds match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
-          case r                                                                => r
-        }
-
+            requireConfirmation ~ requireRejectReason ~ completionMetricsJson =>
+        val completionMetrics =
+          completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         new Challenge(
           id,
           name,
@@ -193,7 +170,15 @@ class ChallengeDAL @Inject() (
             requiresLocal
           ),
           ChallengeCreation(overpassql, remoteGeoJson, overpassTargetType),
-          ChallengePriority(defaultPriority, hpr, mpr, lpr, hpb, mpb, lpb),
+          ChallengePriority(
+            defaultPriority,
+            highPriorityRule,
+            mediumPriorityRule,
+            lowPriorityRule,
+            highPriorityBounds,
+            mediumPriorityBounds,
+            lowPriorityBounds
+          ),
           ChallengeExtra(
             defaultZoom,
             minZoom,
@@ -212,7 +197,7 @@ class ChallengeDAL @Inject() (
             taskBundleIdProperty,
             isArchived,
             reviewSetting,
-            taskWidgetLayout,
+            taskWidgetLayout.map(_.as[JsObject]),
             datasetUrl,
             None, // systemArchivedAt
             None, // presets
@@ -225,8 +210,8 @@ class ChallengeDAL @Inject() (
           dataOriginDate,
           location,
           bounding,
-          completionPercentage,
-          tasksRemaining
+          Some(CompletionMetrics.completionPercentage(completionMetrics)),
+          completionMetrics
         )
     }
   }
@@ -294,10 +279,9 @@ class ChallengeDAL @Inject() (
       get[Option[String]]("challenges.dataset_url") ~
       get[Option[JsValue]]("challenges.task_widget_layout") ~
       get[Option[DateTime]]("challenges.system_archived_at") ~
-      get[Option[Int]]("challenges.completion_percentage") ~
-      get[Option[Int]]("challenges.tasks_remaining") ~
       get[Boolean]("challenges.require_confirmation") ~
-      get[Boolean]("challenges.require_reject_reason") map {
+      get[Boolean]("challenges.require_reject_reason") ~
+      get[Option[JsValue]]("challenges.completion_metrics") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~
             checkin_comment ~ checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~
@@ -306,33 +290,10 @@ class ChallengeDAL @Inject() (
             customBasemap ~ updateTasks ~ exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~
             preferredReviewTags ~ limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~
             dataOriginDate ~ location ~ bounding ~ requiresLocal ~ deleted ~ isGlobal ~ virtualParents ~
-            presets ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ systemArchivedAt ~ completionPercentage ~
-            tasksRemaining ~ requireConfirmation ~ requireRejectReason =>
-        val hpr = highPriorityRule match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
-          case r                                                                => r
-        }
-        val mpr = mediumPriorityRule match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
-          case r                                                                => r
-        }
-        val lpr = lowPriorityRule match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "{}") => None
-          case r                                                                => r
-        }
-        val hpb = highPriorityBounds match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
-          case r                                                                => r
-        }
-        val mpb = mediumPriorityBounds match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
-          case r                                                                => r
-        }
-        val lpb = lowPriorityBounds match {
-          case Some(c) if StringUtils.isEmpty(c) || StringUtils.equals(c, "[]") => None
-          case r                                                                => r
-        }
-
+            presets ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ systemArchivedAt ~
+            requireConfirmation ~ requireRejectReason ~ completionMetricsJson =>
+        val completionMetrics =
+          completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         new Challenge(
           id,
           name,
@@ -360,7 +321,15 @@ class ChallengeDAL @Inject() (
             requiresLocal
           ),
           ChallengeCreation(overpassql, remoteGeoJson, overpassTargetType),
-          ChallengePriority(defaultPriority, hpr, mpr, lpr, hpb, mpb, lpb),
+          ChallengePriority(
+            defaultPriority,
+            highPriorityRule,
+            mediumPriorityRule,
+            lowPriorityRule,
+            highPriorityBounds,
+            mediumPriorityBounds,
+            lowPriorityBounds
+          ),
           ChallengeExtra(
             defaultZoom,
             minZoom,
@@ -379,7 +348,7 @@ class ChallengeDAL @Inject() (
             taskBundleIdProperty,
             isArchived,
             reviewSetting,
-            taskWidgetLayout,
+            taskWidgetLayout.map(_.as[JsObject]),
             datasetUrl,
             systemArchivedAt,
             presets,
@@ -391,11 +360,170 @@ class ChallengeDAL @Inject() (
           dataOriginDate,
           location,
           bounding,
-          completionPercentage,
-          tasksRemaining
+          Some(CompletionMetrics.completionPercentage(completionMetrics)),
+          completionMetrics
         )
     }
   }
+
+  /**
+    * The row parser for BaseChallenge (flattened structure for API responses)
+    */
+  val baseChallengeParser: RowParser[BaseChallenge] = {
+    get[Long]("challenges.id") ~
+      get[String]("challenges.name") ~
+      get[DateTime]("challenges.created") ~
+      get[DateTime]("challenges.modified") ~
+      get[Option[String]]("challenges.description") ~
+      get[Boolean]("deleted") ~
+      get[Boolean]("is_global") ~
+      get[Boolean]("challenges.require_confirmation") ~
+      get[Boolean]("challenges.require_reject_reason") ~
+      get[Option[String]]("challenges.info_link") ~
+      get[Long]("challenges.owner_id") ~
+      get[Long]("challenges.parent_id") ~
+      get[String]("challenges.instruction") ~
+      get[Int]("challenges.difficulty") ~
+      get[Option[String]]("challenges.blurb") ~
+      get[Boolean]("challenges.enabled") ~
+      get[Boolean]("challenges.featured") ~
+      get[Int]("challenges.cooperative_type") ~
+      get[Option[Int]]("challenges.popularity") ~
+      get[Option[String]]("challenges.checkin_comment") ~
+      get[Option[String]]("challenges.checkin_source") ~
+      get[Boolean]("challenges.requires_local") ~
+      get[Option[String]]("challenges.overpass_ql") ~
+      get[Option[String]]("challenges.remote_geo_json") ~
+      get[Option[String]]("challenges.overpass_target_type") ~
+      get[Int]("challenges.default_priority") ~
+      get[Option[String]]("challenges.high_priority_rule") ~
+      get[Option[String]]("challenges.medium_priority_rule") ~
+      get[Option[String]]("challenges.low_priority_rule") ~
+      get[Option[String]]("challenges.high_priority_bounds") ~
+      get[Option[String]]("challenges.medium_priority_bounds") ~
+      get[Option[String]]("challenges.low_priority_bounds") ~
+      get[Int]("challenges.default_zoom") ~
+      get[Int]("challenges.min_zoom") ~
+      get[Int]("challenges.max_zoom") ~
+      get[Boolean]("challenges.updatetasks") ~
+      get[Boolean]("challenges.limit_tags") ~
+      get[Boolean]("challenges.limit_review_tags") ~
+      get[Boolean]("challenges.is_archived") ~
+      get[Int]("challenges.review_setting") ~
+      get[Option[Int]]("challenges.default_basemap") ~
+      get[Option[String]]("challenges.default_basemap_id") ~
+      get[Option[String]]("challenges.custom_basemap") ~
+      get[Option[String]]("challenges.exportable_properties") ~
+      get[Option[String]]("challenges.osm_id_property") ~
+      get[Option[String]]("challenges.task_bundle_id_property") ~
+      get[Option[JsValue]]("challenges.task_widget_layout") ~
+      get[Option[String]]("challenges.task_styles") ~
+      get[Option[Int]]("challenges.status") ~
+      get[Option[String]]("challenges.status_message") ~
+      get[Option[DateTime]]("challenges.last_task_refresh") ~
+      get[Option[DateTime]]("challenges.data_origin_date") ~
+      get[Option[String]]("locationJSON") ~
+      get[Option[String]]("boundingJSON") ~
+      get[Option[JsValue]]("challenges.completion_metrics") map {
+      case id ~ name ~ created ~ modified ~ description ~ deleted ~ isGlobal ~ requireConfirmation ~ requireRejectReason ~
+            infoLink ~ ownerId ~ parentId ~ instruction ~ difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~
+            popularity ~ checkin_comment ~ checkin_source ~ requiresLocal ~ overpassQL ~ remoteGeoJson ~ overpassTargetType ~
+            defaultPriority ~ highPriorityRule ~ mediumPriorityRule ~ lowPriorityRule ~ highPriorityBounds ~
+            mediumPriorityBounds ~ lowPriorityBounds ~ defaultZoom ~ minZoom ~ maxZoom ~ updateTasks ~ limitTags ~
+            limitReviewTags ~ isArchived ~ reviewSetting ~ defaultBasemap ~ defaultBasemapId ~ customBasemap ~
+            exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ taskWidgetLayout ~ taskStyles ~ status ~
+            statusMessage ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
+            completionMetricsJson =>
+        val completionMetrics =
+          completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
+        val hpr = highPriorityRule.map(Json.parse(_).as[JsObject])
+        val mpr = mediumPriorityRule.map(Json.parse(_).as[JsObject])
+        val lpr = lowPriorityRule.map(Json.parse(_).as[JsObject])
+        val hpb = highPriorityBounds.map(Json.parse(_).as[JsArray])
+        val mpb = mediumPriorityBounds.map(Json.parse(_).as[JsArray])
+        val lpb = lowPriorityBounds.map(Json.parse(_).as[JsArray])
+        val ts  = taskStyles.map(Json.parse(_).as[JsArray])
+
+        new BaseChallenge(
+          id,
+          name,
+          created,
+          modified,
+          description,
+          deleted,
+          isGlobal,
+          requireConfirmation,
+          requireRejectReason,
+          infoLink,
+          ownerId,
+          parentId,
+          instruction,
+          difficulty,
+          blurb,
+          enabled,
+          featured,
+          cooperativeType,
+          popularity,
+          checkin_comment.getOrElse(""),
+          checkin_source.getOrElse(""),
+          requiresLocal,
+          overpassQL,
+          remoteGeoJson,
+          overpassTargetType,
+          defaultPriority,
+          hpr,
+          mpr,
+          lpr,
+          hpb,
+          mpb,
+          lpb,
+          defaultZoom,
+          minZoom,
+          maxZoom,
+          updateTasks,
+          limitTags,
+          limitReviewTags,
+          isArchived,
+          reviewSetting,
+          defaultBasemap,
+          defaultBasemapId,
+          customBasemap,
+          exportableProperties,
+          osmIdProperty,
+          taskBundleIdProperty,
+          taskWidgetLayout.map(_.as[JsObject]),
+          ts,
+          status,
+          statusMessage,
+          lastTaskRefresh,
+          dataOriginDate,
+          location.map(Json.parse(_).as[JsObject]),
+          bounding.map(Json.parse(_).as[JsObject]),
+          Some(CompletionMetrics.completionPercentage(completionMetrics)),
+          completionMetrics
+        )
+    }
+  }
+
+  /**
+    * Retrieves a BaseChallenge by ID (flattened structure for API responses)
+    */
+  def retrieveBaseChallengeById(
+      implicit id: Long,
+      c: Option[Connection] = None
+  ): Option[BaseChallenge] = {
+    this.withMRConnection { implicit c =>
+      val query =
+        s"""
+          |SELECT c.$retrieveColumns
+          |FROM challenges c
+          |WHERE c.id = {id}
+         """.stripMargin
+
+      SQL(query).on(Symbol("id") -> id).as(this.baseChallengeParser.singleOpt)
+    }
+  }
+
   val pointParser: RowParser[ClusteredPoint] = {
     get[Long]("tasks.id") ~
       get[String]("tasks.name") ~
@@ -454,7 +582,7 @@ class ChallengeDAL @Inject() (
           parentId,
           parentName.getOrElse(orParentName.get),
           point,
-          JsString(""),
+          Json.obj(),
           instruction,
           DateTime.now(),
           -1,
@@ -549,6 +677,22 @@ class ChallengeDAL @Inject() (
       }
     }
 
+    // Normalize legacy encodings of 'no value ("" / "{}" / "[]") that some
+    // callers (e.g. the Java client) still send. Empty values are stored as
+    // NULL in the database.
+    def normalizeNullValues(value: Option[String], emptyMarker: String): Option[String] =
+      value match {
+        case Some(v) if StringUtils.isEmpty(v) || StringUtils.equals(v, emptyMarker) => None
+        case other                                                                   => other
+      }
+
+    val highPriorityRule     = normalizeNullValues(challenge.priority.highPriorityRule, "{}")
+    val mediumPriorityRule   = normalizeNullValues(challenge.priority.mediumPriorityRule, "{}")
+    val lowPriorityRule      = normalizeNullValues(challenge.priority.lowPriorityRule, "{}")
+    val highPriorityBounds   = normalizeNullValues(challenge.priority.highPriorityBounds, "[]")
+    val mediumPriorityBounds = normalizeNullValues(challenge.priority.mediumPriorityBounds, "[]")
+    val lowPriorityBounds    = normalizeNullValues(challenge.priority.lowPriorityBounds, "[]")
+
     this.cacheManager.withOptionCaching { () =>
       val insertedChallenge =
         this.withMRTransaction { implicit c =>
@@ -560,13 +704,13 @@ class ChallengeDAL @Inject() (
                                       osm_id_property, task_bundle_id_property, last_task_refresh, data_origin_date, preferred_tags, preferred_review_tags,
                                       limit_tags, limit_review_tags, task_styles, requires_local, is_archived, review_setting, dataset_url, require_confirmation, require_reject_reason, task_widget_layout)
               VALUES (${challenge.name}, ${challenge.general.owner}, ${challenge.general.parent},
-                      ${challenge.general.difficulty}, 
+                      ${challenge.general.difficulty},
                       ${challenge.description}, ${challenge.infoLink}, ${challenge.general.blurb}, ${challenge.general.instruction},
                       ${challenge.general.enabled}, ${challenge.general.featured},
                       ${challenge.general.checkinComment}, ${challenge.general.checkinSource}, ${challenge.creation.overpassQL}, ${challenge.creation.remoteGeoJson},
                       ${challenge.creation.overpassTargetType}, ${challenge.status},
-                      ${challenge.statusMessage}, ${challenge.priority.defaultPriority}, ${challenge.priority.highPriorityRule},
-                      ${challenge.priority.mediumPriorityRule}, ${challenge.priority.lowPriorityRule}, ${challenge.priority.highPriorityBounds}, ${challenge.priority.mediumPriorityBounds}, ${challenge.priority.lowPriorityBounds}, ${challenge.extra.defaultZoom}, ${challenge.extra.minZoom},
+                      ${challenge.statusMessage}, ${challenge.priority.defaultPriority}, ${highPriorityRule},
+                      ${mediumPriorityRule}, ${lowPriorityRule}, ${highPriorityBounds}, ${mediumPriorityBounds}, ${lowPriorityBounds}, ${challenge.extra.defaultZoom}, ${challenge.extra.minZoom},
                       ${challenge.extra.maxZoom}, ${challenge.extra.defaultBasemap}, ${challenge.extra.defaultBasemapId}, ${challenge.extra.customBasemap}, ${challenge.extra.updateTasks},
                       ${challenge.extra.exportableProperties}, ${challenge.extra.osmIdProperty}, ${challenge.extra.taskBundleIdProperty},
                       ${challenge.lastTaskRefresh.getOrElse(DateTime.now()).toString}::timestamptz,
@@ -574,7 +718,7 @@ class ChallengeDAL @Inject() (
                       ${challenge.extra.preferredTags}, ${challenge.extra.preferredReviewTags}, ${challenge.extra.limitTags},
                       ${challenge.extra.limitReviewTags}, ${challenge.extra.taskStyles}, ${challenge.general.requiresLocal}, ${challenge.extra.isArchived},
                       ${challenge.extra.reviewSetting}, ${challenge.extra.datasetUrl}, ${challenge.requireConfirmation}, ${challenge.requireRejectReason},
-                      ${asJson(challenge.extra.taskWidgetLayout.getOrElse(Json.parse("{}")))}
+                      ${asJson(challenge.extra.taskWidgetLayout.getOrElse(Json.obj()))}
                       ) RETURNING #${this.retrieveColumns}"""
             .as(this.parser.*)
             .headOption
@@ -827,8 +971,8 @@ class ChallengeDAL @Inject() (
             .getOrElse(cachedItem.requireRejectReason)
 
           val taskWidgetLayout = (updates \ "taskWidgetLayout")
-            .asOpt[JsValue]
-            .getOrElse(cachedItem.extra.taskWidgetLayout.getOrElse(Json.parse("{}")))
+            .asOpt[JsObject]
+            .getOrElse(cachedItem.extra.taskWidgetLayout.getOrElse(Json.obj()))
 
           val presets: List[String] = (updates \ "presets")
             .asOpt[List[String]]
@@ -915,8 +1059,28 @@ class ChallengeDAL @Inject() (
   }
 
   /**
-    * Will run through the tasks in batches of 50 and update the priorities based on the rules
-    * of the challenge
+    * Reads the live priority distribution for a challenge directly from the tasks table,
+    * bypassing any DAL caching. Used by callers (priorities endpoint) to verify that a
+    * recompute actually landed in the DB.
+    */
+  def countTasksByPriority(
+      challengeId: Long
+  )(implicit c: Option[Connection] = None): Map[Int, Long] = {
+    this.withMRConnection { implicit c =>
+      SQL"""SELECT priority, COUNT(*) AS cnt FROM tasks
+            WHERE parent_id = $challengeId
+            GROUP BY priority"""
+        .as((SqlParser.int("priority") ~ SqlParser.long("cnt")).map { case p ~ cnt => (p, cnt) }.*)
+        .toMap
+    }
+  }
+
+  /**
+    * Recomputes each task's priority from the challenge's current rules and bounds
+    * using a single SQL UPDATE. Genuine failures raise: a missing challenge throws
+    * `NotFoundException`, lack of permission throws, an untranslatable rule throws
+    * `InvalidException`, and a DB error propagates. Callers that need a
+    * post-recompute priority distribution can read it with `countTasksByPriority`.
     *
     * @param user The user executing the request
     * @param id   The id of the challenge
@@ -937,46 +1101,271 @@ class ChallengeDAL @Inject() (
             s"Could not update priorties for tasks, no challenge with id $id found."
           )
       }
-      // make sure that at least one of the challenges is valid
-      if (overrideValidation || Challenge.isValidRule(challenge.priority.highPriorityRule) ||
+      val hasRules =
+        Challenge.isValidRule(challenge.priority.highPriorityRule) ||
           Challenge.isValidRule(challenge.priority.mediumPriorityRule) ||
-          Challenge.isValidRule(challenge.priority.lowPriorityRule) ||
-          Challenge.isValidBounds(challenge.priority.highPriorityBounds) ||
+          Challenge.isValidRule(challenge.priority.lowPriorityRule)
+      val hasBounds =
+        Challenge.isValidBounds(challenge.priority.highPriorityBounds) ||
           Challenge.isValidBounds(challenge.priority.mediumPriorityBounds) ||
-          Challenge.isValidBounds(challenge.priority.lowPriorityBounds)) {
-        var pointer                  = 0
-        var currentTasks: List[Task] = List.empty
-        do {
-          currentTasks =
-            listChildren(DEFAULT_NUM_CHILDREN_LIST, pointer * DEFAULT_NUM_CHILDREN_LIST)
+          Challenge.isValidBounds(challenge.priority.lowPriorityBounds)
 
-          // Let the task model determine the priorities based on both rules and bounds
-          val highPriorityTasks =
-            currentTasks.filter(_.getTaskPriority(challenge) == Challenge.PRIORITY_HIGH)
-          val mediumPriorityTasks =
-            currentTasks.filter(_.getTaskPriority(challenge) == Challenge.PRIORITY_MEDIUM)
-          val lowPriorityTasks =
-            currentTasks.filter(_.getTaskPriority(challenge) == Challenge.PRIORITY_LOW)
-
-          if (highPriorityTasks.nonEmpty) {
-            val highPriorityIds = highPriorityTasks.map(_.id).mkString(",")
-            SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_HIGH} WHERE id IN (#$highPriorityIds)"""
-              .executeUpdate()
-          }
-          if (mediumPriorityTasks.nonEmpty) {
-            val mediumPriorityIds = mediumPriorityTasks.map(_.id).mkString(",")
-            SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_MEDIUM} WHERE id IN (#$mediumPriorityIds)"""
-              .executeUpdate()
-          }
-          if (lowPriorityTasks.nonEmpty) {
-            val lowPriorityIds = lowPriorityTasks.map(_.id).mkString(",")
-            SQL"""UPDATE tasks SET priority = ${Challenge.PRIORITY_LOW} WHERE id IN (#$lowPriorityIds)"""
-              .executeUpdate()
-          }
-          pointer += 1
-        } while (currentTasks.size >= DEFAULT_NUM_CHILDREN_LIST)
+      if (overrideValidation || hasRules || hasBounds) {
+        recomputePriorities(challenge)
         this.taskDAL.clearCaches
       }
+    }
+  }
+
+  // Persists the recomputed priority for every task in the challenge in a single
+  // statement: the `computed` CTE evaluates the CASE expression once per row, the
+  // UPDATE then filters by `IS DISTINCT FROM` so rows already at the computed
+  // priority aren't rewritten (which would fire triggers needlessly), and
+  // RETURNING streams the post-update priority of the rows that actually changed
+  // so we can group them by tier. Returns count of rows written at each tier.
+  private def recomputePriorities(
+      challenge: Challenge
+  )(implicit id: Long, c: Connection): Map[Int, Long] = {
+    val (expr, params) = buildPriorityCaseExpression(challenge)
+    val allParams      = params :+ NamedParameter("pid", id)
+    SQL(
+      s"""WITH computed AS (
+            SELECT id, ($expr) AS priority FROM tasks WHERE parent_id = {pid}
+          ), updated AS (
+            UPDATE tasks SET priority = computed.priority FROM computed
+            WHERE tasks.id = computed.id
+              AND tasks.priority IS DISTINCT FROM computed.priority
+            RETURNING tasks.priority
+          )
+          SELECT priority, COUNT(*) AS cnt FROM updated GROUP BY priority"""
+    ).on(allParams: _*)
+      .as(
+        (SqlParser.int("priority") ~ SqlParser.long("cnt")).map { case p ~ cnt => (p, cnt) }.*
+      )
+      .toMap
+  }
+
+  // User-supplied strings (GeoJSON bounds, rule keys/values) must be bound as
+  // anorm parameters rather than inlined: the Postgres JDBC driver pre-parses
+  // statement text for ODBC-style {…} escape syntax, and GeoJSON contains {}.
+  private def buildPriorityCaseExpression(
+      challenge: Challenge
+  ): (String, Seq[NamedParameter]) = {
+    val default = challenge.priority.defaultPriority
+    val params  = scala.collection.mutable.ListBuffer.empty[NamedParameter]
+
+    def bind(value: String): String = {
+      val name = s"p${params.size}"
+      params += NamedParameter(name, value)
+      s"{$name}"
+    }
+
+    def boundsSql(boundsJson: String): Option[String] = {
+      val geoms = extractBoundsGeometries(boundsJson)
+      if (geoms.isEmpty) None
+      else
+        Some(
+          geoms
+            .map(g => s"ST_Intersects(geom, ST_GeomFromGeoJSON(${bind(g)}))")
+            .mkString("(geom IS NOT NULL AND (", " OR ", "))")
+        )
+    }
+
+    // NOTE: For multi-feature tasks (FeatureCollections), this differs subtly
+    // from `Task.scala`'s in-memory evaluator. The frontend asks "does any one
+    // feature satisfy the whole compound rule?" because each leaf check runs
+    // its own EXISTS over the features array, so `k1=v1 AND k2=v2` matches
+    // when one feature has `k1=v1` and a *different* feature has `k2=v2`. This
+    // only affects unusual GeoJSON (e.g. OSM relations modeled as multi-
+    // feature collections); single-feature tasks evaluate identically.
+    def ruleSql(ruleJson: JsValue): Option[String] = {
+      val joiner =
+        if ((ruleJson \ "condition").asOpt[String].exists(_.equalsIgnoreCase("OR"))) " OR "
+        else " AND "
+      val rules = (ruleJson \ "rules").asOpt[List[JsValue]].getOrElse(Nil)
+      val translated = rules.map { r =>
+        if ((r \ "rules").asOpt[JsValue].isDefined) ruleSql(r) else singleRuleSql(r)
+      }
+      if (rules.isEmpty || translated.exists(_.isEmpty)) None
+      else {
+        val parts = translated.flatten
+        Some(if (parts.size == 1) parts.head else parts.mkString("(", joiner, ")"))
+      }
+    }
+
+    def singleRuleSql(rule: JsValue): Option[String] =
+      try {
+        val valueRaw  = (rule \ "value").as[String]
+        val valueType = (rule \ "type").as[String]
+        val operator  = (rule \ "operator").as[String]
+        if (valueType == "bounds") boundsRuleSql(valueRaw, operator)
+        else propertyRuleSql(valueRaw, valueType, operator)
+      } catch { case scala.util.control.NonFatal(_) => None }
+
+    def boundsRuleSql(valueRaw: String, operator: String): Option[String] = {
+      // `Try` rejects unparseable parts and `_.isFinite` rejects NaN/±Infinity —
+      // both would otherwise inline as invalid SQL and abort the whole UPDATE.
+      val parsed = valueRaw
+        .split(",")
+        .map(s => scala.util.Try(s.trim.toDouble).toOption.filter(_.isFinite))
+      if (parsed.length != 4 || parsed.exists(_.isEmpty)) None
+      else {
+        val bbox = parsed.map(_.get)
+        val env  = s"ST_MakeEnvelope(${bbox(0)}, ${bbox(1)}, ${bbox(2)}, ${bbox(3)}, 4326)"
+        operator match {
+          case "contains"     => Some(s"(location IS NOT NULL AND location && $env)")
+          case "not_contains" => Some(s"(location IS NOT NULL AND NOT (location && $env))")
+          case _              => None
+        }
+      }
+    }
+
+    def propertyRuleSql(
+        valueRaw: String,
+        valueType: String,
+        operator: String
+    ): Option[String] = valueRaw.split("\\.", 2) match {
+      case Array(rawKey, rawValue) =>
+        val keyParam    = bind(rawKey)
+        val valueParam  = bind(rawValue)
+        val doubleRegex = "^[+-]?([0-9]+\\.?[0-9]*|\\.[0-9]+)([eE][+-]?[0-9]+)?$"
+        val longRegex   = "^[+-]?[0-9]+$"
+        val check: Option[String] = (valueType, operator) match {
+          case ("string", "equal")        => Some(s"p.v = $valueParam")
+          case ("string", "not_equal")    => Some(s"p.v <> $valueParam")
+          case ("string", "contains")     => Some(s"position($valueParam IN p.v) > 0")
+          case ("string", "not_contains") => Some(s"position($valueParam IN p.v) = 0")
+          case ("string", "is_empty")     => Some("(p.v IS NULL OR p.v = '')")
+          case ("string", "is_not_empty") => Some("(p.v IS NOT NULL AND p.v <> '')")
+          case ("double", op) =>
+            for {
+              sqlOp <- numericOp(op)
+              n     <- scala.util.Try(rawValue.toDouble).toOption.filter(_.isFinite)
+            } yield s"(p.v ~ '$doubleRegex' AND p.v::double precision $sqlOp $n)"
+          case ("integer" | "long", op) =>
+            for {
+              sqlOp <- numericOp(op)
+              n     <- scala.util.Try(rawValue.toLong).toOption
+            } yield s"(p.v ~ '$longRegex' AND p.v::bigint $sqlOp $n)"
+          case _ => None
+        }
+        // jsonb_typeof guards keep one malformed task from aborting the UPDATE;
+        // jsonb_build_*() instead of '[]'/'{}' literals to avoid braces in the
+        // statement text (see method-level note).
+        check.map { c =>
+          s"(geojson IS NOT NULL AND EXISTS (SELECT 1 FROM jsonb_array_elements(" +
+            "CASE WHEN jsonb_typeof(geojson -> 'features') = 'array' " +
+            "THEN geojson -> 'features' ELSE jsonb_build_array() END" +
+            ") AS f, jsonb_each_text(" +
+            "CASE WHEN jsonb_typeof(f -> 'properties') = 'object' " +
+            "THEN f -> 'properties' ELSE jsonb_build_object() END" +
+            s") AS p(k, v) WHERE LOWER(p.k) = LOWER($keyParam) AND $c))"
+        }
+      case _ => None
+    }
+
+    def levelWhen(
+        boundsOpt: Option[String],
+        ruleOpt: Option[String],
+        priority: Int
+    ): Option[String] = {
+      val parts = List(
+        boundsOpt.flatMap(boundsSql),
+        ruleOpt.filter(r => Challenge.isValidRule(Some(r))).map { r =>
+          ruleSql(Json.parse(r)).getOrElse(
+            throw new InvalidException(s"Priority rule can't be translated to SQL: $r")
+          )
+        }
+      ).flatten
+      if (parts.isEmpty) None else Some(s"WHEN ${parts.mkString(" OR ")} THEN $priority")
+    }
+
+    val whens = List(
+      levelWhen(
+        challenge.priority.highPriorityBounds,
+        challenge.priority.highPriorityRule,
+        Challenge.PRIORITY_HIGH
+      ),
+      levelWhen(
+        challenge.priority.mediumPriorityBounds,
+        challenge.priority.mediumPriorityRule,
+        Challenge.PRIORITY_MEDIUM
+      ),
+      levelWhen(
+        challenge.priority.lowPriorityBounds,
+        challenge.priority.lowPriorityRule,
+        Challenge.PRIORITY_LOW
+      )
+    ).flatten
+
+    val expr =
+      if (whens.isEmpty) default.toString
+      else s"CASE ${whens.mkString(" ")} ELSE $default END"
+
+    (expr, params.toSeq)
+  }
+
+  private def numericOp(op: String): Option[String] = op match {
+    case "==" => Some("=")
+    case "!=" => Some("<>")
+    case "<"  => Some("<")
+    case "<=" => Some("<=")
+    case ">"  => Some(">")
+    case ">=" => Some(">=")
+    case _    => None
+  }
+
+  private def extractBoundsGeometries(boundsJson: String): List[String] = {
+    try {
+      val features = Json.parse(boundsJson) match {
+        case arr: JsArray => arr.value.toList
+        case obj          => List(obj)
+      }
+      features.flatMap { feat =>
+        val geom = (feat \ "geometry").asOpt[JsValue].getOrElse(feat)
+        if ((geom \ "type").asOpt[String].isDefined) Some(Json.stringify(geom)) else None
+      }
+    } catch {
+      case scala.util.control.NonFatal(_) => Nil
+    }
+  }
+
+  /**
+    * Dry-run `updateTaskPriorities`: computes, but does NOT persist, the priority
+    * that every task in the challenge would receive under the supplied draft
+    * priority config. Routes through the same SQL CASE expression the save path
+    * uses, so the editor preview is byte-for-byte consistent with what a
+    * subsequent save would write — including rule-based matches, which the
+    * frontend can't evaluate because it doesn't ship per-task OSM tags.
+    */
+  def previewTaskPriorities(
+      user: User,
+      draft: ChallengePriority
+  )(implicit id: Long, c: Option[Connection] = None): Map[Long, Int] = {
+    this.permission.hasWriteAccess(ChallengeType(), user)
+    this.withMRConnection { implicit c =>
+      val persisted = this._retrieveById(caching = false) match {
+        case Some(c) => c
+        case None =>
+          throw new NotFoundException(
+            s"Could not preview priorities — no challenge with id $id found."
+          )
+      }
+      // Splice the draft priority config onto a copy of the persisted challenge
+      // so the CASE translation sees the user's in-progress rules/bounds while
+      // still reading tasks from the live DB.
+      val draftChallenge = persisted.copy(priority = draft)
+      val (expr, params) = buildPriorityCaseExpression(draftChallenge)
+      val allParams      = params :+ NamedParameter("pid", id)
+      SQL(
+        s"SELECT id, ($expr) AS computed_priority FROM tasks WHERE parent_id = {pid}"
+      ).on(allParams: _*)
+        .as(
+          (SqlParser.long("id") ~ SqlParser.int("computed_priority")).map {
+            case i ~ p => (i, p)
+          }.*
+        )
+        .toMap
     }
   }
 
@@ -999,7 +1388,7 @@ class ChallengeDAL @Inject() (
   )(implicit id: Long, c: Option[Connection] = None): List[Task] = {
     // add a child caching option that will keep a list of children for the parent
     this.withMRConnection { implicit c =>
-      val geometryParser = this.taskRepository.getTaskParser(this.taskRepository.updateAndRetrieve)
+      val geometryParser = this.taskRepository.getTaskParser()
       val offset         = page * limit;
       val query =
         s"""SELECT ${taskDAL.retrieveColumns}
@@ -1015,11 +1404,75 @@ class ChallengeDAL @Inject() (
                       LIMIT ${this.sqlLimit(limit)} OFFSET {offset}"""
       SQL(query)
         .on(
-          Symbol("ss")     -> this.search(searchString),
+          Symbol("ss")     -> SQLUtils.search(searchString),
           Symbol("id")     -> ToParameterValue.apply[Long](p = keyToStatement).apply(id),
           Symbol("offset") -> offset
         )
         .as(geometryParser.*)
+    }
+  }
+
+  def getChallengeTaskMarkers(
+      id: Long
+  )(implicit c: Option[Connection] = None): ChallengeTaskMarkersResponse = {
+    this.withMRConnection { implicit c =>
+      val query =
+        s"""SELECT
+              tasks.id,
+              ST_Y(tasks.location) as lat,
+              ST_X(tasks.location) as lng,
+              tasks.status,
+              tasks.priority,
+              tasks.bundle_id,
+              l.user_id as locked_by,
+              ST_ClusterDBSCAN(tasks.location, eps := 0.000001, minpoints := 1) OVER () as cluster_id
+            FROM tasks
+            LEFT JOIN locked l ON l.item_id = tasks.id AND l.item_type = 2
+            WHERE tasks.parent_id = {id}"""
+
+      val allTasks =
+        SQL(query)
+          .on(Symbol("id") -> id)
+          .as(
+            (long("id") ~ double("lat") ~ double("lng") ~ int("status") ~ int("priority") ~ get[
+              Option[Long]
+            ]("bundle_id") ~ get[Option[Long]]("locked_by") ~ int(
+              "cluster_id"
+            )).map {
+              case taskId ~ lat ~ lng ~ status ~ priority ~ bundleId ~ lockedBy ~ clusterId =>
+                (
+                  taskId,
+                  TaskMarkerLocation(lat, lng),
+                  status,
+                  priority,
+                  bundleId,
+                  lockedBy,
+                  clusterId
+                )
+            }.*
+          )
+
+      // Group by cluster_id - O(n)
+      val clusters = allTasks.groupBy(_._7)
+
+      val singleMarkers  = scala.collection.mutable.ListBuffer[SingleTaskMarker]()
+      val overlapMarkers = scala.collection.mutable.ListBuffer[OverlapTaskMarker]()
+
+      clusters.values.foreach { clusterTasks =>
+        if (clusterTasks.length == 1) {
+          val (taskId, location, status, priority, bundleId, lockedBy, _) = clusterTasks.head
+          singleMarkers += SingleTaskMarker(taskId, location, status, priority, bundleId, lockedBy)
+        } else {
+          val location = clusterTasks.head._2
+          val overlappingTaskMarkers = clusterTasks.map {
+            case (tId, tLoc, tStatus, tPriority, tBundleId, tLockedBy, _) =>
+              SingleTaskMarker(tId, tLoc, tStatus, tPriority, tBundleId, tLockedBy)
+          }.toList
+          overlapMarkers += OverlapTaskMarker(location, overlappingTaskMarkers)
+        }
+      }
+
+      ChallengeTaskMarkersResponse(singleMarkers.toList, overlapMarkers.toList)
     }
   }
 
@@ -1053,6 +1506,60 @@ class ChallengeDAL @Inject() (
                       ${this.order(Some(orderColumn), orderDirection, "c", true)}
                       LIMIT ${this.sqlLimit(limit)} OFFSET {offset}"""
       SQL(query).on(Symbol("ss") -> searchString, Symbol("offset") -> offset).as(this.parser.*)
+    }
+  }
+
+  def search(
+      search: String,
+      limit: Int = 25,
+      onlyEnabled: Boolean = false
+  )(implicit c: Option[Connection] = None): List[Challenge] = {
+    this.withMRConnection { implicit c =>
+      val isNumeric     = search.matches("^\\d+$")
+      val searchLong    = if (isNumeric) Some(search.toLong) else None
+      val searchPattern = if (search.nonEmpty) s"%$search%" else "%"
+      val enabledClause = if (onlyEnabled) " AND c.enabled = true AND p.enabled = true" else ""
+
+      if (isNumeric && searchLong.isDefined) {
+        SQL(s"""SELECT ${this.retrieveColumns} FROM challenges c
+               INNER JOIN projects p ON p.id = c.parent_id
+               WHERE c.deleted = false AND p.deleted = false AND c.id = {id}$enabledClause""")
+          .on("id" -> searchLong.get)
+          .as(this.parser.*)
+      } else if (search.nonEmpty) {
+        SQL(s"""SELECT ${this.retrieveColumns} FROM challenges c
+               INNER JOIN projects p ON p.id = c.parent_id
+               WHERE c.deleted = false AND p.deleted = false$enabledClause
+               AND (
+                 LOWER(c.name) LIKE LOWER({search})
+                 OR (c.name <> '' AND octet_length(LEFT(c.name, 255)) <= 255 AND octet_length({exact}) <= 255 AND (
+                   LEVENSHTEIN(LOWER(LEFT(c.name, 255)), LOWER(LEFT({exact}, 255))) < 3 OR
+                   METAPHONE(LOWER(LEFT(c.name, 255)), 4) = METAPHONE(LOWER(LEFT({exact}, 255)), 4)
+                 ))
+                 OR (c.name <> '' AND (
+                   SOUNDEX(LOWER(c.name)) = SOUNDEX(LOWER({exact}))
+                 ))
+               )
+               ORDER BY
+                 CASE
+                   WHEN LOWER(c.name) = LOWER({exact}) THEN 0
+                   WHEN LOWER(c.name) LIKE LOWER({prefix}) THEN 1
+                   WHEN LOWER(c.name) LIKE LOWER({search}) THEN 2
+                   ELSE CASE WHEN c.name <> '' AND octet_length(LEFT(c.name, 255)) <= 255 AND octet_length({exact}) <= 255
+                        THEN LEVENSHTEIN(LOWER(LEFT(c.name, 255)), LOWER(LEFT({exact}, 255))) ELSE 999 END + 3
+                 END ASC,
+                 c.name ASC
+               LIMIT {limit}""")
+          .on(
+            "search" -> searchPattern,
+            "exact"  -> search,
+            "prefix" -> (search + "%"),
+            "limit"  -> limit
+          )
+          .as(this.parser.*)
+      } else {
+        List.empty
+      }
     }
   }
 
@@ -1108,7 +1615,7 @@ class ChallengeDAL @Inject() (
                         LIMIT ${this.sqlLimit(limit)} OFFSET {offset}"""
         SQL(query)
           .on(
-            Symbol("ss")     -> this.search(searchString),
+            Symbol("ss")     -> SQLUtils.search(searchString),
             Symbol("offset") -> ToParameterValue.apply[Int].apply(offset)
           )
           .as(this.parser.*)
@@ -1858,6 +2365,32 @@ class ChallengeDAL @Inject() (
   }
 
   /**
+    * Updates the bounding box for a challenge based on all its tasks.
+    * This should be called after tasks are built or updated.
+    *
+    * @param id The id of the challenge
+    * @param c  an implicit connection
+    */
+  def updateBoundingBox()(implicit id: Long, c: Option[Connection] = None): Unit = {
+    this.withMRConnection { implicit c =>
+      SQL"""
+        UPDATE challenges SET bounding = (
+          SELECT ST_Envelope(ST_Buffer((ST_SetSRID(ST_Extent(location), 4326))::geography, 2)::geometry)
+          FROM tasks
+          WHERE parent_id = $id
+          AND location IS NOT NULL
+        )
+        WHERE id = $id
+        AND EXISTS (
+          SELECT 1 FROM tasks 
+          WHERE parent_id = $id 
+          AND location IS NOT NULL
+        )
+      """.executeUpdate()
+    }
+  }
+
+  /**
     * Resets all the Task instructions for the children of the challenge
     *
     * @param challengeId The id of the parent challenge
@@ -2088,6 +2621,108 @@ class ChallengeDAL @Inject() (
 
     this.withMRTransaction { implicit c =>
       SQL(query).as(taskDAL.parser.*)
+    }
+  }
+
+  /**
+    * Optimized method to explore challenges with specific filtering
+    * This is a purpose-built query for the exploreChallenges endpoint
+    *
+    * Location filtering is bounding-box based: the client resolves any named place
+    * (e.g. via Nominatim on the frontend) to a bbox and passes it as `boundingBox`.
+    *
+    * @param includeGlobal Whether to include challenges marked as global
+    * @param boundingBox Optional bounding box to filter by challenge location (left, bottom, right, top)
+    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
+    * @param limit Maximum number of results to return
+    * @param offset Number of results to skip for pagination
+    * @param c Optional database connection
+    * @return List of challenges matching the criteria
+    */
+  def exploreChallenges(
+      includeGlobal: Boolean,
+      boundingBox: Option[(Double, Double, Double, Double)],
+      sortBy: String,
+      limit: Int,
+      offset: Int = 0,
+      keywords: Option[String] = None,
+      difficulty: Option[Int] = None
+  )(implicit c: Option[Connection] = None): List[Challenge] = {
+    this.withMRConnection { implicit c =>
+      val params = new ListBuffer[NamedParameter]()
+      var query =
+        s"""SELECT DISTINCT c.*, ST_AsGeoJSON(c.location) AS locationJSON, ST_AsGeoJSON(c.bounding) AS boundingJSON
+            FROM challenges c
+            INNER JOIN projects p ON p.id = c.parent_id"""
+
+      val keywordList = keywords match {
+        case Some(kws) if kws.trim.nonEmpty =>
+          kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty).toList
+        case _ => List.empty[String]
+      }
+
+      // Add INNER JOIN for keywords filtering if keywords are provided
+      if (keywordList.nonEmpty) {
+        query += " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id"
+        query += " INNER JOIN tags t ON toc.tag_id = t.id"
+      }
+
+      query += " WHERE c.deleted = false AND c.enabled = true AND c.is_archived = false"
+      query += " AND p.deleted = false AND p.enabled = true"
+
+      if (!includeGlobal) {
+        query += " AND c.is_global = false"
+      }
+
+      // Filter by keywords if provided (bound as parameters to avoid SQL injection)
+      if (keywordList.nonEmpty) {
+        val placeholders = keywordList.zipWithIndex.map {
+          case (kw, i) =>
+            params += NamedParameter(s"kw$i", kw)
+            s"{kw$i}"
+        }
+        query += s" AND LOWER(t.name) IN (${placeholders.mkString(", ")})"
+      }
+
+      // Filter by difficulty if provided
+      difficulty match {
+        case Some(diff) =>
+          params += NamedParameter("difficulty", diff)
+          query += " AND c.difficulty = {difficulty}"
+        case None =>
+      }
+
+      boundingBox match {
+        case Some((left, bottom, right, top)) =>
+          params += NamedParameter("bbLeft", left)
+          params += NamedParameter("bbBottom", bottom)
+          params += NamedParameter("bbRight", right)
+          params += NamedParameter("bbTop", top)
+          query += " AND ST_Intersects(c.bounding, ST_MakeEnvelope({bbLeft}, {bbBottom}, {bbRight}, {bbTop}, 4326))"
+        case None =>
+      }
+
+      val orderByClause = sortBy.toLowerCase match {
+        case "name"       => "c.name ASC"
+        case "created"    => "c.created DESC"
+        case "modified"   => "c.modified DESC"
+        case "popularity" => "c.popularity DESC NULLS LAST"
+        case "difficulty" => "c.difficulty ASC"
+        case _            => "c.name ASC"
+      }
+
+      query += s" ORDER BY $orderByClause"
+
+      if (limit > 0) {
+        query += s" LIMIT ${this.sqlLimit(limit)}"
+      }
+
+      if (offset > 0) {
+        params += NamedParameter("offset", offset)
+        query += " OFFSET {offset}"
+      }
+
+      SQL(query).on(params.toSeq: _*).as(this.parser.*)
     }
   }
 }

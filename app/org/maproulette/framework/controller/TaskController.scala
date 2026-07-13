@@ -14,7 +14,7 @@ import org.maproulette.framework.service.{
   NotificationService
 }
 import org.maproulette.framework.psql.Paging
-import org.maproulette.framework.model.User
+import org.maproulette.framework.model.{User, TaskMarkerResponse}
 import org.maproulette.framework.mixins.TaskJSONMixin
 import org.maproulette.session.{SessionManager, SearchParameters, SearchLocation}
 import play.api.mvc._
@@ -129,6 +129,69 @@ class TaskController @Inject() (
   }
 
   /**
+    * Gets challenge tasks within a bounding box (simplified endpoint)
+    *
+    * @param bounds       Comma-separated bounding box coordinates: "west,south,east,north"
+    * @param challengeIds Comma-separated list of challenge IDs to filter by
+    * @param limit        Maximum number of tasks to return per page
+    * @param page         Page number for pagination (0-indexed)
+    * @return Paginated list of tasks with total count
+    */
+  def getChallengeTasksInBounds(
+      bounds: String,
+      challengeIds: String,
+      limit: Int,
+      page: Int
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      val result: Either[String, JsObject] =
+        for {
+          location   <- parseBounds(bounds)
+          challenges <- parseChallengeIds(challengeIds)
+        } yield {
+          val (count, tasks) = this.taskClusterService.getChallengeTasksInBounds(
+            location,
+            challenges,
+            Paging(limit, page)
+          )
+          val resultJson =
+            this.insertExtraTaskJSON(tasks, includeGeometries = false, includeTags = false)
+          Json.obj(
+            "data"  -> resultJson,
+            "total" -> count,
+            "page"  -> page,
+            "limit" -> limit
+          )
+        }
+
+      result match {
+        case Left(msg)   => BadRequest(Json.obj("error" -> msg))
+        case Right(json) => Ok(json)
+      }
+    }
+  }
+
+  private def parseBounds(bounds: String): Either[String, Option[SearchLocation]] =
+    if (bounds.isEmpty) Right(None)
+    else
+      bounds.split(",").map(_.trim).map(_.toDoubleOption) match {
+        case Array(Some(w), Some(s), Some(e), Some(n)) =>
+          Right(Some(SearchLocation(w, s, e, n)))
+        case _ =>
+          Left(s"Invalid bounds '$bounds'; expected numeric 'west,south,east,north'")
+      }
+
+  private def parseChallengeIds(challengeIds: String): Either[String, Option[List[Long]]] =
+    if (challengeIds.isEmpty) Right(None)
+    else {
+      val parsed = challengeIds.split(",").map(_.trim).map(_.toLongOption)
+      if (parsed.forall(_.isDefined))
+        Right(Some(parsed.flatten.toList))
+      else
+        Left(s"Invalid challengeIds '$challengeIds'; expected a comma-separated list of integers")
+    }
+
+  /**
     * Gets all the task markers within a bounding box
     *
     * @param left   The minimum longitude for the bounding box
@@ -163,6 +226,138 @@ class TaskController @Inject() (
         Ok(resultJson)
       }
     }
+  }
+
+  def getTaskMarkers(
+      statuses: String,
+      global: Boolean,
+      cluster: Boolean,
+      bounds: Option[String],
+      keywords: Option[String],
+      difficulty: Option[Int]
+  ): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      SearchParameters.withSearch { p =>
+        val statusList = if (statuses.isEmpty) {
+          List.empty[Int]
+        } else {
+          statuses.split(",").map(_.trim.toInt).toList
+        }
+
+        val boundingBox = bounds match {
+          case Some(b) =>
+            b.split(",").map(_.trim.toDouble).toList match {
+              case List(left, bottom, right, top) =>
+                SearchLocation(left, bottom, right, top)
+              case _ => SearchLocation(-180.0, -90.0, 180.0, 90.0)
+            }
+          case None => SearchLocation(-180.0, -90.0, 180.0, 90.0)
+        }
+
+        val taskCount = this.taskClusterService.countTaskMarkers(
+          statusList,
+          global,
+          boundingBox,
+          keywords,
+          difficulty
+        )
+
+        if (taskCount > 5000) {
+          Ok(
+            Json.toJson(
+              TaskMarkerResponse(
+                totalCount = taskCount,
+                tasks = None,
+                clusters = None
+              )
+            )
+          )
+        } else if ((cluster || taskCount > 500) && !(taskCount < 100)) {
+          val clusters = this.taskClusterService.getTaskMarkersClustered(
+            statusList,
+            global,
+            boundingBox,
+            keywords,
+            difficulty
+          )
+          Ok(
+            Json.toJson(
+              TaskMarkerResponse(
+                totalCount = taskCount,
+                tasks = None,
+                clusters = Some(clusters)
+              )
+            )
+          )
+        } else {
+          val (singleMarkers, overlappingMarkers) =
+            this.taskClusterService.getTaskMarkersWithOverlaps(
+              statusList,
+              global,
+              boundingBox,
+              keywords,
+              difficulty
+            )
+          Ok(
+            Json.toJson(
+              TaskMarkerResponse(
+                totalCount = taskCount,
+                tasks = Some(singleMarkers),
+                overlappingTasks =
+                  if (overlappingMarkers.nonEmpty) Some(overlappingMarkers) else None,
+                clusters = None
+              )
+            )
+          )
+        }
+      }
+    }
+  }
+
+  /**
+    * Get MVT (Mapbox Vector Tile) for a specific tile.
+    * Returns binary protobuf data for use with MapLibre vector tile sources.
+    *
+    * @param z          Zoom level (0-22, MapLibre overzooms past the
+    *                   precomputed ceiling)
+    * @param x          Tile X coordinate
+    * @param y          Tile Y coordinate
+    * @param global     Include global challenges
+    * @param difficulty Optional difficulty filter (1=Easy, 2=Normal, 3=Expert)
+    * @return Binary MVT data
+    */
+  def getTaskTilesMvt(
+      z: Int,
+      x: Int,
+      y: Int,
+      global: Boolean,
+      difficulty: Option[Int],
+      keywords: Option[String]
+  ): Action[AnyContent] = Action { implicit request =>
+    val validZoom       = math.max(0, math.min(22, z))
+    val validDifficulty = difficulty.filter(d => d >= 1 && d <= 3)
+
+    val mvtBytes = this.serviceManager.tileAggregate.getMvtTile(
+      validZoom,
+      x,
+      y,
+      validDifficulty,
+      global,
+      keywords
+    )
+
+    // A tile is a pure function of (z, x, y) and the filter params — nothing
+    // in it depends on the requesting user — so every non-empty tile is
+    // publicly cacheable, filtered or not. The window is kept short (≈ rebuild
+    // cadence) so mutations become visible quickly. Empty tiles aren't cached:
+    // they may start containing data on the next rebuild.
+    val cacheControl =
+      if (mvtBytes.isEmpty) "no-store"
+      else "public, max-age=10, must-revalidate"
+
+    Ok(mvtBytes)
+      .as("application/vnd.mapbox-vector-tile")
+      .withHeaders("Cache-Control" -> cacheControl)
   }
 
   /**

@@ -5,7 +5,7 @@
 
 package org.maproulette.framework.repository
 
-import anorm.SqlParser.{get, scalar, str}
+import anorm.SqlParser.scalar
 import anorm.ToParameterValue
 import anorm._, postgresql._
 import javax.inject.{Inject, Singleton}
@@ -43,35 +43,9 @@ class TaskRepository @Inject() (override val db: Database, config: Config)
           "WHERE tasks.id = {id}"
         SQL(query)
           .on(Symbol("id") -> id)
-          .as(this.getTaskParser(this.updateAndRetrieve).singleOpt)
+          .as(this.getTaskParser().singleOpt)
       }
     }(id)
-  }
-
-  /**
-    * Allows us to lazy update the geojson data
-    *
-    * @param taskId The identifier of the task
-    */
-  def updateAndRetrieve(
-      taskId: Long,
-      geojson: Option[String],
-      location: Option[String],
-      cooperativeWork: Option[String]
-  ): (String, Option[String], Option[String]) = {
-    geojson match {
-      case Some(g) => (g, location, cooperativeWork)
-      case None =>
-        this.withMRTransaction { implicit c =>
-          SQL("SELECT * FROM update_geometry({id})")
-            .on(Symbol("id") -> taskId)
-            .as((str("geo") ~ get[Option[String]]("loc") ~ get[Option[String]]("fix_geo")).*)
-            .headOption match {
-            case Some(values) => (values._1._1, values._1._2, values._2)
-            case None         => throw new Exception("Failed to retrieve task data")
-          }
-        }
-    }
   }
 
   /**
@@ -116,6 +90,77 @@ class TaskRepository @Inject() (override val db: Database, config: Config)
       SQL(
         s"""UPDATE tasks SET priority = ${updatedPriority} WHERE id = ${id}"""
       ).executeUpdate()
+    }
+  }
+
+  /**
+    * Increment the skip_count on a task. Does NOT change the task's status
+    * or touch the lock record — callers should release the lock separately.
+    *
+    * @param taskId The id of the task being skipped
+    * @return The number of rows updated (0 or 1)
+    */
+  def incrementSkipCount(taskId: Long): Int = {
+    this.withMRConnection { implicit c =>
+      SQL("UPDATE tasks SET skip_count = skip_count + 1 WHERE id = {id}")
+        .on(Symbol("id") -> taskId)
+        .executeUpdate()
+    }
+  }
+
+  /**
+    * Delete tasks by id list. Cascade deletes via FK constraints handle
+    * task_review, task tags, comments, etc.
+    *
+    * @param taskIds The task ids to delete
+    * @return The number of rows deleted
+    */
+  def bulkDeleteTasks(taskIds: List[Long]): Int = {
+    if (taskIds.isEmpty) return 0
+    this.withMRTransaction { implicit c =>
+      SQL("DELETE FROM task_review WHERE task_id IN ({ids})")
+        .on(Symbol("ids") -> taskIds)
+        .executeUpdate()
+      SQL("DELETE FROM tasks WHERE id IN ({ids})")
+        .on(Symbol("ids") -> taskIds)
+        .executeUpdate()
+    }
+  }
+
+  /**
+    * Archive / unarchive tasks in bulk.
+    *
+    * @param taskIds  The task ids to update
+    * @param archived Target archived flag
+    * @return Number of rows updated
+    */
+  def bulkArchiveTasks(taskIds: List[Long], archived: Boolean): Int = {
+    if (taskIds.isEmpty) return 0
+    this.withMRConnection { implicit c =>
+      SQL("UPDATE tasks SET archived = {archived} WHERE id IN ({ids})")
+        .on(Symbol("archived") -> archived, Symbol("ids") -> taskIds)
+        .executeUpdate()
+    }
+  }
+
+  /**
+    * Reassign the review of a batch of tasks to another user. Only tasks
+    * whose reviews are currently "needed" or "requested" (review_status in
+    * {0, 3}) are reassigned; other reviews are left alone.
+    *
+    * @param taskIds Task ids to reassign
+    * @param userId  Target reviewer user id
+    * @return Number of rows updated
+    */
+  def bulkReassignReviewer(taskIds: List[Long], userId: Long): Int = {
+    if (taskIds.isEmpty) return 0
+    this.withMRConnection { implicit c =>
+      SQL(
+        """UPDATE task_review
+           SET reviewed_by = {userId}, review_claimed_by = {userId}, review_claimed_at = NOW()
+           WHERE task_id IN ({ids}) AND review_status IN (0, 3)"""
+      ).on(Symbol("userId") -> userId, Symbol("ids") -> taskIds)
+        .executeUpdate()
     }
   }
 

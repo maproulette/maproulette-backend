@@ -14,7 +14,7 @@ import org.maproulette.framework.psql._
 import org.maproulette.framework.psql.filter._
 import org.maproulette.framework.repository.TaskClusterRepository
 import org.maproulette.framework.mixins.{SearchParametersMixin, TaskFilterMixin}
-import org.maproulette.session.SearchParameters
+import org.maproulette.session.{SearchParameters, SearchLocation}
 
 /**
   * Service layer for TaskCluster
@@ -100,6 +100,34 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
   }
 
   /**
+    * Simplified method to get challenge tasks in a bounding box
+    *
+    * @param bounds       Optional bounding box to search within
+    * @param challengeIds Optional list of challenge IDs to filter by
+    * @param paging       Pagination settings
+    * @return Tuple of (total count, list of tasks)
+    */
+  def getChallengeTasksInBounds(
+      bounds: Option[SearchLocation],
+      challengeIds: Option[List[Long]],
+      paging: Paging = Paging(Config.DEFAULT_LIST_SIZE, 0)
+  ): (Int, List[ClusteredPoint]) = {
+    this.repository.queryChallengeTasksInBounds(
+      bounds,
+      challengeIds,
+      paging.limit,
+      paging.limit * paging.page
+    )
+  }
+
+  def getTaskMarkers(
+      statuses: List[Int],
+      global: Boolean
+  ): List[TaskMarker] = {
+    this.repository.queryTaskMarkers(statuses, global)
+  }
+
+  /**
     * Builds a query to retrieve tasks within a bounding box, applying search parameters.
     *
     * @param user         The user making the request
@@ -137,6 +165,111 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
         )
       case _ => query
     }
+  }
+
+  /**
+    * Retrieves task markers with bounding box filtering
+    *
+    * @param statuses List of task status filters
+    * @param global   Whether to include global challenges
+    * @param boundingBox   Search parameters including bounding box
+    * @param keywords Optional comma-separated list of keywords to filter by
+    * @param difficulty Optional difficulty level to filter by
+    * @return List of task markers
+    */
+  def getTaskMarkersWithBoundingBox(
+      statuses: List[Int],
+      global: Boolean,
+      boundingBox: SearchLocation,
+      keywords: Option[String] = None,
+      difficulty: Option[Int] = None
+  ): List[TaskMarker] = {
+    this.repository.queryTaskMarkersWithBoundingBox(
+      statuses,
+      global,
+      boundingBox,
+      keywords,
+      difficulty
+    )
+  }
+
+  /**
+    * Retrieves task markers with bounding box filtering and overlap detection.
+    * Groups tasks that share the same location together.
+    *
+    * @param statuses List of task status filters
+    * @param global   Whether to include global challenges
+    * @param boundingBox   Search parameters including bounding box
+    * @param keywords Optional comma-separated list of keywords to filter by
+    * @param difficulty Optional difficulty level to filter by
+    * @return Tuple of (single task markers, overlapping task markers)
+    */
+  def getTaskMarkersWithOverlaps(
+      statuses: List[Int],
+      global: Boolean,
+      boundingBox: SearchLocation,
+      keywords: Option[String] = None,
+      difficulty: Option[Int] = None
+  ): (List[TaskMarker], List[OverlappingTaskMarker]) = {
+    this.repository.queryTaskMarkersWithOverlaps(
+      statuses,
+      global,
+      boundingBox,
+      keywords,
+      difficulty
+    )
+  }
+
+  /**
+    * Retrieves clustered task markers
+    *
+    * @param statuses List of task status filters
+    * @param global   Whether to include global challenges
+    * @param boundingBox   Search parameters including bounding box
+    * @param keywords Optional comma-separated list of keywords to filter by
+    * @param difficulty Optional difficulty level to filter by
+    * @return List of task cluster summaries
+    */
+  def getTaskMarkersClustered(
+      statuses: List[Int],
+      global: Boolean,
+      boundingBox: SearchLocation,
+      keywords: Option[String] = None,
+      difficulty: Option[Int] = None
+  ): List[TaskClusterSummary] = {
+    this.repository.queryTaskMarkersClustered(
+      statuses,
+      global,
+      boundingBox,
+      keywords,
+      difficulty
+    )
+  }
+
+  /**
+    * Counts task markers in the given bounding box
+    *
+    * @param statuses List of task status filters
+    * @param global   Whether to include global challenges
+    * @param boundingBox   Search parameters including bounding box
+    * @param keywords Optional comma-separated list of keywords to filter by
+    * @param difficulty Optional difficulty level to filter by
+    * @return Count of task markers
+    */
+  def countTaskMarkers(
+      statuses: List[Int],
+      global: Boolean,
+      boundingBox: SearchLocation,
+      keywords: Option[String] = None,
+      difficulty: Option[Int] = None
+  ): Int = {
+    this.repository.queryCountTaskMarkers(
+      statuses,
+      global,
+      boundingBox,
+      keywords,
+      difficulty
+    )
   }
 
   /**

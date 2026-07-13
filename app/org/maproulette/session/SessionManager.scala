@@ -292,12 +292,16 @@ class SessionManager @Inject() (
           Some(User.superUser)
         } else {
           try {
-            val apiSplit        = apiKey.split("\\|")
-            val encryptedApiKey = crypto.encrypt(apiSplit(1))
-            this.serviceManager.user
-              .retrieveByAPIKey(apiSplit(0).toLong, encryptedApiKey, User.superUser) match {
-              case Some(user) => Some(user)
-              case None       => None
+            // A valid API key has the form "<userId>|<rawKey>". Anything else is malformed
+            // and should be rejected as unauthorized rather than throwing.
+            apiKey.split("\\|", 2) match {
+              case Array(userId, rawKey) =>
+                val encryptedApiKey = crypto.encrypt(rawKey)
+                this.serviceManager.user
+                  .retrieveByAPIKey(userId.toLong, encryptedApiKey, User.superUser)
+              case _ =>
+                logger.warn("Malformed API key, generally this is not an issue")
+                None
             }
           } catch {
             case _: NumberFormatException =>

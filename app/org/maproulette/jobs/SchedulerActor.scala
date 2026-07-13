@@ -90,8 +90,43 @@ class SchedulerActor @Inject() (
       this.handleSendCountNotificationEmails(action, UserNotification.NOTIFICATION_EMAIL_WEEKLY)
     case RunJob("archiveChallenges", action) =>
       this.handleArchiveChallenges(action)
-    case RunJob("updateChallengeCompletionMetrics", action) =>
-      this.handleUpdateChallengeCompletionMetrics(action)
+    case RunJob("rebuildDirtyTileCells", action) =>
+      this.rebuildDirtyTileCells(action)
+  }
+
+  /** Leaf cells recomputed per drain transaction. */
+  private val TileDrainBatch = 512
+
+  /** Hard cap on batches per run, so a single drain cannot run unbounded. */
+  private val TileMaxBatchesPerRun = 200
+
+  /**
+    * Drains the dirty-cell queue (marked by the task/challenge/project triggers
+    * in evolution 107), recomputing affected leaf cells from the base tables and
+    * rolling the changes up the pyramid. Runs on a fixed schedule; see
+    * Config.KEY_SCHEDULER_REBUILD_DIRTY_TILE_CELLS_INTERVAL. To enable, set:
+    *    osm.scheduler.rebuildDirtyTileCells.interval=FiniteDuration
+    */
+  def rebuildDirtyTileCells(action: String): Unit = {
+    val tileAggregate = this.serviceManager.tileAggregate
+    var total         = 0
+    var batches       = 0
+    var n             = tileAggregate.rebuildDirtyCells(TileDrainBatch)
+    total += n
+    while (n >= TileDrainBatch && batches < TileMaxBatchesPerRun) {
+      n = tileAggregate.rebuildDirtyCells(TileDrainBatch)
+      total += n
+      batches += 1
+    }
+    if (total > 0) {
+      logger.info(s"Scheduled Task '$action': rebuilt $total dirty leaf cells")
+    }
+    if (batches >= TileMaxBatchesPerRun) {
+      logger.warn(
+        s"Scheduled Task '$action': hit the per-run batch cap ($TileMaxBatchesPerRun); " +
+          "dirty cells are accumulating faster than the drain can keep up"
+      )
+    }
   }
 
   /**
@@ -168,11 +203,11 @@ class SchedulerActor @Inject() (
         db.withTransaction {
           implicit c =>
             val query =
-              s"""UPDATE challenges 
+              s"""UPDATE challenges
                   SET location = (SELECT ST_Centroid(ST_Collect(ST_Makevalid(location)))
                                  FROM tasks
                                  WHERE parent_id = ${id}),
-                      bounding = (SELECT ST_Envelope(ST_Buffer((ST_SetSRID(ST_Extent(location), 4326))::geography,2)::geometry)
+                      bounding = (SELECT ST_Envelope(ST_Expand(ST_SetSRID(ST_Extent(location), 4326), 0.0001))
                                  FROM tasks
                                  WHERE parent_id = ${id}),
                       last_updated = NOW(),
@@ -709,23 +744,6 @@ class SchedulerActor @Inject() (
     )
   }
 
-  /**
-    * Updates completion metrics for all active challenges.
-    *
-    * @param action An action descriptor, providing more context for logging.
-    */
-  def handleUpdateChallengeCompletionMetrics(action: String): Unit = {
-    val startTime = System.currentTimeMillis
-    logger.info(s"Scheduled Task '$action': Starting run")
-
-    this.serviceManager.challenge.updateCompletionMetricsOfActiveChallenges()
-
-    val elapsedTime = System.currentTimeMillis - startTime
-    logger.info(
-      s"Scheduled Task '$action': Finished run. Time spent: ${String.format("%1d", elapsedTime)}ms"
-    )
-  }
-
   def sendDigestNotificationEmails(action: String) = {
     val start = System.currentTimeMillis
     logger.info(s"Scheduled Task '$action': Starting run")
@@ -876,6 +894,7 @@ class SchedulerActor @Inject() (
         logger.warn(s"The KeepRight challenge creation failed. ${f.getMessage}")
     }
   }
+
 }
 
 object SchedulerActor {

@@ -90,7 +90,7 @@ libraryDependencies ++= Seq(
   // NOTE: The swagger-ui package is used to obtain the static distribution of swagger-ui, the files included at runtime
   // and are served by the webserver at route '/assets/lib/swagger-ui/'. We have a few customized swagger files in dir
   // 'public/swagger'.
-  "org.webjars"             % "swagger-ui"      % "5.10.3",
+  "org.webjars"             % "swagger-ui"      % "5.32.5",
   "org.playframework.anorm" %% "anorm"          % "2.7.0",
   "org.playframework.anorm" %% "anorm-postgres" % "2.7.0",
   "org.postgresql"          % "postgresql"      % "42.7.3", // https://github.com/pgjdbc/pgjdbc/releases
@@ -227,6 +227,7 @@ val routeFiles: Seq[String] = Seq(
   "follow.api",
   "leaderboard.api",
   "service.api",
+  "search.api",
   "v2.api"
 )
 

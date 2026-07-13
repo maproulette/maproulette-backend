@@ -22,7 +22,7 @@ import org.maproulette.permissions.Permission
 import org.maproulette.session.{SearchLocation, SearchParameters}
 import play.api.db.Database
 import play.api.libs.json.JodaReads._
-import play.api.libs.json.{JsString, JsValue, Json}
+import play.api.libs.json.{JsValue, Json}
 
 import org.maproulette.framework.mixins.Locking
 import org.maproulette.framework.repository.RepositoryMixin
@@ -562,7 +562,7 @@ class VirtualChallengeDAL @Inject() (
             -1,
             "",
             point,
-            JsString(""),
+            Json.obj(),
             instruction,
             DateTime.now(),
             -1,

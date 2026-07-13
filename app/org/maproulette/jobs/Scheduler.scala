@@ -109,10 +109,10 @@ class Scheduler @Inject() (
   )
 
   schedule(
-    "updateChallengeCompletionMetrics",
-    "Updating Challenge Completion Metrics",
-    5.minutes,
-    Config.KEY_SCHEDULER_UPDATE_CHALLENGE_COMPLETION_INTERVAL
+    "rebuildDirtyTileCells",
+    "Rebuilding Dirty Tile Cells",
+    30.seconds,
+    Config.KEY_SCHEDULER_REBUILD_DIRTY_TILE_CELLS_INTERVAL
   )
 
   scheduleAtTime(
