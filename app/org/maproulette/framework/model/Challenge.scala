@@ -143,7 +143,8 @@ case class ChallengeExtra(
     systemArchivedAt: Option[DateTime] = None,
     presets: Option[List[String]] = None,
     requireConfirmation: Boolean = false,
-    mrTagMetrics: Option[JsObject] = None
+    mrTagMetrics: Option[JsObject] = None,
+    paused: Boolean = false
 ) extends DefaultWrites
 
 case class ChallengeListing(
@@ -222,7 +223,8 @@ case class BaseChallenge(
     location: Option[JsObject] = None,
     bounding: Option[JsObject] = None,
     completionPercentage: Option[Int] = Some(0),
-    completionMetrics: CompletionMetrics = CompletionMetrics()
+    completionMetrics: CompletionMetrics = CompletionMetrics(),
+    paused: Boolean = false
 ) extends DefaultWrites
 
 /**
@@ -505,6 +507,7 @@ object Challenge extends CommonField {
   val FIELD_PARENT_ID = "parent_id"
   val FIELD_ENABLED   = "enabled"
   val FIELD_ARCHIVED  = "is_archived"
+  val FIELD_PAUSED    = "paused"
   val FIELD_GLOBAL    = "is_global"
   val FIELD_STATUS    = "status"
   val FIELD_DELETED   = "deleted"

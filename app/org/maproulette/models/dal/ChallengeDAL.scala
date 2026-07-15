@@ -131,7 +131,8 @@ class ChallengeDAL @Inject() (
       get[Option[JsValue]]("challenges.task_widget_layout") ~
       get[Boolean]("challenges.require_confirmation") ~
       get[Boolean]("challenges.require_reject_reason") ~
-      get[Option[JsValue]]("challenges.completion_metrics") map {
+      get[Option[JsValue]]("challenges.completion_metrics") ~
+      get[Boolean]("challenges.paused") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
             checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~ status ~ statusMessage ~
@@ -140,7 +141,7 @@ class ChallengeDAL @Inject() (
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
             requiresLocal ~ deleted ~ isGlobal ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~
-            requireConfirmation ~ requireRejectReason ~ completionMetricsJson =>
+            requireConfirmation ~ requireRejectReason ~ completionMetricsJson ~ paused =>
         val completionMetrics =
           completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         new Challenge(
@@ -202,7 +203,8 @@ class ChallengeDAL @Inject() (
             None, // systemArchivedAt
             None, // presets
             requireConfirmation,
-            None // mrTagMetrics
+            None, // mrTagMetrics
+            paused
           ),
           status,
           statusMessage,
@@ -281,7 +283,8 @@ class ChallengeDAL @Inject() (
       get[Option[DateTime]]("challenges.system_archived_at") ~
       get[Boolean]("challenges.require_confirmation") ~
       get[Boolean]("challenges.require_reject_reason") ~
-      get[Option[JsValue]]("challenges.completion_metrics") map {
+      get[Option[JsValue]]("challenges.completion_metrics") ~
+      get[Boolean]("challenges.paused") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~
             checkin_comment ~ checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~
@@ -291,7 +294,7 @@ class ChallengeDAL @Inject() (
             preferredReviewTags ~ limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~
             dataOriginDate ~ location ~ bounding ~ requiresLocal ~ deleted ~ isGlobal ~ virtualParents ~
             presets ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ systemArchivedAt ~
-            requireConfirmation ~ requireRejectReason ~ completionMetricsJson =>
+            requireConfirmation ~ requireRejectReason ~ completionMetricsJson ~ paused =>
         val completionMetrics =
           completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         new Challenge(
@@ -352,7 +355,9 @@ class ChallengeDAL @Inject() (
             datasetUrl,
             systemArchivedAt,
             presets,
-            requireConfirmation
+            requireConfirmation,
+            None, // mrTagMetrics
+            paused
           ),
           status,
           statusMessage,
@@ -424,7 +429,8 @@ class ChallengeDAL @Inject() (
       get[Option[DateTime]]("challenges.data_origin_date") ~
       get[Option[String]]("locationJSON") ~
       get[Option[String]]("boundingJSON") ~
-      get[Option[JsValue]]("challenges.completion_metrics") map {
+      get[Option[JsValue]]("challenges.completion_metrics") ~
+      get[Boolean]("challenges.paused") map {
       case id ~ name ~ created ~ modified ~ description ~ deleted ~ isGlobal ~ requireConfirmation ~ requireRejectReason ~
             infoLink ~ ownerId ~ parentId ~ instruction ~ difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~
             popularity ~ checkin_comment ~ checkin_source ~ requiresLocal ~ overpassQL ~ remoteGeoJson ~ overpassTargetType ~
@@ -433,7 +439,7 @@ class ChallengeDAL @Inject() (
             limitReviewTags ~ isArchived ~ reviewSetting ~ defaultBasemap ~ defaultBasemapId ~ customBasemap ~
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ taskWidgetLayout ~ taskStyles ~ status ~
             statusMessage ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
-            completionMetricsJson =>
+            completionMetricsJson ~ paused =>
         val completionMetrics =
           completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         val hpr = highPriorityRule.map(Json.parse(_).as[JsObject])
@@ -500,7 +506,8 @@ class ChallengeDAL @Inject() (
           location.map(Json.parse(_).as[JsObject]),
           bounding.map(Json.parse(_).as[JsObject]),
           Some(CompletionMetrics.completionPercentage(completionMetrics)),
-          completionMetrics
+          completionMetrics,
+          paused
         )
     }
   }
@@ -702,7 +709,7 @@ class ChallengeDAL @Inject() (
                                       medium_priority_rule, low_priority_rule, high_priority_bounds, medium_priority_bounds, low_priority_bounds, default_zoom, min_zoom, max_zoom,
                                       default_basemap, default_basemap_id, custom_basemap, updatetasks, exportable_properties,
                                       osm_id_property, task_bundle_id_property, last_task_refresh, data_origin_date, preferred_tags, preferred_review_tags,
-                                      limit_tags, limit_review_tags, task_styles, requires_local, is_archived, review_setting, dataset_url, require_confirmation, require_reject_reason, task_widget_layout)
+                                      limit_tags, limit_review_tags, task_styles, requires_local, is_archived, review_setting, dataset_url, require_confirmation, require_reject_reason, task_widget_layout, paused)
               VALUES (${challenge.name}, ${challenge.general.owner}, ${challenge.general.parent},
                       ${challenge.general.difficulty},
                       ${challenge.description}, ${challenge.infoLink}, ${challenge.general.blurb}, ${challenge.general.instruction},
@@ -718,7 +725,7 @@ class ChallengeDAL @Inject() (
                       ${challenge.extra.preferredTags}, ${challenge.extra.preferredReviewTags}, ${challenge.extra.limitTags},
                       ${challenge.extra.limitReviewTags}, ${challenge.extra.taskStyles}, ${challenge.general.requiresLocal}, ${challenge.extra.isArchived},
                       ${challenge.extra.reviewSetting}, ${challenge.extra.datasetUrl}, ${challenge.requireConfirmation}, ${challenge.requireRejectReason},
-                      ${asJson(challenge.extra.taskWidgetLayout.getOrElse(Json.obj()))}
+                      ${asJson(challenge.extra.taskWidgetLayout.getOrElse(Json.obj()))}, ${challenge.extra.paused}
                       ) RETURNING #${this.retrieveColumns}"""
             .as(this.parser.*)
             .headOption
@@ -954,6 +961,10 @@ class ChallengeDAL @Inject() (
             .asOpt[Boolean]
             .getOrElse(cachedItem.extra.isArchived)
 
+          val paused = (updates \ "paused")
+            .asOpt[Boolean]
+            .getOrElse(cachedItem.extra.paused)
+
           val reviewSetting = (updates \ "reviewSetting")
             .asOpt[Int]
             .getOrElse(cachedItem.extra.reviewSetting)
@@ -1019,7 +1030,7 @@ class ChallengeDAL @Inject() (
                   custom_basemap = $customBasemap, updatetasks = $updateTasks, exportable_properties = $exportableProperties,
                   osm_id_property = $osmIdProperty, task_bundle_id_property = $taskBundleIdProperty, preferred_tags = $preferredTags, preferred_review_tags = $preferredReviewTags,
                   limit_tags = $limitTags, limit_review_tags = $limitReviewTags, task_styles = $taskStyles,
-                  requires_local = $requiresLocal, is_archived = $isArchived, review_setting = $reviewSetting, dataset_url = $datasetUrl, task_widget_layout = ${asJson(
+                  requires_local = $requiresLocal, is_archived = $isArchived, paused = $paused, review_setting = $reviewSetting, dataset_url = $datasetUrl, task_widget_layout = ${asJson(
               taskWidgetLayout
             )}
                 WHERE id = $id RETURNING #${this.retrieveColumns}""".as(parser.*).headOption
