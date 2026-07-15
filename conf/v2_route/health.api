@@ -1,0 +1,33 @@
+###
+# tags: [ Health ]
+# summary: Liveness probe
+# description: Shallow check that the process is up and serving HTTP. Does not touch the database. Intended as a container/orchestrator liveness probe where failure means the process should be restarted.
+# responses:
+#   '200':
+#     description: Process is alive
+###
+GET /liveness @org.maproulette.framework.controller.HealthController.liveness()
+
+###
+# tags: [ Health ]
+# summary: Readiness probe
+# description: Shallow database reachability check answering whether this instance should receive traffic. In a load-balanced deployment a failure should pull the instance from rotation without restarting it.
+# responses:
+#   '200':
+#     description: Instance is ready to serve requests
+#   '503':
+#     description: Instance is not ready to serve requests
+###
+GET /readiness @org.maproulette.framework.controller.HealthController.readiness()
+
+###
+# tags: [ Health ]
+# summary: Health check
+# description: Reports whether the service and all of its hard dependencies are alive and healthy. Intended for monitoring and alerting (not orchestration).
+# responses:
+#   '200':
+#     description: Service is healthy
+#   '503':
+#     description: Service is unhealthy
+###
+GET /health @org.maproulette.framework.controller.HealthController.health()

@@ -228,6 +228,7 @@ val routeFiles: Seq[String] = Seq(
   "leaderboard.api",
   "service.api",
   "search.api",
+  "health.api",
   "v2.api"
 )
 
