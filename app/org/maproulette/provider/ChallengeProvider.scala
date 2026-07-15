@@ -43,13 +43,13 @@ class ChallengeProvider @Inject() (
   private val logger = LoggerFactory.getLogger(this.getClass)
 
   /**
-    * Runs a block using a connection borrowed from the dedicated background
-    * pool so that heavy, long-held build operations (e.g. bulk task deletes,
-    * recomputing task priorities) don't draw from the default pool, which can
-    * starve normal HTTP requests and cause 503 errors.
+    * Runs a block in a transaction on a connection borrowed from the dedicated
+    * background pool so that heavy, long-held build operations (e.g. bulk task
+    * deletes, recomputing task priorities) don't draw from the default pool,
+    * which can starve normal HTTP requests and cause 503 errors.
     */
   private def withBackgroundPool[T](block: Option[Connection] => T): T =
-    this.backgroundDb.withConnection { c =>
+    this.backgroundDb.withTransaction { c =>
       block(Some(c))
     }
 

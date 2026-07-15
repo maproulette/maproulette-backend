@@ -433,7 +433,7 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar with BeforeAndAft
     }.when(db).withTransaction(any[Connection => Any])
     doAnswer { (invocation: InvocationOnMock) =>
       invocation.getArgument(0).asInstanceOf[Connection => Any](mock[Connection])
-    }.when(backgroundDb).withConnection(any[Connection => Any])
+    }.when(backgroundDb).withTransaction(any[Connection => Any])
 
     val provider = new ChallengeProvider(challengeDAL, taskDAL, config, ws, db, backgroundDb)
   }
