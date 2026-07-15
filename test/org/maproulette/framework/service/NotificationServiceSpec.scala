@@ -429,6 +429,42 @@ class NotificationServiceSpec(implicit val application: Application) extends Fra
       notifications.head.challengeId.get mustEqual this.defaultTask.parent
     }
 
+    "add distinct meta-review notifications for approved vs rejected" taggedAs NotificationTag in {
+      val approvedUser = this.serviceManager.user.create(
+        this.getTestUser(299911128, "Service_addMetaReviewApprovedNotificationOUser1"),
+        User.superUser
+      )
+      val rejectedUser = this.serviceManager.user.create(
+        this.getTestUser(299911129, "Service_addMetaReviewRejectedNotificationOUser1"),
+        User.superUser
+      )
+
+      this.service.createReviewNotification(
+        this.defaultUser,
+        approvedUser.id,
+        Task.REVIEW_STATUS_APPROVED,
+        this.defaultTask,
+        None,
+        isMetaReview = true
+      )
+      this.service.createReviewNotification(
+        this.defaultUser,
+        rejectedUser.id,
+        Task.REVIEW_STATUS_REJECTED,
+        this.defaultTask,
+        None,
+        isMetaReview = true
+      )
+
+      val approvedNotifications = this.service.getUserNotifications(approvedUser.id, approvedUser)
+      approvedNotifications.size mustEqual 1
+      approvedNotifications.head.notificationType mustEqual UserNotification.NOTIFICATION_TYPE_META_APPROVED
+
+      val rejectedNotifications = this.service.getUserNotifications(rejectedUser.id, rejectedUser)
+      rejectedNotifications.size mustEqual 1
+      rejectedNotifications.head.notificationType mustEqual UserNotification.NOTIFICATION_TYPE_META_REJECTED
+    }
+
     "add a task-review revised notification" taggedAs NotificationTag in {
       val freshUser = this.serviceManager.user.create(
         this.getTestUser(399911127, "Service_addTaskReviewRevisedNotificationOUser1"),
