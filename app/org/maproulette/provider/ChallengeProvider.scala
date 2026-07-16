@@ -536,185 +536,181 @@ class ChallengeProvider @Inject() (
                 )
               }
 
-              this.db.withTransaction { implicit c =>
-                var partial          = false
-                val payload          = result.json
-                var targetTypeFailed = false
+              var partial          = false
+              val payload          = result.json
+              var targetTypeFailed = false
 
-                // parse the results. Overpass has its own format and is not geojson
-                val elements = (payload \ "elements").as[List[JsValue]]
-                try {
-                  elements.foreach { element =>
-                    // Verify target type if we are given one.
-                    challenge.creation.overpassTargetType match {
-                      case Some(targetType) if StringUtils.isNotEmpty(targetType) =>
-                        (element \ "type").asOpt[String] match {
-                          case Some("way") =>
-                            if (targetType != "way") {
-                              targetTypeFailed = true
-                              throw new InvalidException(
-                                "Element type 'way' does not match target type of '" + targetType + "'"
-                              )
-                            }
-                          case Some("relation") =>
-                            if (targetType != "relation") {
-                              targetTypeFailed = true
-                              throw new InvalidException(
-                                "Element type 'relation' does not match target type of '" + targetType + "'"
-                              )
-                            }
-                          case Some("node") =>
-                            if (targetType != "node") {
-                              targetTypeFailed = true
-                              throw new InvalidException(
-                                "Element type 'node' does not match target type of '" + targetType + "'"
-                              )
-                            }
-                          case x =>
+              // parse the results. Overpass has its own format and is not geojson
+              val elements = (payload \ "elements").as[List[JsValue]]
+              try {
+                elements.foreach { element =>
+                  // Verify target type if we are given one.
+                  challenge.creation.overpassTargetType match {
+                    case Some(targetType) if StringUtils.isNotEmpty(targetType) =>
+                      (element \ "type").asOpt[String] match {
+                        case Some("way") =>
+                          if (targetType != "way") {
                             targetTypeFailed = true
                             throw new InvalidException(
-                              "Element type " + x + " does not match target type of '" + targetType + "'"
+                              "Element type 'way' does not match target type of '" + targetType + "'"
                             )
-                        }
-                      case _ => // do not validate
-                    }
+                          }
+                        case Some("relation") =>
+                          if (targetType != "relation") {
+                            targetTypeFailed = true
+                            throw new InvalidException(
+                              "Element type 'relation' does not match target type of '" + targetType + "'"
+                            )
+                          }
+                        case Some("node") =>
+                          if (targetType != "node") {
+                            targetTypeFailed = true
+                            throw new InvalidException(
+                              "Element type 'node' does not match target type of '" + targetType + "'"
+                            )
+                          }
+                        case x =>
+                          targetTypeFailed = true
+                          throw new InvalidException(
+                            "Element type " + x + " does not match target type of '" + targetType + "'"
+                          )
+                      }
+                    case _ => // do not validate
+                  }
 
-                    try {
-                      val geometry = (element \ "center").asOpt[JsObject] match {
-                        case Some(center) =>
-                          Some(
-                            Json.obj(
-                              "type" -> "Point",
-                              "coordinates" -> List(
-                                (center \ "lon").as[Double],
-                                (center \ "lat").as[Double]
-                              )
+                  try {
+                    val geometry = (element \ "center").asOpt[JsObject] match {
+                      case Some(center) =>
+                        Some(
+                          Json.obj(
+                            "type" -> "Point",
+                            "coordinates" -> List(
+                              (center \ "lon").as[Double],
+                              (center \ "lat").as[Double]
                             )
                           )
-                        case None =>
-                          (element \ "type").asOpt[String] match {
-                            case Some("way") =>
-                              // TODO: ways do not have a "geometry" property, instead they have a list of "nodes"
-                              // referencing other elements in the array. So this code does not do the job.
-                              val points = (element \ "geometry").as[List[JsValue]].map { geom =>
-                                List((geom \ "lon").as[Double], (geom \ "lat").as[Double])
-                              }
-                              Some(Json.obj("type" -> "LineString", "coordinates" -> points))
-                            case Some("relation") =>
-                              // Function to recursively extract geometries from relations
-                              def extractGeometries(member: JsValue): Option[JsObject] = {
-                                (member \ "type").asOpt[String] match {
-                                  case Some("way") =>
-                                    val points = (member \ "geometry").as[List[JsValue]].map {
-                                      geom =>
-                                        List((geom \ "lon").as[Double], (geom \ "lat").as[Double])
-                                    }
-                                    Some(Json.obj("type" -> "LineString", "coordinates" -> points))
+                        )
+                      case None =>
+                        (element \ "type").asOpt[String] match {
+                          case Some("way") =>
+                            // TODO: ways do not have a "geometry" property, instead they have a list of "nodes"
+                            // referencing other elements in the array. So this code does not do the job.
+                            val points = (element \ "geometry").as[List[JsValue]].map { geom =>
+                              List((geom \ "lon").as[Double], (geom \ "lat").as[Double])
+                            }
+                            Some(Json.obj("type" -> "LineString", "coordinates" -> points))
+                          case Some("relation") =>
+                            // Function to recursively extract geometries from relations
+                            def extractGeometries(member: JsValue): Option[JsObject] = {
+                              (member \ "type").asOpt[String] match {
+                                case Some("way") =>
+                                  val points = (member \ "geometry").as[List[JsValue]].map { geom =>
+                                    List((geom \ "lon").as[Double], (geom \ "lat").as[Double])
+                                  }
+                                  Some(Json.obj("type" -> "LineString", "coordinates" -> points))
 
-                                  case Some("node") =>
-                                    Some(
-                                      Json.obj(
-                                        "type" -> "Point",
-                                        "coordinates" -> List(
-                                          (member \ "lon").as[Double],
-                                          (member \ "lat").as[Double]
-                                        )
+                                case Some("node") =>
+                                  Some(
+                                    Json.obj(
+                                      "type" -> "Point",
+                                      "coordinates" -> List(
+                                        (member \ "lon").as[Double],
+                                        (member \ "lat").as[Double]
                                       )
                                     )
-
-                                  case Some("relation") =>
-                                    // If it's another relation, recursively extract geometries from it
-                                    val geometries = (member \ "members").as[List[JsValue]].map {
-                                      member =>
-                                        extractGeometries(member)
-                                    }
-                                    val geometryCollection = Json.obj(
-                                      "type"       -> "GeometryCollection",
-                                      "geometries" -> geometries
-                                    )
-
-                                    Some(geometryCollection)
-
-                                  case _ =>
-                                    None
-                                }
-                              }
-
-                              // Extract geometries from each member of the relation
-                              val geometries = (element \ "members").as[List[JsValue]].map {
-                                member =>
-                                  extractGeometries(member)
-                              }
-
-                              // Create a GeometryCollection
-                              val geometryCollection = Json.obj(
-                                "type"       -> "GeometryCollection",
-                                "geometries" -> geometries
-                              )
-
-                              Some(geometryCollection)
-
-                            case Some("node") =>
-                              Some(
-                                Json.obj(
-                                  "type" -> "Point",
-                                  "coordinates" -> List(
-                                    (element \ "lon").as[Double],
-                                    (element \ "lat").as[Double]
                                   )
+
+                                case Some("relation") =>
+                                  // If it's another relation, recursively extract geometries from it
+                                  val geometries = (member \ "members").as[List[JsValue]].map {
+                                    member =>
+                                      extractGeometries(member)
+                                  }
+                                  val geometryCollection = Json.obj(
+                                    "type"       -> "GeometryCollection",
+                                    "geometries" -> geometries
+                                  )
+
+                                  Some(geometryCollection)
+
+                                case _ =>
+                                  None
+                              }
+                            }
+
+                            // Extract geometries from each member of the relation
+                            val geometries = (element \ "members").as[List[JsValue]].map { member =>
+                              extractGeometries(member)
+                            }
+
+                            // Create a GeometryCollection
+                            val geometryCollection = Json.obj(
+                              "type"       -> "GeometryCollection",
+                              "geometries" -> geometries
+                            )
+
+                            Some(geometryCollection)
+
+                          case Some("node") =>
+                            Some(
+                              Json.obj(
+                                "type" -> "Point",
+                                "coordinates" -> List(
+                                  (element \ "lon").as[Double],
+                                  (element \ "lat").as[Double]
                                 )
                               )
-                            case _ => None
-                          }
-                      }
-
-                      geometry match {
-                        case Some(geom) =>
-                          this.createNewTask(
-                            user,
-                            s"${(element \ "id").as[Long]}",
-                            challenge,
-                            geom,
-                            Utils.getProperties(element, "tags")
-                          )
-                        case None => None
-                      }
-                    } catch {
-                      case e: Exception =>
-                        partial = true
-                        logger.error(
-                          s"Failed to build overpass task for challenge ${challenge.id}: ${e.getMessage}",
-                          e
-                        )
+                            )
+                          case _ => None
+                        }
                     }
-                  }
-                  partial match {
-                    case true =>
-                      this.challengeDAL.update(
-                        Json.obj("status" -> Challenge.STATUS_PARTIALLY_LOADED),
-                        user
-                      )(challenge.id)
-                    case false =>
-                      this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(
-                        challenge.id
+
+                    geometry match {
+                      case Some(geom) =>
+                        this.createNewTask(
+                          user,
+                          s"${(element \ "id").as[Long]}",
+                          challenge,
+                          geom,
+                          Utils.getProperties(element, "tags")
+                        )
+                      case None => None
+                    }
+                  } catch {
+                    case e: Exception =>
+                      partial = true
+                      logger.error(
+                        s"Failed to build overpass task for challenge ${challenge.id}: ${e.getMessage}",
+                        e
                       )
-                      this.challengeDAL.markTasksRefreshed(true)(challenge.id)
-                      this.challengeDAL.updateBoundingBox()(challenge.id)
-                      // If no tasks were created by this overpass query or all tasks are
-                      // fixed, then we need to update the status to finished.
-                      this.challengeDAL.updateFinishedStatus(true, user = user)(challenge.id)
                   }
-                } catch {
-                  case e: Exception =>
+                }
+                partial match {
+                  case true =>
                     this.challengeDAL.update(
-                      Json.obj(
-                        "status"        -> Challenge.STATUS_FAILED,
-                        "statusMessage" -> s"${e.getMessage}"
-                      ),
+                      Json.obj("status" -> Challenge.STATUS_PARTIALLY_LOADED),
                       user
                     )(challenge.id)
-                    throw e
+                  case false =>
+                    this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(
+                      challenge.id
+                    )
+                    this.challengeDAL.markTasksRefreshed(true)(challenge.id)
+                    this.challengeDAL.updateBoundingBox()(challenge.id)
+                    // If no tasks were created by this overpass query or all tasks are
+                    // fixed, then we need to update the status to finished.
+                    this.challengeDAL.updateFinishedStatus(true, user = user)(challenge.id)
                 }
+              } catch {
+                case e: Exception =>
+                  this.challengeDAL.update(
+                    Json.obj(
+                      "status"        -> Challenge.STATUS_FAILED,
+                      "statusMessage" -> s"${e.getMessage}"
+                    ),
+                    user
+                  )(challenge.id)
+                  throw e
               }
             } else {
               // Handle non-OK responses (timeouts, errors, etc.)
