@@ -1,12 +1,15 @@
+import akka.actor.ActorSystem
+import com.typesafe.config.ConfigFactory
 import org.joda.time.DateTime
 import org.maproulette.Config
 import org.maproulette.framework.model._
 import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}
-import org.maproulette.provider.ChallengeProvider
+import org.maproulette.provider.{ChallengeProvider, TaskBuilderExecutionContext}
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.{any, eq => eqM}
 import org.mockito.Mockito.{doAnswer, never, timeout, verify, when}
 import org.mockito.invocation.InvocationOnMock
+import org.scalatest.BeforeAndAfterAll
 import org.scalatestplus.play.PlaySpec
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.Configuration
@@ -19,8 +22,27 @@ import scala.concurrent.Future
 import scala.concurrent.duration.Duration
 import scala.jdk.CollectionConverters._
 
-class ChallengeProviderSpec extends PlaySpec with MockitoSugar {
-  val repository: ChallengeProvider = new ChallengeProvider(null, null, null, null, null)
+class ChallengeProviderSpec extends PlaySpec with MockitoSugar with BeforeAndAfterAll {
+  private val actorSystem = ActorSystem(
+    "ChallengeProviderSpec",
+    ConfigFactory.parseString("""
+      |akka.task-builder-dispatcher {
+      |  type = Dispatcher
+      |  executor = "thread-pool-executor"
+      |  thread-pool-executor.fixed-pool-size = 4
+      |  throughput = 1
+      |}
+      |""".stripMargin)
+  )
+  private val testEc = new TaskBuilderExecutionContext(actorSystem)
+
+  override def afterAll(): Unit = {
+    actorSystem.terminate()
+    super.afterAll()
+  }
+
+  val repository: ChallengeProvider =
+    new ChallengeProvider(null, null, null, null, null, null)(testEc)
 
   val challengeWithOsmId = Challenge(
     1,
@@ -389,12 +411,14 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar {
       contentType: Option[String] = Some("application/json"),
       responseBody: String = ""
   ) {
-    val ws: WSClient               = mock[WSClient]
-    val wsRequest: WSRequest       = mock[WSRequest]
-    val wsResponse: WSResponse     = mock[WSResponse]
-    val challengeDAL: ChallengeDAL = mock[ChallengeDAL]
-    val taskDAL: TaskDAL           = mock[TaskDAL]
-    val db: Database               = mock[Database]
+    val ws: WSClient                             = mock[WSClient]
+    val wsRequest: WSRequest                     = mock[WSRequest]
+    val wsResponse: WSResponse                   = mock[WSResponse]
+    val challengeDAL: ChallengeDAL               = mock[ChallengeDAL]
+    val taskDAL: TaskDAL                         = mock[TaskDAL]
+    val db: Database                             = mock[Database]
+    val backgroundDb: Database                   = mock[Database]
+    implicit val ec: TaskBuilderExecutionContext = testEc
 
     when(ws.url(any[String])).thenReturn(wsRequest)
     when(wsRequest.withRequestTimeout(any[Duration])).thenReturn(wsRequest)
@@ -407,8 +431,11 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar {
     doAnswer { (invocation: InvocationOnMock) =>
       invocation.getArgument(0).asInstanceOf[Connection => Any](mock[Connection])
     }.when(db).withTransaction(any[Connection => Any])
+    doAnswer { (invocation: InvocationOnMock) =>
+      invocation.getArgument(0).asInstanceOf[Connection => Any](mock[Connection])
+    }.when(backgroundDb).withTransaction(any[Connection => Any])
 
-    val provider = new ChallengeProvider(challengeDAL, taskDAL, config, ws, db)
+    val provider = new ChallengeProvider(challengeDAL, taskDAL, config, ws, db, backgroundDb)
   }
 
   "buildTasks with an overpass query" should {
