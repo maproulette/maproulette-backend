@@ -1933,7 +1933,7 @@ class ChallengeDAL @Inject() (
       challengeId: Long
   )(implicit c: Option[Connection] = None): Map[Long, String] = {
     this.withMRConnection { implicit c =>
-      SQL"""SELECT id, geojson FROM tasks t
+      SQL"""SELECT id, geojson::TEXT AS geojson FROM tasks t
               WHERE t.parent_id = $challengeId
         """.as((long("tasks.id") ~ str("geojson")).*).map(x => x._1 -> x._2).toMap
     }
