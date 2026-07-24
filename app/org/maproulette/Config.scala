@@ -34,6 +34,14 @@ class Config @Inject() (implicit val configuration: Configuration) {
     case None       => "/assets/images/logo.png" // default to the MapRoulette Icon
   }
   lazy val superKey: Option[String] = this.config.getOptional[String](Config.KEY_SUPER_KEY)
+  lazy val githubIssueOwner: Option[String] =
+    this.config.getOptional[String](Config.KEY_GITHUB_ISSUE_OWNER).filter(_.nonEmpty)
+  lazy val githubIssueRepo: Option[String] =
+    this.config.getOptional[String](Config.KEY_GITHUB_ISSUE_REPO).filter(_.nonEmpty)
+  lazy val githubIssueToken: Option[String] =
+    this.config.getOptional[String](Config.KEY_GITHUB_ISSUE_TOKEN).filter(_.nonEmpty)
+  lazy val githubIssuesEnabled: Boolean =
+    this.githubIssueOwner.isDefined && this.githubIssueRepo.isDefined && this.githubIssueToken.isDefined
   lazy val superAccounts: List[String] = this.config
     .getOptional[String](Config.KEY_SUPER_ACCOUNTS)
     .getOrElse("")
@@ -260,6 +268,9 @@ object Config {
   val KEY_LOGO                           = s"$GROUP_MAPROULETTE.logo"
   val KEY_SUPER_KEY                      = s"$GROUP_MAPROULETTE.super.key"
   val KEY_SUPER_ACCOUNTS                 = s"$GROUP_MAPROULETTE.super.accounts"
+  val KEY_GITHUB_ISSUE_OWNER             = s"$GROUP_MAPROULETTE.github.issue.owner"
+  val KEY_GITHUB_ISSUE_REPO              = s"$GROUP_MAPROULETTE.github.issue.repo"
+  val KEY_GITHUB_ISSUE_TOKEN             = s"$GROUP_MAPROULETTE.github.issue.token"
   val KEY_DEBUG                          = s"$GROUP_MAPROULETTE.debug"
   val KEY_DEVMODE                        = s"$GROUP_MAPROULETTE.devMode"
   val KEY_SKIP_TOOHARD                   = s"$GROUP_MAPROULETTE.skipTooHard"

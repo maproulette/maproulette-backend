@@ -1312,6 +1312,40 @@ PUT     /challenge/:id/resetTaskInstructions        @org.maproulette.controllers
 GET     /challenge/:id/comments                     @org.maproulette.controllers.api.ChallengeController.retrieveComments(id:Long, limit:Int ?= 10, page:Int ?= 0)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_reportStatus
+# summary: Check GitHub report status for a Challenge
+# description: Checks whether GitHub issue reporting is enabled server-side, and if so whether an open GitHub issue already exists for this challenge
+# responses:
+#   '200':
+#     description: The report status for the challenge
+# parameters:
+#   - name: id
+#     in: path
+#     description: The ID of the challenge
+#     required: true
+###
+GET     /challenge/:id/report/status                @org.maproulette.controllers.api.ChallengeController.reportStatus(id:Long)
+###
+# tags: [ Challenge ]
+# operationId: challenge_report
+# summary: Report a Challenge
+# description: Submits a report for a challenge. Creates a GitHub issue if reporting is configured server-side, and adds a challenge comment
+# responses:
+#   '200':
+#     description: The result of the report submission
+#   '400':
+#     description: Invalid request, eg. missing report text
+#   '404':
+#     description: No Challenge with provided ID found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The ID of the challenge
+#     required: true
+###
+POST    /challenge/:id/report                        @org.maproulette.controllers.api.ChallengeController.report(id:Long)
+###
+# tags: [ Challenge ]
 # operationId: challenge_retrieve_all_comments_for_challenge
 # summary: Retrieve all comments for Challenge
 # description: This will retrieve all the comments for all the children tasks of a given challenge and respond with a csv

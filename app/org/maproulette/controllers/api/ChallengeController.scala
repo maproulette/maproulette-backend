@@ -502,6 +502,151 @@ class ChallengeController @Inject() (
   }
 
   /**
+    * Checks whether GitHub issue reporting is configured for this server, and if so whether
+    * an open GitHub issue already exists for this challenge. The GitHub token used to query
+    * GitHub is held server-side only (see Config.githubIssueToken) and never sent to the client.
+    *
+    * @param challengeId The id of the challenge
+    * @return JSON { enabled: Boolean, existingIssue: Object or null }
+    */
+  def reportStatus(challengeId: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedFutureRequest { implicit user =>
+      if (!this.config.githubIssuesEnabled) {
+        Future.successful(Ok(Json.obj("enabled" -> false, "existingIssue" -> JsNull)))
+      } else {
+        val owner = this.config.githubIssueOwner.get
+        val repo  = this.config.githubIssueRepo.get
+        val token = this.config.githubIssueToken.get
+        val query =
+          s"Reported+Challenge+${java.net.URLEncoder.encode(s"#$challengeId", "UTF-8")}" +
+            s"+in:title+state:open+repo:$owner/$repo"
+
+        this.wsClient
+          .url("https://api.github.com/search/issues")
+          .withHttpHeaders(
+            "Authorization" -> s"token $token",
+            "Accept"        -> "application/vnd.github+json"
+          )
+          .withQueryStringParameters("q" -> query)
+          .get()
+          .map { response =>
+            if (response.status == 200) {
+              val existingIssue: JsValue =
+                (response.json \ "items")
+                  .asOpt[List[JsValue]]
+                  .getOrElse(List.empty)
+                  .headOption
+                  .getOrElse(JsNull)
+              Ok(Json.obj("enabled" -> true, "existingIssue" -> existingIssue))
+            } else {
+              logger.error(
+                s"Failed to check for existing GitHub issue: ${response.status} ${response.body}"
+              )
+              Ok(Json.obj("enabled" -> true, "existingIssue" -> JsNull))
+            }
+          }
+          .recover {
+            case e: Exception =>
+              logger.error(e.getMessage, e)
+              Ok(Json.obj("enabled" -> true, "existingIssue" -> JsNull))
+          }
+      }
+    }
+  }
+
+  /**
+    * Submits a report for a challenge. If GitHub issue reporting is configured server-side, this
+    * creates a GitHub issue and links to it from a challenge comment; otherwise it just adds a
+    * plain challenge comment. The GitHub token is held server-side only and never sent to the
+    * client.
+    *
+    * @param challengeId The id of the challenge being reported
+    * @body reportText The report text
+    * @return JSON { issueUrl: String or null }
+    */
+  def report(challengeId: Long): Action[JsValue] = Action.async(bodyParsers.json) {
+    implicit request =>
+      this.sessionManager.authenticatedFutureRequest { implicit user =>
+        val reportText = (request.body \ "reportText").asOpt[String].map(_.trim).getOrElse("")
+        if (reportText.isEmpty) {
+          throw new InvalidException("Report text is required.")
+        }
+
+        val challenge = this.dal.retrieveById(challengeId) match {
+          case Some(c) => c
+          case None    => throw new NotFoundException(s"Challenge with id $challengeId not found")
+        }
+
+        val appUrl      = this.config.getPublicOrigin.getOrElse("https://maproulette.org")
+        val osmServer   = this.config.getOSMServer
+        val userName    = user.osmProfile.displayName
+        val challengeUrl = s"$appUrl/browse/challenges/${challenge.id}"
+        val userUrl =
+          s"$osmServer/user/${java.net.URLEncoder.encode(userName, "UTF-8")}"
+
+        if (this.config.githubIssuesEnabled) {
+          val owner = this.config.githubIssueOwner.get
+          val repo  = this.config.githubIssueRepo.get
+          val token = this.config.githubIssueToken.get
+          val issueBody =
+            s"Challenge: [#${challenge.id} - ${challenge.name}]($challengeUrl)\n\n" +
+              s"Reported by: [$userName]($userUrl)\n\n$reportText"
+
+          this.wsClient
+            .url(s"https://api.github.com/repos/$owner/$repo/issues")
+            .withHttpHeaders(
+              "Authorization" -> s"token $token",
+              "Accept"        -> "application/vnd.github+json"
+            )
+            .post(
+              Json.obj(
+                "title" -> s"Reported Challenge #${challenge.id} - ${challenge.name}",
+                "body"  -> issueBody
+              )
+            )
+            .map { response =>
+              if (response.status == 201) {
+                val issueUrl = (response.json \ "html_url").asOpt[String]
+
+                val parentId   = challenge.general.parent
+                val parentName = this.serviceManager.project
+                  .retrieve(parentId)
+                  .map(p => p.displayName.getOrElse(p.name))
+                  .getOrElse("Unknown Project")
+                val commentText =
+                  s"This challenge, challenge [#${challenge.id} - ${challenge.name}]($challengeUrl)" +
+                    s" in project [#$parentId - $parentName]($appUrl/browse/projects/$parentId)," +
+                    s" has been reported by [$userName]($userUrl)." +
+                    s" Please use [this GitHub issue](${issueUrl.getOrElse("")}) to discuss." +
+                    s"\n\nReport Content:\n$reportText"
+
+                this.serviceManager.comment.createChallengeComment(user, challenge.id, commentText)
+
+                Ok(Json.obj("issueUrl" -> issueUrl))
+              } else {
+                logger.error(s"Failed to create GitHub issue: ${response.status} ${response.body}")
+                BadRequest(
+                  Json.toJson(
+                    StatusMessage(
+                      "KO",
+                      JsString(s"Failed to create GitHub issue: ${response.status} ${response.statusText}")
+                    )
+                  )
+                )
+              }
+            }
+        } else {
+          this.serviceManager.comment.createChallengeComment(
+            user,
+            challenge.id,
+            s"Challenge reported by $userName:\n\n$reportText"
+          )
+          Future.successful(Ok(Json.obj("issueUrl" -> JsNull)))
+        }
+      }
+  }
+
+  /**
     * Gets the next task in sequential order for the specified challenge
     *
     * @param challengeId   The current challenge id
