@@ -14,7 +14,9 @@ case class Lock(
     itemType: Int,
     itemId: Long,
     userId: Long,
-    changesetId: Long
+    changesetId: Long,
+    bundledTasks: List[Long] = List.empty,
+    isReviewClaim: Boolean = false
 )
 
 object Lock {

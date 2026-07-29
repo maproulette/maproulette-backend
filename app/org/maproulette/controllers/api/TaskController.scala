@@ -14,6 +14,7 @@ import org.maproulette.controllers.CRUDController
 import org.maproulette.data._
 import org.maproulette.exception.{
   InvalidException,
+  LockConflictException,
   LockedException,
   NotFoundException,
   StatusMessage
@@ -213,6 +214,9 @@ class TaskController @Inject() (
 
   /**
     * Start on task (lock it). An error will be returned if someone else has the lock.
+    * If the calling user already holds a lock on a different task, a 409 Conflict is
+    * returned describing that lock - the client should call the release endpoint on
+    * that task before retrying to lock this one.
     *
     * @param taskId     Id of task that you wish to start
     * @return
@@ -221,7 +225,8 @@ class TaskController @Inject() (
     this.sessionManager.authenticatedRequest { implicit user =>
       val task = this.dal.retrieveById(taskId) match {
         case Some(t) => t
-        case None    => throw new NotFoundException(s"Task with $taskId not found, unable to lock.")
+        case None =>
+          throw new NotFoundException(s"Task with $taskId not found, unable to lock.")
       }
 
       val challenge = this.serviceManager.challenge.retrieve(task.parent) match {
@@ -238,24 +243,44 @@ class TaskController @Inject() (
           )
       }
 
-      val lockerId = this.dal.lockItem(user, task)
-      if (lockerId != user.id) {
-        val lockHolder = this.serviceManager.user.retrieve(lockerId) match {
-          case Some(user) => user.osmProfile.displayName
-          case None       => lockerId
+      try {
+        val lockerId = this.dal.lockItem(user, task)
+        if (lockerId != user.id) {
+          val lockHolder = this.serviceManager.user.retrieve(lockerId) match {
+            case Some(user) => user.osmProfile.displayName
+            case None       => lockerId
+          }
+          throw new IllegalAccessException(s"Task is currently locked by user ${lockHolder}")
         }
-        throw new IllegalAccessException(s"Task is currently locked by user ${lockHolder}")
-      }
 
-      webSocketProvider.sendMessage(
-        WebSocketMessages.taskClaimed(
-          task,
-          WebSocketMessages.challengeSummary(challenge),
-          WebSocketMessages.projectSummary(project),
-          WebSocketMessages.userSummary(user)
+        webSocketProvider.sendMessage(
+          WebSocketMessages.taskClaimed(
+            task,
+            WebSocketMessages.challengeSummary(challenge),
+            WebSocketMessages.projectSummary(project),
+            WebSocketMessages.userSummary(user)
+          )
         )
-      )
-      Ok(Json.toJson(task))
+        Ok(Json.toJson(task))
+      } catch {
+        case e: LockConflictException =>
+          val conflictingTaskId = e.conflictingLock.itemId
+          val conflictingParentName =
+            this.dal
+              .retrieveById(conflictingTaskId)
+              .flatMap(t => this.serviceManager.challenge.retrieve(t.parent))
+              .map(_.name)
+          Conflict(
+            Json.obj(
+              "status"       -> "Conflict",
+              "message"      -> e.getMessage,
+              "lockedTaskId" -> conflictingTaskId,
+              "parentName"   -> conflictingParentName,
+              "bundledTasks" -> e.conflictingLock.bundledTasks,
+              "startedAt"    -> e.conflictingLock.lockedTime.map(_.toString)
+            )
+          )
+      }
     }
   }
 
@@ -367,56 +392,11 @@ class TaskController @Inject() (
   }
 
   /**
-    * Locks a bundle of tasks based on the provided task IDs.
-    *
-    * @param taskIds The IDs of the tasks to lock
-    * @return
-    */
-  def lockTaskBundle(taskIds: List[Long]): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.authenticatedRequest { implicit user =>
-      // First retrieve all the tasks
-      val tasks = taskIds.flatMap(taskId => this.dal.retrieveById(taskId))
-
-      if (tasks.length != taskIds.length) {
-        val missingTaskIds = taskIds.filter(taskId => !tasks.map(_.id).contains(taskId))
-        // No valid tasks found
-        throw new IllegalAccessException(
-          s"Tasks not found to unlock: ${missingTaskIds.mkString(", ")}"
-        )
-      } else {
-        // Use bulk locking for better performance
-        this.dal.lockItems(user, tasks)
-
-        val tasksByChallenge = tasks.groupBy(_.parent)
-
-        Future {
-          tasksByChallenge.foreach {
-            case (challengeId, challengeTasks) =>
-              this.serviceManager.challenge.retrieve(challengeId) match {
-                case Some(challenge) =>
-                  this.serviceManager.project.retrieve(challenge.general.parent) match {
-                    case Some(project) =>
-                      webSocketProvider.sendMessage(
-                        WebSocketMessages.tasksClaimed(
-                          challengeTasks,
-                          WebSocketMessages.challengeSummary(challenge),
-                          WebSocketMessages.projectSummary(project),
-                          WebSocketMessages.userSummary(user)
-                        )
-                      )
-                    case None =>
-                  }
-                case None =>
-              }
-          }
-        }
-        Ok(Json.toJson(tasks))
-      }
-    }
-  }
-
-  /**
-    * Unlocks a bundle of tasks based on the provided task IDs.
+    * Unlocks a bundle of tasks based on the provided task IDs. Bundles are locked as a
+    * single row on the bundle's primary task (see Locking.lockBundle), so this releases
+    * that covering lock if the calling user holds it via any of the given task ids.
+    * Ids the user doesn't currently hold a lock on are silently ignored rather than
+    * erroring, since the caller may not know which id is the bundle's primary.
     *
     * @param taskIds The IDs of the tasks to unlock
     * @return
@@ -424,28 +404,28 @@ class TaskController @Inject() (
   def unlockTaskBundle(taskIds: List[Long]): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
       val tasks = taskIds.flatMap(taskId => this.dal.retrieveById(taskId))
-      if (tasks.length != taskIds.length) {
-        val missingTaskIds = taskIds.filter(taskId => !tasks.map(_.id).contains(taskId))
-        // No valid tasks found
-        throw new Exception(s"Tasks not found to unlock: ${missingTaskIds.mkString(", ")}")
-      } else {
-        // Use bulk locking for better performance
-        this.dal.unlockItems(user, tasks)
 
-        val tasksByChallenge = tasks.groupBy(_.parent)
-
-        Future {
-          tasksByChallenge.foreach {
-            case (challengeId, challengeTasks) =>
-              webSocketProvider.sendMessage(
-                WebSocketMessages
-                  .tasksReleased(challengeTasks, Some(WebSocketMessages.userSummary(user)))
-              )
-          }
+      tasks.foreach { task =>
+        try {
+          this.dal.unlockItem(user, task)
+        } catch {
+          case e: Exception => logger.warn(e.getMessage)
         }
-
-        Ok(Json.toJson(tasks))
       }
+
+      val tasksByChallenge = tasks.groupBy(_.parent)
+
+      Future {
+        tasksByChallenge.foreach {
+          case (challengeId, challengeTasks) =>
+            webSocketProvider.sendMessage(
+              WebSocketMessages
+                .tasksReleased(challengeTasks, Some(WebSocketMessages.userSummary(user)))
+            )
+        }
+      }
+
+      Ok(Json.toJson(tasks))
     }
   }
 

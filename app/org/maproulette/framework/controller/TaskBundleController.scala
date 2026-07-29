@@ -6,7 +6,7 @@
 package org.maproulette.framework.controller
 
 import javax.inject.Inject
-import org.maproulette.exception.InvalidException
+import org.maproulette.exception.{InvalidException, LockConflictException}
 import org.maproulette.data._
 import org.maproulette.framework.model.{Task, Tag}
 import org.maproulette.framework.service.{TaskBundleService, ServiceManager, TagService}
@@ -231,7 +231,8 @@ class TaskBundleController @Inject() (
 
   /**
     * Creates a new task bundle with the task ids in the json body, assigning
-    * ownership of the bundle to the logged-in user
+    * ownership of the bundle to the logged-in user. Locks the bundle's primary task for
+    * the user, recording the other member task ids in that lock's bundledTasks.
     *
     * @return A TaskBundle representing the new bundle
     */
@@ -243,8 +244,12 @@ class TaskBundleController @Inject() (
         case Some(tasks) => tasks
         case None        => throw new InvalidException("No task ids provided for task bundle")
       }
-      val bundle = this.serviceManager.taskBundle.createTaskBundle(user, name, primaryId, taskIds)
-      Created(Json.toJson(bundle))
+      try {
+        val bundle = this.serviceManager.taskBundle.createTaskBundle(user, name, primaryId, taskIds)
+        Created(Json.toJson(bundle))
+      } catch {
+        case e: LockConflictException => this.lockConflictResponse(e)
+      }
     }
   }
 
@@ -254,15 +259,15 @@ class TaskBundleController @Inject() (
     * @param id The id for the bundle
     * @return Task Bundle
     */
-  def getTaskBundle(id: Long, lockTasks: Boolean): Action[AnyContent] = Action.async {
-    implicit request =>
-      this.sessionManager.authenticatedRequest { implicit user =>
-        Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id, lockTasks)))
-      }
+  def getTaskBundle(id: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id)))
+    }
   }
 
   /**
-    *  Sets the bundle to the tasks provided, and unlock all tasks removed from current bundle
+    *  Sets the bundle to the tasks provided, and unlock all tasks removed from current bundle.
+    *  Re-locks the bundle's primary task with the updated bundledTasks membership.
     *
     * @param bundleId The id of the bundle
     * @param taskIds The task ids the bundle will reset to
@@ -272,9 +277,36 @@ class TaskBundleController @Inject() (
       taskIds: List[Long]
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
-      this.serviceManager.taskBundle.updateTaskBundle(user, id, taskIds)
-      Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id)))
+      try {
+        this.serviceManager.taskBundle.updateTaskBundle(user, id, taskIds)
+        Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id)))
+      } catch {
+        case e: LockConflictException => this.lockConflictResponse(e)
+      }
     }
+  }
+
+  /**
+    * Builds a 409 Conflict response describing the lock the user already holds elsewhere,
+    * so the client can release it (task release endpoint) and retry.
+    */
+  private def lockConflictResponse(e: LockConflictException): Result = {
+    val conflictingTaskId = e.conflictingLock.itemId
+    val conflictingParentName =
+      this.taskDAL
+        .retrieveById(conflictingTaskId)
+        .flatMap(t => this.serviceManager.challenge.retrieve(t.parent))
+        .map(_.name)
+    Conflict(
+      Json.obj(
+        "status"       -> "Conflict",
+        "message"      -> e.getMessage,
+        "lockedTaskId" -> conflictingTaskId,
+        "parentName"   -> conflictingParentName,
+        "bundledTasks" -> e.conflictingLock.bundledTasks,
+        "startedAt"    -> e.conflictingLock.lockedTime.map(_.toString)
+      )
+    )
   }
 
   /**

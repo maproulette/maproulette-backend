@@ -666,7 +666,7 @@ class TaskDAL @Inject() (
 
     this.withMRTransaction { implicit c =>
       val startedLock =
-        (SQL"""SELECT created FROM locked l WHERE l.item_id = ${primaryTask.id} AND
+        (SQL"""SELECT created FROM locked l WHERE (l.item_id = ${primaryTask.id} OR ${primaryTask.id} = ANY(l.bundled_tasks)) AND
                  l.item_type = ${primaryTask.itemType.typeId} AND l.user_id = ${user.id}
                """).as(SqlParser.scalar[DateTime].singleOpt)
       for (task <- tasks) {
@@ -690,7 +690,7 @@ class TaskDAL @Inject() (
                                  completed_by = ${user.id}  #$bundleUpdate
                                  WHERE t.id = (
                                     SELECT t2.id FROM tasks t2
-                                    LEFT JOIN locked l on l.item_id = t2.id AND l.item_type = ${task.itemType.typeId}
+                                    LEFT JOIN locked l on (l.item_id = t2.id OR t2.id = ANY(l.bundled_tasks)) AND l.item_type = ${task.itemType.typeId}
                                     WHERE t2.id = ${task.id} AND (l.user_id = ${user.id} OR l.user_id IS NULL)
                                   )""".executeUpdate()
           // if returning 0, then this is because the item is locked by a  different user
@@ -1050,7 +1050,7 @@ class TaskDAL @Inject() (
       } yield task -> lock
       val query =
         s"""SELECT locked.*, tasks.$retrieveColumnsWithReview FROM tasks
-                      LEFT JOIN locked ON locked.item_id = tasks.id
+                      LEFT JOIN locked ON (locked.item_id = tasks.id OR tasks.id = ANY(locked.bundled_tasks))
                       LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                       WHERE tasks.id > $currentTaskId AND tasks.parent_id = $parentId
                       AND status IN ({statusList})
@@ -1065,7 +1065,7 @@ class TaskDAL @Inject() (
         case None =>
           val loopQuery =
             s"""SELECT locked.*, tasks.$retrieveColumnsWithReview FROM tasks
-                              LEFT JOIN locked ON locked.item_id = tasks.id
+                              LEFT JOIN locked ON (locked.item_id = tasks.id OR tasks.id = ANY(locked.bundled_tasks))
                               LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                               WHERE tasks.parent_id = $parentId
                               AND status IN ({statusList})
@@ -1096,7 +1096,7 @@ class TaskDAL @Inject() (
       } yield task -> lock
       val query =
         s"""SELECT locked.*, tasks.$retrieveColumnsWithReview FROM tasks
-                      LEFT JOIN locked ON locked.item_id = tasks.id
+                      LEFT JOIN locked ON (locked.item_id = tasks.id OR tasks.id = ANY(locked.bundled_tasks))
                       LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                       WHERE tasks.id < $currentTaskId AND tasks.parent_id = $parentId
                       AND status IN ({statusList})
@@ -1112,7 +1112,7 @@ class TaskDAL @Inject() (
         case None =>
           val loopQuery =
             s"""SELECT locked.*, tasks.$retrieveColumnsWithReview FROM tasks
-                              LEFT JOIN locked ON locked.item_id = tasks.id
+                              LEFT JOIN locked ON (locked.item_id = tasks.id OR tasks.id = ANY(locked.bundled_tasks))
                               LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                               WHERE tasks.parent_id = $parentId
                               AND status IN ({statusList})
@@ -1203,7 +1203,7 @@ class TaskDAL @Inject() (
 
         val select =
           s"""SELECT tasks.$retrieveColumnsWithReview FROM tasks
-          LEFT JOIN locked l ON l.item_id = tasks.id
+          LEFT JOIN locked l ON (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks))
           LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
        """.stripMargin
 
@@ -1360,7 +1360,7 @@ class TaskDAL @Inject() (
 
     val query =
       s"""SELECT tasks.$retrieveColumnsWithReview FROM tasks
-      LEFT JOIN locked l ON l.item_id = tasks.id
+      LEFT JOIN locked l ON (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks))
       LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
       WHERE tasks.id <> $proximityId AND
             tasks.parent_id = $challengeId AND
