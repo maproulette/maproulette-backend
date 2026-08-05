@@ -24,6 +24,7 @@ case class TeamUser(
     osmId: Long,
     name: String,
     teamId: Long,
+    teamName: String,
     teamGrants: List[Grant],
     status: Int
 ) extends Identifiable
@@ -32,7 +33,7 @@ object TeamUser {
   implicit val writes: Writes[TeamUser] = Json.writes[TeamUser]
   implicit val reads: Reads[TeamUser]   = Json.reads[TeamUser]
 
-  def fromUser(teamId: Long, member: GroupMember, user: User) = {
+  def fromUser(teamId: Long, teamName: String, member: GroupMember, user: User) = {
     val teamTarget = GrantTarget.group(teamId)
     val teamGrants = user.grants.filter(g => g.target == teamTarget)
     TeamUser(
@@ -41,6 +42,7 @@ object TeamUser {
       user.osmProfile.id,
       user.osmProfile.displayName,
       teamId,
+      teamName,
       teamGrants,
       member.status
     )
