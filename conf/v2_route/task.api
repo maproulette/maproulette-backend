@@ -439,6 +439,32 @@ POST    /task/:id/skip                                  @org.maproulette.control
 GET     /task/:id/refreshLock                           @org.maproulette.controllers.api.TaskController.refreshTaskLock(id:Long)
 ###
 # tags: [ Task ]
+# operationId: task_lock_a_bundle_of_tasks
+# summary: Updates the lock on a task to cover a given set of bundle member tasks
+# description: |
+#   Updates the caller's existing lock on the primary task (locking it first if not
+#   already locked) to cover exactly the given member task ids, without creating or
+#   updating a persisted task_bundles record - that only happens when the bundle is
+#   actually submitted (see the taskBundle endpoints). Intended for interactively
+#   building up a bundle (e.g. lasso-select) so other tabs see the live working set.
+# responses:
+#   '200':
+#     description: The lock now covers the given member tasks
+#   '404':
+#     description: The primary task, its challenge, or its project was not found
+#   '409':
+#     description: The user already holds a lock on a different, unrelated task
+# parameters:
+#   - name: taskId
+#     in: path
+#     description: The id of the primary task to lock
+#   - name: taskIds
+#     in: query
+#     description: Comma-separated ids of the member tasks the lock should cover
+###
+PUT     /task/:taskId/lockBundle                        @org.maproulette.controllers.api.TaskController.lockTaskBundle(taskId:Long, taskIds:List[Long] ?= List())
+###
+# tags: [ Task ]
 # operationId: task_retrieves_task_by_name
 # summary: Retrieves an already existing Task
 # description: Retrieves an already existing Task based on the name of the Task rather than an ID

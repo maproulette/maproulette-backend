@@ -191,16 +191,22 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
         this.enforceSingleEditLock(user, item.id.asInstanceOf[Long])
       }
 
-      // first check to see if the item is already locked
+      // first check to see if the item is already locked - resolve through bundled_tasks
+      // too, since item may be a non-primary member of a bundle whose lock row is keyed
+      // on the primary's item_id
       val checkQuery =
-        s"""SELECT user_id FROM locked WHERE item_id = {itemId} AND item_type = ${item.itemType.typeId} FOR UPDATE"""
+        s"""SELECT user_id FROM locked
+            WHERE (item_id = {itemId} OR {itemId} = ANY(bundled_tasks)) AND item_type = ${item.itemType.typeId}
+            FOR UPDATE"""
       SQL(checkQuery)
         .on(Symbol("itemId") -> ParameterValue.toParameterValue(item.id)(p = keyToStatement))
         .as(SqlParser.long("user_id").singleOpt) match {
         case Some(id) =>
           if (id == user.id) {
             val query =
-              s"UPDATE locked SET locked_time = NOW() WHERE user_id = ${user.id} AND item_id = {itemId} AND item_type = ${item.itemType.typeId}"
+              s"""UPDATE locked SET locked_time = NOW()
+                  WHERE user_id = ${user.id}
+                  AND (item_id = {itemId} OR {itemId} = ANY(bundled_tasks)) AND item_type = ${item.itemType.typeId}"""
             SQL(query)
               .on(Symbol("itemId") -> ParameterValue.toParameterValue(item.id)(p = keyToStatement))
               .executeUpdate()
@@ -217,6 +223,28 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
             .executeUpdate()
           user.id
       }
+    }
+
+  /**
+    * Resolves the primary item id and bundled member ids of the lock currently covering
+    * the given item, regardless of who holds it. Returns None if the item is unlocked.
+    *
+    * @param item The item (primary or bundle member) to resolve the covering lock for
+    * @param c    A sql connection implicitly passed in from the calling function
+    * @return Some((primaryItemId, memberTaskIds)) if a lock covers the item, else None
+    */
+  def resolveLockBundle(
+      item: T
+  )(implicit c: Option[Connection] = None): Option[(Long, List[Long])] =
+    this.withMRTransaction { implicit c =>
+      SQL(
+        s"""SELECT item_id, bundled_tasks FROM locked
+            WHERE (item_id = {itemId} OR {itemId} = ANY(bundled_tasks)) AND item_type = ${item.itemType.typeId}"""
+      ).on(Symbol("itemId") -> ParameterValue.toParameterValue(item.id)(p = keyToStatement))
+        .as(
+          (SqlParser.long("item_id") ~ SqlParser.get[List[Long]]("bundled_tasks")).singleOpt
+        )
+        .map { case primaryItemId ~ bundledTasks => (primaryItemId, bundledTasks) }
     }
 
   /**
@@ -240,8 +268,11 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
       this.enforceSingleEditLock(user, primaryItem.id)
 
       val members = memberTaskIds.filterNot(_ == primaryItem.id).distinct
+      // Avoid the curly-brace array literal ('{}') here - anorm's SQL() scans the raw query
+      // text for {paramName} placeholders, and a literal {} in the empty case gets mistaken
+      // for one, corrupting the query. ARRAY[]::integer[] is equivalent and brace-free.
       val membersLiteral =
-        if (members.isEmpty) "'{}'::integer[]" else s"ARRAY[${members.mkString(",")}]::integer[]"
+        if (members.isEmpty) "ARRAY[]::integer[]" else s"ARRAY[${members.mkString(",")}]::integer[]"
 
       val checkQuery =
         s"""SELECT user_id FROM locked WHERE item_id = {itemId} AND item_type = ${primaryItem.itemType.typeId} FOR UPDATE"""
@@ -299,7 +330,7 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
 
     existingLock match {
       case Some(itemId ~ itemType ~ changesetId ~ bundledTasks ~ lockedTime)
-          if itemId != targetItemId =>
+          if itemId != targetItemId && !bundledTasks.contains(targetItemId) =>
         throw new LockConflictException(
           s"User ${user.id} already holds a lock on item ${itemId}",
           Lock(lockedTime, itemType, itemId, user.id, changesetId, bundledTasks)

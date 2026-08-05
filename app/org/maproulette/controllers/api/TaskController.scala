@@ -261,7 +261,34 @@ class TaskController @Inject() (
             WebSocketMessages.userSummary(user)
           )
         )
-        Ok(Json.toJson(task))
+        val (lockPrimaryTaskId, lockBundledTasks) =
+          this.dal.resolveLockBundle(task).getOrElse((task.id, List.empty[Long]))
+        // The lock, not the task_bundles table, is the live source of truth for "what's
+        // bundled with this task right now" - whenever locking/relocking resolves to a
+        // covering lock that has bundle members, broadcast the full membership so any
+        // other tab/session (even one that mounted before this bundle existed) can pick
+        // it up live, the same way a bundle create/update broadcasts it.
+        if (lockBundledTasks.nonEmpty) {
+          val primaryTask =
+            if (lockPrimaryTaskId == task.id) task
+            else this.dal.retrieveById(lockPrimaryTaskId).getOrElse(task)
+          val memberTasks =
+            this.dal.retrieveListById(-1, 0)(lockBundledTasks.filterNot(_ == lockPrimaryTaskId))
+          webSocketProvider.sendMessage(
+            WebSocketMessages.tasksClaimed(
+              primaryTask :: memberTasks,
+              WebSocketMessages.challengeSummary(challenge),
+              WebSocketMessages.projectSummary(project),
+              WebSocketMessages.userSummary(user)
+            )
+          )
+        }
+        Ok(
+          Json.toJson(task).as[JsObject] ++ Json.obj(
+            "lockPrimaryTaskId" -> lockPrimaryTaskId,
+            "lockBundledTasks"  -> lockBundledTasks
+          )
+        )
       } catch {
         case e: LockConflictException =>
           val conflictingTaskId = e.conflictingLock.itemId
@@ -282,6 +309,87 @@ class TaskController @Inject() (
           )
       }
     }
+  }
+
+  /**
+    * Updates the caller's lock on the given primary task to cover exactly the given member
+    * task ids, without touching the persisted task_bundles record - the bundle itself is
+    * only created/updated when the task is actually submitted (see TaskBundleController).
+    * Used while interactively building up a bundle (e.g. lasso-select) so other tabs see the
+    * live working set without a stray task_bundles row surviving an abandoned/refreshed session.
+    *
+    * @param taskId  Id of the primary task (locks it first if the caller doesn't already)
+    * @param taskIds The full set of member task ids (excluding the primary) the lock should cover
+    */
+  def lockTaskBundle(taskId: Long, taskIds: List[Long]): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        val task = this.dal.retrieveById(taskId) match {
+          case Some(t) => t
+          case None =>
+            throw new NotFoundException(s"Task with $taskId not found, unable to lock.")
+        }
+
+        val challenge = this.serviceManager.challenge.retrieve(task.parent) match {
+          case Some(c) => c
+          case None =>
+            throw new NotFoundException(s"Challenge ${task.parent} not found, unable to lock.")
+        }
+
+        val project = this.serviceManager.project.retrieve(challenge.general.parent) match {
+          case Some(c) => c
+          case None =>
+            throw new NotFoundException(
+              s"Project ${challenge.general.parent} not found, unable to lock."
+            )
+        }
+
+        try {
+          val lockerId = this.dal.lockBundle(user, task, taskIds)
+          if (lockerId != user.id) {
+            val lockHolder = this.serviceManager.user.retrieve(lockerId) match {
+              case Some(u) => u.osmProfile.displayName
+              case None    => lockerId
+            }
+            throw new IllegalAccessException(s"Task is currently locked by user ${lockHolder}")
+          }
+
+          val memberTasks = this.dal.retrieveListById(-1, 0)(taskIds)
+          webSocketProvider.sendMessage(
+            WebSocketMessages.tasksClaimed(
+              task :: memberTasks,
+              WebSocketMessages.challengeSummary(challenge),
+              WebSocketMessages.projectSummary(project),
+              WebSocketMessages.userSummary(user)
+            )
+          )
+
+          Ok(
+            Json.obj(
+              "lockPrimaryTaskId" -> task.id,
+              "lockBundledTasks"  -> taskIds
+            )
+          )
+        } catch {
+          case e: LockConflictException =>
+            val conflictingTaskId = e.conflictingLock.itemId
+            val conflictingParentName =
+              this.dal
+                .retrieveById(conflictingTaskId)
+                .flatMap(t => this.serviceManager.challenge.retrieve(t.parent))
+                .map(_.name)
+            Conflict(
+              Json.obj(
+                "status"       -> "Conflict",
+                "message"      -> e.getMessage,
+                "lockedTaskId" -> conflictingTaskId,
+                "parentName"   -> conflictingParentName,
+                "bundledTasks" -> e.conflictingLock.bundledTasks,
+                "startedAt"    -> e.conflictingLock.lockedTime.map(_.toString)
+              )
+            )
+        }
+      }
   }
 
   /**
@@ -336,10 +444,28 @@ class TaskController @Inject() (
       }
 
       try {
+        // Resolve the lock's bundle membership before releasing it - once unlocked, the
+        // covering row (and its bundled_tasks) is gone.
+        val (lockPrimaryTaskId, lockBundledTasks) =
+          this.dal.resolveLockBundle(task).getOrElse((task.id, List.empty[Long]))
         this.dal.unlockItem(user, task)
-        webSocketProvider.sendMessage(
-          WebSocketMessages.taskReleased(task, Some(WebSocketMessages.userSummary(user)))
-        )
+        if (lockBundledTasks.nonEmpty) {
+          val primaryTask =
+            if (lockPrimaryTaskId == task.id) task
+            else this.dal.retrieveById(lockPrimaryTaskId).getOrElse(task)
+          val memberTasks =
+            this.dal.retrieveListById(-1, 0)(lockBundledTasks.filterNot(_ == lockPrimaryTaskId))
+          webSocketProvider.sendMessage(
+            WebSocketMessages.tasksReleased(
+              primaryTask :: memberTasks,
+              Some(WebSocketMessages.userSummary(user))
+            )
+          )
+        } else {
+          webSocketProvider.sendMessage(
+            WebSocketMessages.taskReleased(task, Some(WebSocketMessages.userSummary(user)))
+          )
+        }
       } catch {
         case e: Exception => logger.warn(e.getMessage)
       }
@@ -360,7 +486,14 @@ class TaskController @Inject() (
         case Some(t) =>
           try {
             this.dal.refreshItemLock(user, t)
-            Ok(Json.toJson(t))
+            val (lockPrimaryTaskId, lockBundledTasks) =
+              this.dal.resolveLockBundle(t).getOrElse((t.id, List.empty[Long]))
+            Ok(
+              Json.toJson(t).as[JsObject] ++ Json.obj(
+                "lockPrimaryTaskId" -> lockPrimaryTaskId,
+                "lockBundledTasks"  -> lockBundledTasks
+              )
+            )
           } catch {
             case e: LockedException => throw new IllegalAccessException(e.getMessage)
           }
