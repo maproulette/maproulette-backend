@@ -233,12 +233,14 @@ class TeamService @Inject() (
       ),
       user
     )
+    val teams = this.list(userMembers.map(_.groupId).distinct, user)
 
     userMembers
       .map(member => {
-        users.find(u => u.id == member.memberId) match {
-          case Some(user) => Some(TeamUser.fromUser(member.groupId, member, user))
-          case None       => None
+        (users.find(u => u.id == member.memberId), teams.find(t => t.id == member.groupId)) match {
+          case (Some(user), Some(team)) =>
+            Some(TeamUser.fromUser(member.groupId, team.name, member, user))
+          case _ => None
         }
       })
       .flatten
@@ -323,7 +325,7 @@ class TeamService @Inject() (
     }
 
     this.addTeamMember(team, MemberObject.user(userId), role, TeamMember.STATUS_INVITED, user) match {
-      case Some(member) => Some(TeamUser.fromUser(team.id, member, invitee))
+      case Some(member) => Some(TeamUser.fromUser(team.id, team.name, member, invitee))
       case None         => None
     }
   }
@@ -362,6 +364,12 @@ class TeamService @Inject() (
     * @return       The updated TeamUser
     */
   def acceptUserInvitation(teamId: Long, userId: Long, user: User): Option[TeamUser] = {
+    val team = this.retrieve(teamId, user) match {
+      case Some(t) => t
+      case None =>
+        throw new NotFoundException(s"No team with id $teamId found")
+    }
+
     val invitee = this.serviceManager.user.retrieve(userId) match {
       case Some(u) => u
       case None =>
@@ -369,7 +377,7 @@ class TeamService @Inject() (
     }
 
     this.acceptInvitation(teamId, MemberObject.user(userId), user) match {
-      case Some(member) => Some(TeamUser.fromUser(teamId, member, invitee))
+      case Some(member) => Some(TeamUser.fromUser(teamId, team.name, member, invitee))
       case None         => None
     }
   }
@@ -495,7 +503,7 @@ class TeamService @Inject() (
     }
 
     this.serviceManager.user.retrieve(userId) match {
-      case Some(u) => TeamUser.fromUser(teamId, member, u)
+      case Some(u) => TeamUser.fromUser(teamId, team.name, member, u)
       case None =>
         throw new NotFoundException(s"No user with id $userId found")
     }
@@ -551,7 +559,7 @@ class TeamService @Inject() (
         teams.find(t => t.id == member.groupId) match {
           case Some(team) =>
             users.find(u => u.id == member.memberId) match {
-              case Some(user) => Some(TeamUser.fromUser(member.groupId, member, user))
+              case Some(user) => Some(TeamUser.fromUser(member.groupId, team.name, member, user))
               case None       => None
             }
           case None => None
