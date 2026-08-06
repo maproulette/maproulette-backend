@@ -940,7 +940,8 @@ class TaskController @Inject() (
         )
       } else {
         webSocketProvider.sendMessage(
-          WebSocketMessages.taskReleased(releasedTasks.head, Some(WebSocketMessages.userSummary(user)))
+          WebSocketMessages
+            .taskReleased(releasedTasks.head, Some(WebSocketMessages.userSummary(user)))
         )
       }
     } catch {

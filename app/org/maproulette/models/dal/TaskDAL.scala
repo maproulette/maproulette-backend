@@ -582,7 +582,9 @@ class TaskDAL @Inject() (
       val primaryTask =
         if (lockPrimaryTaskId == referenceTask.id) referenceTask
         else this.retrieveById(lockPrimaryTaskId).getOrElse(referenceTask)
-      primaryTask :: this.retrieveListById(-1, 0)(lockBundledTasks.filterNot(_ == lockPrimaryTaskId))
+      primaryTask :: this.retrieveListById(-1, 0)(
+        lockBundledTasks.filterNot(_ == lockPrimaryTaskId)
+      )
     } else {
       List(referenceTask)
     }

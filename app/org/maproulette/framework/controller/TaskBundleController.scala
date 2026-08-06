@@ -103,11 +103,13 @@ class TaskBundleController @Inject() (
       try {
         if (releasedTasks.length > 1) {
           webSocketProvider.sendMessage(
-            WebSocketMessages.tasksReleased(releasedTasks, Some(WebSocketMessages.userSummary(user)))
+            WebSocketMessages
+              .tasksReleased(releasedTasks, Some(WebSocketMessages.userSummary(user)))
           )
         } else {
           webSocketProvider.sendMessage(
-            WebSocketMessages.taskReleased(releasedTasks.head, Some(WebSocketMessages.userSummary(user)))
+            WebSocketMessages
+              .taskReleased(releasedTasks.head, Some(WebSocketMessages.userSummary(user)))
           )
         }
       } catch {
