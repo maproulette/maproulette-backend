@@ -107,68 +107,6 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
     }
 
   /**
-    * Method to lock all items returned in the lambda block. It will first all unlock all items
-    * that have been locked by the user.
-    *
-    * @param user     The user making the request
-    * @param itemType The type of item that will be locked
-    * @param block    The block of code to execute inbetween unlocking and locking items
-    * @param c        The connection
-    * @return List of objects
-    */
-  def withListLocking(user: User, itemType: Option[ItemType] = None)(
-      block: () => List[T]
-  )(implicit c: Option[Connection] = None): List[T] = {
-    this.withMRTransaction { implicit c =>
-      // if a user is requesting a task, then we can unlock all other tasks for that user, as only a single
-      // task can be locked at a time
-      this.unlockAllItems(user, itemType)
-      val results = block()
-      // once we have the tasks, we need to lock each one, if any fail to lock we just remove
-      // them from the list. A guest user will not lock any tasks, but when logged in will be
-      // required to refetch the current task, and if it is locked, then will have to get another
-      // task
-      if (!user.guest) {
-        val resultList = results.filter(lockItem(user, _) == user.id)
-        if (resultList.isEmpty) {
-          List[T]()
-        }
-        resultList
-      } else {
-        results
-      }
-    }
-  }
-
-  /**
-    * Method to lock a single optional item returned in a lambda block. It will first unlock all items
-    * that have been locked by the user
-    *
-    * @param user     The user making the request
-    * @param itemType The type of item that will be locked
-    * @param block    The block of code to execute inbetween unlocking and locking items
-    * @param c        The connection
-    * @return Option object
-    */
-  def withSingleLocking(user: User, itemType: Option[ItemType] = None)(
-      block: () => Option[T]
-  )(implicit c: Option[Connection] = None): Option[T] = {
-    this.withMRTransaction { implicit c =>
-      // if a user is requesting a task, then we can unlock all other tasks for that user, as only a single
-      // task can be locked at a time
-      this.unlockAllItems(user, itemType)
-      val result = block()
-      if (!user.guest) {
-        result match {
-          case Some(r) => lockItem(user, r)
-          case None    => // ignore
-        }
-      }
-      result
-    }
-  }
-
-  /**
     * Locks an item in the database.
     *
     * @param user        The user requesting the lock

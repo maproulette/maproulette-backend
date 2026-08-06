@@ -925,7 +925,27 @@ class TaskController @Inject() (
       case None    => throw new NotFoundException(s"Task with $taskId not found, can not set status.")
     }
 
+    // Resolve the lock's bundle membership before setTaskStatus releases it as a side
+    // effect (TaskDAL#setTaskStatus), so we can broadcast the release the same way
+    // releaseTask/skipTask do - otherwise other tabs/sessions never learn this task
+    // (and any bundle members) were unlocked and keep showing it as locked-by-you.
+    val releasedTasks = this.dal.resolveLockReleaseTasks(task)
+
     this.dal.setTaskStatus(List(task), status, user, requestReview, completionResponses)
+
+    try {
+      if (releasedTasks.length > 1) {
+        webSocketProvider.sendMessage(
+          WebSocketMessages.tasksReleased(releasedTasks, Some(WebSocketMessages.userSummary(user)))
+        )
+      } else {
+        webSocketProvider.sendMessage(
+          WebSocketMessages.taskReleased(releasedTasks.head, Some(WebSocketMessages.userSummary(user)))
+        )
+      }
+    } catch {
+      case e: Exception => logger.warn(e.getMessage)
+    }
 
     val action =
       this.actionManager.setAction(Some(user), new TaskItem(task.id), actionType, task.name)

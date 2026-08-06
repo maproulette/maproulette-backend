@@ -566,6 +566,29 @@ class TaskDAL @Inject() (
   def manager: DALManager = dalManager.get()
 
   /**
+    * Resolves the lock currently covering `referenceTask` (if any) into the concrete list of
+    * tasks a release broadcast should cover - just the task itself if unbundled, or the
+    * bundle's primary + member tasks if it's covered by a bundle lock. Must be called BEFORE
+    * whatever action actually releases the lock (e.g. setTaskStatus, which unlocks as a side
+    * effect), since resolving bundle membership requires the covering lock row to still exist.
+    *
+    * @param referenceTask The task whose covering lock (if any) should be resolved
+    * @return The tasks a task-released/tasks-released broadcast should include
+    */
+  def resolveLockReleaseTasks(referenceTask: Task): List[Task] = {
+    val (lockPrimaryTaskId, lockBundledTasks) =
+      this.resolveLockBundle(referenceTask).getOrElse((referenceTask.id, List.empty[Long]))
+    if (lockBundledTasks.nonEmpty) {
+      val primaryTask =
+        if (lockPrimaryTaskId == referenceTask.id) referenceTask
+        else this.retrieveById(lockPrimaryTaskId).getOrElse(referenceTask)
+      primaryTask :: this.retrieveListById(-1, 0)(lockBundledTasks.filterNot(_ == lockPrimaryTaskId))
+    } else {
+      List(referenceTask)
+    }
+  }
+
+  /**
     * Sets the task for a given user. The user cannot set the status of a task unless the object has
     * been locked by the same user before hand.
     * Will throw an InvalidException if the task status cannot be set due to the current task status
@@ -1278,10 +1301,14 @@ class TaskDAL @Inject() (
 
         implicit val ids = List[Long]()
         this.cacheManager.withIDListCaching { implicit cachedItems =>
-          this.withListLocking(user, Some(TaskType())) { () =>
-            this.withMRTransaction { implicit c =>
-              sqlWithParameters(query, parameters).as(this.parser.*)
-            }
+          // Read-only candidate lookup - the caller locks whichever task it actually
+          // navigates to via the explicit /start endpoint (TaskController#startOnTask),
+          // which is the sole place the one-lock-per-user conflict is enforced. This used
+          // to go through withListLocking, which unlocked ALL of the user's other task
+          // locks as a side effect before returning candidates - silently discarding a
+          // lock held in another tab/session with no conflict check at all.
+          this.withMRTransaction { implicit c =>
+            sqlWithParameters(query, parameters).as(this.parser.*)
           }
         }
       case None => List.empty

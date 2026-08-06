@@ -71,6 +71,13 @@ class TaskBundleController @Inject() (
         case None    => throw new InvalidException("No tasks found in this bundle.")
       }
 
+      val primaryTask = tasks.find(_.id == primaryId).getOrElse(tasks.head)
+      // Resolve the lock's bundle membership before setTaskStatus releases it as a side
+      // effect (TaskDAL#setTaskStatus), so we can broadcast the release the same way
+      // unbundleTasks/deleteTaskBundle do below - otherwise other tabs/sessions never
+      // learn these tasks were unlocked and keep showing them as locked-by-you.
+      val releasedTasks = this.taskDAL.resolveLockReleaseTasks(primaryTask)
+
       val completionResponses = request.body.asJson
       this.taskDAL.setTaskStatus(
         tasks,
@@ -91,6 +98,20 @@ class TaskBundleController @Inject() (
         if (tagList.nonEmpty) {
           this.addTagstoItem(task.id, tagList.map(new Tag(-1, _, tagType = this.tagType)), user)
         }
+      }
+
+      try {
+        if (releasedTasks.length > 1) {
+          webSocketProvider.sendMessage(
+            WebSocketMessages.tasksReleased(releasedTasks, Some(WebSocketMessages.userSummary(user)))
+          )
+        } else {
+          webSocketProvider.sendMessage(
+            WebSocketMessages.taskReleased(releasedTasks.head, Some(WebSocketMessages.userSummary(user)))
+          )
+        }
+      } catch {
+        case e: Exception => logger.warn(e.getMessage)
       }
 
       // Refetch to get updated data

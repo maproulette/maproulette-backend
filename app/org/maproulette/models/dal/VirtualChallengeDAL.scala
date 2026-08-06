@@ -310,15 +310,16 @@ class VirtualChallengeDAL @Inject() (
             ${whereClause.toString}
             ORDER BY $proximityOrdering tasks.status, RANDOM() LIMIT 1"""
 
-    this.withSingleLocking(user, Some(TaskType())) { () =>
-      withMRTransaction { implicit c =>
-        SQL(query)
-          .on(
-            Symbol("statusList") -> ToParameterValue.apply[List[Int]].apply(taskStatusList)
-          )
-          .as(taskDAL.parser.*)
-          .headOption
-      }
+    // Read-only candidate lookup - see TaskDAL#getRandomTasks for why this no longer
+    // goes through withSingleLocking (it used to unlock ALL of the user's other task
+    // locks as a side effect, with no conflict check).
+    withMRTransaction { implicit c =>
+      SQL(query)
+        .on(
+          Symbol("statusList") -> ToParameterValue.apply[List[Int]].apply(taskStatusList)
+        )
+        .as(taskDAL.parser.*)
+        .headOption
     }
   }
 
