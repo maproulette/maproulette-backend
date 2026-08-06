@@ -63,7 +63,7 @@ class TaskRepository @Inject() (override val db: Database, config: Config)
         .build(s"""UPDATE tasks t SET completion_responses = {responses}::JSONB
               WHERE t.id = (
                 SELECT t2.id FROM tasks t2
-                LEFT JOIN locked l on l.item_id = t2.id AND l.item_type = {itemType}
+                LEFT JOIN locked l on (l.item_id = t2.id OR t2.id = ANY(l.bundled_tasks)) AND l.item_type = {itemType}
                 WHERE t2.id = {taskId} AND (l.user_id = {userId} OR l.user_id IS NULL)
               )""")
         .on(

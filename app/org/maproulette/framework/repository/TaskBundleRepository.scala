@@ -11,7 +11,7 @@ import anorm.ToParameterValue
 import anorm.SqlParser.scalar
 import anorm._
 import javax.inject.{Inject, Singleton}
-import org.maproulette.exception.InvalidException
+import org.maproulette.exception.{InvalidException, LockConflictException}
 import org.maproulette.Config
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.BaseParameter
@@ -83,6 +83,14 @@ class TaskBundleRepository @Inject() (
     // Second transaction: add tasks to bundle
     this.bundleTasks(user, bundleId, taskIds)
 
+    try {
+      this.lockBundleTasks(user, bundleId)
+    } catch {
+      case e: LockConflictException =>
+        this.deleteTaskBundle(user, bundleId)
+        throw e
+    }
+
     val tasks = this.taskDAL.retrieveListById(-1, 0)(taskIds)
 
     // Return the created bundle
@@ -121,6 +129,9 @@ class TaskBundleRepository @Inject() (
       if (tasksToAdd.nonEmpty) {
         this.bundleTasks(user, bundleId, tasksToAdd)
       }
+
+      // Refresh the bundle's lock so bundledTasks reflects the final membership
+      this.lockBundleTasks(user, bundleId)
     }
   }
 
@@ -239,6 +250,13 @@ class TaskBundleRepository @Inject() (
           }
         }
       }
+
+      // Refresh the bundle's lock so bundledTasks no longer includes the removed tasks
+      try {
+        this.lockBundleTasks(user, bundleId)
+      } catch {
+        case e: Exception => this.logger.warn(e.getMessage)
+      }
     }
   }
 
@@ -253,6 +271,15 @@ class TaskBundleRepository @Inject() (
       val tasks = this.retrieveTasks(
         Query.simple(List(BaseParameter("bundle_id", bundleId, table = Some("tb"))))
       )
+
+      if (tasks.nonEmpty) {
+        val primary = tasks.find(_.isBundlePrimary.getOrElse(false)).getOrElse(tasks.head)
+        try {
+          this.unlockItem(user, primary)
+        } catch {
+          case e: Exception => this.logger.warn(e.getMessage)
+        }
+      }
 
       // Update tasks to set bundle_id and is_bundle_primary to NULL
       SQL(
@@ -318,24 +345,22 @@ class TaskBundleRepository @Inject() (
   }
 
   /**
-    * Locks tasks on bundle fetch if task is in an editable status
+    * Locks the bundle's primary task for the given user, recording the other member task
+    * ids in that lock's bundled_tasks column instead of locking each task individually.
+    * Throws LockConflictException if the user already holds an edit lock on a different
+    * task elsewhere - the caller is expected to have the client release that lock first.
     *
     * @param bundleId The id of the bundle
     */
-  def lockBundledTasks(user: User, tasks: List[Task]) = {
-    this.withMRConnection { implicit c =>
-      try {
-        if (tasks.isEmpty) {
-          // No valid tasks found
-          throw new Exception("No valid tasks found")
-        } else {
-          // Use bulk locking for better performance
-          this.lockItems(user, tasks)
-        }
-      } catch {
-        case e: Exception => this.logger.warn(e.getMessage)
-      }
-    }
+  private def lockBundleTasks(user: User, bundleId: Long): Unit = {
+    val tasks = this.retrieveTasks(
+      Query.simple(List(BaseParameter("bundle_id", bundleId, table = Some("tb"))))
+    )
 
+    if (tasks.nonEmpty) {
+      val primary   = tasks.find(_.isBundlePrimary.getOrElse(false)).getOrElse(tasks.head)
+      val memberIds = tasks.filterNot(_.id == primary.id).map(_.id)
+      this.lockBundle(user, primary, memberIds)
+    }
   }
 }

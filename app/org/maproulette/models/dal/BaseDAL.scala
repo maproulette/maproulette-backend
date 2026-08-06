@@ -56,11 +56,21 @@ trait BaseDAL[Key, T <: BaseObject[Key]]
       get[Option[Int]]("locked.item_type") ~
       get[Option[Long]]("locked.item_id") ~
       get[Option[Long]]("locked.user_id") ~
-      get[Option[Long]]("locked.changeset_id") map {
-      case locked_time ~ itemType ~ itemId ~ userId ~ changesetId =>
+      get[Option[Long]]("locked.changeset_id") ~
+      get[Option[List[Long]]]("locked.bundled_tasks") ~
+      get[Option[Boolean]]("locked.is_review_claim") map {
+      case locked_time ~ itemType ~ itemId ~ userId ~ changesetId ~ bundledTasks ~ isReviewClaim =>
         locked_time match {
           case Some(d) =>
-            Lock(locked_time, itemType.get, itemId.get, userId.get, changesetId.getOrElse(-1))
+            Lock(
+              locked_time,
+              itemType.get,
+              itemId.get,
+              userId.get,
+              changesetId.getOrElse(-1),
+              bundledTasks.getOrElse(List.empty),
+              isReviewClaim.getOrElse(false)
+            )
           case None => Lock.emptyLock
         }
     }

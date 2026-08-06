@@ -6,11 +6,12 @@
 package org.maproulette.framework.controller
 
 import javax.inject.Inject
-import org.maproulette.exception.InvalidException
+import org.maproulette.exception.{InvalidException, LockConflictException}
 import org.maproulette.data._
-import org.maproulette.framework.model.{Task, Tag}
+import org.maproulette.framework.model.{Task, TaskBundle, Tag, User}
 import org.maproulette.framework.service.{TaskBundleService, ServiceManager, TagService}
 import org.maproulette.framework.mixins.TagsControllerMixin
+import org.maproulette.provider.websockets.{WebSocketMessages, WebSocketProvider}
 import org.maproulette.session.SessionManager
 import play.api.libs.json._
 import play.api.mvc._
@@ -27,7 +28,8 @@ class TaskBundleController @Inject() (
     val tagService: TagService,
     components: ControllerComponents,
     serviceManager: ServiceManager,
-    taskDAL: TaskDAL
+    taskDAL: TaskDAL,
+    webSocketProvider: WebSocketProvider
 ) extends AbstractController(components)
     with MapRouletteController
     with TagsControllerMixin[Task] {
@@ -69,6 +71,13 @@ class TaskBundleController @Inject() (
         case None    => throw new InvalidException("No tasks found in this bundle.")
       }
 
+      val primaryTask = tasks.find(_.id == primaryId).getOrElse(tasks.head)
+      // Resolve the lock's bundle membership before setTaskStatus releases it as a side
+      // effect (TaskDAL#setTaskStatus), so we can broadcast the release the same way
+      // unbundleTasks/deleteTaskBundle do below - otherwise other tabs/sessions never
+      // learn these tasks were unlocked and keep showing them as locked-by-you.
+      val releasedTasks = this.taskDAL.resolveLockReleaseTasks(primaryTask)
+
       val completionResponses = request.body.asJson
       this.taskDAL.setTaskStatus(
         tasks,
@@ -89,6 +98,22 @@ class TaskBundleController @Inject() (
         if (tagList.nonEmpty) {
           this.addTagstoItem(task.id, tagList.map(new Tag(-1, _, tagType = this.tagType)), user)
         }
+      }
+
+      try {
+        if (releasedTasks.length > 1) {
+          webSocketProvider.sendMessage(
+            WebSocketMessages
+              .tasksReleased(releasedTasks, Some(WebSocketMessages.userSummary(user)))
+          )
+        } else {
+          webSocketProvider.sendMessage(
+            WebSocketMessages
+              .taskReleased(releasedTasks.head, Some(WebSocketMessages.userSummary(user)))
+          )
+        }
+      } catch {
+        case e: Exception => logger.warn(e.getMessage)
       }
 
       // Refetch to get updated data
@@ -231,7 +256,8 @@ class TaskBundleController @Inject() (
 
   /**
     * Creates a new task bundle with the task ids in the json body, assigning
-    * ownership of the bundle to the logged-in user
+    * ownership of the bundle to the logged-in user. Locks the bundle's primary task for
+    * the user, recording the other member task ids in that lock's bundledTasks.
     *
     * @return A TaskBundle representing the new bundle
     */
@@ -243,8 +269,13 @@ class TaskBundleController @Inject() (
         case Some(tasks) => tasks
         case None        => throw new InvalidException("No task ids provided for task bundle")
       }
-      val bundle = this.serviceManager.taskBundle.createTaskBundle(user, name, primaryId, taskIds)
-      Created(Json.toJson(bundle))
+      try {
+        val bundle = this.serviceManager.taskBundle.createTaskBundle(user, name, primaryId, taskIds)
+        this.broadcastBundleClaimed(bundle, user)
+        Created(Json.toJson(bundle))
+      } catch {
+        case e: LockConflictException => this.lockConflictResponse(e)
+      }
     }
   }
 
@@ -254,15 +285,15 @@ class TaskBundleController @Inject() (
     * @param id The id for the bundle
     * @return Task Bundle
     */
-  def getTaskBundle(id: Long, lockTasks: Boolean): Action[AnyContent] = Action.async {
-    implicit request =>
-      this.sessionManager.authenticatedRequest { implicit user =>
-        Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id, lockTasks)))
-      }
+  def getTaskBundle(id: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id)))
+    }
   }
 
   /**
-    *  Sets the bundle to the tasks provided, and unlock all tasks removed from current bundle
+    *  Sets the bundle to the tasks provided, and unlock all tasks removed from current bundle.
+    *  Re-locks the bundle's primary task with the updated bundledTasks membership.
     *
     * @param bundleId The id of the bundle
     * @param taskIds The task ids the bundle will reset to
@@ -272,8 +303,77 @@ class TaskBundleController @Inject() (
       taskIds: List[Long]
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
-      this.serviceManager.taskBundle.updateTaskBundle(user, id, taskIds)
-      Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id)))
+      try {
+        val previousTaskIds = this.serviceManager.taskBundle.getTaskBundle(user, id).taskIds
+        this.serviceManager.taskBundle.updateTaskBundle(user, id, taskIds)
+        val updatedBundle = this.serviceManager.taskBundle.getTaskBundle(user, id)
+
+        val removedTaskIds = previousTaskIds.filterNot(taskIds.contains)
+        if (removedTaskIds.nonEmpty) {
+          webSocketProvider.sendMessage(
+            WebSocketMessages.tasksReleased(
+              this.taskDAL.retrieveListById(-1, 0)(removedTaskIds),
+              Some(WebSocketMessages.userSummary(user))
+            )
+          )
+        }
+        this.broadcastBundleClaimed(updatedBundle, user)
+
+        Ok(Json.toJson(updatedBundle))
+      } catch {
+        case e: LockConflictException => this.lockConflictResponse(e)
+      }
+    }
+  }
+
+  /**
+    * Builds a 409 Conflict response describing the lock the user already holds elsewhere,
+    * so the client can release it (task release endpoint) and retry.
+    */
+  private def lockConflictResponse(e: LockConflictException): Result = {
+    val conflictingTaskId = e.conflictingLock.itemId
+    val conflictingParentName =
+      this.taskDAL
+        .retrieveById(conflictingTaskId)
+        .flatMap(t => this.serviceManager.challenge.retrieve(t.parent))
+        .map(_.name)
+    Conflict(
+      Json.obj(
+        "status"       -> "Conflict",
+        "message"      -> e.getMessage,
+        "lockedTaskId" -> conflictingTaskId,
+        "parentName"   -> conflictingParentName,
+        "bundledTasks" -> e.conflictingLock.bundledTasks,
+        "startedAt"    -> e.conflictingLock.lockedTime.map(_.toString)
+      )
+    )
+  }
+
+  /**
+    * Broadcasts a tasks-claimed websocket message for the bundle's current task
+    * membership, so other tabs/sessions of the same user (or anyone else subscribed
+    * to task/challenge updates) can resync their view of which tasks are bundled and
+    * locked together. Mirrors TaskController#startOnTask's single-task broadcast.
+    */
+  private def broadcastBundleClaimed(bundle: TaskBundle, user: User): Unit = {
+    val tasks = bundle.tasks.getOrElse(List())
+    if (tasks.nonEmpty) {
+      val challengeAndProject = for {
+        challenge <- this.serviceManager.challenge.retrieve(tasks.head.parent)
+        project   <- this.serviceManager.project.retrieve(challenge.general.parent)
+      } yield (challenge, project)
+
+      challengeAndProject.foreach {
+        case (challenge, project) =>
+          webSocketProvider.sendMessage(
+            WebSocketMessages.tasksClaimed(
+              tasks,
+              WebSocketMessages.challengeSummary(challenge),
+              WebSocketMessages.projectSummary(project),
+              WebSocketMessages.userSummary(user)
+            )
+          )
+      }
     }
   }
 
@@ -289,7 +389,13 @@ class TaskBundleController @Inject() (
       taskIds: List[Long]
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
+      val removedTasks = this.taskDAL.retrieveListById(-1, 0)(taskIds)
       this.serviceManager.taskBundle.unbundleTasks(user, id, taskIds)
+      if (removedTasks.nonEmpty) {
+        webSocketProvider.sendMessage(
+          WebSocketMessages.tasksReleased(removedTasks, Some(WebSocketMessages.userSummary(user)))
+        )
+      }
       Ok(Json.toJson(this.serviceManager.taskBundle.getTaskBundle(user, id)))
     }
   }
@@ -302,7 +408,13 @@ class TaskBundleController @Inject() (
   def deleteTaskBundle(id: Long): Action[AnyContent] =
     Action.async { implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
+        val tasks = this.serviceManager.taskBundle.getTaskBundle(user, id).tasks.getOrElse(List())
         this.serviceManager.taskBundle.deleteTaskBundle(user, id)
+        if (tasks.nonEmpty) {
+          webSocketProvider.sendMessage(
+            WebSocketMessages.tasksReleased(tasks, Some(WebSocketMessages.userSummary(user)))
+          )
+        }
         Ok
       }
     }
