@@ -11,7 +11,7 @@ import anorm.ToParameterValue
 import anorm.SqlParser.scalar
 import anorm._
 import javax.inject.{Inject, Singleton}
-import org.maproulette.exception.InvalidException
+import org.maproulette.exception.{InvalidException, LockConflictException}
 import org.maproulette.Config
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.BaseParameter
@@ -83,9 +83,13 @@ class TaskBundleRepository @Inject() (
     // Second transaction: add tasks to bundle
     this.bundleTasks(user, bundleId, taskIds)
 
-    // Lock the bundle's primary task, recording the other member ids as bundledTasks
-    // instead of locking each task individually.
-    this.lockBundleTasks(user, bundleId)
+    try {
+      this.lockBundleTasks(user, bundleId)
+    } catch {
+      case e: LockConflictException =>
+        this.deleteTaskBundle(user, bundleId)
+        throw e
+    }
 
     val tasks = this.taskDAL.retrieveListById(-1, 0)(taskIds)
 
@@ -268,8 +272,8 @@ class TaskBundleRepository @Inject() (
         Query.simple(List(BaseParameter("bundle_id", bundleId, table = Some("tb"))))
       )
 
-      // Release the bundle's lock (covers the primary and all bundled member tasks)
-      tasks.find(_.isBundlePrimary.getOrElse(false)).foreach { primary =>
+      if (tasks.nonEmpty) {
+        val primary = tasks.find(_.isBundlePrimary.getOrElse(false)).getOrElse(tasks.head)
         try {
           this.unlockItem(user, primary)
         } catch {
