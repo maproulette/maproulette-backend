@@ -297,24 +297,39 @@ class UserRepository @Inject() (
 
   /**
     * Add the given achievements to the user's metrics. Only new achievements
-    * not already possessed by the user will be added
+    * not already possessed by the user will be added.
+    *
+    * The delta is computed against the current database state (not against a
+    * possibly-stale in-memory user object) within the same transaction as the
+    * update, so the returned list reflects exactly what was newly inserted.
     *
     * @param userId       The id of the user who is to receive the achievements
     * @param achievements List of the achievements to award to the user
+    * @return the achievements that were actually newly added (empty if none)
     */
   def addAchievements(userId: Long, achievements: List[Int])(
       implicit c: Option[Connection] = None
-  ) = {
+  ): List[Int] = {
     this.withMRTransaction { implicit c =>
       // We need to make sure the user is in the database first
       ensureUserMetrics(userId)
 
-      val achievementArray = s"'{${achievements.mkString(",")}}'::int[]"
-      SQL"""
-        UPDATE user_metrics
-        SET achievements=array_distinct(achievements || #$achievementArray)
-        WHERE user_id = ${userId}
-      """.executeUpdate()
+      val existing = SQL"""
+        SELECT achievements FROM user_metrics WHERE user_id = ${userId}
+      """.as(get[List[Int]]("achievements").?.single).getOrElse(List.empty)
+
+      val newAchievements = achievements.distinct.filterNot(existing.toSet)
+
+      if (newAchievements.nonEmpty) {
+        val achievementArray = s"'{${newAchievements.mkString(",")}}'::int[]"
+        SQL"""
+          UPDATE user_metrics
+          SET achievements=array_distinct(achievements || #$achievementArray)
+          WHERE user_id = ${userId}
+        """.executeUpdate()
+      }
+
+      newAchievements
     }
   }
 
