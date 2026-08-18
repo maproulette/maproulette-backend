@@ -116,34 +116,28 @@ class AchievementService @Inject() (
       return Some(user)
     }
 
-    // We need to invalidate the user in the cache
+    // Add the achievements, capturing exactly which ones were newly awarded.
+    // The delta is computed against the current database state inside
+    // addAchievements, so it does not depend on the possibly-stale achievements
+    // list carried by the in-memory user object.
+    var justAwarded: List[Int] = List.empty
     this.serviceManager.user.cacheManager.withDeletingCache(id =>
       this.serviceManager.user.retrieve(id)
     ) { implicit cachedItem =>
-      this.repository.addAchievements(user.id, achievements)
+      justAwarded = this.repository.addAchievements(user.id, achievements)
       Some(cachedItem)
     }(id = user.id)
 
     // Notify websocket clients of any new awards
-    val latestUser = this.serviceManager.user.retrieve(user.id)
-    latestUser match {
-      case Some(latest) =>
-        val justAwarded = latest.achievements
-          .getOrElse(List.empty)
-          .filterNot(
-            user.achievements.getOrElse(List.empty).toSet
-          )
-        if (!justAwarded.isEmpty) {
-          webSocketProvider.sendMessage(
-            WebSocketMessages.achievementAwarded(
-              WebSocketMessages.AchievementData(user.id, justAwarded)
-            )
-          )
-        }
-      case None => // nothing to do
+    if (!justAwarded.isEmpty) {
+      webSocketProvider.sendMessage(
+        WebSocketMessages.achievementAwarded(
+          WebSocketMessages.AchievementData(user.id, justAwarded)
+        )
+      )
     }
 
-    latestUser
+    this.serviceManager.user.retrieve(user.id)
   }
 
   /**
