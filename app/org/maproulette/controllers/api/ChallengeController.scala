@@ -1171,7 +1171,7 @@ class ChallengeController @Inject() (
           difficulty = difficulty
         )
 
-        Ok(Json.toJson(challenges))
+        Ok(insertProjectJSON(challenges))
       }
     }
 
