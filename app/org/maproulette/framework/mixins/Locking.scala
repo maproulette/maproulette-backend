@@ -186,6 +186,31 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
     }
 
   /**
+    * Resolves who currently holds the lock covering the given item (primary or bundle
+    * member), without acquiring or refreshing anything. Used to report lock ownership on
+    * plain task reads so a task locked by the current user renders as locked-by-me even in
+    * a tab that never issued its own /start (e.g. the same task opened in a second tab).
+    *
+    * @param item The item (primary or bundle member) to resolve the covering lock for
+    * @param c    A sql connection implicitly passed in from the calling function
+    * @return Some((holderUserId, primaryItemId, memberTaskIds)) if a lock covers the item, else None
+    */
+  def resolveLockHolder(
+      item: T
+  )(implicit c: Option[Connection] = None): Option[(Long, Long, List[Long])] =
+    this.withMRTransaction { implicit c =>
+      SQL(
+        s"""SELECT user_id, item_id, bundled_tasks FROM locked
+            WHERE (item_id = {itemId} OR {itemId} = ANY(bundled_tasks)) AND item_type = ${item.itemType.typeId}"""
+      ).on(Symbol("itemId") -> ParameterValue.toParameterValue(item.id)(p = keyToStatement))
+        .as(
+          (SqlParser.long("user_id") ~ SqlParser.long("item_id") ~
+            SqlParser.get[List[Long]]("bundled_tasks")).singleOpt
+        )
+        .map { case userId ~ primaryItemId ~ bundledTasks => (userId, primaryItemId, bundledTasks) }
+    }
+
+  /**
     * Locks a bundle's primary task, recording the other bundle member task ids in the
     * bundled_tasks column instead of locking each member individually. Releasing, refreshing,
     * or checking the lock on any member task resolves to this single covering row (see

@@ -666,6 +666,35 @@ class TaskController @Inject() (
   }
 
   /**
+    * Reads a single task, augmenting the standard injected JSON with the current lock
+    * holder (`lockedBy`, null when unlocked) and, when locked, the covering bundle's member
+    * ids (`lockBundledTasks`). This lets a task the caller already holds - e.g. opened in a
+    * second tab - render as locked-by-me without that tab issuing its own /start. The lock
+    * lookup lives here rather than in inject() so it only runs for this single-task read, not
+    * for the batch/bounding-box paths that also call inject().
+    */
+  override def read(implicit id: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      this.dal.retrieveById match {
+        case Some(task) =>
+          val (lockedBy, lockBundledTasks) =
+            this.dal.resolveLockHolder(task) match {
+              case Some((holderId, _, bundled)) =>
+                (Some(holderId), bundled.filterNot(_ == task.id))
+              case None => (None, List.empty[Long])
+            }
+          Ok(
+            this.inject(task).as[JsObject] ++ Json.obj(
+              "lockedBy"         -> lockedBy,
+              "lockBundledTasks" -> lockBundledTasks
+            )
+          )
+        case None => NotFound
+      }
+    }
+  }
+
+  /**
     * This is the generic function that is leveraged by all the specific functions above. So it
     * sets the task status to the specific status ID's provided by those functions.
     * Must be authenticated to perform operation
