@@ -900,7 +900,7 @@ GET     /challenge/:id/children                     @org.maproulette.controllers
 # tags: [ Challenge ]
 # operationId: challenge_clones_a_challenge
 # summary: Clones a Challenge
-# description: Clones a challenge
+# description: Clones a challenge, optionally into a different project
 # responses:
 #   '200':
 #     description: The newly created cloned challenge
@@ -919,8 +919,11 @@ GET     /challenge/:id/children                     @org.maproulette.controllers
 #   - name: name
 #     in: path
 #     description: The name of the new challenge
+#   - name: projectId
+#     in: query
+#     description: The id of the project to clone the challenge into. Defaults to the project of the challenge being cloned.
 ###
-PUT     /challenge/:id/clone/:name                  @org.maproulette.controllers.api.ChallengeController.cloneChallenge(id:Long, name:String)
+PUT     /challenge/:id/clone/:name                  @org.maproulette.controllers.api.ChallengeController.cloneChallenge(id:Long, name:String, projectId:Long ?= -1)
 ###
 # tags: [ Challenge ]
 # operationId: challenge_rebuild_a_challenge
