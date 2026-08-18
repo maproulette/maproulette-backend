@@ -2,7 +2,12 @@
 # tags: [ Bundle ]
 # operationId: bundle_create_a_task_bundle
 # summary: Create a task bundle
-# description: Create a new task bundle with the task ids in the supplied JSON body.
+# description: |
+#   Create a new task bundle with the task ids in the supplied JSON body. The bundle's
+#   primary task is locked for the calling user, with the other member task ids recorded
+#   in that lock's bundledTasks. A user may only hold one active edit lock at a time - if
+#   the user already holds a lock on a different task, this returns 409 Conflict describing
+#   that lock. The client should release that lock before retrying.
 # responses:
 #   '200':
 #     description: The newly created bundle with a unique id.
@@ -12,6 +17,8 @@
 #           $ref: '#/components/schemas/TaskBundle'
 #   '401':
 #     description: The user is not authorized to make this request
+#   '409':
+#     description: The user already holds a lock on a different task
 # requestBody:
 #   description: The JSON structure for the bundle body.
 #   required: true
@@ -42,21 +49,23 @@ POST    /taskBundle                                 @org.maproulette.framework.c
 #     in: path
 #     description: The id of the Task Bundle
 #     required: true
-#   - name: lockTasks
-#     in: query
-#     description: The tasks in the bundle will be locked by the user.
 ###
-POST     /taskBundle/:id                             @org.maproulette.framework.controller.TaskBundleController.getTaskBundle(id:Long, lockTasks:Boolean ?= false)
+POST     /taskBundle/:id                             @org.maproulette.framework.controller.TaskBundleController.getTaskBundle(id:Long)
 ###
 # tags: [ Bundle ]
 # operationId: bundle_updates_a_task_bundle
 # summary: Updates a Task Bundle
-# description: Sets the bundle to the tasks provided, and unlock all tasks removed from current bundle
+# description: |
+#   Sets the bundle to the tasks provided, and unlock all tasks removed from current bundle.
+#   Re-locks the bundle's primary task with the updated bundledTasks membership. Returns
+#   409 Conflict if the user holds a lock on a different task.
 # responses:
 #   '200':
 #     description: Ok with empty body
 #   '401':
 #     description: The user is not authorized to make this request
+#   '409':
+#     description: The user already holds a lock on a different task
 # parameters:
 #   - name: id
 #     in: path

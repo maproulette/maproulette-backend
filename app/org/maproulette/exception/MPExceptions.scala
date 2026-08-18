@@ -4,6 +4,7 @@
  */
 package org.maproulette.exception
 
+import org.maproulette.models.Lock
 import sangria.execution.UserFacingError
 
 /**
@@ -29,6 +30,19 @@ class NotFoundException(message: String) extends Exception(message) with UserFac
   * @param message The message to send with the exception
   */
 class LockedException(message: String) extends Exception(message) with UserFacingError
+
+/**
+  * Thrown when a user attempts to lock a task while already holding a lock on a
+  * different task. Carries the user's existing lock so callers can surface enough
+  * detail (which task/bundle is currently held) for a client to offer a
+  * confirm-and-switch flow, retrying with force=true.
+  *
+  * @param message The message to send with the exception
+  * @param conflictingLock The lock the user currently holds elsewhere
+  */
+class LockConflictException(message: String, val conflictingLock: Lock)
+    extends Exception(message)
+    with UserFacingError
 
 /**
   * Exception for handling the unique violations when trying to insert objects into the database

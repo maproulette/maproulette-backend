@@ -1438,7 +1438,7 @@ class ChallengeDAL @Inject() (
               l.user_id as locked_by,
               ST_ClusterDBSCAN(tasks.location, eps := 0.000001, minpoints := 1) OVER () as cluster_id
             FROM tasks
-            LEFT JOIN locked l ON l.item_id = tasks.id AND l.item_type = 2
+            LEFT JOIN locked l ON (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks)) AND l.item_type = 2
             WHERE tasks.parent_id = {id}"""
 
       val allTasks =
@@ -1983,7 +1983,7 @@ class ChallengeDAL @Inject() (
       }
 
       if (excludeLocked) {
-        joinClause ++= " LEFT JOIN locked l ON l.item_id = t.id "
+        joinClause ++= " LEFT JOIN locked l ON (l.item_id = t.id OR t.id = ANY(l.bundled_tasks)) "
         this.appendInWhereClause(whereClause, s"(l.id IS NULL OR l.user_id = ${user.id})")
       }
 
@@ -2615,7 +2615,7 @@ class ChallengeDAL @Inject() (
     val centerLon = (left + right) / 2
 
     val query = s"""SELECT tasks.${taskDAL.retrieveColumnsWithReview} FROM tasks
-      LEFT JOIN locked l ON l.item_id = tasks.id
+      LEFT JOIN locked l ON (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks))
       LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
       WHERE parent_id = $challengeId AND
             tasks.location && ST_MakeEnvelope($left, $bottom, $right, $top, 4326) AND

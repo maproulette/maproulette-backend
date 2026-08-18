@@ -12,7 +12,7 @@ import javax.inject.Inject
 import org.joda.time.DateTime
 import org.maproulette.Config
 import org.maproulette.cache.CacheManager
-import org.maproulette.data.{Actions, TaskType, VirtualChallengeType}
+import org.maproulette.data.{Actions, VirtualChallengeType}
 import org.maproulette.exception.InvalidException
 import org.maproulette.framework.model.{User, ClusteredPoint, Point, PointReview, Task}
 import org.maproulette.framework.psql.Paging
@@ -304,21 +304,22 @@ class VirtualChallengeDAL @Inject() (
 
     val query =
       s"""SELECT tasks.${taskDAL.retrieveColumnsWithReview} FROM tasks
-            LEFT JOIN locked l ON l.item_id = tasks.id
+            LEFT JOIN locked l ON (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks))
             LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
             INNER JOIN virtual_challenge_tasks vct ON vct.task_id = tasks.id
             ${whereClause.toString}
             ORDER BY $proximityOrdering tasks.status, RANDOM() LIMIT 1"""
 
-    this.withSingleLocking(user, Some(TaskType())) { () =>
-      withMRTransaction { implicit c =>
-        SQL(query)
-          .on(
-            Symbol("statusList") -> ToParameterValue.apply[List[Int]].apply(taskStatusList)
-          )
-          .as(taskDAL.parser.*)
-          .headOption
-      }
+    // Read-only candidate lookup - see TaskDAL#getRandomTasks for why this no longer
+    // goes through withSingleLocking (it used to unlock ALL of the user's other task
+    // locks as a side effect, with no conflict check).
+    withMRTransaction { implicit c =>
+      SQL(query)
+        .on(
+          Symbol("statusList") -> ToParameterValue.apply[List[Int]].apply(taskStatusList)
+        )
+        .as(taskDAL.parser.*)
+        .headOption
     }
   }
 
@@ -339,7 +340,7 @@ class VirtualChallengeDAL @Inject() (
       } yield task -> lock
       val query =
         s"""SELECT locked.*, tasks.${taskDAL.retrieveColumnsWithReview} FROM tasks
-                      LEFT JOIN locked ON locked.item_id = tasks.id
+                      LEFT JOIN locked ON (locked.item_id = tasks.id OR tasks.id = ANY(locked.bundled_tasks))
                       LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                       WHERE tasks.id = (SELECT task_id
                                         FROM virtual_challenge_tasks
@@ -351,7 +352,7 @@ class VirtualChallengeDAL @Inject() (
         case None =>
           val loopQuery =
             s"""SELECT locked.*, tasks.${taskDAL.retrieveColumnsWithReview} FROM tasks
-                              LEFT JOIN locked ON locked.item_id = tasks.id
+                              LEFT JOIN locked ON (locked.item_id = tasks.id OR tasks.id = ANY(locked.bundled_tasks))
                               LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                               WHERE tasks.id = (SELECT task_id
                                                 FROM virtual_challenge_tasks
@@ -381,7 +382,7 @@ class VirtualChallengeDAL @Inject() (
       } yield task -> lock
       val query =
         s"""SELECT locked.*, tasks.${taskDAL.retrieveColumnsWithReview} FROM tasks
-                      LEFT JOIN locked ON locked.item_id = tasks.id
+                      LEFT JOIN locked ON (locked.item_id = tasks.id OR tasks.id = ANY(locked.bundled_tasks))
                       LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                       WHERE tasks.id = (SELECT task_id
                                         FROM virtual_challenge_tasks
@@ -393,7 +394,7 @@ class VirtualChallengeDAL @Inject() (
         case None =>
           val loopQuery =
             s"""SELECT locked.*, tasks.${taskDAL.retrieveColumnsWithReview} FROM tasks
-                              LEFT JOIN locked ON locked.item_id = tasks.id
+                              LEFT JOIN locked ON (locked.item_id = tasks.id OR tasks.id = ANY(locked.bundled_tasks))
                               LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                               WHERE tasks.id = (SELECT task_id
                                                 FROM virtual_challenge_tasks
@@ -415,7 +416,7 @@ class VirtualChallengeDAL @Inject() (
       implicit c: Option[Connection] = None
   ): List[Task] = {
     val query = s"""SELECT tasks.${taskDAL.retrieveColumnsWithReview} FROM tasks
-      LEFT JOIN locked l ON l.item_id = tasks.id
+      LEFT JOIN locked l ON (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks))
       LEFT JOIN virtual_challenge_tasks vct on vct.task_id = tasks.id
       LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
       WHERE tasks.id <> $proximityId AND
@@ -454,7 +455,7 @@ class VirtualChallengeDAL @Inject() (
     val centerLon = (left + right) / 2
 
     val query = s"""SELECT tasks.${taskDAL.retrieveColumnsWithReview} FROM tasks
-      LEFT JOIN locked l ON l.item_id = tasks.id
+      LEFT JOIN locked l ON (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks))
       LEFT JOIN virtual_challenge_tasks vct on vct.task_id = tasks.id
       LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
       WHERE vct.virtual_challenge_id = $challengeId AND

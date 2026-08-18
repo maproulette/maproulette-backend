@@ -92,7 +92,7 @@ class TaskReviewRepository @Inject() (
           .on(Symbol("taskId") -> task.id, Symbol("userId") -> user.id)
           .executeUpdate()
 
-        val lockerId = this.lockItem(user, task)
+        val lockerId = this.lockItem(user, task, reviewClaim = true)
         if (lockerId != user.id) {
           val lockHolder = this.userService.retrieve(lockerId) match {
             case Some(user) => user.osmProfile.displayName
@@ -370,7 +370,7 @@ class TaskReviewRepository @Inject() (
         }}${errorTagString}
                              WHERE task_review.task_id = (
                                 SELECT tasks.id FROM tasks
-                                LEFT JOIN locked l on l.item_id = tasks.id AND l.item_type = ${task.itemType.typeId}
+                                LEFT JOIN locked l on (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks)) AND l.item_type = ${task.itemType.typeId}
                                 WHERE tasks.id = ${task.id} AND (l.user_id = ${user.id} OR l.user_id IS NULL)
                               )""").executeUpdate()
       // if returning 0, then this is because the item is locked by a different user

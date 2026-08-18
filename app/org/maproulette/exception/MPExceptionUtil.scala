@@ -42,6 +42,19 @@ object MPExceptionUtil {
       case e: NotFoundException =>
         logger.error(e.getMessage, e)
         NotFound(Json.toJson(StatusMessage("NotFound", JsString(e.getMessage))))
+      case e: LockConflictException =>
+        logger.debug(e.getMessage)
+        Conflict(
+          Json.obj(
+            "status"       -> "Conflict",
+            "message"      -> e.getMessage,
+            "lockedTaskId" -> e.conflictingLock.itemId,
+            "bundledTasks" -> e.conflictingLock.bundledTasks
+          )
+        )
+      case e: LockedException =>
+        logger.error(e.getMessage)
+        Forbidden(Json.toJson(StatusMessage("Forbidden", JsString(e.getMessage))))
       case e: Exception =>
         logger.error(e.getMessage, e)
         InternalServerError(Json.toJson(StatusMessage("KO", JsString(e.getMessage))))
@@ -84,6 +97,19 @@ object MPExceptionUtil {
       case e: NotFoundException =>
         logger.warn(e.getMessage)
         NotFound(Json.toJson(StatusMessage("NotFound", JsString(e.getMessage))))
+      case e: LockConflictException =>
+        logger.debug(e.getMessage)
+        Conflict(
+          Json.obj(
+            "status"       -> "Conflict",
+            "message"      -> e.getMessage,
+            "lockedTaskId" -> e.conflictingLock.itemId,
+            "bundledTasks" -> e.conflictingLock.bundledTasks
+          )
+        )
+      case e: LockedException =>
+        logger.warn(e.getMessage)
+        Forbidden(Json.toJson(StatusMessage("Forbidden", JsString(e.getMessage))))
       case e: ChangeConflictException =>
         logger.error(e.getMessage, e)
         Conflict(Json.toJson(StatusMessage("Conflict", JsString(e.getMessage))))

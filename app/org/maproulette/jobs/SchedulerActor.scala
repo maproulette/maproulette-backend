@@ -11,7 +11,7 @@ import anorm._
 import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
 import org.maproulette.Config
-import org.maproulette.data.SnapshotManager
+import org.maproulette.data.{SnapshotManager, TaskType}
 import org.maproulette.framework.model.{
   Task,
   User,
@@ -27,6 +27,7 @@ import org.maproulette.framework.model.Task.STATUS_CREATED
 import org.maproulette.framework.model._
 import org.maproulette.models.dal.DALManager
 import org.maproulette.provider.{EmailProvider, KeepRightBox, KeepRightError, KeepRightProvider}
+import org.maproulette.provider.websockets.{WebSocketMessages, WebSocketProvider}
 import org.maproulette.utils.BoundingBoxFinder
 import org.slf4j.LoggerFactory
 import play.api.Application
@@ -50,6 +51,7 @@ class SchedulerActor @Inject() (
     keepRightProvider: KeepRightProvider,
     boundingBoxFinder: BoundingBoxFinder,
     emailProvider: EmailProvider,
+    webSocketProvider: WebSocketProvider,
     implicit val snapshotManager: SnapshotManager
 ) extends Actor {
   // cleanOldTasks configuration
@@ -139,8 +141,37 @@ class SchedulerActor @Inject() (
     val start = System.currentTimeMillis
 
     this.db.withTransaction { implicit c =>
-      val query        = s"DELETE FROM locked WHERE AGE(NOW(), locked_time) > '${config.taskLockExpiry}'"
-      val locksDeleted = SQL(query).executeUpdate()
+      val expiredLocks =
+        SQL(
+          s"""DELETE FROM locked WHERE AGE(NOW(), locked_time) > '${config.taskLockExpiry}'
+              RETURNING item_id, item_type, bundled_tasks"""
+        ).as(
+          (SqlParser.long("item_id") ~ SqlParser.int("item_type") ~
+            SqlParser.get[List[Long]]("bundled_tasks")).*
+        )
+
+      val locksDeleted = expiredLocks.length
+
+      // Let any connected client know its stale task lock is gone, the same way an
+      // explicit release/skip/complete does - otherwise a session that's been idle
+      // past the expiry keeps showing the task as locked-by-you indefinitely. Include
+      // bundle members too - a bundle's lock is a single covering row on the primary
+      // task, so without bundled_tasks here a tab open on a member task would never
+      // learn its lock expired.
+      val expiredTaskIds = expiredLocks.collect {
+        case itemId ~ itemType ~ bundledTasks if itemType == TaskType().typeId =>
+          itemId :: bundledTasks
+      }.flatten
+      if (expiredTaskIds.nonEmpty) {
+        try {
+          val tasks = dALManager.task.retrieveListById(-1, 0)(expiredTaskIds, Some(c))
+          if (tasks.nonEmpty) {
+            webSocketProvider.sendMessage(WebSocketMessages.tasksReleased(tasks, None))
+          }
+        } catch {
+          case e: Exception => logger.warn(e.getMessage)
+        }
+      }
 
       val totalTime = System.currentTimeMillis - start
       logger.info(
