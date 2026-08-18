@@ -1591,7 +1591,7 @@ class ChallengeDAL @Inject() (
       }
 
       val query =
-        s"""SELECT c.id, c.parent_id, c.name, c.enabled, array_remove(array_agg(vp.project_id), NULL) AS virtual_parent_ids, c.status, c.is_archived FROM challenges c
+        s"""SELECT c.id, c.parent_id, c.name, c.enabled, array_remove(array_agg(vp.project_id), NULL) AS virtual_parent_ids, c.status, c.is_archived, c.paused FROM challenges c
                       INNER JOIN projects p ON p.id = c.parent_id
                       LEFT OUTER JOIN virtual_project_challenges vp ON c.id = vp.challenge_id
                       WHERE c.deleted = false AND p.deleted = false
