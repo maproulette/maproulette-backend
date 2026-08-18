@@ -12,7 +12,7 @@ import javax.inject.Inject
 import org.joda.time.DateTime
 import org.maproulette.Config
 import org.maproulette.cache.CacheManager
-import org.maproulette.data.{Actions, TaskType, VirtualChallengeType}
+import org.maproulette.data.{Actions, VirtualChallengeType}
 import org.maproulette.exception.InvalidException
 import org.maproulette.framework.model.{User, ClusteredPoint, Point, PointReview, Task}
 import org.maproulette.framework.psql.Paging
