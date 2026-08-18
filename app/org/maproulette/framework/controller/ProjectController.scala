@@ -10,10 +10,9 @@ import javax.inject.Inject
 import org.apache.commons.lang3.StringUtils
 import org.maproulette.data.{Created => ActionCreated, _}
 import org.maproulette.exception.{MPExceptionUtil, NotFoundException, StatusMessage}
-import org.maproulette.framework.mixins.ParentMixin
 import org.maproulette.framework.model.{Challenge, Project, User}
 import org.maproulette.framework.psql.{Paging, _}
-import org.maproulette.framework.service.{CommentService, ProjectService, ServiceManager}
+import org.maproulette.framework.service.{CommentService, ProjectService}
 import org.maproulette.models.dal.TaskDAL
 import org.maproulette.session.{SearchParameters, SessionManager}
 import org.maproulette.utils.Utils
@@ -30,11 +29,9 @@ class ProjectController @Inject() (
     projectService: ProjectService,
     commentService: CommentService,
     taskDAL: TaskDAL,
-    val serviceManager: ServiceManager,
     components: ControllerComponents
 ) extends AbstractController(components)
-    with MapRouletteController
-    with ParentMixin {
+    with MapRouletteController {
 
   // json reads for automatically reading Projects from a posted json body
   implicit val projectReads: Reads[Project] = Project.reads
@@ -54,7 +51,7 @@ class ProjectController @Inject() (
   def listChildren(id: Long, limit: Int, offset: Int): Action[AnyContent] = Action.async {
     implicit request =>
       this.sessionManager.userAwareRequest { implicit user =>
-        Ok(insertProjectJSON(this.projectService.children(id, paging = Paging(limit, offset))))
+        Ok(Json.toJson(this.projectService.children(id, paging = Paging(limit, offset))))
       }
   }
 
