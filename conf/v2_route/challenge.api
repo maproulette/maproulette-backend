@@ -559,6 +559,28 @@ POST     /challenges/project/:projectId           @org.maproulette.controllers.a
 GET     /challenge/:id/tags                         @org.maproulette.controllers.api.ChallengeController.getTagsForChallenge(id:Long)
 ###
 # tags: [ Challenge ]
+# operationId: challenge_getTagsForChallenges
+# summary: Retrieve tags for a batch of Challenges
+# description: Retrieves all the Tags that have been added to each of the specified Challenges, keyed by challenge id
+# responses:
+#   '200':
+#     description: A json object mapping challenge id to a list of Tags associated with that Challenge
+#     content:
+#       application/json:
+#         schema:
+#           type: object
+#           additionalProperties:
+#             type: array
+#             items:
+#               $ref: '#/components/schemas/org.maproulette.framework.model.Tag'
+# parameters:
+#   - name: challengeIds
+#     in: query
+#     description: A comma separated list of Challenge ids
+###
+GET     /challenges/tags/batch                      @org.maproulette.controllers.api.ChallengeController.getTagsForChallenges(challengeIds:String)
+###
+# tags: [ Challenge ]
 # operationId: challenge_getItemsBasedOnTags
 # summary: Retrieve challenges based on provided tags
 # description: Retrieves all the challenges that contain at least one of the supplied tags.

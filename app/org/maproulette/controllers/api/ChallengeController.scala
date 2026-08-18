@@ -151,6 +151,23 @@ class ChallengeController @Inject() (
   }
 
   /**
+    * Gets a json object of tags for a batch of challenges, keyed by challenge id.
+    * Allows clients (e.g. the map view) to fetch tags for many challenges in a single
+    * request instead of issuing one request per challenge.
+    *
+    * @param challengeIds A comma separated list of challenge ids
+    * @return The html Result containing a json object mapping challenge id to a json array of tags
+    */
+  def getTagsForChallenges(challengeIds: String): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        val ids               = Utils.toLongList(challengeIds).getOrElse(List.empty)
+        val tagsByChallengeId = this.serviceManager.tag.listByChallenges(ids)
+        Ok(Json.toJson(tagsByChallengeId.map { case (id, tags) => id.toString -> tags }))
+      }
+  }
+
+  /**
     * Gets the geo json for all the tasks associated with the challenge
     *
     * @param challengeId  The challenge with the geojson
