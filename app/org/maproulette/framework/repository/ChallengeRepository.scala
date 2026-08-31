@@ -229,14 +229,15 @@ object ChallengeRepository {
       get[Option[JsValue]]("challenges.task_widget_layout") ~
       get[Option[DateTime]]("challenges.system_archived_at") ~
       get[Option[JsValue]]("challenges.completion_metrics") ~
-      get[Boolean]("challenges.paused") map {
+      get[Boolean]("challenges.paused") ~
+      get[Option[Long]]("challenges.team_image_id") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
             checkin_source ~ overpassql ~ overpassTargetType ~ remoteGeoJson ~ status ~ statusMessage ~ defaultPriority ~ highPriorityRule ~
             mediumPriorityRule ~ lowPriorityRule ~ highPriorityBounds ~ mediumPriorityBounds ~ lowPriorityBounds ~ defaultZoom ~ minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~
             customBasemap ~ updateTasks ~ exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ requiresLocal ~ location ~ bounding ~
-            deleted ~ isGlobal ~ virtualParents ~ isArchived ~ reviewSetting ~ datasetUrl ~ requireConfirmation ~ requireRejectReason ~ taskWidgetLayout ~ systemArchivedAt ~ completionMetricsJson ~ paused =>
+            deleted ~ isGlobal ~ virtualParents ~ isArchived ~ reviewSetting ~ datasetUrl ~ requireConfirmation ~ requireRejectReason ~ taskWidgetLayout ~ systemArchivedAt ~ completionMetricsJson ~ paused ~ teamImageId =>
         val completionMetrics =
           completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         val hpr = highPriorityRule match {
@@ -316,7 +317,8 @@ object ChallengeRepository {
             None,
             false,
             None,
-            paused
+            paused,
+            teamImageId
           ),
           status,
           statusMessage,

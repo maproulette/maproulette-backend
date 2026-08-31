@@ -82,6 +82,26 @@ class TaskReviewRepository @Inject() (
         .on(Symbol("userId") -> user.id)
         .executeUpdate()
 
+      // The unclaim above only touches task_review, so drop the lock rows from any
+      // previous claim too - otherwise they accumulate and keep those tasks locked
+      SQL(s"""DELETE FROM locked WHERE user_id = ${user.id} AND is_review_claim""").executeUpdate()
+
+      // A bundle is covered by a single lock row on its primary task rather than one row
+      // per member (see Locking.lockBundle), so claim the whole list in one go. Releasing
+      // that row then releases every task in the bundle.
+      taskList.headOption.foreach { firstTask =>
+        val primary = taskList.find(_.isBundlePrimary.getOrElse(false)).getOrElse(firstTask)
+        val lockerId =
+          this.lockBundle(user, primary, taskList.map(_.id), reviewClaim = true)(Some(c))
+        if (lockerId != user.id) {
+          val lockHolder = this.userService.retrieve(lockerId) match {
+            case Some(user) => user.osmProfile.displayName
+            case None       => lockerId
+          }
+          throw new IllegalAccessException(s"Task is currently locked by user ${lockHolder}")
+        }
+      }
+
       for (task <- taskList) {
         Query
           .simple(List())
@@ -91,15 +111,6 @@ class TaskReviewRepository @Inject() (
           )
           .on(Symbol("taskId") -> task.id, Symbol("userId") -> user.id)
           .executeUpdate()
-
-        val lockerId = this.lockItem(user, task, reviewClaim = true)
-        if (lockerId != user.id) {
-          val lockHolder = this.userService.retrieve(lockerId) match {
-            case Some(user) => user.osmProfile.displayName
-            case None       => lockerId
-          }
-          throw new IllegalAccessException(s"Task is currently locked by user ${lockHolder}")
-        }
 
         implicit val id = task.id
         this.taskRepository.cacheManager.withUpdatingCache(this.taskRepository.retrieve) {
@@ -120,14 +131,16 @@ class TaskReviewRepository @Inject() (
     */
   def unclaimTaskReview(task: Task, user: User): Unit = {
     this.withMRTransaction { implicit c =>
+      // One lock row covers the whole bundle, so releasing it releases every member -
+      // the claim on each of those tasks has to be cleared to match
+      val claimedIds = this.resolveLockBundle(task)(Some(c)) match {
+        case Some((primaryId, memberIds)) => (primaryId :: memberIds).distinct
+        case None                         => List(task.id)
+      }
+
       val updatedRows =
-        Query
-          .simple(List())
-          .build(
-            """UPDATE task_review SET review_claimed_by = NULL, review_claimed_at = NULL
-              WHERE task_review.task_id = {taskId}"""
-          )
-          .on(Symbol("taskId") -> task.id)
+        SQL(s"""UPDATE task_review SET review_claimed_by = NULL, review_claimed_at = NULL
+                WHERE task_review.task_id = ANY(ARRAY[${claimedIds.mkString(",")}]::integer[])""")
           .executeUpdate()
 
       // if returning 0, then this is because the item is locked by a different user
@@ -138,7 +151,7 @@ class TaskReviewRepository @Inject() (
       }
 
       try {
-        this.unlockItem(user, task)
+        this.unlockItem(user, task)(Some(c))
       } catch {
         case e: Exception => logger.warn(e.getMessage)
       }

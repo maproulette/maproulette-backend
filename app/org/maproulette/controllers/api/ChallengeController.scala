@@ -23,6 +23,7 @@ import org.maproulette.exception.{
 }
 import org.maproulette.framework.model._
 import org.maproulette.framework.psql.Paging
+import org.maproulette.framework.repository.TeamImageRepository
 import org.maproulette.framework.service.{ServiceManager, TagService}
 import org.maproulette.framework.mixins.{ParentMixin, TagsControllerMixin}
 import org.maproulette.models.dal._
@@ -61,6 +62,7 @@ class ChallengeController @Inject() (
     dalManager: DALManager,
     override val tagService: TagService,
     challengeProvider: ChallengeProvider,
+    teamImageRepository: TeamImageRepository,
     val serviceManager: ServiceManager,
     wsClient: WSClient,
     permission: Permission,
@@ -507,7 +509,7 @@ class ChallengeController @Inject() (
         val challengeIds = (body \ "ids").as[List[Long]]
         val archiving    = (body \ "isArchived").asOpt[Boolean].getOrElse(true);
 
-        this.dalManager.challenge.bulkArchive(challengeIds, archiving);
+        dalManager.challenge.bulkArchive(challengeIds, archiving);
 
         Ok(Json.toJson(archiving))
       } catch {
@@ -1344,8 +1346,55 @@ class ChallengeController @Inject() (
     * @param body The incoming body from the request
     * @return
     */
+  /**
+    * Rejects a challenge body that points at a team image the user isn't
+    * entitled to use. Image ids are just numbers on the wire, so without this
+    * anyone could borrow another team's image, or an image still awaiting
+    * review, simply by guessing an id.
+    *
+    * @param body The incoming challenge json
+    * @param user The user making the request
+    * @return The body unchanged, if its teamImageId (when present) is allowed
+    */
+  private def validateTeamImage(body: JsValue, user: User): JsValue = {
+    (body \ "teamImageId").toOption match {
+      case None | Some(JsNull) => body
+      case Some(value) =>
+        val imageId = value
+          .asOpt[Long]
+          .getOrElse(throw new InvalidException("teamImageId must be a number"))
+
+        this.teamImageRepository.retrieve(imageId) match {
+          case None =>
+            throw new NotFoundException(s"No team image found with id $imageId")
+          case Some(image) if image.status != TeamImage.STATUS_APPROVED =>
+            throw new InvalidException(
+              s"Team image $imageId has not been approved and cannot be used on a challenge"
+            )
+          case Some(image) =>
+            val team = this.serviceManager.team
+              .retrieve(image.teamId)
+              .getOrElse(throw new NotFoundException(s"No team found with id ${image.teamId}"))
+
+            val allowed = this.permission.isSuperUser(user) ||
+              this.serviceManager.team
+                .isActiveTeamMember(team, MemberObject.user(user.id), User.superUser)
+
+            if (!allowed) {
+              throw new InvalidException(
+                s"You must be a member of team ${image.teamId} to use its images"
+              )
+            }
+            body
+        }
+    }
+  }
+
+  override def updateUpdateBody(body: JsValue, user: User): JsValue =
+    this.validateTeamImage(super.updateUpdateBody(body, user), user)
+
   override def updateCreateBody(body: JsValue, user: User): JsValue = {
-    var jsonBody = super.updateCreateBody(body, user)
+    var jsonBody = this.validateTeamImage(super.updateCreateBody(body, user), user)
     jsonBody = Utils.insertIntoJson(jsonBody, "owner", user.osmProfile.id, true)(LongWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "enabled", true)(BooleanWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "deleted", false)(BooleanWrites)
