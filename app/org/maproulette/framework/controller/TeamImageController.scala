@@ -160,9 +160,7 @@ class TeamImageController @Inject() (
     this.sessionManager.authenticatedRequest { implicit user =>
       val teamIds = this.teamService
         .teamUsersByUserIds(List(user.id), user)
-        .filter(teamUser =>
-          teamUser.status != org.maproulette.framework.model.TeamMember.STATUS_INVITED
-        )
+        .filter(_.status != TeamMember.STATUS_INVITED)
         .map(_.teamId)
         .distinct
 
