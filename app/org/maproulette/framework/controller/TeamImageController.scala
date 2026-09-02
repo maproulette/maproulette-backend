@@ -81,6 +81,14 @@ class TeamImageController @Inject() (
   }
 
   /**
+    * Whether a user may look at one of a team's images before it has been
+    * approved - superusers because they review them, team members because
+    * they are the ones asking for them.
+    */
+  private def canPreview(teamId: Long, user: User): Boolean =
+    this.permission.isSuperUser(user) || this.isMemberOf(teamId, user)
+
+  /**
     * Requests a new image for a team. Any active member can ask; the image is
     * stored immediately but stays pending until a superuser reviews it.
     *
@@ -254,8 +262,13 @@ class TeamImageController @Inject() (
 
   /**
     * Serves an image's bytes. Anonymous, because the url is consumed by plain
-    * img tags on challenge cards. Only approved images are served — a pending
-    * or rejected one is indistinguishable from one that doesn't exist.
+    * img tags on challenge cards.
+    *
+    * An image that isn't approved is only served to the people who have a
+    * reason to look at it: a superuser working the review queue, who can
+    * hardly judge an image sight unseen, and members of the owning team, who
+    * requested it. To anyone else it is indistinguishable from an image that
+    * doesn't exist.
     *
     * @param imageId The id of the image to serve
     * @return 200 OK with the image bytes
@@ -263,7 +276,8 @@ class TeamImageController @Inject() (
   def getImageFile(imageId: Long): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       val metadata = this.image(imageId)
-      if (metadata.status != TeamImage.STATUS_APPROVED) {
+      val approved = metadata.status == TeamImage.STATUS_APPROVED
+      if (!approved && !user.exists(this.canPreview(metadata.teamId, _))) {
         throw new NotFoundException(s"No team image found with id $imageId")
       }
 
@@ -276,8 +290,12 @@ class TeamImageController @Inject() (
             Ok(image.data)
               .as(image.contentType)
               .withHeaders(
-                "ETag"                   -> etag,
-                "Cache-Control"          -> "public, max-age=86400",
+                "ETag" -> etag,
+                // An approved image is immutable and public. One still under
+                // review is neither: it is only for this viewer, and it stops
+                // being served the moment it is rejected.
+                "Cache-Control" ->
+                  (if (approved) "public, max-age=86400" else "private, no-cache"),
                 "X-Content-Type-Options" -> "nosniff",
                 "Content-Disposition"    -> "inline"
               )

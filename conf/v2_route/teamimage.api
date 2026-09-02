@@ -194,7 +194,7 @@ DELETE  /teamImage/:id                           @org.maproulette.framework.cont
 # tags: [ Team Image ]
 # operationId: team_image_file
 # summary: Retrieve a Team Challenge Image
-# description: Serves the raw bytes of an approved team image. Intended to be used directly as an image src. Images awaiting review or rejected are reported as not found.
+# description: Serves the raw bytes of a team image. Intended to be used directly as an image src. An approved image is served to anyone; one still awaiting review, or rejected, is served only to a superuser or a member of the owning team, and reported as not found to everyone else.
 # responses:
 #   '200':
 #     description: The image bytes

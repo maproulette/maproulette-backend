@@ -46,6 +46,96 @@ POST    /team                                       @org.maproulette.framework.c
 PUT    /team/:id                                    @org.maproulette.framework.controller.TeamController.updateTeam(id: Long)
 ###
 # tags: [ Team ]
+# operationId: team_upload_avatar
+# summary: Upload a team avatar
+# description: Uploads an image to use as the team's avatar, replacing any avatar it already had, and points the team's avatar URL at it. Only a team admin may upload. Accepts PNG, JPEG, WebP and GIF up to 2MB. Unlike a team's challenge images this needs no review.
+# consumes: [ multipart/form-data ]
+# requestBody:
+#   required: true
+#   content:
+#     multipart/form-data:
+#       schema:
+#         type: object
+#         properties:
+#           image:
+#             type: string
+#             format: binary
+#             description: The image file to use as the team's avatar
+# responses:
+#   '200':
+#     description: The updated team
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Group'
+#   '400':
+#     description: The file is missing, too large, or not a supported image
+#   '401':
+#     description: The user is not a team admin
+#   '404':
+#     description: The team was not found
+# parameters:
+#   - name: teamId
+#     in: path
+#     description: The id of the team whose avatar is being set
+#     required: true
+#     schema:
+#       type: integer
+###
+POST   /team/:teamId/avatar                         @org.maproulette.framework.controller.TeamController.uploadAvatar(teamId: Long)
+###
+# tags: [ Team ]
+# operationId: team_delete_avatar
+# summary: Remove a team's uploaded avatar
+# description: Deletes the team's uploaded avatar and clears the team's avatar URL if it was pointing at it. An external avatar URL the team set themselves is left untouched. Only a team admin may remove.
+# responses:
+#   '200':
+#     description: The updated team
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.Group'
+#   '401':
+#     description: The user is not a team admin
+#   '404':
+#     description: The team was not found
+# parameters:
+#   - name: teamId
+#     in: path
+#     description: The id of the team whose avatar is being removed
+#     required: true
+#     schema:
+#       type: integer
+###
+DELETE /team/:teamId/avatar                         @org.maproulette.framework.controller.TeamController.deleteAvatar(teamId: Long)
+###
+# tags: [ Team ]
+# operationId: team_get_avatar_file
+# summary: Serves a team's avatar
+# description: Returns the bytes of a team's uploaded avatar. Available anonymously, since the URL is consumed by plain img tags. The v query parameter is a cache-busting stamp written into the stored URL and is ignored by the server.
+# responses:
+#   '200':
+#     description: The avatar bytes
+#     content:
+#       image/*:
+#         schema:
+#           type: string
+#           format: binary
+#   '304':
+#     description: The caller's cached copy is still current
+#   '404':
+#     description: The team has no uploaded avatar
+# parameters:
+#   - name: teamId
+#     in: path
+#     description: The id of the team whose avatar to serve
+#     required: true
+#     schema:
+#       type: integer
+###
+GET    /team/:teamId/avatar/file                    @org.maproulette.framework.controller.TeamController.getAvatarFile(teamId: Long)
+###
+# tags: [ Team ]
 # operationId: team_retrieves_a_team
 # summary: Retrieves a team
 # description: Retrieves a team based on a specific ID.

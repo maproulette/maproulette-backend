@@ -2655,14 +2655,25 @@ class ChallengeDAL @Inject() (
     * Optimized method to explore challenges with specific filtering
     * This is a purpose-built query for the exploreChallenges endpoint
     *
-    * Location filtering is bounding-box based: the client resolves any named place
-    * (e.g. via Nominatim on the frontend) to a bbox and passes it as `boundingBox`.
+    * Location filtering works on two areas, either of which may be omitted:
+    * `boundingBox` (the map viewport) and `locationPolygon` (the boundary of a
+    * named place, resolved by the client e.g. via Nominatim). They intersect
+    * rather than accumulate -- a challenge matches only when a *single* one of
+    * its tasks falls inside every area given. The challenge's own `bounding`
+    * envelope is only a prefilter, never the answer: it spans every task in the
+    * challenge, so one with tasks on two continents overlaps nearly any area.
+    *
+    * Challenges marked STATUS_FINISHED are omitted: there is no work left in
+    * them, so they are not something to discover. Paused challenges are
+    * omitted for the same reason -- their tasks cannot be locked, completed or
+    * reviewed until the challenge is resumed.
     *
     * @param includeGlobal Whether to include challenges marked as global
     * @param boundingBox Optional bounding box to filter by challenge location (left, bottom, right, top)
     * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
     * @param limit Maximum number of results to return
     * @param offset Number of results to skip for pagination
+    * @param locationPolygon Optional GeoJSON Polygon/MultiPolygon the matching task must fall inside
     * @param c Optional database connection
     * @return List of challenges matching the criteria
     */
@@ -2673,7 +2684,8 @@ class ChallengeDAL @Inject() (
       limit: Int,
       offset: Int = 0,
       keywords: Option[String] = None,
-      difficulty: Option[Int] = None
+      difficulty: Option[Int] = None,
+      locationPolygon: Option[String] = None
   )(implicit c: Option[Connection] = None): List[Challenge] = {
     this.withMRConnection { implicit c =>
       val params = new ListBuffer[NamedParameter]()
@@ -2695,7 +2707,12 @@ class ChallengeDAL @Inject() (
       }
 
       query += " WHERE c.deleted = false AND c.enabled = true AND c.is_archived = false"
+      query += " AND c.paused = false"
       query += " AND p.deleted = false AND p.enabled = true"
+      // A finished challenge has no tasks left to work on, so it is not
+      // something to discover here. NULL status predates the column and is
+      // treated as unfinished.
+      query += s" AND (c.status IS NULL OR c.status <> ${Challenge.STATUS_FINISHED})"
 
       if (!includeGlobal) {
         query += " AND c.is_global = false"
@@ -2719,14 +2736,40 @@ class ChallengeDAL @Inject() (
         case None =>
       }
 
+      // Each requested area contributes a cheap prefilter against the
+      // challenge's own envelope (GIST-indexed) plus a predicate on the task
+      // itself. The task predicates are ANDed inside one EXISTS, so the same
+      // task has to satisfy all of them -- a challenge in view but outside the
+      // place, or inside the place but out of view, does not match.
+      val taskAreaClauses = new ListBuffer[String]()
+
       boundingBox match {
         case Some((left, bottom, right, top)) =>
           params += NamedParameter("bbLeft", left)
           params += NamedParameter("bbBottom", bottom)
           params += NamedParameter("bbRight", right)
           params += NamedParameter("bbTop", top)
-          query += " AND ST_Intersects(c.bounding, ST_MakeEnvelope({bbLeft}, {bbBottom}, {bbRight}, {bbTop}, 4326))"
+          val envelope = "ST_MakeEnvelope({bbLeft}, {bbBottom}, {bbRight}, {bbTop}, 4326)"
+          query += s" AND ST_Intersects(c.bounding, $envelope)"
+          taskAreaClauses += s"ST_Intersects(t.location, $envelope)"
         case None =>
+      }
+
+      locationPolygon match {
+        case Some(geoJson) =>
+          params += NamedParameter("locationPolygon", geoJson)
+          val polygon = "ST_GeomFromGeoJSON({locationPolygon})"
+          query += s" AND ST_Intersects(c.bounding, $polygon)"
+          taskAreaClauses += s"ST_Intersects(t.location, $polygon)"
+        case None =>
+      }
+
+      if (taskAreaClauses.nonEmpty) {
+        query += s""" AND EXISTS (
+                        SELECT 1 FROM tasks t
+                        WHERE t.parent_id = c.id
+                          AND ${taskAreaClauses.mkString("\n                          AND ")}
+                      )"""
       }
 
       val orderByClause = sortBy.toLowerCase match {

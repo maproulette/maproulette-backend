@@ -77,6 +77,11 @@ class ChallengeController @Inject() (
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
+  // Upper bound on the place boundary POSTed to exploreChallenges. Generous
+  // next to the 100k default, since a county boundary alone runs to tens of
+  // kilobytes, but still bounded -- the endpoint takes unauthenticated calls.
+  private val maxPolygonBodyBytes = 2L * 1024 * 1024
+
   // json reads for automatically reading Challenges from a posted json body
   override implicit val tReads: Reads[Challenge] = Challenge.reads.challengeReads
   // json writes for automatically writing Challenges to a json body response
@@ -1135,9 +1140,18 @@ class ChallengeController @Inject() (
 
   /**
     * Efficient endpoint for exploring challenges with specific parameters
-    * Uses an optimized query path specifically designed for the explore challenges feature
+    * Uses an optimized query path specifically designed for the explore challenges feature.
+    * Finished challenges are excluded, since they have no remaining work.
     *
-    * @param global Whether to include global challenges (default: true)
+    * Served on both GET and POST. The POST form additionally accepts a GeoJSON
+    * geometry as `polygon` in the body, which narrows the results the same way
+    * `bounds` does: a challenge matches only when one of its tasks sits inside
+    * both. The geometry cannot ride along in the query string -- a city
+    * boundary from Nominatim is routinely tens of kilobytes, well past the
+    * request line limit -- which is also why the existing `boundingGeometries`
+    * search parameter is read from the body.
+    *
+    * @param global Whether to include global challenges (default: false)
     * @param bounds Bounding box as [left,bottom,right,top] to filter challenges by location
     * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
     * @param limit Maximum number of results to return
@@ -1153,7 +1167,9 @@ class ChallengeController @Inject() (
       keywords: Option[String],
       difficulty: Option[Int]
   ): Action[AnyContent] =
-    Action.async { implicit request =>
+    // Parsed with its own body limit: the default (100k) is smaller than a
+    // real place boundary.
+    Action.async(parse.default(Some(maxPolygonBodyBytes))) { implicit request =>
       this.sessionManager.userAwareRequest { implicit user =>
         val boundingBox = bounds.flatMap { b =>
           b.split(",").map(_.trim).filter(_.nonEmpty).toList match {
@@ -1170,10 +1186,26 @@ class ChallengeController @Inject() (
           limit = limit,
           offset = offset,
           keywords = keywords,
-          difficulty = difficulty
+          difficulty = difficulty,
+          locationPolygon = this.locationPolygon(request)
         )
 
         Ok(insertProjectJSON(challenges))
+      }
+    }
+
+  /**
+    * Reads the optional `polygon` GeoJSON geometry from an exploreChallenges
+    * request body, rejecting anything PostGIS could not use as an area.
+    */
+  private def locationPolygon(request: Request[AnyContent]): Option[String] =
+    request.body.asJson.flatMap(json => (json \ "polygon").asOpt[JsObject]).map { geometry =>
+      (geometry \ "type").asOpt[String] match {
+        case Some("Polygon") | Some("MultiPolygon") => Json.stringify(geometry)
+        case other =>
+          throw new InvalidException(
+            s"polygon must be a GeoJSON Polygon or MultiPolygon, got ${other.getOrElse("no type")}"
+          )
       }
     }
 
