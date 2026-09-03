@@ -30,7 +30,7 @@ import org.maproulette.utils.Utils
 import org.maproulette.framework.psql.SQLUtils
 import play.api.db.Database
 import play.api.libs.json.JodaReads._
-import play.api.libs.json.{JsArray, JsObject, JsValue, Json}
+import play.api.libs.json.{JsArray, JsNull, JsObject, JsValue, Json}
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
@@ -132,7 +132,8 @@ class ChallengeDAL @Inject() (
       get[Boolean]("challenges.require_confirmation") ~
       get[Boolean]("challenges.require_reject_reason") ~
       get[Option[JsValue]]("challenges.completion_metrics") ~
-      get[Boolean]("challenges.paused") map {
+      get[Boolean]("challenges.paused") ~
+      get[Option[Long]]("challenges.team_image_id") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
             checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~ status ~ statusMessage ~
@@ -141,7 +142,7 @@ class ChallengeDAL @Inject() (
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
             requiresLocal ~ deleted ~ isGlobal ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~
-            requireConfirmation ~ requireRejectReason ~ completionMetricsJson ~ paused =>
+            requireConfirmation ~ requireRejectReason ~ completionMetricsJson ~ paused ~ teamImageId =>
         val completionMetrics =
           completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         new Challenge(
@@ -204,7 +205,8 @@ class ChallengeDAL @Inject() (
             None, // presets
             requireConfirmation,
             None, // mrTagMetrics
-            paused
+            paused,
+            teamImageId
           ),
           status,
           statusMessage,
@@ -284,7 +286,8 @@ class ChallengeDAL @Inject() (
       get[Boolean]("challenges.require_confirmation") ~
       get[Boolean]("challenges.require_reject_reason") ~
       get[Option[JsValue]]("challenges.completion_metrics") ~
-      get[Boolean]("challenges.paused") map {
+      get[Boolean]("challenges.paused") ~
+      get[Option[Long]]("challenges.team_image_id") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~
             checkin_comment ~ checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~
@@ -294,7 +297,7 @@ class ChallengeDAL @Inject() (
             preferredReviewTags ~ limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~
             dataOriginDate ~ location ~ bounding ~ requiresLocal ~ deleted ~ isGlobal ~ virtualParents ~
             presets ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ systemArchivedAt ~
-            requireConfirmation ~ requireRejectReason ~ completionMetricsJson ~ paused =>
+            requireConfirmation ~ requireRejectReason ~ completionMetricsJson ~ paused ~ teamImageId =>
         val completionMetrics =
           completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         new Challenge(
@@ -357,7 +360,8 @@ class ChallengeDAL @Inject() (
             presets,
             requireConfirmation,
             None, // mrTagMetrics
-            paused
+            paused,
+            teamImageId
           ),
           status,
           statusMessage,
@@ -430,7 +434,8 @@ class ChallengeDAL @Inject() (
       get[Option[String]]("locationJSON") ~
       get[Option[String]]("boundingJSON") ~
       get[Option[JsValue]]("challenges.completion_metrics") ~
-      get[Boolean]("challenges.paused") map {
+      get[Boolean]("challenges.paused") ~
+      get[Option[Long]]("challenges.team_image_id") map {
       case id ~ name ~ created ~ modified ~ description ~ deleted ~ isGlobal ~ requireConfirmation ~ requireRejectReason ~
             infoLink ~ ownerId ~ parentId ~ instruction ~ difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~
             popularity ~ checkin_comment ~ checkin_source ~ requiresLocal ~ overpassQL ~ remoteGeoJson ~ overpassTargetType ~
@@ -439,7 +444,7 @@ class ChallengeDAL @Inject() (
             limitReviewTags ~ isArchived ~ reviewSetting ~ defaultBasemap ~ defaultBasemapId ~ customBasemap ~
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ taskWidgetLayout ~ taskStyles ~ status ~
             statusMessage ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
-            completionMetricsJson ~ paused =>
+            completionMetricsJson ~ paused ~ teamImageId =>
         val completionMetrics =
           completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         val hpr = highPriorityRule.map(Json.parse(_).as[JsObject])
@@ -507,7 +512,8 @@ class ChallengeDAL @Inject() (
           bounding.map(Json.parse(_).as[JsObject]),
           Some(CompletionMetrics.completionPercentage(completionMetrics)),
           completionMetrics,
-          paused
+          paused,
+          teamImageId
         )
     }
   }
@@ -709,7 +715,7 @@ class ChallengeDAL @Inject() (
                                       medium_priority_rule, low_priority_rule, high_priority_bounds, medium_priority_bounds, low_priority_bounds, default_zoom, min_zoom, max_zoom,
                                       default_basemap, default_basemap_id, custom_basemap, updatetasks, exportable_properties,
                                       osm_id_property, task_bundle_id_property, last_task_refresh, data_origin_date, preferred_tags, preferred_review_tags,
-                                      limit_tags, limit_review_tags, task_styles, requires_local, is_archived, review_setting, dataset_url, require_confirmation, require_reject_reason, task_widget_layout, paused)
+                                      limit_tags, limit_review_tags, task_styles, requires_local, is_archived, review_setting, dataset_url, require_confirmation, require_reject_reason, task_widget_layout, paused, team_image_id)
               VALUES (${challenge.name}, ${challenge.general.owner}, ${challenge.general.parent},
                       ${challenge.general.difficulty},
                       ${challenge.description}, ${challenge.infoLink}, ${challenge.general.blurb}, ${challenge.general.instruction},
@@ -725,7 +731,8 @@ class ChallengeDAL @Inject() (
                       ${challenge.extra.preferredTags}, ${challenge.extra.preferredReviewTags}, ${challenge.extra.limitTags},
                       ${challenge.extra.limitReviewTags}, ${challenge.extra.taskStyles}, ${challenge.general.requiresLocal}, ${challenge.extra.isArchived},
                       ${challenge.extra.reviewSetting}, ${challenge.extra.datasetUrl}, ${challenge.requireConfirmation}, ${challenge.requireRejectReason},
-                      ${asJson(challenge.extra.taskWidgetLayout.getOrElse(Json.obj()))}, ${challenge.extra.paused}
+                      ${asJson(challenge.extra.taskWidgetLayout.getOrElse(Json.obj()))}, ${challenge.extra.paused},
+                      ${challenge.extra.teamImageId}
                       ) RETURNING #${this.retrieveColumns}"""
             .as(this.parser.*)
             .headOption
@@ -965,6 +972,15 @@ class ChallengeDAL @Inject() (
             .asOpt[Boolean]
             .getOrElse(cachedItem.extra.paused)
 
+          // An explicit null detaches the image; omitting the key leaves the
+          // challenge's current image alone, so a save that never touched the
+          // image picker can't silently clear it.
+          val teamImageId = (updates \ "teamImageId").toOption match {
+            case Some(JsNull) => Option.empty[Long]
+            case Some(value)  => value.asOpt[Long]
+            case None         => cachedItem.extra.teamImageId
+          }
+
           val reviewSetting = (updates \ "reviewSetting")
             .asOpt[Int]
             .getOrElse(cachedItem.extra.reviewSetting)
@@ -1030,7 +1046,7 @@ class ChallengeDAL @Inject() (
                   custom_basemap = $customBasemap, updatetasks = $updateTasks, exportable_properties = $exportableProperties,
                   osm_id_property = $osmIdProperty, task_bundle_id_property = $taskBundleIdProperty, preferred_tags = $preferredTags, preferred_review_tags = $preferredReviewTags,
                   limit_tags = $limitTags, limit_review_tags = $limitReviewTags, task_styles = $taskStyles,
-                  requires_local = $requiresLocal, is_archived = $isArchived, paused = $paused, review_setting = $reviewSetting, dataset_url = $datasetUrl, task_widget_layout = ${asJson(
+                  requires_local = $requiresLocal, is_archived = $isArchived, paused = $paused, team_image_id = $teamImageId, review_setting = $reviewSetting, dataset_url = $datasetUrl, task_widget_layout = ${asJson(
               taskWidgetLayout
             )}
                 WHERE id = $id RETURNING #${this.retrieveColumns}""".as(parser.*).headOption
@@ -2639,14 +2655,26 @@ class ChallengeDAL @Inject() (
     * Optimized method to explore challenges with specific filtering
     * This is a purpose-built query for the exploreChallenges endpoint
     *
-    * Location filtering is bounding-box based: the client resolves any named place
-    * (e.g. via Nominatim on the frontend) to a bbox and passes it as `boundingBox`.
+    * Location filtering works on two areas, either of which may be omitted:
+    * `boundingBox` (the map viewport) and `locationPolygon` (the boundary of a
+    * named place, resolved by the client e.g. via Nominatim). They intersect
+    * rather than accumulate -- a challenge matches only when a *single* one of
+    * its tasks falls inside every area given. The challenge's own `bounding`
+    * envelope is only a prefilter, never the answer: it spans every task in the
+    * challenge, so one with tasks on two continents overlaps nearly any area.
+    *
+    * Challenges marked STATUS_FINISHED are omitted: there is no work left in
+    * them, so they are not something to discover. Paused challenges are
+    * omitted for the same reason -- their tasks cannot be locked, completed or
+    * reviewed until the challenge is resumed.
     *
     * @param includeGlobal Whether to include challenges marked as global
     * @param boundingBox Optional bounding box to filter by challenge location (left, bottom, right, top)
-    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
+    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty,
+    *               featured, tag_fix, cooperative)
     * @param limit Maximum number of results to return
     * @param offset Number of results to skip for pagination
+    * @param locationPolygon Optional GeoJSON Polygon/MultiPolygon the matching task must fall inside
     * @param c Optional database connection
     * @return List of challenges matching the criteria
     */
@@ -2657,7 +2685,8 @@ class ChallengeDAL @Inject() (
       limit: Int,
       offset: Int = 0,
       keywords: Option[String] = None,
-      difficulty: Option[Int] = None
+      difficulty: Option[Int] = None,
+      locationPolygon: Option[String] = None
   )(implicit c: Option[Connection] = None): List[Challenge] = {
     this.withMRConnection { implicit c =>
       val params = new ListBuffer[NamedParameter]()
@@ -2679,7 +2708,12 @@ class ChallengeDAL @Inject() (
       }
 
       query += " WHERE c.deleted = false AND c.enabled = true AND c.is_archived = false"
+      query += " AND c.paused = false"
       query += " AND p.deleted = false AND p.enabled = true"
+      // A finished challenge has no tasks left to work on, so it is not
+      // something to discover here. NULL status predates the column and is
+      // treated as unfinished.
+      query += s" AND (c.status IS NULL OR c.status <> ${Challenge.STATUS_FINISHED})"
 
       if (!includeGlobal) {
         query += " AND c.is_global = false"
@@ -2703,23 +2737,57 @@ class ChallengeDAL @Inject() (
         case None =>
       }
 
+      // Each requested area contributes a cheap prefilter against the
+      // challenge's own envelope (GIST-indexed) plus a predicate on the task
+      // itself. The task predicates are ANDed inside one EXISTS, so the same
+      // task has to satisfy all of them -- a challenge in view but outside the
+      // place, or inside the place but out of view, does not match.
+      val taskAreaClauses = new ListBuffer[String]()
+
       boundingBox match {
         case Some((left, bottom, right, top)) =>
           params += NamedParameter("bbLeft", left)
           params += NamedParameter("bbBottom", bottom)
           params += NamedParameter("bbRight", right)
           params += NamedParameter("bbTop", top)
-          query += " AND ST_Intersects(c.bounding, ST_MakeEnvelope({bbLeft}, {bbBottom}, {bbRight}, {bbTop}, 4326))"
+          val envelope = "ST_MakeEnvelope({bbLeft}, {bbBottom}, {bbRight}, {bbTop}, 4326)"
+          query += s" AND ST_Intersects(c.bounding, $envelope)"
+          taskAreaClauses += s"ST_Intersects(t.location, $envelope)"
         case None =>
       }
 
+      locationPolygon match {
+        case Some(geoJson) =>
+          params += NamedParameter("locationPolygon", geoJson)
+          val polygon = "ST_GeomFromGeoJSON({locationPolygon})"
+          query += s" AND ST_Intersects(c.bounding, $polygon)"
+          taskAreaClauses += s"ST_Intersects(t.location, $polygon)"
+        case None =>
+      }
+
+      if (taskAreaClauses.nonEmpty) {
+        query += s""" AND EXISTS (
+                        SELECT 1 FROM tasks t
+                        WHERE t.parent_id = c.id
+                          AND ${taskAreaClauses.mkString("\n                          AND ")}
+                      )"""
+      }
+
+      // Taxonomy sorts group a kind of challenge to the front rather than
+      // ordering by the column itself, so each falls back to name to keep the
+      // ordering inside a group stable across pages.
       val orderByClause = sortBy.toLowerCase match {
         case "name"       => "c.name ASC"
         case "created"    => "c.created DESC"
         case "modified"   => "c.modified DESC"
         case "popularity" => "c.popularity DESC NULLS LAST"
         case "difficulty" => "c.difficulty ASC"
-        case _            => "c.name ASC"
+        case "featured"   => "c.featured DESC, c.name ASC"
+        case "tag_fix" =>
+          s"(c.cooperative_type = ${Challenge.COOPERATIVE_TAGS}) DESC, c.name ASC"
+        case "cooperative" | "cooperative_type" =>
+          s"(c.cooperative_type > ${Challenge.COOPERATIVE_NONE}) DESC, c.cooperative_type DESC, c.name ASC"
+        case _ => "c.name ASC"
       }
 
       query += s" ORDER BY $orderByClause"

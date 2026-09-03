@@ -23,6 +23,7 @@ import org.maproulette.exception.{
 }
 import org.maproulette.framework.model._
 import org.maproulette.framework.psql.Paging
+import org.maproulette.framework.repository.TeamImageRepository
 import org.maproulette.framework.service.{ServiceManager, TagService}
 import org.maproulette.framework.mixins.{ParentMixin, TagsControllerMixin}
 import org.maproulette.models.dal._
@@ -61,6 +62,7 @@ class ChallengeController @Inject() (
     dalManager: DALManager,
     override val tagService: TagService,
     challengeProvider: ChallengeProvider,
+    teamImageRepository: TeamImageRepository,
     val serviceManager: ServiceManager,
     wsClient: WSClient,
     permission: Permission,
@@ -74,6 +76,11 @@ class ChallengeController @Inject() (
     with ParentMixin {
 
   import scala.concurrent.ExecutionContext.Implicits.global
+
+  // Upper bound on the place boundary POSTed to exploreChallenges. Generous
+  // next to the 100k default, since a county boundary alone runs to tens of
+  // kilobytes, but still bounded -- the endpoint takes unauthenticated calls.
+  private val maxPolygonBodyBytes = 2L * 1024 * 1024
 
   // json reads for automatically reading Challenges from a posted json body
   override implicit val tReads: Reads[Challenge] = Challenge.reads.challengeReads
@@ -507,7 +514,7 @@ class ChallengeController @Inject() (
         val challengeIds = (body \ "ids").as[List[Long]]
         val archiving    = (body \ "isArchived").asOpt[Boolean].getOrElse(true);
 
-        this.dalManager.challenge.bulkArchive(challengeIds, archiving);
+        dalManager.challenge.bulkArchive(challengeIds, archiving);
 
         Ok(Json.toJson(archiving))
       } catch {
@@ -1133,11 +1140,21 @@ class ChallengeController @Inject() (
 
   /**
     * Efficient endpoint for exploring challenges with specific parameters
-    * Uses an optimized query path specifically designed for the explore challenges feature
+    * Uses an optimized query path specifically designed for the explore challenges feature.
+    * Finished challenges are excluded, since they have no remaining work.
     *
-    * @param global Whether to include global challenges (default: true)
+    * Served on both GET and POST. The POST form additionally accepts a GeoJSON
+    * geometry as `polygon` in the body, which narrows the results the same way
+    * `bounds` does: a challenge matches only when one of its tasks sits inside
+    * both. The geometry cannot ride along in the query string -- a city
+    * boundary from Nominatim is routinely tens of kilobytes, well past the
+    * request line limit -- which is also why the existing `boundingGeometries`
+    * search parameter is read from the body.
+    *
+    * @param global Whether to include global challenges (default: false)
     * @param bounds Bounding box as [left,bottom,right,top] to filter challenges by location
-    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
+    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty,
+    *               featured, tag_fix, cooperative)
     * @param limit Maximum number of results to return
     * @param offset Number of results to skip for pagination
     * @return A list of challenges matching the criteria
@@ -1151,7 +1168,9 @@ class ChallengeController @Inject() (
       keywords: Option[String],
       difficulty: Option[Int]
   ): Action[AnyContent] =
-    Action.async { implicit request =>
+    // Parsed with its own body limit: the default (100k) is smaller than a
+    // real place boundary.
+    Action.async(parse.default(Some(maxPolygonBodyBytes))) { implicit request =>
       this.sessionManager.userAwareRequest { implicit user =>
         val boundingBox = bounds.flatMap { b =>
           b.split(",").map(_.trim).filter(_.nonEmpty).toList match {
@@ -1168,10 +1187,26 @@ class ChallengeController @Inject() (
           limit = limit,
           offset = offset,
           keywords = keywords,
-          difficulty = difficulty
+          difficulty = difficulty,
+          locationPolygon = this.locationPolygon(request)
         )
 
         Ok(insertProjectJSON(challenges))
+      }
+    }
+
+  /**
+    * Reads the optional `polygon` GeoJSON geometry from an exploreChallenges
+    * request body, rejecting anything PostGIS could not use as an area.
+    */
+  private def locationPolygon(request: Request[AnyContent]): Option[String] =
+    request.body.asJson.flatMap(json => (json \ "polygon").asOpt[JsObject]).map { geometry =>
+      (geometry \ "type").asOpt[String] match {
+        case Some("Polygon") | Some("MultiPolygon") => Json.stringify(geometry)
+        case other =>
+          throw new InvalidException(
+            s"polygon must be a GeoJSON Polygon or MultiPolygon, got ${other.getOrElse("no type")}"
+          )
       }
     }
 
@@ -1344,8 +1379,55 @@ class ChallengeController @Inject() (
     * @param body The incoming body from the request
     * @return
     */
+  /**
+    * Rejects a challenge body that points at a team image the user isn't
+    * entitled to use. Image ids are just numbers on the wire, so without this
+    * anyone could borrow another team's image, or an image still awaiting
+    * review, simply by guessing an id.
+    *
+    * @param body The incoming challenge json
+    * @param user The user making the request
+    * @return The body unchanged, if its teamImageId (when present) is allowed
+    */
+  private def validateTeamImage(body: JsValue, user: User): JsValue = {
+    (body \ "teamImageId").toOption match {
+      case None | Some(JsNull) => body
+      case Some(value) =>
+        val imageId = value
+          .asOpt[Long]
+          .getOrElse(throw new InvalidException("teamImageId must be a number"))
+
+        this.teamImageRepository.retrieve(imageId) match {
+          case None =>
+            throw new NotFoundException(s"No team image found with id $imageId")
+          case Some(image) if image.status != TeamImage.STATUS_APPROVED =>
+            throw new InvalidException(
+              s"Team image $imageId has not been approved and cannot be used on a challenge"
+            )
+          case Some(image) =>
+            val team = this.serviceManager.team
+              .retrieve(image.teamId)
+              .getOrElse(throw new NotFoundException(s"No team found with id ${image.teamId}"))
+
+            val allowed = this.permission.isSuperUser(user) ||
+              this.serviceManager.team
+                .isActiveTeamMember(team, MemberObject.user(user.id), User.superUser)
+
+            if (!allowed) {
+              throw new InvalidException(
+                s"You must be a member of team ${image.teamId} to use its images"
+              )
+            }
+            body
+        }
+    }
+  }
+
+  override def updateUpdateBody(body: JsValue, user: User): JsValue =
+    this.validateTeamImage(super.updateUpdateBody(body, user), user)
+
   override def updateCreateBody(body: JsValue, user: User): JsValue = {
-    var jsonBody = super.updateCreateBody(body, user)
+    var jsonBody = this.validateTeamImage(super.updateCreateBody(body, user), user)
     jsonBody = Utils.insertIntoJson(jsonBody, "owner", user.osmProfile.id, true)(LongWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "enabled", true)(BooleanWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "deleted", false)(BooleanWrites)

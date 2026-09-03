@@ -5,13 +5,23 @@
 
 package org.maproulette.framework.controller
 
+import java.sql.Connection
 import javax.inject.Inject
 import org.maproulette.data.ActionManager
-import org.maproulette.exception.{MPExceptionUtil, StatusMessage}
+import org.maproulette.exception.{
+  InvalidException,
+  MPExceptionUtil,
+  NotFoundException,
+  StatusMessage
+}
 import org.maproulette.framework.service.TeamService
-import org.maproulette.framework.model.{User, MemberObject, Group}
+import org.maproulette.framework.model.{User, MemberObject, Group, TeamAvatar}
+import org.maproulette.framework.repository.TeamAvatarRepository
 import org.maproulette.framework.psql.{Paging}
+import org.maproulette.permissions.Permission
 import org.maproulette.session.SessionManager
+import play.api.db.Database
+import play.api.libs.Files
 import play.api.libs.json._
 import play.api.mvc._
 
@@ -23,6 +33,9 @@ class TeamController @Inject() (
     override val actionManager: ActionManager,
     override val bodyParsers: PlayBodyParsers,
     teamService: TeamService,
+    teamAvatarRepository: TeamAvatarRepository,
+    permission: Permission,
+    db: Database,
     components: ControllerComponents
 ) extends AbstractController(components)
     with MapRouletteController {
@@ -307,6 +320,130 @@ class TeamController @Inject() (
           this.teamService.deleteTeam(team, user)
           Ok
         case None => NotFound
+      }
+    }
+  }
+
+  /**
+    * Fetches a team, or fails with a 404.
+    */
+  private def team(teamId: Long, user: User): Group =
+    this.teamService
+      .retrieve(teamId, user)
+      .getOrElse(throw new NotFoundException(s"No team found with id $teamId"))
+
+  /**
+    * Uploads a team's avatar, replacing whatever avatar it had. The bytes are
+    * stored by us and the team's avatar url is pointed at them, so the rest of
+    * the app keeps treating the avatar as a plain url.
+    *
+    * Unlike a team's challenge images this needs no review: a team admin could
+    * already point the avatar url at any image on the internet, so gating only
+    * the uploaded case would be stricter about the safer of the two paths.
+    *
+    * @param teamId The id of the team whose avatar is being set
+    * @return 200 OK with the updated team
+    */
+  def uploadAvatar(teamId: Long): Action[MultipartFormData[Files.TemporaryFile]] =
+    Action.async(parse.multipartFormData) { implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        val existing = this.team(teamId, user)
+        // Checked before anything is stored, so a non-admin can't write bytes
+        // and only be turned away afterwards
+        this.permission.hasObjectAdminAccess(existing, user)
+
+        request.body.file("image") match {
+          case Some(upload) =>
+            if (upload.fileSize > TeamAvatar.MAX_SIZE_BYTES) {
+              throw new InvalidException(
+                s"Image is larger than the ${TeamAvatar.MAX_SIZE_BYTES / (1024 * 1024)}MB limit"
+              )
+            }
+
+            val data = java.nio.file.Files.readAllBytes(upload.ref.path)
+            // The declared content type is caller-supplied, so the leading
+            // bytes are what we actually trust before storing something we
+            // will later serve back from our own origin.
+            val contentType = TeamAvatar.detectContentType(data) match {
+              case Some(detected) => detected
+              case None =>
+                throw new InvalidException(
+                  s"Unsupported image format. Supported formats: ${TeamAvatar.ALLOWED_CONTENT_TYPES.toList.sorted
+                    .mkString(", ")}"
+                )
+            }
+
+            // Storing the bytes and pointing the team's avatar url at them
+            // are two writes describing one fact, so they commit together. Left
+            // apart, a failure between them strands the bytes with the url
+            // still on the team's previous avatar, and the url carries a
+            // `?v=<modified>` stamp that would then be stale in browser caches
+            // until the next upload.
+            val updated = this.db.withTransaction { connection =>
+              implicit val c: Option[Connection] = Some(connection)
+              val modified =
+                this.teamAvatarRepository.upsert(teamId, contentType, data, user.id)
+              this.teamService.updateTeam(
+                existing.copy(avatarURL = Some(TeamAvatar.urlFor(teamId, modified.getMillis))),
+                user
+              )
+            }
+
+            Ok(Json.toJson(updated.get))
+          case None =>
+            throw new InvalidException("No image file provided in the 'image' field")
+        }
+      }
+    }
+
+  /**
+    * Removes a team's uploaded avatar. An avatar url the team pasted in
+    * themselves is left alone - there are no bytes of ours behind it, and
+    * clearing it would be deleting something this endpoint never set.
+    *
+    * @param teamId The id of the team whose avatar is being removed
+    * @return 200 OK with the updated team
+    */
+  def deleteAvatar(teamId: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      val existing = this.team(teamId, user)
+      this.permission.hasObjectAdminAccess(existing, user)
+
+      this.teamAvatarRepository.delete(teamId)
+      val remainingURL = existing.avatarURL.filterNot(TeamAvatar.isStoredAvatarUrl(_, teamId))
+
+      Ok(
+        Json.toJson(this.teamService.updateTeam(existing.copy(avatarURL = remainingURL), user).get)
+      )
+    }
+  }
+
+  /**
+    * Serves a team's avatar bytes. Anonymous, because the url is consumed by
+    * plain img tags wherever the team is shown.
+    *
+    * @param teamId The id of the team whose avatar to serve
+    * @return 200 OK with the avatar bytes
+    */
+  def getAvatarFile(teamId: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      this.teamAvatarRepository.retrieveData(teamId) match {
+        case Some(avatar) =>
+          val etag = "\"" + s"$teamId-${avatar.modified.getMillis}" + "\""
+          if (request.headers.get("If-None-Match").contains(etag)) {
+            NotModified.withHeaders("ETag" -> etag)
+          } else {
+            Ok(avatar.data)
+              .as(avatar.contentType)
+              .withHeaders(
+                "ETag"                   -> etag,
+                "Cache-Control"          -> "public, max-age=86400",
+                "X-Content-Type-Options" -> "nosniff",
+                "Content-Disposition"    -> "inline"
+              )
+          }
+        case None =>
+          throw new NotFoundException(s"No avatar found for team $teamId")
       }
     }
   }

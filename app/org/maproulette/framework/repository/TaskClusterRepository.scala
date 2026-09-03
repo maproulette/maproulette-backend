@@ -392,6 +392,7 @@ WITH eligible_challenges AS MATERIALIZED (
   WHERE c.deleted = false
     AND c.enabled = true
     AND c.is_archived = false
+    AND c.paused = false
     AND p.deleted = false
     AND p.enabled = true
     ${if (!global) "AND c.is_global = false" else ""}
@@ -479,6 +480,7 @@ ORDER BY kmeans;
         WHERE c.deleted = false
         AND c.enabled = true
         AND c.is_archived = false
+        AND c.paused = false
         AND p.deleted = false
         AND p.enabled = true
         AND tasks.location IS NOT NULL
@@ -592,6 +594,7 @@ ORDER BY kmeans;
         WHERE c.deleted = false
           AND c.enabled = true
           AND c.is_archived = false
+          AND c.paused = false
           AND p.deleted = false
           AND p.enabled = true
           AND tasks.location IS NOT NULL
@@ -686,6 +689,7 @@ ORDER BY kmeans;
         WHERE c.deleted = false
         AND c.enabled = true
         AND c.is_archived = false
+        AND c.paused = false
         AND p.deleted = false
         AND p.enabled = true
         AND tasks.location IS NOT NULL

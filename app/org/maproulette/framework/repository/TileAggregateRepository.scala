@@ -25,12 +25,14 @@ import play.api.db.Database
   *     overzooms this for z = 13+.
   *
   * All four code paths (this repository's live queries, plus `rebuild_leaf_cell`
-  * and `rebuild_all_tile_cells` in evolution 107) share one eligibility filter:
-  * a task is available work when it has a valid location, `status IN (0,3,6)`,
-  * is not archived, and its challenge/project are enabled and not deleted or
-  * archived. `enabled` is MapRoulette's "discoverable" flag, so requiring it on
-  * both challenge and project keeps hidden work off the explore map. Keep all
-  * four paths in sync.
+  * and `rebuild_all_tile_cells`, last redefined in evolution 124) share one
+  * eligibility filter: a task is available work when it has a valid location,
+  * `status IN (0,3,6)`, is not archived, and its challenge/project are enabled
+  * and not deleted or archived, with the challenge not paused. `enabled` is
+  * MapRoulette's "discoverable" flag, so requiring it on both challenge and
+  * project keeps hidden work off the explore map; a paused challenge has work
+  * that cannot be locked or completed, so it is off the map too. Keep all four
+  * paths in sync.
   */
 @Singleton
 class TileAggregateRepository @Inject() (override val db: Database) extends RepositoryMixin {
@@ -319,6 +321,7 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
       s"""AND t.status IN (0, 3, 6)
           AND t.archived = false
           AND c.deleted = false AND c.enabled = true AND c.is_archived = false
+          AND c.paused = false
           AND p.deleted = false AND p.enabled = true
           $globalClause
           $difficultyClause
