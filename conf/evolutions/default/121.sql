@@ -43,6 +43,11 @@ ALTER TABLE challenges ADD CONSTRAINT challenges_team_image_id_fkey
   FOREIGN KEY (team_image_id) REFERENCES team_images (id) MATCH SIMPLE
   ON UPDATE CASCADE ON DELETE SET NULL;;
 
+-- Indexed for the foreign key's own referential check, which Postgres runs
+-- against challenges on every team_images delete, and for the lookups that
+-- find and detach the challenges using an image.
+SELECT create_index_if_not_exists('challenges', 'team_image_id', '(team_image_id)');;
+
 # --- !Downs
 
 ALTER TABLE IF EXISTS challenges DROP CONSTRAINT IF EXISTS challenges_team_image_id_fkey;;
