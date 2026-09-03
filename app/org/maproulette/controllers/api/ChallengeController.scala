@@ -1153,7 +1153,8 @@ class ChallengeController @Inject() (
     *
     * @param global Whether to include global challenges (default: false)
     * @param bounds Bounding box as [left,bottom,right,top] to filter challenges by location
-    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
+    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty,
+    *               featured, tag_fix, cooperative)
     * @param limit Maximum number of results to return
     * @param offset Number of results to skip for pagination
     * @return A list of challenges matching the criteria

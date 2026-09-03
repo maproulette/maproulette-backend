@@ -2670,7 +2670,8 @@ class ChallengeDAL @Inject() (
     *
     * @param includeGlobal Whether to include challenges marked as global
     * @param boundingBox Optional bounding box to filter by challenge location (left, bottom, right, top)
-    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
+    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty,
+    *               featured, tag_fix, cooperative)
     * @param limit Maximum number of results to return
     * @param offset Number of results to skip for pagination
     * @param locationPolygon Optional GeoJSON Polygon/MultiPolygon the matching task must fall inside
@@ -2772,13 +2773,21 @@ class ChallengeDAL @Inject() (
                       )"""
       }
 
+      // Taxonomy sorts group a kind of challenge to the front rather than
+      // ordering by the column itself, so each falls back to name to keep the
+      // ordering inside a group stable across pages.
       val orderByClause = sortBy.toLowerCase match {
         case "name"       => "c.name ASC"
         case "created"    => "c.created DESC"
         case "modified"   => "c.modified DESC"
         case "popularity" => "c.popularity DESC NULLS LAST"
         case "difficulty" => "c.difficulty ASC"
-        case _            => "c.name ASC"
+        case "featured"   => "c.featured DESC, c.name ASC"
+        case "tag_fix" =>
+          s"(c.cooperative_type = ${Challenge.COOPERATIVE_TAGS}) DESC, c.name ASC"
+        case "cooperative" | "cooperative_type" =>
+          s"(c.cooperative_type > ${Challenge.COOPERATIVE_NONE}) DESC, c.cooperative_type DESC, c.name ASC"
+        case _ => "c.name ASC"
       }
 
       query += s" ORDER BY $orderByClause"

@@ -406,7 +406,7 @@ GET     /challenges/extendedFind                    @org.maproulette.controllers
 #     required: false
 #     schema:
 #       type: string
-#       enum: [name, created, modified, popularity, difficulty]
+#       enum: [name, created, modified, popularity, difficulty, featured, tag_fix, cooperative]
 #       default: name
 #   - name: limit
 #     in: query
@@ -473,7 +473,7 @@ GET     /challenges/exploreChallenges                    @org.maproulette.contro
 #     required: false
 #     schema:
 #       type: string
-#       enum: [name, created, modified, popularity, difficulty]
+#       enum: [name, created, modified, popularity, difficulty, featured, tag_fix, cooperative]
 #       default: name
 #   - name: limit
 #     in: query
