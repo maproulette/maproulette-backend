@@ -5,6 +5,7 @@
 
 package org.maproulette.framework.controller
 
+import java.sql.Connection
 import javax.inject.Inject
 import org.maproulette.data.ActionManager
 import org.maproulette.exception.{
@@ -19,6 +20,7 @@ import org.maproulette.framework.repository.TeamAvatarRepository
 import org.maproulette.framework.psql.{Paging}
 import org.maproulette.permissions.Permission
 import org.maproulette.session.SessionManager
+import play.api.db.Database
 import play.api.libs.Files
 import play.api.libs.json._
 import play.api.mvc._
@@ -33,6 +35,7 @@ class TeamController @Inject() (
     teamService: TeamService,
     teamAvatarRepository: TeamAvatarRepository,
     permission: Permission,
+    db: Database,
     components: ControllerComponents
 ) extends AbstractController(components)
     with MapRouletteController {
@@ -370,19 +373,23 @@ class TeamController @Inject() (
                 )
             }
 
-            val modified =
-              this.teamAvatarRepository.upsert(teamId, contentType, data, user.id)
-
-            Ok(
-              Json.toJson(
-                this.teamService
-                  .updateTeam(
-                    existing.copy(avatarURL = Some(TeamAvatar.urlFor(teamId, modified.getMillis))),
-                    user
-                  )
-                  .get
+            // Storing the bytes and pointing the team's avatar url at them
+            // are two writes describing one fact, so they commit together. Left
+            // apart, a failure between them strands the bytes with the url
+            // still on the team's previous avatar, and the url carries a
+            // `?v=<modified>` stamp that would then be stale in browser caches
+            // until the next upload.
+            val updated = this.db.withTransaction { connection =>
+              implicit val c: Option[Connection] = Some(connection)
+              val modified =
+                this.teamAvatarRepository.upsert(teamId, contentType, data, user.id)
+              this.teamService.updateTeam(
+                existing.copy(avatarURL = Some(TeamAvatar.urlFor(teamId, modified.getMillis))),
+                user
               )
-            )
+            }
+
+            Ok(Json.toJson(updated.get))
           case None =>
             throw new InvalidException("No image file provided in the 'image' field")
         }

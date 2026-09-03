@@ -6,6 +6,7 @@ package org.maproulette.framework.repository
 
 import anorm.SqlParser._
 import anorm._
+import java.sql.Connection
 import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
 import org.maproulette.framework.model.{TeamAvatar, TeamImageData}
@@ -62,6 +63,9 @@ class TeamAvatarRepository @Inject() (override val db: Database) extends Reposit
     * upload time, which callers use to version the avatar's url so a re-upload
     * is not masked by a cached response.
     *
+    * Accepts a caller-supplied connection so storing the bytes and pointing the
+    * team's avatar url at them can commit as one unit.
+    *
     * @return The modified timestamp of the stored avatar
     */
   def upsert(
@@ -69,7 +73,7 @@ class TeamAvatarRepository @Inject() (override val db: Database) extends Reposit
       contentType: String,
       data: Array[Byte],
       uploadedBy: Long
-  ): DateTime = {
+  )(implicit c: Option[Connection] = None): DateTime = {
     this.withMRTransaction { implicit c =>
       SQL"""INSERT INTO team_avatars (team_id, content_type, data, uploaded_by)
             VALUES ($teamId, $contentType, $data, $uploadedBy)
