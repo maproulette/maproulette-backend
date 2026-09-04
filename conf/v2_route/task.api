@@ -271,7 +271,11 @@ GET     /tasks                                      @org.maproulette.controllers
 # tags: [ Task ]
 # operationId: task_start_working_on_a_task_locks_it_for_the_user
 # summary: Start working on a Task (locks it for the user)
-# description: Locks a Task based on the supplied ID in the URL.
+# description: |
+#   Locks a Task based on the supplied ID in the URL. A user may only hold one active
+#   edit lock at a time - if the user already holds a lock on a different task, this
+#   returns 409 Conflict describing that lock. The client should release that lock
+#   (GET /task/:id/release) before retrying to lock this one.
 # responses:
 #   '200':
 #     description: The locked Task
@@ -281,6 +285,8 @@ GET     /tasks                                      @org.maproulette.controllers
 #           $ref: '#/components/schemas/org.maproulette.framework.model.Task'
 #   '404':
 #     description: ID field supplied but no Task found matching the id
+#   '409':
+#     description: The user already holds a lock on a different task
 # parameters:
 #   - name: id
 #     in: path
@@ -431,6 +437,32 @@ POST    /task/:id/skip                                  @org.maproulette.control
 #     description: The id of the Task on which the lock is to be refreshed
 ###
 GET     /task/:id/refreshLock                           @org.maproulette.controllers.api.TaskController.refreshTaskLock(id:Long)
+###
+# tags: [ Task ]
+# operationId: task_lock_a_bundle_of_tasks
+# summary: Updates the lock on a task to cover a given set of bundle member tasks
+# description: |
+#   Updates the caller's existing lock on the primary task (locking it first if not
+#   already locked) to cover exactly the given member task ids, without creating or
+#   updating a persisted task_bundles record - that only happens when the bundle is
+#   actually submitted (see the taskBundle endpoints). Intended for interactively
+#   building up a bundle (e.g. lasso-select) so other tabs see the live working set.
+# responses:
+#   '200':
+#     description: The lock now covers the given member tasks
+#   '404':
+#     description: The primary task, its challenge, or its project was not found
+#   '409':
+#     description: The user already holds a lock on a different, unrelated task
+# parameters:
+#   - name: taskId
+#     in: path
+#     description: The id of the primary task to lock
+#   - name: taskIds
+#     in: query
+#     description: Comma-separated ids of the member tasks the lock should cover
+###
+PUT     /task/:taskId/lockBundle                        @org.maproulette.controllers.api.TaskController.lockTaskBundle(taskId:Long, taskIds:List[Long] ?= List())
 ###
 # tags: [ Task ]
 # operationId: task_retrieves_task_by_name
@@ -1245,30 +1277,13 @@ PUT     /task/:taskId/unlock/request                @org.maproulette.framework.c
 GET     /taskCluster                                @org.maproulette.framework.controller.TaskController.getTaskClusters(points:Int ?= 100)
 ###
 # tags: [ Task ]
-# operationId: task_locks_a_bundle_of_tasks
-# summary: Locks a bundle of tasks
-# description: Attempts to lock a set of tasks. If successful, returns the tasks that were locked. If not successful, returns the tasks that were not locked.
-# responses:
-#   '200':
-#     description: List of tasks that were locked or list of tasks that were not locked. Boolean indicates if the tasks were locked.
-#   '401':
-#     description: The user is not authorized to make this request
-# requestBody:
-#   description: A JSON array of task IDs to lock.
-#   required: true
-#   content:
-#     application/json:
-#       schema:
-#         type: array
-#         items:
-#           type: integer
-###
-POST    /task/bundle/lock                         @org.maproulette.controllers.api.TaskController.lockTaskBundle(taskIds:List[Long])
-###
-# tags: [ Task ]
 # operationId: task_unlocks_a_bundle_of_tasks
 # summary: Unlocks a bundle of tasks
-# description: Unlocks the specified tasks in the bundle.
+# description: |
+#   Releases the calling user's lock covering any of the given task ids (bundles are
+#   now locked as a single row on the bundle's primary task, so this releases that
+#   covering lock if the user holds it - ids not currently locked by the user are
+#   ignored rather than erroring).
 # responses:
 #   '200':
 #     description: Success message

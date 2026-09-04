@@ -228,14 +228,15 @@ object ChallengeRepository {
       get[Boolean]("challenges.require_reject_reason") ~
       get[Option[JsValue]]("challenges.task_widget_layout") ~
       get[Option[DateTime]]("challenges.system_archived_at") ~
-      get[Option[JsValue]]("challenges.completion_metrics") map {
+      get[Option[JsValue]]("challenges.completion_metrics") ~
+      get[Boolean]("challenges.paused") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
             checkin_source ~ overpassql ~ overpassTargetType ~ remoteGeoJson ~ status ~ statusMessage ~ defaultPriority ~ highPriorityRule ~
             mediumPriorityRule ~ lowPriorityRule ~ highPriorityBounds ~ mediumPriorityBounds ~ lowPriorityBounds ~ defaultZoom ~ minZoom ~ maxZoom ~ defaultBasemap ~ defaultBasemapId ~
             customBasemap ~ updateTasks ~ exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ requiresLocal ~ location ~ bounding ~
-            deleted ~ isGlobal ~ virtualParents ~ isArchived ~ reviewSetting ~ datasetUrl ~ requireConfirmation ~ requireRejectReason ~ taskWidgetLayout ~ systemArchivedAt ~ completionMetricsJson =>
+            deleted ~ isGlobal ~ virtualParents ~ isArchived ~ reviewSetting ~ datasetUrl ~ requireConfirmation ~ requireRejectReason ~ taskWidgetLayout ~ systemArchivedAt ~ completionMetricsJson ~ paused =>
         val completionMetrics =
           completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         val hpr = highPriorityRule match {
@@ -311,7 +312,11 @@ object ChallengeRepository {
             reviewSetting,
             taskWidgetLayout.map(_.as[JsObject]),
             datasetUrl,
-            systemArchivedAt
+            systemArchivedAt,
+            None,
+            false,
+            None,
+            paused
           ),
           status,
           statusMessage,

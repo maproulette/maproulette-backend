@@ -48,78 +48,93 @@ class AuthController @Inject() (
   val logger: Logger = LoggerFactory.getLogger(classOf[AuthController])
   import scala.concurrent.ExecutionContext.Implicits.global
 
+  /**
+    * Resolves the frontend origin to use as the OAuth2 redirect_uri. Prefers an explicit
+    * redirectUri request parameter, falling back to the request's Origin header and finally the
+    * configured frontend. The same resolution is applied in both authenticate() and callback() so
+    * the redirect_uri matches across the OAuth2 exchange. We don't allowlist the value ourselves:
+    * OSM rejects any redirect_uri not registered on the OAuth application, so an arbitrary value
+    * can't be injected here.
+    */
+  private def resolveRedirectURI(
+      requested: String
+  )(implicit request: Request[AnyContent]): String =
+    if (StringUtils.isNotEmpty(requested)) requested
+    else request.headers.get(ORIGIN).getOrElse(config.getMRFrontend)
+
   //oauth2 endpoint.  takes the auth code provided by OSM and uses it to retrieve a token.
   //we also check to see if there is a user associated with the token in the system.
   //if not, we create a new user
-  def callback(code: String): Action[AnyContent] = Action.async { implicit request =>
-    MPExceptionUtil.internalAsyncExceptionCatcher { () =>
-      val tokenEndpoint = s"${config.getOSMServer}/oauth2/token"
-      val clientId      = s"${config.getOSMOauth.consumerKey.key}"
-      val clientSecret  = s"${config.getOSMOauth.consumerKey.secret}"
+  def callback(code: String, redirectUri: String): Action[AnyContent] = Action.async {
+    implicit request =>
+      MPExceptionUtil.internalAsyncExceptionCatcher { () =>
+        val tokenEndpoint = s"${config.getOSMServer}/oauth2/token"
+        val clientId      = s"${config.getOSMOauth.consumerKey.key}"
+        val clientSecret  = s"${config.getOSMOauth.consumerKey.secret}"
 
-      val requestBody = Map(
-        "grant_type"    -> "authorization_code",
-        "code"          -> code,
-        "client_id"     -> clientId,
-        "client_secret" -> clientSecret,
-        "redirect_uri"  -> config.getMRFrontend
-      )
+        val requestBody = Map(
+          "grant_type"    -> "authorization_code",
+          "code"          -> code,
+          "client_id"     -> clientId,
+          "client_secret" -> clientSecret,
+          "redirect_uri"  -> resolveRedirectURI(redirectUri)
+        )
 
-      val responseFuture = for {
-        response <- wsClient
-          .url(tokenEndpoint)
-          .withHttpHeaders(ACCEPT -> JSON)
-          .withHttpHeaders(CONTENT_TYPE -> FORM)
-          .post(requestBody)
-        result <- response.status match {
-          case OK =>
-            val accessToken = (response.json \ "access_token").as[String]
-            val p           = Promise[Result]()
+        val responseFuture = for {
+          response <- wsClient
+            .url(tokenEndpoint)
+            .withHttpHeaders(ACCEPT -> JSON)
+            .withHttpHeaders(CONTENT_TYPE -> FORM)
+            .post(requestBody)
+          result <- response.status match {
+            case OK =>
+              val accessToken = (response.json \ "access_token").as[String]
+              val p           = Promise[Result]()
 
-            //use the accessToken to retrieve the user.  if not found, create a new user
-            sessionManager.retrieveUser(accessToken) onComplete {
-              case Success(user) =>
-                // We received the authorized token in the OAuth object - store it before we proceed
-                val json = Json.obj(
-                  "token" -> accessToken
-                )
+              //use the accessToken to retrieve the user.  if not found, create a new user
+              sessionManager.retrieveUser(accessToken) onComplete {
+                case Success(user) =>
+                  // We received the authorized token in the OAuth object - store it before we proceed
+                  val json = Json.obj(
+                    "token" -> accessToken
+                  )
 
-                p success
-                  Ok(json)
-                    .withHeaders(("Cache-Control", "no-cache"))
-                    .withSession(
-                      SessionManager.KEY_TOKEN     -> user.osmProfile.requestToken,
-                      SessionManager.KEY_USER_ID   -> user.id.toString,
-                      SessionManager.KEY_OSM_ID    -> user.osmProfile.id.toString,
-                      SessionManager.KEY_USER_TICK -> DateTime.now().getMillis.toString
-                    )
+                  p success
+                    Ok(json)
+                      .withHeaders(("Cache-Control", "no-cache"))
+                      .withSession(
+                        SessionManager.KEY_TOKEN     -> user.osmProfile.requestToken,
+                        SessionManager.KEY_USER_ID   -> user.id.toString,
+                        SessionManager.KEY_OSM_ID    -> user.osmProfile.id.toString,
+                        SessionManager.KEY_USER_TICK -> DateTime.now().getMillis.toString
+                      )
 
-                Future(storeAPIKeyInOSM(user))
-              case Failure(e) => p failure e
-            }
+                  Future(storeAPIKeyInOSM(user))
+                case Failure(e) => p failure e
+              }
 
-            p.future
-          case _ =>
-            val errorMessage = (response.json \ "error_description")
-              .asOpt[String]
-              .getOrElse("Failed to obtain access token")
-            Future.successful(InternalServerError(errorMessage))
+              p.future
+            case _ =>
+              val errorMessage = (response.json \ "error_description")
+                .asOpt[String]
+                .getOrElse("Failed to obtain access token")
+              Future.successful(InternalServerError(errorMessage))
+          }
+        } yield result
+
+        responseFuture.recover {
+          case ex: Exception =>
+            // Handle any exceptions that may occur during the POST request
+            // e.g., log the error, return an error response, etc.
+            ex.printStackTrace()
+            val errorMessage = s"Failed to obtain access token: ${ex.getMessage()}"
+            InternalServerError(errorMessage)
         }
-      } yield result
 
-      responseFuture.recover {
-        case ex: Exception =>
-          // Handle any exceptions that may occur during the POST request
-          // e.g., log the error, return an error response, etc.
-          ex.printStackTrace()
-          val errorMessage = s"Failed to obtain access token: ${ex.getMessage()}"
-          InternalServerError(errorMessage)
       }
-
-    }
   }
 
-  def authenticate(): Action[AnyContent] = Action.async { implicit request =>
+  def authenticate(redirectUri: String): Action[AnyContent] = Action.async { implicit request =>
     MPExceptionUtil.internalAsyncExceptionCatcher { () =>
       val LENGTH = 48
       val UNICODE_ASCII_CHARACTER_SET =
@@ -145,7 +160,7 @@ class AuthController @Inject() (
       val params = Map(
         "client_id"     -> clientId,
         "response_type" -> "code",
-        "redirect_uri"  -> config.getMRFrontend,
+        "redirect_uri"  -> resolveRedirectURI(redirectUri),
         "scope"         -> config.getOSMOauth.scope,
         "state"         -> state
       )

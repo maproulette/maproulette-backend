@@ -19,7 +19,12 @@ case class LockedTaskData(
     /**
       * The time that the task was locked
       */
-    startedAt: DateTime
+    startedAt: DateTime,
+    /**
+      * The ids of any other tasks covered by this same lock (bundle members), if this
+      * task is the primary of a bundle
+      */
+    bundledTasks: List[Long] = List.empty
 )
 
 // Define implicit Formats for LockedTaskData

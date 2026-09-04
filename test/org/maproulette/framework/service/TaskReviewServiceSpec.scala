@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.FiniteDuration
 import play.api.libs.json.Json
 
+import org.maproulette.exception.InvalidException
 import org.maproulette.session.{SearchParameters, SearchTaskParameters}
 import org.maproulette.framework.model._
 import org.maproulette.framework.util.{TaskReviewTag, FrameworkHelper}
@@ -366,6 +367,55 @@ class TaskReviewServiceSpec(implicit val application: Application) extends Frame
       contestNotification.notificationType mustEqual UserNotification.NOTIFICATION_TYPE_REVIEW_AGAIN
       contestNotification.taskId.get mustEqual newTask.id
       contestNotification.fromUsername.get mustEqual randomUser.osmProfile.displayName
+    }
+
+    "prevent task completion and review while the parent challenge is paused" taggedAs (TaskReviewTag) in {
+      val pausedChallenge = this.challengeDAL
+        .insert(
+          Challenge(
+            -1,
+            "pausedChallenge",
+            null,
+            null,
+            general = ChallengeGeneral(
+              User.superUser.osmProfile.id,
+              this.defaultProject.id,
+              "TestChallengeInstruction",
+              enabled = true
+            ),
+            creation = ChallengeCreation(),
+            priority = ChallengePriority(),
+            extra = ChallengeExtra()
+          ),
+          User.superUser
+        )
+      val pausedTask = this.taskDAL.insert(
+        this.getTestTask(UUID.randomUUID().toString, pausedChallenge.id),
+        User.superUser
+      )
+
+      this.challengeDAL.update(Json.obj("paused" -> true), User.superUser)(pausedChallenge.id)
+
+      intercept[InvalidException] {
+        this.taskDAL.setTaskStatus(List(pausedTask), Task.STATUS_FIXED, randomUser, Some(true))
+      }
+
+      // Unpause to complete/claim the task, then re-pause to verify the review guard
+      this.challengeDAL.update(Json.obj("paused" -> false), User.superUser)(pausedChallenge.id)
+      this.taskDAL.setTaskStatus(List(pausedTask), Task.STATUS_FIXED, randomUser, Some(true))
+      var taskWithReview = this.serviceManager.task.retrieve(pausedTask.id).get
+      taskWithReview = this.service.startTaskReview(reviewUser, taskWithReview).get
+
+      this.challengeDAL.update(Json.obj("paused" -> true), User.superUser)(pausedChallenge.id)
+
+      intercept[InvalidException] {
+        this.service.setTaskReviewStatus(
+          taskWithReview,
+          Task.REVIEW_STATUS_APPROVED,
+          reviewUser,
+          None
+        )
+      }
     }
   }
 

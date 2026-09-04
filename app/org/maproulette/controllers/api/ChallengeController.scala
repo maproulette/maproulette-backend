@@ -151,6 +151,23 @@ class ChallengeController @Inject() (
   }
 
   /**
+    * Gets a json object of tags for a batch of challenges, keyed by challenge id.
+    * Allows clients (e.g. the map view) to fetch tags for many challenges in a single
+    * request instead of issuing one request per challenge.
+    *
+    * @param challengeIds A comma separated list of challenge ids
+    * @return The html Result containing a json object mapping challenge id to a json array of tags
+    */
+  def getTagsForChallenges(challengeIds: String): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        val ids               = Utils.toLongList(challengeIds).getOrElse(List.empty)
+        val tagsByChallengeId = this.serviceManager.tag.listByChallenges(ids)
+        Ok(Json.toJson(tagsByChallengeId.map { case (id, tags) => id.toString -> tags }))
+      }
+  }
+
+  /**
     * Gets the geo json for all the tasks associated with the challenge
     *
     * @param challengeId  The challenge with the geojson
@@ -1154,7 +1171,7 @@ class ChallengeController @Inject() (
           difficulty = difficulty
         )
 
-        Ok(Json.toJson(challenges))
+        Ok(insertProjectJSON(challenges))
       }
     }
 
@@ -1443,19 +1460,29 @@ class ChallengeController @Inject() (
   }
 
   /**
-    * Clones a challenge with a new name
+    * Clones a challenge with a new name, optionally into a different project
     *
-    * @param itemId  The item id of the challenge you want to clone
-    * @param newName The new name of the cloned challenge
+    * @param itemId    The item id of the challenge you want to clone
+    * @param newName   The new name of the cloned challenge
+    * @param projectId The project to clone the challenge into. Anything less than 1 clones
+    *                  the challenge into the same project as the original.
     * @return The newly created cloned challenge
     */
-  def cloneChallenge(itemId: Long, newName: String): Action[AnyContent] = Action.async {
-    implicit request =>
+  def cloneChallenge(itemId: Long, newName: String, projectId: Long): Action[AnyContent] =
+    Action.async { implicit request =>
       sessionManager.authenticatedRequest { implicit user =>
         dalManager.challenge.retrieveById(itemId) match {
           case Some(c) =>
             permission.hasWriteAccess(ProjectType(), user)(c.general.parent)
-            val clonedChallenge = c.copy(id = -1, name = newName)
+            val targetProjectId = if (projectId > 0) projectId else c.general.parent
+            if (targetProjectId != c.general.parent) {
+              permission.hasWriteAccess(ProjectType(), user)(targetProjectId)
+            }
+            val clonedChallenge = c.copy(
+              id = -1,
+              name = newName,
+              general = c.general.copy(parent = targetProjectId)
+            )
             Ok(Json.toJson(this.dal.insert(clonedChallenge, user)))
           case None =>
             throw new NotFoundException(
@@ -1463,7 +1490,7 @@ class ChallengeController @Inject() (
             )
         }
       }
-  }
+    }
 
   /**
     * Rebuilds a challenge if it uses a remote geojson or overpass query to generate it's tasks

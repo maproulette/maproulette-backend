@@ -3,8 +3,8 @@
 # ~~~~
 GET     /ping                                                           @controllers.Application.ping
 # Authentication Routes
-GET     /auth/authenticate                                              @controllers.AuthController.authenticate
-GET     /auth/callback                                                  @controllers.AuthController.callback(code: String)
+GET     /auth/authenticate                                              @controllers.AuthController.authenticate(redirectUri: String ?= "")
+GET     /auth/callback                                                  @controllers.AuthController.callback(code: String, redirectUri: String ?= "")
 GET     /auth/signout                                                   @controllers.AuthController.signOut
 POST    /auth/signIn                                                    @controllers.AuthController.signIn(redirect:String ?= "")
 GET     /auth/generateAPIKey                                            @controllers.AuthController.generateAPIKey(userId:Long ?= -1)

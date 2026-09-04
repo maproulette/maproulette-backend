@@ -38,11 +38,12 @@ class TaskClusterRepository @Inject() (
 
   val pointParser = this.challengeDAL.pointParser
 
-  private val joinClause = """
+  private val joinClause =
+    """
     INNER JOIN challenges c ON c.id = tasks.parent_id
     INNER JOIN projects p ON p.id = c.parent_id
     LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
-    LEFT OUTER JOIN locked l ON l.item_id = tasks.id
+    LEFT OUTER JOIN locked l ON (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks))
   """
 
   // SQL query used to select list of ClusteredPoint data
@@ -278,7 +279,7 @@ class TaskClusterRepository @Inject() (
                l.user_id as locked_by
         FROM tasks
         INNER JOIN challenges c ON c.id = tasks.parent_id
-        LEFT JOIN locked l ON l.item_id = tasks.id AND l.item_type = 2
+        LEFT JOIN locked l ON (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks)) AND l.item_type = 2
         WHERE $whereClause
         ORDER BY tasks.id
         LIMIT $limit OFFSET $offset
@@ -465,7 +466,7 @@ ORDER BY kmeans;
         FROM tasks
         INNER JOIN challenges c ON c.id = tasks.parent_id
         INNER JOIN projects p ON p.id = c.parent_id
-        LEFT JOIN locked l ON l.item_id = tasks.id AND l.item_type = 2
+        LEFT JOIN locked l ON (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks)) AND l.item_type = 2
     """
 
       // Add joins for keywords filtering if keywords are provided
@@ -586,7 +587,7 @@ ORDER BY kmeans;
         FROM tasks
         INNER JOIN challenges c ON c.id = tasks.parent_id
         INNER JOIN projects p ON p.id = c.parent_id
-        LEFT JOIN locked l ON l.item_id = tasks.id AND l.item_type = 2
+        LEFT JOIN locked l ON (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks)) AND l.item_type = 2
         $keywordJoins
         WHERE c.deleted = false
           AND c.enabled = true

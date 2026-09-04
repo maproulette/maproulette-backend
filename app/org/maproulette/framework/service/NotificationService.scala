@@ -307,7 +307,18 @@ class NotificationService @Inject() (
       errorTags: String = ""
   ): Unit = {
     val notificationType = isMetaReview match {
-      case true => UserNotification.NOTIFICATION_TYPE_META_REVIEW
+      case true =>
+        reviewStatus match {
+          case Task.REVIEW_STATUS_REQUESTED => UserNotification.NOTIFICATION_TYPE_META_REVIEW_AGAIN
+          case Task.REVIEW_STATUS_APPROVED  => UserNotification.NOTIFICATION_TYPE_META_APPROVED
+          case Task.REVIEW_STATUS_APPROVED_WITH_REVISIONS =>
+            UserNotification.NOTIFICATION_TYPE_META_APPROVED
+          case Task.REVIEW_STATUS_APPROVED_WITH_FIXES_AFTER_REVISIONS =>
+            UserNotification.NOTIFICATION_TYPE_META_APPROVED
+          case Task.REVIEW_STATUS_ASSISTED => UserNotification.NOTIFICATION_TYPE_META_APPROVED
+          case Task.REVIEW_STATUS_REJECTED => UserNotification.NOTIFICATION_TYPE_META_REJECTED
+          case Task.REVIEW_STATUS_DISPUTED => UserNotification.NOTIFICATION_TYPE_META_REVIEW_AGAIN
+        }
       case false =>
         reviewStatus match {
           case Task.REVIEW_STATUS_REQUESTED => UserNotification.NOTIFICATION_TYPE_REVIEW_AGAIN
@@ -491,6 +502,8 @@ class NotificationService @Inject() (
       case UserNotification.NOTIFICATION_TYPE_REVIEW_REVISED    => subscriptions.reviewAgain
       case UserNotification.NOTIFICATION_TYPE_META_REVIEW       => subscriptions.metaReview
       case UserNotification.NOTIFICATION_TYPE_META_REVIEW_AGAIN => subscriptions.metaReview
+      case UserNotification.NOTIFICATION_TYPE_META_APPROVED     => subscriptions.metaReview
+      case UserNotification.NOTIFICATION_TYPE_META_REJECTED     => subscriptions.metaReview
       case UserNotification.NOTIFICATION_TYPE_CHALLENGE_COMPLETED =>
         subscriptions.challengeCompleted
       case UserNotification.NOTIFICATION_TYPE_MAPPER_CHALLENGE_COMPLETED =>

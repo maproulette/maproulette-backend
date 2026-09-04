@@ -138,18 +138,9 @@ class TaskDAL @Inject() (
         }
       case Right(task) =>
         this.permission.hasObjectReadAccess(task, user)
-
-        // TODO(ljdelight): This block was identified by a profile, it's too slow.
-        //  When a ton of tasks are scanned and the projects are fetched, it's not using the cache.
-        //  The goal here is to be able to use a task id and quickly get the project... however the
-        //  serviceManager.challenge does not have a cache manager. It looks like this needs added.
-        this.serviceManager.project.cacheManager.withOptionCaching { () =>
-          this.withMRConnection { implicit c =>
-            SQL"""SELECT p.* FROM projects p
-             INNER JOIN challenges c ON c.parent_id = p.id
-             WHERE c.id = ${task.parent}
-           """.as(projectParser.*).headOption
-          }
+        this.manager.challenge.retrieveById(task.parent) match {
+          case Some(challenge) => this.serviceManager.project.retrieve(challenge.general.parent)
+          case None            => None
         }
     }
   }
@@ -337,10 +328,15 @@ class TaskDAL @Inject() (
     // before clearing the cache grab the cachedItem
     // by setting the delete implicit to true we clear out the cache for the element
     // The cachedItem could be
-    val cachedItem = this.cacheManager.withUpdatingCache(Long => retrieveById) {
-      implicit cachedItem =>
+    // For new tasks (id <= 0, e.g. insert() passes -1) there is nothing to look up, so
+    // skip the guaranteed-miss cache/DB lookup entirely.
+    val cachedItem = if (id > 0) {
+      this.cacheManager.withUpdatingCache(Long => retrieveById) { implicit cachedItem =>
         Some(cachedItem)
-    }(id, true, true)
+      }(id, true, true)
+    } else {
+      None
+    }
     this.withMRTransaction { implicit c =>
       val result =
         extractCooperativeWork(element.parent, geoJson, element.cooperativeWork)
@@ -496,16 +492,8 @@ class TaskDAL @Inject() (
         cooperativeWorkJson = Some(workMatch.head.toString())
       }
 
-      val attachments   = (geometries \ "attachments").toOption
-      val mrTransformer = (__ \ "properties" \ "maproulette").json.prune
-      val extractedGeometries = JsArray(
-        (geometries \ "features")
-          .as[JsArray]
-          .value
-          .collect {
-            case value: JsObject => value.transform(mrTransformer).getOrElse(value)
-          }
-      )
+      val attachments         = (geometries \ "attachments").toOption
+      val extractedGeometries = this.pruneMapRouletteProperties(geometries)
 
       // Set the correct cooperative type on the parent challenge
       cooperativeWorkJson match {
@@ -544,6 +532,26 @@ class TaskDAL @Inject() (
   }
 
   /**
+    * Extracts the features from a FeatureCollection, removing any embedded
+    * "maproulette" object from each feature's properties. Non-object entries
+    * in the features array are dropped.
+    *
+    * @param geometries The geojson FeatureCollection containing the features
+    * @return The features with any maproulette properties pruned
+    */
+  private[dal] def pruneMapRouletteProperties(geometries: JsObject): JsArray = {
+    val mrTransformer = (__ \ "properties" \ "maproulette").json.prune
+    JsArray(
+      (geometries \ "features")
+        .as[JsArray]
+        .value
+        .collect {
+          case value: JsObject => value.transform(mrTransformer).getOrElse(value)
+        }
+    )
+  }
+
+  /**
     * A basic retrieval of the object based on the id. With caching, so if it finds
     * the object in the cache it will return that object without checking the database, otherwise
     * will hit the database directly.
@@ -556,6 +564,31 @@ class TaskDAL @Inject() (
   }
 
   def manager: DALManager = dalManager.get()
+
+  /**
+    * Resolves the lock currently covering `referenceTask` (if any) into the concrete list of
+    * tasks a release broadcast should cover - just the task itself if unbundled, or the
+    * bundle's primary + member tasks if it's covered by a bundle lock. Must be called BEFORE
+    * whatever action actually releases the lock (e.g. setTaskStatus, which unlocks as a side
+    * effect), since resolving bundle membership requires the covering lock row to still exist.
+    *
+    * @param referenceTask The task whose covering lock (if any) should be resolved
+    * @return The tasks a task-released/tasks-released broadcast should include
+    */
+  def resolveLockReleaseTasks(referenceTask: Task): List[Task] = {
+    val (lockPrimaryTaskId, lockBundledTasks) =
+      this.resolveLockBundle(referenceTask).getOrElse((referenceTask.id, List.empty[Long]))
+    if (lockBundledTasks.nonEmpty) {
+      val primaryTask =
+        if (lockPrimaryTaskId == referenceTask.id) referenceTask
+        else this.retrieveById(lockPrimaryTaskId).getOrElse(referenceTask)
+      primaryTask :: this.retrieveListById(-1, 0)(
+        lockBundledTasks.filterNot(_ == lockPrimaryTaskId)
+      )
+    } else {
+      List(referenceTask)
+    }
+  }
 
   /**
     * Sets the task for a given user. The user cannot set the status of a task unless the object has
@@ -587,6 +620,16 @@ class TaskDAL @Inject() (
     }
     if (user.guest) {
       throw new IllegalAccessException("Guest users cannot make edits to tasks.")
+    }
+
+    for (task <- tasks) {
+      this.manager.challenge.retrieveById(task.parent) match {
+        case Some(parentChallenge) if parentChallenge.extra.paused =>
+          throw new InvalidException(
+            "This challenge is currently paused. Tasks cannot be completed until it is resumed."
+          )
+        case _ => // challenge not paused, or not found (shouldn't happen) - allow
+      }
     }
 
     var primaryTask = if (isBundle) {
@@ -648,7 +691,7 @@ class TaskDAL @Inject() (
 
     this.withMRTransaction { implicit c =>
       val startedLock =
-        (SQL"""SELECT created FROM locked l WHERE l.item_id = ${primaryTask.id} AND
+        (SQL"""SELECT created FROM locked l WHERE (l.item_id = ${primaryTask.id} OR ${primaryTask.id} = ANY(l.bundled_tasks)) AND
                  l.item_type = ${primaryTask.itemType.typeId} AND l.user_id = ${user.id}
                """).as(SqlParser.scalar[DateTime].singleOpt)
       for (task <- tasks) {
@@ -672,7 +715,7 @@ class TaskDAL @Inject() (
                                  completed_by = ${user.id}  #$bundleUpdate
                                  WHERE t.id = (
                                     SELECT t2.id FROM tasks t2
-                                    LEFT JOIN locked l on l.item_id = t2.id AND l.item_type = ${task.itemType.typeId}
+                                    LEFT JOIN locked l on (l.item_id = t2.id OR t2.id = ANY(l.bundled_tasks)) AND l.item_type = ${task.itemType.typeId}
                                     WHERE t2.id = ${task.id} AND (l.user_id = ${user.id} OR l.user_id IS NULL)
                                   )""".executeUpdate()
           // if returning 0, then this is because the item is locked by a  different user
@@ -1032,7 +1075,7 @@ class TaskDAL @Inject() (
       } yield task -> lock
       val query =
         s"""SELECT locked.*, tasks.$retrieveColumnsWithReview FROM tasks
-                      LEFT JOIN locked ON locked.item_id = tasks.id
+                      LEFT JOIN locked ON (locked.item_id = tasks.id OR tasks.id = ANY(locked.bundled_tasks))
                       LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                       WHERE tasks.id > $currentTaskId AND tasks.parent_id = $parentId
                       AND status IN ({statusList})
@@ -1047,7 +1090,7 @@ class TaskDAL @Inject() (
         case None =>
           val loopQuery =
             s"""SELECT locked.*, tasks.$retrieveColumnsWithReview FROM tasks
-                              LEFT JOIN locked ON locked.item_id = tasks.id
+                              LEFT JOIN locked ON (locked.item_id = tasks.id OR tasks.id = ANY(locked.bundled_tasks))
                               LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                               WHERE tasks.parent_id = $parentId
                               AND status IN ({statusList})
@@ -1078,7 +1121,7 @@ class TaskDAL @Inject() (
       } yield task -> lock
       val query =
         s"""SELECT locked.*, tasks.$retrieveColumnsWithReview FROM tasks
-                      LEFT JOIN locked ON locked.item_id = tasks.id
+                      LEFT JOIN locked ON (locked.item_id = tasks.id OR tasks.id = ANY(locked.bundled_tasks))
                       LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                       WHERE tasks.id < $currentTaskId AND tasks.parent_id = $parentId
                       AND status IN ({statusList})
@@ -1094,7 +1137,7 @@ class TaskDAL @Inject() (
         case None =>
           val loopQuery =
             s"""SELECT locked.*, tasks.$retrieveColumnsWithReview FROM tasks
-                              LEFT JOIN locked ON locked.item_id = tasks.id
+                              LEFT JOIN locked ON (locked.item_id = tasks.id OR tasks.id = ANY(locked.bundled_tasks))
                               LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                               WHERE tasks.parent_id = $parentId
                               AND status IN ({statusList})
@@ -1185,7 +1228,7 @@ class TaskDAL @Inject() (
 
         val select =
           s"""SELECT tasks.$retrieveColumnsWithReview FROM tasks
-          LEFT JOIN locked l ON l.item_id = tasks.id
+          LEFT JOIN locked l ON (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks))
           LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
        """.stripMargin
 
@@ -1260,10 +1303,14 @@ class TaskDAL @Inject() (
 
         implicit val ids = List[Long]()
         this.cacheManager.withIDListCaching { implicit cachedItems =>
-          this.withListLocking(user, Some(TaskType())) { () =>
-            this.withMRTransaction { implicit c =>
-              sqlWithParameters(query, parameters).as(this.parser.*)
-            }
+          // Read-only candidate lookup - the caller locks whichever task it actually
+          // navigates to via the explicit /start endpoint (TaskController#startOnTask),
+          // which is the sole place the one-lock-per-user conflict is enforced. This used
+          // to go through withListLocking, which unlocked ALL of the user's other task
+          // locks as a side effect before returning candidates - silently discarding a
+          // lock held in another tab/session with no conflict check at all.
+          this.withMRTransaction { implicit c =>
+            sqlWithParameters(query, parameters).as(this.parser.*)
           }
         }
       case None => List.empty
@@ -1342,7 +1389,7 @@ class TaskDAL @Inject() (
 
     val query =
       s"""SELECT tasks.$retrieveColumnsWithReview FROM tasks
-      LEFT JOIN locked l ON l.item_id = tasks.id
+      LEFT JOIN locked l ON (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks))
       LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
       WHERE tasks.id <> $proximityId AND
             tasks.parent_id = $challengeId AND

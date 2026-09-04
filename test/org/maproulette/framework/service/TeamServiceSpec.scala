@@ -210,6 +210,7 @@ class TeamServiceSpec(implicit val application: Application) extends FrameworkHe
       Seq(this.defaultUser.id, this.randomUser.id, this.anotherUser.id) must contain(
         userMembers(2).userId
       )
+      userMembers.foreach(_.teamName mustEqual team.name)
     }
 
     "check if a member is on a team" taggedAs TeamTag in {
@@ -451,6 +452,8 @@ class TeamServiceSpec(implicit val application: Application) extends FrameworkHe
       allMemberships.size mustEqual 2
       Seq(this.defaultTeam.id, team.id) must contain(allMemberships.head.teamId)
       Seq(this.defaultTeam.id, team.id) must contain(allMemberships(1).teamId)
+      Seq(this.defaultTeam.name, team.name) must contain(allMemberships.head.teamName)
+      Seq(this.defaultTeam.name, team.name) must contain(allMemberships(1).teamName)
     }
   }
 

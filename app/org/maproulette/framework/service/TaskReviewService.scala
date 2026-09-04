@@ -468,6 +468,14 @@ class TaskReviewService @Inject() (
       errorTags: String = "",
       notify: Boolean = true
   ): Int = {
+    this.serviceManager.challenge.retrieve(task.parent) match {
+      case Some(parentChallenge) if parentChallenge.extra.paused =>
+        throw new InvalidException(
+          "This challenge is currently paused. Tasks cannot be reviewed until it is resumed."
+        )
+      case _ => // challenge not paused, or not found (shouldn't happen) - allow
+    }
+
     if (!permission.isSuperUser(user) && !user.settings.isReviewer.get && reviewStatus != Task.REVIEW_STATUS_REQUESTED &&
         reviewStatus != Task.REVIEW_STATUS_DISPUTED && reviewStatus != Task.REVIEW_STATUS_UNNECESSARY) {
       throw new IllegalAccessException("User must be a reviewer to edit task review status.")

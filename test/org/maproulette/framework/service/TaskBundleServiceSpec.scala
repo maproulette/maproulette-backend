@@ -34,6 +34,9 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
           User.superUser
         )
 
+      // A user may only hold one active edit lock at a time - clear any lock left
+      // over from a previous test before creating a new bundle.
+      taskDAL.unlockAllItems(User.superUser)
       val response =
         this.service.createTaskBundle(
           User.superUser,
@@ -124,6 +127,7 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
           User.superUser
         )
 
+      taskDAL.unlockAllItems(User.superUser)
       val bundle =
         this.service.createTaskBundle(
           User.superUser,
@@ -149,6 +153,7 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
           User.superUser
         )
 
+      taskDAL.unlockAllItems(User.superUser)
       val bundle = this.service
         .createTaskBundle(
           User.superUser,
@@ -183,6 +188,7 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
           User.superUser
         )
 
+      taskDAL.unlockAllItems(User.superUser)
       val bundle = this.service
         .createTaskBundle(
           User.superUser,
@@ -222,6 +228,7 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
           User.superUser
         )
 
+      taskDAL.unlockAllItems(User.superUser)
       val bundle = this.service
         .createTaskBundle(
           User.superUser,
@@ -257,6 +264,7 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
           User.superUser
         )
 
+      taskDAL.unlockAllItems(User.superUser)
       val bundle = this.service
         .createTaskBundle(
           User.superUser,

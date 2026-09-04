@@ -9,21 +9,31 @@ import java.sql.Connection
 import anorm._
 
 import java.sql.PreparedStatement
+import org.joda.time.DateTime
 import org.maproulette.data.ItemType
-import org.maproulette.exception.LockedException
+import org.maproulette.exception.{LockConflictException, LockedException}
 import org.maproulette.framework.model.{Task, User}
 import org.maproulette.framework.psql.TransactionManager
-import org.maproulette.models.BaseObject
+import org.maproulette.models.{BaseObject, Lock}
 import org.maproulette.framework.repository.RepositoryMixin
 
 /**
+  * A user may hold at most one active edit lock at a time (enforced by a partial unique
+  * index on locked(user_id) WHERE NOT is_review_claim). When a task is the primary of a
+  * bundle, its lock row's bundled_tasks column lists the other member task ids that the
+  * same lock covers, instead of each member getting its own row. Review-claim locks
+  * (TaskReviewRepository) are tagged is_review_claim = true and are exempt from the
+  * one-lock invariant.
+  *
   * @author mcuthbert
   */
 trait Locking[T <: BaseObject[_]] extends TransactionManager {
   this: RepositoryMixin =>
 
   /**
-    * Unlocks an item in the database
+    * Unlocks an item in the database. If the item is a member of a bundle (i.e. covered by
+    * another task's bundled_tasks rather than being the item_id itself), this releases the
+    * single row that covers the whole bundle.
     *
     * @param user The user requesting to unlock the item
     * @param item The item being unlocked
@@ -35,20 +45,23 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
   def unlockItem(user: User, item: T)(implicit c: Option[Connection] = None): Int =
     this.withMRTransaction { implicit c =>
       val checkQuery =
-        s"""SELECT user_id FROM locked WHERE item_id = {itemId} AND item_type = ${item.itemType.typeId} FOR UPDATE"""
+        s"""SELECT user_id FROM locked
+            WHERE (item_id = {itemId} OR {itemId} = ANY(bundled_tasks)) AND item_type = ${item.itemType.typeId}
+            FOR UPDATE"""
       SQL(checkQuery)
         .on(Symbol("itemId") -> ParameterValue.toParameterValue(item.id)(p = keyToStatement))
         .as(SqlParser.long("user_id").singleOpt) match {
         case Some(id) =>
           if (id == user.id) {
             val query =
-              s"""DELETE FROM locked WHERE user_id = ${user.id} AND item_id = {itemId} AND item_type = ${item.itemType.typeId}"""
+              s"""DELETE FROM locked WHERE user_id = ${user.id}
+                  AND (item_id = {itemId} OR {itemId} = ANY(bundled_tasks)) AND item_type = ${item.itemType.typeId}"""
             SQL(query)
               .on(Symbol("itemId") -> ParameterValue.toParameterValue(item.id)(p = keyToStatement))
               .executeUpdate()
           } else {
             throw new LockedException(
-              s"Item ${item.id} currently locked by user ${user.id}"
+              s"Item ${item.id} currently locked by user ${id}"
             )
           }
         case None =>
@@ -69,20 +82,24 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
   def refreshItemLock(user: User, item: T)(implicit c: Option[Connection] = None): Int =
     this.withMRTransaction { implicit c =>
       val checkQuery =
-        s"""SELECT user_id FROM locked WHERE item_id = {itemId} AND item_type = ${item.itemType.typeId} FOR UPDATE"""
+        s"""SELECT user_id FROM locked
+            WHERE (item_id = {itemId} OR {itemId} = ANY(bundled_tasks)) AND item_type = ${item.itemType.typeId}
+            FOR UPDATE"""
       SQL(checkQuery)
         .on(Symbol("itemId") -> ParameterValue.toParameterValue(item.id)(p = keyToStatement))
         .as(SqlParser.long("user_id").singleOpt) match {
         case Some(id) =>
           if (id == user.id) {
             val query =
-              s"""UPDATE locked set locked_time=NOW() WHERE user_id = ${user.id} AND item_id = {itemId} AND item_type = ${item.itemType.typeId}"""
+              s"""UPDATE locked set locked_time=NOW()
+                  WHERE user_id = ${user.id}
+                  AND (item_id = {itemId} OR {itemId} = ANY(bundled_tasks)) AND item_type = ${item.itemType.typeId}"""
             SQL(query)
               .on(Symbol("itemId") -> ParameterValue.toParameterValue(item.id)(p = keyToStatement))
               .executeUpdate()
           } else {
             throw new LockedException(
-              s"Item ${item.id} currently locked by user ${user.id}"
+              s"Item ${item.id} currently locked by user ${id}"
             )
           }
         case None => throw new LockedException(s"Lock on item ${item.id} does not exist.")
@@ -90,89 +107,44 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
     }
 
   /**
-    * Method to lock all items returned in the lambda block. It will first all unlock all items
-    * that have been locked by the user.
-    *
-    * @param user     The user making the request
-    * @param itemType The type of item that will be locked
-    * @param block    The block of code to execute inbetween unlocking and locking items
-    * @param c        The connection
-    * @return List of objects
-    */
-  def withListLocking(user: User, itemType: Option[ItemType] = None)(
-      block: () => List[T]
-  )(implicit c: Option[Connection] = None): List[T] = {
-    this.withMRTransaction { implicit c =>
-      // if a user is requesting a task, then we can unlock all other tasks for that user, as only a single
-      // task can be locked at a time
-      this.unlockAllItems(user, itemType)
-      val results = block()
-      // once we have the tasks, we need to lock each one, if any fail to lock we just remove
-      // them from the list. A guest user will not lock any tasks, but when logged in will be
-      // required to refetch the current task, and if it is locked, then will have to get another
-      // task
-      if (!user.guest) {
-        val resultList = results.filter(lockItem(user, _) == user.id)
-        if (resultList.isEmpty) {
-          List[T]()
-        }
-        resultList
-      } else {
-        results
-      }
-    }
-  }
-
-  /**
-    * Method to lock a single optional item returned in a lambda block. It will first unlock all items
-    * that have been locked by the user
-    *
-    * @param user     The user making the request
-    * @param itemType The type of item that will be locked
-    * @param block    The block of code to execute inbetween unlocking and locking items
-    * @param c        The connection
-    * @return Option object
-    */
-  def withSingleLocking(user: User, itemType: Option[ItemType] = None)(
-      block: () => Option[T]
-  )(implicit c: Option[Connection] = None): Option[T] = {
-    this.withMRTransaction { implicit c =>
-      // if a user is requesting a task, then we can unlock all other tasks for that user, as only a single
-      // task can be locked at a time
-      this.unlockAllItems(user, itemType)
-      val result = block()
-      if (!user.guest) {
-        result match {
-          case Some(r) => lockItem(user, r)
-          case None    => // ignore
-        }
-      }
-      result
-    }
-  }
-
-  /**
     * Locks an item in the database.
     *
-    * @param user The user requesting the lock
-    * @param item The item wanting to be locked
-    * @param c    A sql connection that is implicitly passed in from the calling function, this is an
-    *             implicit function because this will always be called from within the code and never
-    *             directly from an API call
+    * @param user        The user requesting the lock
+    * @param item        The item wanting to be locked
+    * @param reviewClaim Whether this lock represents a reviewer's review claim rather than an
+    *                    ordinary edit lock. Review-claim locks are exempt from the one-lock-per-user
+    *                    invariant.
+    * @param c           A sql connection that is implicitly passed in from the calling function, this is an
+    *                    implicit function because this will always be called from within the code and never
+    *                    directly from an API call
     * @return user id of who now holds the lock
     */
-  def lockItem(user: User, item: T)(implicit c: Option[Connection] = None): Long =
+  def lockItem(
+      user: User,
+      item: T,
+      reviewClaim: Boolean = false
+  )(implicit c: Option[Connection] = None): Long =
     this.withMRTransaction { implicit c =>
-      // first check to see if the item is already locked
+      if (!reviewClaim) {
+        this.enforceSingleEditLock(user, item.id.asInstanceOf[Long])
+      }
+
+      // first check to see if the item is already locked - resolve through bundled_tasks
+      // too, since item may be a non-primary member of a bundle whose lock row is keyed
+      // on the primary's item_id
       val checkQuery =
-        s"""SELECT user_id FROM locked WHERE item_id = {itemId} AND item_type = ${item.itemType.typeId} FOR UPDATE"""
+        s"""SELECT user_id FROM locked
+            WHERE (item_id = {itemId} OR {itemId} = ANY(bundled_tasks)) AND item_type = ${item.itemType.typeId}
+            FOR UPDATE"""
       SQL(checkQuery)
         .on(Symbol("itemId") -> ParameterValue.toParameterValue(item.id)(p = keyToStatement))
         .as(SqlParser.long("user_id").singleOpt) match {
         case Some(id) =>
           if (id == user.id) {
             val query =
-              s"UPDATE locked SET locked_time = NOW() WHERE user_id = ${user.id} AND item_id = {itemId} AND item_type = ${item.itemType.typeId}"
+              s"""UPDATE locked SET locked_time = NOW()
+                  WHERE user_id = ${user.id}
+                  AND (item_id = {itemId} OR {itemId} = ANY(bundled_tasks)) AND item_type = ${item.itemType.typeId}"""
             SQL(query)
               .on(Symbol("itemId") -> ParameterValue.toParameterValue(item.id)(p = keyToStatement))
               .executeUpdate()
@@ -182,7 +154,8 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
           }
         case None =>
           val query =
-            s"INSERT INTO locked (item_type, item_id, user_id) VALUES (${item.itemType.typeId}, {itemId}, ${user.id})"
+            s"""INSERT INTO locked (item_type, item_id, user_id, is_review_claim)
+                VALUES (${item.itemType.typeId}, {itemId}, ${user.id}, $reviewClaim)"""
           SQL(query)
             .on(Symbol("itemId") -> ParameterValue.toParameterValue(item.id)(p = keyToStatement))
             .executeUpdate()
@@ -191,7 +164,146 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
     }
 
   /**
-    * Unlocks all the items that are associated with the current user
+    * Resolves the primary item id and bundled member ids of the lock currently covering
+    * the given item, regardless of who holds it. Returns None if the item is unlocked.
+    *
+    * @param item The item (primary or bundle member) to resolve the covering lock for
+    * @param c    A sql connection implicitly passed in from the calling function
+    * @return Some((primaryItemId, memberTaskIds)) if a lock covers the item, else None
+    */
+  def resolveLockBundle(
+      item: T
+  )(implicit c: Option[Connection] = None): Option[(Long, List[Long])] =
+    this.withMRTransaction { implicit c =>
+      SQL(
+        s"""SELECT item_id, bundled_tasks FROM locked
+            WHERE (item_id = {itemId} OR {itemId} = ANY(bundled_tasks)) AND item_type = ${item.itemType.typeId}"""
+      ).on(Symbol("itemId") -> ParameterValue.toParameterValue(item.id)(p = keyToStatement))
+        .as(
+          (SqlParser.long("item_id") ~ SqlParser.get[List[Long]]("bundled_tasks")).singleOpt
+        )
+        .map { case primaryItemId ~ bundledTasks => (primaryItemId, bundledTasks) }
+    }
+
+  /**
+    * Resolves who currently holds the lock covering the given item (primary or bundle
+    * member), without acquiring or refreshing anything. Used to report lock ownership on
+    * plain task reads so a task locked by the current user renders as locked-by-me even in
+    * a tab that never issued its own /start (e.g. the same task opened in a second tab).
+    *
+    * @param item The item (primary or bundle member) to resolve the covering lock for
+    * @param c    A sql connection implicitly passed in from the calling function
+    * @return Some((holderUserId, primaryItemId, memberTaskIds)) if a lock covers the item, else None
+    */
+  def resolveLockHolder(
+      item: T
+  )(implicit c: Option[Connection] = None): Option[(Long, Long, List[Long])] =
+    this.withMRTransaction { implicit c =>
+      SQL(
+        s"""SELECT user_id, item_id, bundled_tasks FROM locked
+            WHERE (item_id = {itemId} OR {itemId} = ANY(bundled_tasks)) AND item_type = ${item.itemType.typeId}"""
+      ).on(Symbol("itemId") -> ParameterValue.toParameterValue(item.id)(p = keyToStatement))
+        .as(
+          (SqlParser.long("user_id") ~ SqlParser.long("item_id") ~
+            SqlParser.get[List[Long]]("bundled_tasks")).singleOpt
+        )
+        .map { case userId ~ primaryItemId ~ bundledTasks => (userId, primaryItemId, bundledTasks) }
+    }
+
+  /**
+    * Locks a bundle's primary task, recording the other bundle member task ids in the
+    * bundled_tasks column instead of locking each member individually. Releasing, refreshing,
+    * or checking the lock on any member task resolves to this single covering row (see
+    * unlockItem/refreshItemLock above).
+    *
+    * @param user          The user requesting the lock
+    * @param primaryItem   The bundle's primary task
+    * @param memberTaskIds The ids of the other tasks in the bundle (primary excluded automatically)
+    * @param c             A sql connection implicitly passed in from the calling function
+    * @return user id of who now holds the lock
+    */
+  def lockBundle(
+      user: User,
+      primaryItem: Task,
+      memberTaskIds: List[Long]
+  )(implicit c: Option[Connection] = None): Long =
+    this.withMRTransaction { implicit c =>
+      this.enforceSingleEditLock(user, primaryItem.id)
+
+      val members = memberTaskIds.filterNot(_ == primaryItem.id).distinct
+      // Avoid the curly-brace array literal ('{}') here - anorm's SQL() scans the raw query
+      // text for {paramName} placeholders, and a literal {} in the empty case gets mistaken
+      // for one, corrupting the query. ARRAY[]::integer[] is equivalent and brace-free.
+      val membersLiteral =
+        if (members.isEmpty) "ARRAY[]::integer[]" else s"ARRAY[${members.mkString(",")}]::integer[]"
+
+      val checkQuery =
+        s"""SELECT user_id FROM locked WHERE item_id = {itemId} AND item_type = ${primaryItem.itemType.typeId} FOR UPDATE"""
+      SQL(checkQuery)
+        .on(Symbol("itemId") -> ParameterValue.toParameterValue(primaryItem.id)(p = keyToStatement))
+        .as(SqlParser.long("user_id").singleOpt) match {
+        case Some(id) if id != user.id => id
+        case Some(_) =>
+          val query =
+            s"""UPDATE locked SET locked_time = NOW(), bundled_tasks = $membersLiteral
+                WHERE user_id = ${user.id} AND item_id = {itemId} AND item_type = ${primaryItem.itemType.typeId}"""
+          SQL(query)
+            .on(
+              Symbol("itemId") -> ParameterValue.toParameterValue(primaryItem.id)(p = keyToStatement
+              )
+            )
+            .executeUpdate()
+          user.id
+        case None =>
+          val query =
+            s"""INSERT INTO locked (item_type, item_id, user_id, bundled_tasks)
+                VALUES (${primaryItem.itemType.typeId}, {itemId}, ${user.id}, $membersLiteral)"""
+          SQL(query)
+            .on(
+              Symbol("itemId") -> ParameterValue.toParameterValue(primaryItem.id)(p = keyToStatement
+              )
+            )
+            .executeUpdate()
+          user.id
+      }
+    }
+
+  /**
+    * Enforces the one-active-edit-lock-per-user invariant ahead of an insert/refresh on
+    * `targetItemId`. If the user already holds a different non-review-claim lock, throws
+    * LockConflictException carrying that lock's details - the caller is expected to release
+    * it explicitly (e.g. via the task release endpoint) before retrying, rather than this
+    * silently swapping the lock out from under them.
+    *
+    * Must be called from within an already-open withMRTransaction block (hence the plain,
+    * non-Option implicit Connection).
+    */
+  private def enforceSingleEditLock(user: User, targetItemId: Long)(
+      implicit c: Connection
+  ): Unit = {
+    val existingLock =
+      SQL("""SELECT item_id, item_type, changeset_id, bundled_tasks, locked_time
+             FROM locked WHERE user_id = {userId} AND NOT is_review_claim FOR UPDATE""")
+        .on(Symbol("userId") -> user.id)
+        .as(
+          (SqlParser.long("item_id") ~ SqlParser.int("item_type") ~
+            SqlParser.long("changeset_id") ~ SqlParser.get[List[Long]]("bundled_tasks") ~
+            SqlParser.get[Option[DateTime]]("locked_time")).singleOpt
+        )
+
+    existingLock match {
+      case Some(itemId ~ itemType ~ changesetId ~ bundledTasks ~ lockedTime)
+          if itemId != targetItemId && !bundledTasks.contains(targetItemId) =>
+        throw new LockConflictException(
+          s"User ${user.id} already holds a lock on item ${itemId}",
+          Lock(lockedTime, itemType, itemId, user.id, changesetId, bundledTasks)
+        )
+      case _ => // no existing lock, or it already covers the target item - nothing to do
+    }
+  }
+
+  /**
+    * Unlocks all the (non review-claim) edit locks associated with the current user
     *
     * @param user The user
     * @param c    an implicit connection, this function should generally be executed in conjunction
@@ -204,148 +316,11 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
     this.withMRTransaction { implicit c =>
       itemType match {
         case Some(it) =>
-          SQL"""DELETE FROM locked WHERE user_id = ${user.id} AND item_type = ${it.typeId}"""
+          SQL"""DELETE FROM locked WHERE user_id = ${user.id} AND item_type = ${it.typeId} AND NOT is_review_claim"""
             .executeUpdate()
         case None =>
-          SQL"""DELETE FROM locked WHERE user_id = ${user.id}""".executeUpdate()
-      }
-    }
-
-  /**
-    * Locks multiple items in a single database transaction.
-    *
-    * @param user  The user requesting the locks
-    * @param items The list of items to be locked
-    * @param c     A sql connection that is implicitly passed in from the calling function
-    * @return Map of item ids to the user ids that hold the lock for each conflicting item
-    */
-  def lockItems(user: User, items: List[Task])(
-      implicit c: Option[Connection] = None
-  ): Map[Long, Long] =
-    this.withMRTransaction { implicit c =>
-      if (items.isEmpty) {
-        Map.empty[Long, Long]
-      } else {
-        // Remove duplicates from the input list while preserving order
-        val distinctItems = items.distinctBy(_.id)
-
-        // Build a single query with multiple value sets for better performance
-        val valuesList = distinctItems
-          .map { item =>
-            s"(${item.itemType.typeId}, ${item.id}, ${user.id}, NOW())"
-          }
-          .mkString(", ")
-
-        val query =
-          s"""
-             |WITH upsert AS (
-             |  INSERT INTO locked (item_type, item_id, user_id, locked_time)
-             |  VALUES $valuesList
-             |  ON CONFLICT (item_type, item_id) 
-             |  DO UPDATE SET locked_time = NOW()
-             |  WHERE locked.user_id = ${user.id}
-             |  RETURNING item_id, user_id
-             |)
-             |SELECT l.item_id, l.user_id
-             |FROM upsert l
-           """.stripMargin
-
-        val results = SQL(query).as(
-          (SqlParser.long("item_id") ~ SqlParser.long("user_id")).*
-        )
-
-        val resultMap = results.map { case id ~ userId => (id -> userId) }.toMap
-
-        // Find items that failed to lock - fix type mismatch by explicitly converting to Long
-        val failedToLock = items.filter(item => !resultMap.contains(item.id))
-        // Find items locked by wrong user
-        val wrongUserLocks = resultMap.filter { case (_, lockUserId) => lockUserId != user.id }
-
-        if (failedToLock.nonEmpty || wrongUserLocks.nonEmpty) {
-          val failedItemsMsg = if (failedToLock.nonEmpty) {
-            s"Failed to lock items: ${failedToLock.map(_.id).mkString(", ")}"
-          } else ""
-
-          val wrongUserMsg = if (wrongUserLocks.nonEmpty) {
-            s"Items locked by different users: ${wrongUserLocks.keys.mkString(", ")}"
-          } else ""
-
-          val errorMsg = List(failedItemsMsg, wrongUserMsg).filter(_.nonEmpty).mkString(". ")
-          throw new IllegalAccessException(s"Lock operation failed. $errorMsg")
-        }
-
-        resultMap
-      }
-    }
-
-  /**
-    * Unlocks multiple items in a single database transaction.
-    *
-    * @param user  The user requesting to unlock the items
-    * @param items The list of items to be unlocked
-    * @param c     A sql connection that is implicitly passed in from the calling function
-    * @return Number of items successfully unlocked
-    * @throws LockedException if any items are locked by a different user or not locked at all
-    */
-  def unlockItems(user: User, items: List[Task])(
-      implicit c: Option[Connection] = None
-  ): Int =
-    this.withMRTransaction { implicit c =>
-      if (items.isEmpty) {
-        0
-      } else {
-        // Remove duplicates from the input list while preserving order
-        val distinctItems = items.distinctBy(_.id)
-        // Create a list of item IDs and types for the IN clause
-        val itemIds  = distinctItems.map(_.id)
-        val itemType = distinctItems.headOption.map(_.itemType.typeId).getOrElse(0)
-
-        // Check the lock status of all requested items
-        val checkQuery =
-          s"""
-             |SELECT item_id, user_id 
-             |FROM locked 
-             |WHERE item_id IN (${itemIds.mkString(",")})
-             |AND item_type = $itemType
-             |FOR UPDATE
-           """.stripMargin
-
-        val lockStatus = SQL(checkQuery)
-          .as(
-            (SqlParser.long("item_id") ~ SqlParser.long("user_id")).*
-          )
-          .map { case id ~ userId => (id -> userId) }
-          .toMap
-
-        // Find items that aren't locked at all
-        val notLockedItems = itemIds.filter(id => !lockStatus.contains(id))
-
-        // Find items locked by other users
-        val lockedByOthers = lockStatus.filter { case (_, lockUserId) => lockUserId != user.id }
-
-        if (notLockedItems.nonEmpty || lockedByOthers.nonEmpty) {
-          val notLockedMsg = if (notLockedItems.nonEmpty) {
-            s"Items not locked: ${notLockedItems.mkString(", ")}"
-          } else ""
-
-          val lockedByOthersMsg = if (lockedByOthers.nonEmpty) {
-            s"Items locked by different users: ${lockedByOthers.keys.mkString(", ")}"
-          } else ""
-
-          val errorMsg = List(notLockedMsg, lockedByOthersMsg).filter(_.nonEmpty).mkString(". ")
-          throw new LockedException(s"Unlock operation failed for user ${user.id}. $errorMsg")
-        }
-
-        // All items are locked by the current user, proceed with unlock
-        val deleteQuery =
-          s"""
-             |DELETE FROM locked 
-             |WHERE item_id IN (${itemIds.mkString(",")})
-             |AND item_type = $itemType
-             |AND user_id = ${user.id}
-           """.stripMargin
-
-        SQL(deleteQuery).executeUpdate()
+          SQL"""DELETE FROM locked WHERE user_id = ${user.id} AND NOT is_review_claim"""
+            .executeUpdate()
       }
     }
 
