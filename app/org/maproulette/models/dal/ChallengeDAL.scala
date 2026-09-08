@@ -2639,8 +2639,18 @@ class ChallengeDAL @Inject() (
     * Optimized method to explore challenges with specific filtering
     * This is a purpose-built query for the exploreChallenges endpoint
     *
-    * Location filtering is bounding-box based: the client resolves any named place
-    * (e.g. via Nominatim on the frontend) to a bbox and passes it as `boundingBox`.
+    * Location filtering works on two areas, either of which may be omitted:
+    * `boundingBox` (the map viewport) and `locationPolygon` (the boundary of a
+    * named place, resolved by the client e.g. via Nominatim). They intersect
+    * rather than accumulate -- a challenge matches only when a *single* one of
+    * its tasks falls inside every area given. The challenge's own `bounding`
+    * envelope is only a prefilter, never the answer: it spans every task in the
+    * challenge, so one with tasks on two continents overlaps nearly any area.
+    *
+    * Challenges marked STATUS_FINISHED are omitted: there is no work left in
+    * them, so they are not something to discover. Paused challenges are
+    * omitted for the same reason -- their tasks cannot be locked, completed or
+    * reviewed until the challenge is resumed.
     *
     * Challenges marked STATUS_FINISHED are omitted: there is no work left in
     * them, so they are not something to discover. Paused challenges are
@@ -2649,9 +2659,11 @@ class ChallengeDAL @Inject() (
     *
     * @param includeGlobal Whether to include challenges marked as global
     * @param boundingBox Optional bounding box to filter by challenge location (left, bottom, right, top)
-    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
+    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty,
+    *               featured, tag_fix, cooperative)
     * @param limit Maximum number of results to return
     * @param offset Number of results to skip for pagination
+    * @param locationPolygon Optional GeoJSON Polygon/MultiPolygon the matching task must fall inside
     * @param c Optional database connection
     * @return List of challenges matching the criteria
     */
@@ -2662,7 +2674,8 @@ class ChallengeDAL @Inject() (
       limit: Int,
       offset: Int = 0,
       keywords: Option[String] = None,
-      difficulty: Option[Int] = None
+      difficulty: Option[Int] = None,
+      locationPolygon: Option[String] = None
   )(implicit c: Option[Connection] = None): List[Challenge] = {
     this.withMRConnection { implicit c =>
       val params = new ListBuffer[NamedParameter]()
@@ -2720,23 +2733,57 @@ class ChallengeDAL @Inject() (
         case None =>
       }
 
+      // Each requested area contributes a cheap prefilter against the
+      // challenge's own envelope (GIST-indexed) plus a predicate on the task
+      // itself. The task predicates are ANDed inside one EXISTS, so the same
+      // task has to satisfy all of them -- a challenge in view but outside the
+      // place, or inside the place but out of view, does not match.
+      val taskAreaClauses = new ListBuffer[String]()
+
       boundingBox match {
         case Some((left, bottom, right, top)) =>
           params += NamedParameter("bbLeft", left)
           params += NamedParameter("bbBottom", bottom)
           params += NamedParameter("bbRight", right)
           params += NamedParameter("bbTop", top)
-          query += " AND ST_Intersects(c.bounding, ST_MakeEnvelope({bbLeft}, {bbBottom}, {bbRight}, {bbTop}, 4326))"
+          val envelope = "ST_MakeEnvelope({bbLeft}, {bbBottom}, {bbRight}, {bbTop}, 4326)"
+          query += s" AND ST_Intersects(c.bounding, $envelope)"
+          taskAreaClauses += s"ST_Intersects(t.location, $envelope)"
         case None =>
       }
 
+      locationPolygon match {
+        case Some(geoJson) =>
+          params += NamedParameter("locationPolygon", geoJson)
+          val polygon = "ST_GeomFromGeoJSON({locationPolygon})"
+          query += s" AND ST_Intersects(c.bounding, $polygon)"
+          taskAreaClauses += s"ST_Intersects(t.location, $polygon)"
+        case None =>
+      }
+
+      if (taskAreaClauses.nonEmpty) {
+        query += s""" AND EXISTS (
+                        SELECT 1 FROM tasks t
+                        WHERE t.parent_id = c.id
+                          AND ${taskAreaClauses.mkString("\n                          AND ")}
+                      )"""
+      }
+
+      // Taxonomy sorts group a kind of challenge to the front rather than
+      // ordering by the column itself, so each falls back to name to keep the
+      // ordering inside a group stable across pages.
       val orderByClause = sortBy.toLowerCase match {
         case "name"       => "c.name ASC"
         case "created"    => "c.created DESC"
         case "modified"   => "c.modified DESC"
         case "popularity" => "c.popularity DESC NULLS LAST"
         case "difficulty" => "c.difficulty ASC"
-        case _            => "c.name ASC"
+        case "featured"   => "c.featured DESC, c.name ASC"
+        case "tag_fix" =>
+          s"(c.cooperative_type = ${Challenge.COOPERATIVE_TAGS}) DESC, c.name ASC"
+        case "cooperative" | "cooperative_type" =>
+          s"(c.cooperative_type > ${Challenge.COOPERATIVE_NONE}) DESC, c.cooperative_type DESC, c.name ASC"
+        case _ => "c.name ASC"
       }
 
       query += s" ORDER BY $orderByClause"
