@@ -53,3 +53,4 @@ SELECT create_index_if_not_exists('challenges', 'team_image_id', '(team_image_id
 ALTER TABLE IF EXISTS challenges DROP CONSTRAINT IF EXISTS challenges_team_image_id_fkey;;
 ALTER TABLE IF EXISTS challenges DROP COLUMN IF EXISTS team_image_id;;
 DROP TABLE IF EXISTS team_images;;
+

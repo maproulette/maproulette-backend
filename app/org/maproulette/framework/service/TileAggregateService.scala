@@ -13,16 +13,18 @@ import org.slf4j.LoggerFactory
   * Service layer for tile-based task aggregation and MVT generation.
   *
   * Tile building standard:
-  *   - Zoom 0..11: pre-computed grid cells (`tile_cells`). Each display tile is
-  *     a fixed grid of cells; clustering is grid binning, so it is exact and
-  *     identical whether or not filters are applied.
+  *   - Zoom 0..11: k-means clusters over fine-grained micro-aggregates. The
+  *     `tile_cells` pyramid supplies those micro-aggregates cheaply; k-means
+  *     decides where the markers actually land, so dense areas no longer render
+  *     as an axis-aligned grid of bubbles. See TileAggregateRepository.
   *   - Zoom 12: served live from `tasks` as overlap-aware unclustered markers.
   *     MapLibre overzooms this through z=18+.
   *
   * Difficulty/global filters at z<12 are answered from the pre-computed
   * `counts_by_filter` buckets. Keyword filters cannot be pre-computed, so those
-  * requests go through an on-the-fly grid-binning query that uses the same cell
-  * grid — a filtered map therefore clusters identically to an unfiltered one.
+  * requests bin `tasks` on the fly onto the same grid the pre-computed path
+  * reads and run the same clustering, so a filtered map clusters like an
+  * unfiltered one.
   *
   * Tiles are not spatially filtered server-side: a tile is a pure function of
   * (z, x, y) and the difficulty/global/keyword filters, so it stays HTTP
@@ -46,8 +48,8 @@ class TileAggregateService @Inject() (
     * Routing:
     *   - z > MAX_ZOOM: empty; MapLibre overzooms the last native tile.
     *   - z == 12: live `tasks` query (individual / overlap markers).
-    *   - z in 0..11 without keyword filters: pre-computed `tile_cells`.
-    *   - z in 0..11 with keyword filters: on-the-fly grid-binning query.
+    *   - z in 0..11 without keyword filters: k-means over `tile_cells`.
+    *   - z in 0..11 with keyword filters: k-means over on-the-fly bins.
     */
   def getMvtTile(
       z: Int,

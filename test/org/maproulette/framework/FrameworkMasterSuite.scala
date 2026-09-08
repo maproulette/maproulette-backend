@@ -40,6 +40,7 @@ class FrameworkMasterSuite extends Suites with BeforeAndAfterAll with TestDataba
     new TagServiceSpec,
     new TagRepositorySpec,
     new TaskRepositorySpec,
+    new TileAggregateRepositorySpec,
     new TaskClusterRepositorySpec,
     new TaskHistoryRepositorySpec,
     new TaskReviewRepositorySpec,
