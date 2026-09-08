@@ -5,6 +5,7 @@
 
 package org.maproulette.framework.service
 
+import java.sql.Connection
 import javax.inject.{Inject, Singleton}
 import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.framework.model._
@@ -675,7 +676,9 @@ class TeamService @Inject() (
     * @param team The latest team data
     * @param user The user updating the team
     */
-  def updateTeam(team: Group, user: User): Option[Group] = {
+  def updateTeam(team: Group, user: User)(
+      implicit c: Option[Connection] = None
+  ): Option[Group] = {
     // Only a team admin can update a team
     this.ensureTeam(team)
     this.permission.hasObjectAdminAccess(team, user)
