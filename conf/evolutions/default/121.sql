@@ -1,3 +1,7 @@
+# --- MapRoulette Scheme
+
+# --- !Ups
+
 -- =============================================================================
 -- Coarsen the tile-system grid: CELL_BITS 4 -> 3.
 --
