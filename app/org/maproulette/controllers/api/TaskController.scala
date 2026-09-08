@@ -291,17 +291,16 @@ class TaskController @Inject() (
         )
       } catch {
         case e: LockConflictException =>
-          val conflictingTaskId = e.conflictingLock.itemId
+          val conflictingTaskId   = e.conflictingLock.itemId
+          val conflictingParentId = this.dal.retrieveById(conflictingTaskId).map(_.parent)
           val conflictingParentName =
-            this.dal
-              .retrieveById(conflictingTaskId)
-              .flatMap(t => this.serviceManager.challenge.retrieve(t.parent))
-              .map(_.name)
+            conflictingParentId.flatMap(this.serviceManager.challenge.retrieve).map(_.name)
           Conflict(
             Json.obj(
               "status"       -> "Conflict",
               "message"      -> e.getMessage,
               "lockedTaskId" -> conflictingTaskId,
+              "parentId"     -> conflictingParentId,
               "parentName"   -> conflictingParentName,
               "bundledTasks" -> e.conflictingLock.bundledTasks,
               "startedAt"    -> e.conflictingLock.lockedTime.map(_.toString)
@@ -372,17 +371,16 @@ class TaskController @Inject() (
           )
         } catch {
           case e: LockConflictException =>
-            val conflictingTaskId = e.conflictingLock.itemId
+            val conflictingTaskId   = e.conflictingLock.itemId
+            val conflictingParentId = this.dal.retrieveById(conflictingTaskId).map(_.parent)
             val conflictingParentName =
-              this.dal
-                .retrieveById(conflictingTaskId)
-                .flatMap(t => this.serviceManager.challenge.retrieve(t.parent))
-                .map(_.name)
+              conflictingParentId.flatMap(this.serviceManager.challenge.retrieve).map(_.name)
             Conflict(
               Json.obj(
                 "status"       -> "Conflict",
                 "message"      -> e.getMessage,
                 "lockedTaskId" -> conflictingTaskId,
+                "parentId"     -> conflictingParentId,
                 "parentName"   -> conflictingParentName,
                 "bundledTasks" -> e.conflictingLock.bundledTasks,
                 "startedAt"    -> e.conflictingLock.lockedTime.map(_.toString)
