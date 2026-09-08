@@ -128,8 +128,7 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
           FROM tasks t
           INNER JOIN challenges c ON c.id = t.parent_id
           INNER JOIN projects   p ON p.id = c.parent_id
-          ${filter.joins}
-          WHERE t.location && ST_Transform(
+            WHERE t.location && ST_Transform(
                   ST_MakeEnvelope({xMin}, {yMin}, {xMax}, {yMax}, 3857), 4326)
             AND NOT ST_IsEmpty(t.location)
             ${filter.where}
@@ -180,8 +179,7 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
           FROM tasks t
           INNER JOIN challenges c ON c.id = t.parent_id
           INNER JOIN projects   p ON p.id = c.parent_id
-          ${filter.joins}
-          WHERE t.location && ST_Transform(
+            WHERE t.location && ST_Transform(
                   ST_MakeEnvelope({xMin}, {yMin}, {xMax}, {yMax}, 3857), 4326)
             AND NOT ST_IsEmpty(t.location)
             ${filter.where}
@@ -283,13 +281,21 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
   // Internals
   // ---------------------------------------------------------------------------
 
-  /** Shared FROM-join / WHERE fragment + bound parameters for the live paths. */
-  private case class LiveFilter(joins: String, where: String, params: Seq[NamedParameter])
+  /** Shared WHERE fragment + bound parameters for the live paths. */
+  private case class LiveFilter(where: String, params: Seq[NamedParameter])
 
   /**
     * Build the eligibility + difficulty/global/keyword filter shared by the live
     * MVT queries. All user-provided values are bound parameters; only
     * code-controlled identifiers are interpolated.
+    *
+    * Keywords are matched with EXISTS rather than by joining `tags_on_challenges`.
+    * A keyword names a tag on the *challenge*, so joining multiplies every one of
+    * its tasks by the number of requested tags it carries -- a challenge matching
+    * two keywords counted each of its tasks twice, inflating cluster counts and
+    * pulling centroids toward multi-tagged challenges. A semi-join asks the
+    * question that was actually meant ("is this challenge tagged with any of
+    * these?") and answers it once per challenge.
     */
   private def liveFilter(
       difficulty: Option[Int],
@@ -301,16 +307,16 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
       .getOrElse(Nil)
     val hasKeywords = keywordList.nonEmpty
 
-    val joins =
-      if (hasKeywords)
-        "INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id " +
-          "INNER JOIN tags tg ON toc.tag_id = tg.id"
-      else ""
-
     val keywordParamNames = keywordList.indices.map(i => s"kw$i").toList
     val keywordClause =
       if (hasKeywords)
-        "AND LOWER(tg.name) IN (" + keywordParamNames.map(n => s"{$n}").mkString(", ") + ")"
+        s"""AND EXISTS (
+              SELECT 1
+              FROM tags_on_challenges toc
+              INNER JOIN tags tg ON tg.id = toc.tag_id
+              WHERE toc.challenge_id = c.id
+                AND LOWER(tg.name) IN (${keywordParamNames.map(n => s"{$n}").mkString(", ")})
+            )"""
       else ""
     val difficultyClause = if (difficulty.isDefined) "AND c.difficulty = {difficulty}" else ""
     val globalClause     = if (!global) "AND c.is_global = false" else ""
@@ -330,7 +336,7 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
     }
     if (difficulty.isDefined) params += NamedParameter("difficulty", difficulty.get)
 
-    LiveFilter(joins, where, params.toSeq)
+    LiveFilter(where, params.toSeq)
   }
 
   private def boundsParams(

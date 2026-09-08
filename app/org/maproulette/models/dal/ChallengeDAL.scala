@@ -2661,8 +2661,15 @@ class ChallengeDAL @Inject() (
   )(implicit c: Option[Connection] = None): List[Challenge] = {
     this.withMRConnection { implicit c =>
       val params = new ListBuffer[NamedParameter]()
+      // No DISTINCT: the only join here is many-to-one on the parent project, so
+      // nothing can duplicate a challenge. The keyword filter below is a
+      // semi-join for the same reason -- joining the tag tables in would return
+      // a challenge once per matching tag, which is what the DISTINCT used to
+      // hide. Dropping it also lets a sort order by an expression; under SELECT
+      // DISTINCT, Postgres requires every ORDER BY expression to appear in the
+      // select list.
       var query =
-        s"""SELECT DISTINCT c.*, ST_AsGeoJSON(c.location) AS locationJSON, ST_AsGeoJSON(c.bounding) AS boundingJSON
+        s"""SELECT c.*, ST_AsGeoJSON(c.location) AS locationJSON, ST_AsGeoJSON(c.bounding) AS boundingJSON
             FROM challenges c
             INNER JOIN projects p ON p.id = c.parent_id"""
 
@@ -2670,12 +2677,6 @@ class ChallengeDAL @Inject() (
         case Some(kws) if kws.trim.nonEmpty =>
           kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty).toList
         case _ => List.empty[String]
-      }
-
-      // Add INNER JOIN for keywords filtering if keywords are provided
-      if (keywordList.nonEmpty) {
-        query += " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id"
-        query += " INNER JOIN tags t ON toc.tag_id = t.id"
       }
 
       query += " WHERE c.deleted = false AND c.enabled = true AND c.is_archived = false"
@@ -2692,7 +2693,13 @@ class ChallengeDAL @Inject() (
             params += NamedParameter(s"kw$i", kw)
             s"{kw$i}"
         }
-        query += s" AND LOWER(t.name) IN (${placeholders.mkString(", ")})"
+        query += s""" AND EXISTS (
+                        SELECT 1
+                        FROM tags_on_challenges toc
+                        INNER JOIN tags t ON t.id = toc.tag_id
+                        WHERE toc.challenge_id = c.id
+                          AND LOWER(t.name) IN (${placeholders.mkString(", ")})
+                      )"""
       }
 
       // Filter by difficulty if provided
