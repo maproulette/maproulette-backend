@@ -2668,6 +2668,11 @@ class ChallengeDAL @Inject() (
     * omitted for the same reason -- their tasks cannot be locked, completed or
     * reviewed until the challenge is resumed.
     *
+    * Challenges marked STATUS_FINISHED are omitted: there is no work left in
+    * them, so they are not something to discover. Paused challenges are
+    * omitted for the same reason -- their tasks cannot be locked, completed or
+    * reviewed until the challenge is resumed.
+    *
     * @param includeGlobal Whether to include challenges marked as global
     * @param boundingBox Optional bounding box to filter by challenge location (left, bottom, right, top)
     * @param sortBy Column to sort by (name, created, modified, popularity, difficulty,
