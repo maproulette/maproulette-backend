@@ -213,10 +213,11 @@ class TaskController @Inject() (
   }
 
   /**
-    * Start on task (lock it). An error will be returned if someone else has the lock.
-    * If the calling user already holds a lock on a different task, a 409 Conflict is
-    * returned describing that lock - the client should call the release endpoint on
-    * that task before retrying to lock this one.
+    * Start on task (lock it). An error will be returned if someone else has the lock,
+    * or if the parent challenge is paused - no work can happen on a paused challenge, so
+    * there is nothing to hold a lock for. If the calling user already holds a lock on a
+    * different task, a 409 Conflict is returned describing that lock - the client should
+    * call the release endpoint on that task before retrying to lock this one.
     *
     * @param taskId     Id of task that you wish to start
     * @return
@@ -241,6 +242,12 @@ class TaskController @Inject() (
           throw new NotFoundException(
             s"Project ${challenge.general.parent} not found, unable to lock."
           )
+      }
+
+      if (challenge.extra.paused) {
+        throw new InvalidException(
+          "This challenge is currently paused. Tasks cannot be locked until it is resumed."
+        )
       }
 
       try {
@@ -341,6 +348,12 @@ class TaskController @Inject() (
             throw new NotFoundException(
               s"Project ${challenge.general.parent} not found, unable to lock."
             )
+        }
+
+        if (challenge.extra.paused) {
+          throw new InvalidException(
+            "This challenge is currently paused. Tasks cannot be locked until it is resumed."
+          )
         }
 
         try {

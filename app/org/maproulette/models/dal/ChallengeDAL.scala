@@ -2642,6 +2642,11 @@ class ChallengeDAL @Inject() (
     * Location filtering is bounding-box based: the client resolves any named place
     * (e.g. via Nominatim on the frontend) to a bbox and passes it as `boundingBox`.
     *
+    * Challenges marked STATUS_FINISHED are omitted: there is no work left in
+    * them, so they are not something to discover. Paused challenges are
+    * omitted for the same reason -- their tasks cannot be locked, completed or
+    * reviewed until the challenge is resumed.
+    *
     * @param includeGlobal Whether to include challenges marked as global
     * @param boundingBox Optional bounding box to filter by challenge location (left, bottom, right, top)
     * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
@@ -2680,7 +2685,12 @@ class ChallengeDAL @Inject() (
       }
 
       query += " WHERE c.deleted = false AND c.enabled = true AND c.is_archived = false"
+      query += " AND c.paused = false"
       query += " AND p.deleted = false AND p.enabled = true"
+      // A finished challenge has no tasks left to work on, so it is not
+      // something to discover here. NULL status predates the column and is
+      // treated as unfinished.
+      query += s" AND (c.status IS NULL OR c.status <> ${Challenge.STATUS_FINISHED})"
 
       if (!includeGlobal) {
         query += " AND c.is_global = false"
