@@ -23,6 +23,8 @@ class FrameworkMasterSuite extends Suites with BeforeAndAfterAll with TestDataba
     new TeamServiceSpec,
     new ChallengeServiceSpec,
     new ChallengeRepositorySpec,
+    new TeamImageRepositorySpec,
+    new TeamAvatarRepositorySpec,
     new ChallengeListingServiceSpec,
     new ChallengeSnapshotServiceSpec,
     new CommentServiceSpec,

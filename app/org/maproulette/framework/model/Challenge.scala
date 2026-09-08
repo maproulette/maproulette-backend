@@ -144,7 +144,8 @@ case class ChallengeExtra(
     presets: Option[List[String]] = None,
     requireConfirmation: Boolean = false,
     mrTagMetrics: Option[JsObject] = None,
-    paused: Boolean = false
+    paused: Boolean = false,
+    teamImageId: Option[Long] = None
 ) extends DefaultWrites
 
 case class ChallengeListing(
@@ -225,7 +226,8 @@ case class BaseChallenge(
     bounding: Option[JsObject] = None,
     completionPercentage: Option[Int] = Some(0),
     completionMetrics: CompletionMetrics = CompletionMetrics(),
-    paused: Boolean = false
+    paused: Boolean = false,
+    teamImageId: Option[Long] = None
 ) extends DefaultWrites
 
 /**
