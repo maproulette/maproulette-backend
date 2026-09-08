@@ -12,7 +12,8 @@ import org.maproulette.framework.model.{
   ChallengeExtra,
   ChallengeGeneral,
   ChallengePriority,
-  CompletionMetrics
+  CompletionMetrics,
+  TeamImage
 }
 import org.maproulette.utils.Utils
 import org.maproulette.utils.Utils.{jsonReads, jsonWrites}
@@ -74,7 +75,11 @@ trait ChallengeWrites extends DefaultWrites {
         o.datasetUrl.map(v => "datasetUrl"                     -> JsString(v)),
         o.systemArchivedAt.map(dt => "systemArchivedAt"        -> Json.toJson(dt)),
         o.presets.map(v => "presets"                           -> Json.toJson(v)),
-        o.mrTagMetrics.map(v => "mrTagMetrics"                 -> v)
+        o.mrTagMetrics.map(v => "mrTagMetrics"                 -> v),
+        o.teamImageId.map(v => "teamImageId"                   -> JsNumber(v)),
+        // Clients render the card image straight from this; deriving it here
+        // keeps url construction in one place.
+        o.teamImageId.map(v => "avatarUrl" -> JsString(TeamImage.urlFor(v)))
       )
 
       val json = JsObject(baseFields ++ optionFields.flatten)
@@ -177,7 +182,8 @@ trait ChallengeReads extends DefaultReads {
             requireConfirmation =
               (jsonWithExtras \ "requireConfirmation").asOpt[Boolean].getOrElse(false),
             mrTagMetrics = (jsonWithExtras \ "mrTagMetrics").asOpt[JsObject],
-            paused = (jsonWithExtras \ "paused").asOpt[Boolean].getOrElse(false)
+            paused = (jsonWithExtras \ "paused").asOpt[Boolean].getOrElse(false),
+            teamImageId = (jsonWithExtras \ "teamImageId").asOpt[Long]
           )
         )
       } catch {
@@ -278,7 +284,9 @@ trait BaseChallengeWrites extends DefaultWrites {
         bc.dataOriginDate.map(dt => "dataOriginDate"            -> Json.toJson(dt)),
         bc.location.map(v => "location"                         -> v),
         bc.bounding.map(v => "bounding"                         -> v),
-        bc.completionPercentage.map(v => "completionPercentage" -> JsNumber(v))
+        bc.completionPercentage.map(v => "completionPercentage" -> JsNumber(v)),
+        bc.teamImageId.map(v => "teamImageId"                   -> JsNumber(v)),
+        bc.teamImageId.map(v => "avatarUrl"                     -> JsString(TeamImage.urlFor(v)))
       )
 
       JsObject(baseFields ++ optionFields.flatten)

@@ -1,0 +1,218 @@
+###
+# tags: [ Team Image ]
+# operationId: team_image_request
+# summary: Request a Challenge Image for a Team
+# description: Uploads an image for a team, creating a request that stays pending until a superuser approves it. Any active member of the team may request. Accepts PNG, JPEG, WebP and GIF up to 2MB.
+# consumes: [ multipart/form-data ]
+# requestBody:
+#   required: true
+#   content:
+#     multipart/form-data:
+#       schema:
+#         type: object
+#         properties:
+#           image:
+#             type: string
+#             format: binary
+#             description: The image file to add to the team's library
+#           name:
+#             type: string
+#             description: A label for the image. Defaults to the uploaded file's name.
+# responses:
+#   '200':
+#     description: The newly created, pending image
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.TeamImage'
+#   '400':
+#     description: The file is missing, too large, not a supported image, or the team has too many pending requests
+#   '401':
+#     description: The user is not authorized to make this request
+#   '404':
+#     description: The team was not found
+# parameters:
+#   - name: teamId
+#     in: path
+#     description: The id of the team to add the image to
+#     required: true
+#     schema:
+#       type: integer
+###
+POST    /team/:teamId/image                      @org.maproulette.framework.controller.TeamImageController.requestImage(teamId:Long)
+###
+# tags: [ Team Image ]
+# operationId: team_image_list
+# summary: List a Team's Challenge Images
+# description: Lists every image belonging to a team, including ones still awaiting review and ones that were rejected, so members can see the state of their requests
+# responses:
+#   '200':
+#     description: The team's images
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.TeamImage'
+#   '401':
+#     description: The user is not authorized to make this request
+#   '404':
+#     description: The team was not found
+# parameters:
+#   - name: teamId
+#     in: path
+#     description: The id of the team
+#     required: true
+#     schema:
+#       type: integer
+###
+GET     /team/:teamId/images                     @org.maproulette.framework.controller.TeamImageController.listTeamImages(teamId:Long)
+###
+# tags: [ Team Image ]
+# operationId: team_image_available
+# summary: List Challenge Images Available to the Current User
+# description: Lists every approved image across all teams the current user is an active member of. This is the set offered as display images when creating or editing a challenge.
+# responses:
+#   '200':
+#     description: The approved images available to the user
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.TeamImage'
+#   '401':
+#     description: The user is not authorized to make this request
+###
+GET     /teamImages/available                    @org.maproulette.framework.controller.TeamImageController.listAvailableImages()
+###
+# tags: [ Team Image ]
+# operationId: team_image_pending
+# summary: List Challenge Images Awaiting Review
+# description: Lists every image awaiting review across all teams, oldest first. Superuser only.
+# responses:
+#   '200':
+#     description: The pending review queue
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.TeamImage'
+#   '401':
+#     description: The user is not a superuser
+###
+GET     /teamImages/pending                      @org.maproulette.framework.controller.TeamImageController.listPendingImages()
+###
+# tags: [ Team Image ]
+# operationId: team_image_approve
+# summary: Approve a Team Challenge Image
+# description: Approves an image, making it selectable by the owning team's members. Superuser only.
+# responses:
+#   '200':
+#     description: The reviewed image
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.TeamImage'
+#   '401':
+#     description: The user is not a superuser
+#   '404':
+#     description: The image was not found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the image to approve
+#     required: true
+#     schema:
+#       type: integer
+#   - name: comment
+#     in: query
+#     description: An optional note recorded with the review
+#     required: false
+#     schema:
+#       type: string
+###
+PUT     /teamImage/:id/approve                   @org.maproulette.framework.controller.TeamImageController.approveImage(id:Long)
+###
+# tags: [ Team Image ]
+# operationId: team_image_reject
+# summary: Reject a Team Challenge Image
+# description: Rejects an image. Rejecting one that had previously been approved also detaches it from every challenge using it. Superuser only.
+# responses:
+#   '200':
+#     description: The reviewed image
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.TeamImage'
+#   '401':
+#     description: The user is not a superuser
+#   '404':
+#     description: The image was not found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the image to reject
+#     required: true
+#     schema:
+#       type: integer
+#   - name: comment
+#     in: query
+#     description: An optional reason recorded with the review
+#     required: false
+#     schema:
+#       type: string
+###
+PUT     /teamImage/:id/reject                    @org.maproulette.framework.controller.TeamImageController.rejectImage(id:Long)
+###
+# tags: [ Team Image ]
+# operationId: team_image_delete
+# summary: Delete a Team Challenge Image
+# description: Removes an image and detaches it from any challenges using it. Allowed for superusers, admins of the owning team, and the requester of an image that is still pending.
+# responses:
+#   '200':
+#     description: Success message
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
+#   '401':
+#     description: The user is not allowed to remove this image
+#   '404':
+#     description: The image was not found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the image to delete
+#     required: true
+#     schema:
+#       type: integer
+###
+DELETE  /teamImage/:id                           @org.maproulette.framework.controller.TeamImageController.deleteImage(id:Long)
+###
+# tags: [ Team Image ]
+# operationId: team_image_file
+# summary: Retrieve a Team Challenge Image
+# description: Serves the raw bytes of a team image. Intended to be used directly as an image src. An approved image is served to anyone; one still awaiting review, or rejected, is served only to a superuser or a member of the owning team, and reported as not found to everyone else.
+# responses:
+#   '200':
+#     description: The image bytes
+#     content:
+#       image/*:
+#         schema:
+#           type: string
+#           format: binary
+#   '304':
+#     description: The image has not changed since the version the client already has
+#   '404':
+#     description: No approved image with that id
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the image to serve
+#     required: true
+#     schema:
+#       type: integer
+###
+GET     /teamImage/:id/file                      @org.maproulette.framework.controller.TeamImageController.getImageFile(id:Long)
