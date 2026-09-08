@@ -24,7 +24,10 @@ class ChallengeReportRepository @Inject() (override val db: Database) extends Re
   // report without a follow-up request per row.
   private val selectColumns =
     """cr.id, cr.challenge_id, c.name AS challenge_name, c.is_archived AS challenge_is_archived,
-       c.parent_id AS project_id, p.display_name AS project_name, cr.reporter_id,
+       c.parent_id AS project_id,
+       -- display_name is optional; fall back to the internal name so a report
+       -- always carries something the dashboard can render.
+       COALESCE(p.display_name, p.name) AS project_name, cr.reporter_id,
        reporter.name AS reporter_name, cr.reporter_email, cr.comment, cr.status,
        cr.reviewed_by, reviewer.name AS reviewed_by_name, cr.reviewed_at,
        cr.review_comment, cr.reported_at"""

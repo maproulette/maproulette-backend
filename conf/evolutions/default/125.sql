@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS challenge_reports
   reporter_email character varying,
   comment text NOT NULL,
   -- 0 = open, 1 = actioned, 2 = dismissed. Triage state for the admin
-  -- dashboard; a report is never deleted, only resolved one way or the other.
+  -- dashboard. A report is never deleted, only resolved one way or the other.
   status integer NOT NULL DEFAULT 0,
   reviewed_by integer,
   reviewed_at timestamp without time zone,

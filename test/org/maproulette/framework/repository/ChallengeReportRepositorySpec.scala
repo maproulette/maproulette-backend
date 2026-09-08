@@ -9,8 +9,7 @@ import org.maproulette.framework.model.{Challenge, ChallengeReport}
 import org.maproulette.framework.util.{ChallengeReportRepoTag, FrameworkHelper}
 import play.api.Application
 
-class ChallengeReportRepositorySpec(implicit val application: Application)
-    extends FrameworkHelper {
+class ChallengeReportRepositorySpec(implicit val application: Application) extends FrameworkHelper {
   val repository: ChallengeReportRepository =
     this.application.injector.instanceOf(classOf[ChallengeReportRepository])
 
