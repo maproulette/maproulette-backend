@@ -69,13 +69,13 @@ class TileAggregateRepositorySpec(implicit val application: Application) extends
 
     "read micro-aggregates from the detail level, not the display zoom" taggedAs
       TileAggregateRepoTag in {
-      // Only a level-3 row exists -- the detail level for display zoom 0. If the
+      // Only a level-2 row exists -- the detail level for display zoom 0. If the
       // clustering ever went back to reading `z = <display zoom>`, this tile
       // would come back empty.
       db.withConnection { implicit c =>
         SQL"DELETE FROM tile_cells".executeUpdate()
         SQL"""INSERT INTO tile_cells (z, cx, cy, task_count, sum_lat, sum_lng, counts_by_filter)
-              VALUES (3, 10, 20, 5, -164.6, -304.06, '{"d0_gf": 5}'::jsonb)""".executeUpdate()
+              VALUES (2, 10, 20, 5, -164.6, -304.06, '{"d0_gf": 5}'::jsonb)""".executeUpdate()
       }
 
       repository.getMvtCellsPrecomputed(0, 0, 0, None, global = true).length must be > 0
@@ -117,10 +117,10 @@ class TileAggregateRepositorySpec(implicit val application: Application) extends
       db.withConnection { implicit c =>
         SQL"DELETE FROM tile_cells".executeUpdate()
         SQL"""INSERT INTO tile_cells (z, cx, cy, task_count, sum_lat, sum_lng, counts_by_filter)
-              VALUES (3, 30, 30, 1000, 0.0, 0.0, '{"d1_gf": 1, "d2_gf": 999}'::jsonb)"""
+              VALUES (2, 30, 30, 1000, 0.0, 0.0, '{"d1_gf": 1, "d2_gf": 999}'::jsonb)"""
           .executeUpdate()
         SQL"""INSERT INTO tile_cells (z, cx, cy, task_count, sum_lat, sum_lng, counts_by_filter)
-              VALUES (3, 31, 30, 100, 0.0, 1000.0, '{"d1_gf": 100}'::jsonb)""".executeUpdate()
+              VALUES (2, 31, 30, 100, 0.0, 1000.0, '{"d1_gf": 100}'::jsonb)""".executeUpdate()
       }
 
       val markers = repository.clusterMarkers(0, 0, 0, Some(1), global = true)
@@ -154,7 +154,7 @@ class TileAggregateRepositorySpec(implicit val application: Application) extends
           val lat = -32.90 + (i / 8) * 0.001
           val lng = -60.80 + (i % 8) * 0.001
           SQL"""INSERT INTO tile_cells (z, cx, cy, task_count, sum_lat, sum_lng, counts_by_filter)
-                VALUES (3, ${20 + i % 8}, ${34 + i / 8}, 10, ${lat * 10}, ${lng * 10},
+                VALUES (2, ${20 + i % 8}, ${34 + i / 8}, 10, ${lat * 10}, ${lng * 10},
                         '{"d1_gf": 10}'::jsonb)""".executeUpdate()
         }
       }
@@ -180,7 +180,7 @@ class TileAggregateRepositorySpec(implicit val application: Application) extends
 
   /**
     * Seed `count` micro-aggregates spread across the detail level for display
-    * tile 0/0/0 (level 3, a 16-wide block of the 64x64 cell range), on a lattice
+    * tile 0/0/0 (level 2, a 16-wide block of the 64x64 cell range), on a lattice
     * that stays inside valid lat/lng for counts up to 256.
     */
   private def seedDetailCells(count: Int): Unit = {
@@ -192,7 +192,7 @@ class TileAggregateRepositorySpec(implicit val application: Application) extends
         val lat = -60.0 + cy * 7.0
         val lng = -170.0 + cx * 21.0
         SQL"""INSERT INTO tile_cells (z, cx, cy, task_count, sum_lat, sum_lng, counts_by_filter)
-              VALUES (3, $cx, $cy, 10, ${lat * 10}, ${lng * 10}, '{"d1_gf": 10}'::jsonb)"""
+              VALUES (2, $cx, $cy, 10, ${lat * 10}, ${lng * 10}, '{"d1_gf": 10}'::jsonb)"""
           .executeUpdate()
       }
     }

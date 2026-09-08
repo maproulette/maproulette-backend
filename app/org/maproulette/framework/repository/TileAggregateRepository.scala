@@ -72,8 +72,8 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
 
   // A cell at display zoom z is a slippy tile at zoom z + CELL_BITS, so each
   // pyramid level holds a 2^CELL_BITS square of cells per display tile.
-  // Must match the tile evolutions (107, lowered to 3 by 121).
-  private val CELL_BITS = 3
+  // Must match the tile evolutions (107).
+  private val CELL_BITS = 4
 
   // How many pyramid levels below the display zoom to read micro-aggregates
   // from. A display tile at zoom z is fed level min(z + DETAIL_BITS,
@@ -81,7 +81,19 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
   // axis -- a 4096-point, ~4-pixel lattice. Fine enough that k-means centroids
   // track the real task distribution rather than the grid, small enough that
   // clustering stays a sub-millisecond operation on a fixed-size input.
-  private val DETAIL_BITS = 3
+  //
+  // This is the knob to turn for lattice resolution, not CELL_BITS. The level
+  // is clamped at MAX_CELL_ZOOM, so near the top of the pyramid the display
+  // zoom eats into the depth available and the tile falls back on CELL_BITS
+  // alone: at z = MAX_CELL_ZOOM a tile reads 2^CELL_BITS per axis whatever
+  // DETAIL_BITS says. With CELL_BITS = 4 that is 16 per axis, 256 cells, so
+  // k-means still has more input than MAX_CLUSTERS to partition and the cells
+  // (16px) are finer than MIN_SEPARATION_PX, so the merge still fires.
+  // Coarsening the grid to CELL_BITS = 3 instead would leave 64 cells of 32px
+  // there -- k equal to the input size, which makes k-means an identity, and
+  // cells wider than the merge distance, which makes the separation pass a
+  // no-op. The top cluster zoom would be back to one marker per grid cell.
+  private val DETAIL_BITS = 2
 
   // Upper bound on markers emitted per tile at zoom 0..11. This is a ceiling,
   // not a target: the separation pass below merges whatever would overlap, so
