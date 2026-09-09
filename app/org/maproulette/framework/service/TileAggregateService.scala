@@ -20,15 +20,11 @@ import org.slf4j.LoggerFactory
   *   - Zoom 12: served live from `tasks` as overlap-aware unclustered markers.
   *     MapLibre overzooms this through z=18+.
   *
-  * Difficulty/global filters at z<12 are answered from the pre-computed
-  * `counts_by_filter` buckets. Keyword filters cannot be pre-computed, so those
-  * requests bin `tasks` on the fly onto the same grid the pre-computed path
-  * reads and run the same clustering, so a filtered map clusters like an
-  * unfiltered one.
-  *
-  * Tiles are not spatially filtered server-side: a tile is a pure function of
-  * (z, x, y) and the difficulty/global/keyword filters, so it stays HTTP
-  * cacheable. Location filtering (e.g. "only France") is applied client-side by
+  * A tile is a pure function of (z, x, y) -- nothing else. The map shows all
+  * available work and applies no filters: challenge-level filters (difficulty,
+  * global, keywords) belong to the grid and list views, so no request needs
+  * per-task filtering and every tile below z=12 is answered from pre-computed
+  * cells. Location filtering (e.g. "only France") is applied client-side by
   * highlighting the area, not by mutating tile contents.
   */
 @Singleton
@@ -48,28 +44,13 @@ class TileAggregateService @Inject() (
     * Routing:
     *   - z > MAX_ZOOM: empty; MapLibre overzooms the last native tile.
     *   - z == 12: live `tasks` query (individual / overlap markers).
-    *   - z in 0..11 without keyword filters: k-means over `tile_cells`.
-    *   - z in 0..11 with keyword filters: k-means over on-the-fly bins.
+    *   - z in 0..11: k-means over the pre-computed `tile_cells` pyramid.
     */
-  def getMvtTile(
-      z: Int,
-      x: Int,
-      y: Int,
-      difficulty: Option[Int] = None,
-      global: Boolean = false,
-      keywords: Option[String] = None
-  ): Array[Byte] = {
+  def getMvtTile(z: Int, x: Int, y: Int): Array[Byte] = {
     if (z < 0 || z > MAX_ZOOM) return Array.empty[Byte]
 
-    val hasKeywords = keywords.exists(_.trim.nonEmpty)
-
-    if (z == repository.TASK_ZOOM) {
-      repository.getMvtTasksLive(z, x, y, difficulty, global, keywords)
-    } else if (!hasKeywords) {
-      repository.getMvtCellsPrecomputed(z, x, y, difficulty, global)
-    } else {
-      repository.getMvtCellsLive(z, x, y, difficulty, global, keywords)
-    }
+    if (z == repository.TASK_ZOOM) repository.getMvtTasksLive(z, x, y)
+    else repository.getMvtCellsPrecomputed(z, x, y)
   }
 
   /**
