@@ -318,39 +318,24 @@ class TaskController @Inject() (
     * Get MVT (Mapbox Vector Tile) for a specific tile.
     * Returns binary protobuf data for use with MapLibre vector tile sources.
     *
-    * @param z          Zoom level (0-22, MapLibre overzooms past the
-    *                   precomputed ceiling)
-    * @param x          Tile X coordinate
-    * @param y          Tile Y coordinate
-    * @param global     Include global challenges
-    * @param difficulty Optional difficulty filter (1=Easy, 2=Normal, 3=Expert)
+    * The map shows all available work and takes no filters: challenge-level
+    * filters live on the grid and list views, so a tile depends on nothing but
+    * its coordinates.
+    *
+    * @param z Zoom level (0-22, MapLibre overzooms past the precomputed ceiling)
+    * @param x Tile X coordinate
+    * @param y Tile Y coordinate
     * @return Binary MVT data
     */
-  def getTaskTilesMvt(
-      z: Int,
-      x: Int,
-      y: Int,
-      global: Boolean,
-      difficulty: Option[Int],
-      keywords: Option[String]
-  ): Action[AnyContent] = Action { implicit request =>
-    val validZoom       = math.max(0, math.min(22, z))
-    val validDifficulty = difficulty.filter(d => d >= 1 && d <= 3)
+  def getTaskTilesMvt(z: Int, x: Int, y: Int): Action[AnyContent] = Action { implicit request =>
+    val validZoom = math.max(0, math.min(22, z))
+    val mvtBytes  = this.serviceManager.tileAggregate.getMvtTile(validZoom, x, y)
 
-    val mvtBytes = this.serviceManager.tileAggregate.getMvtTile(
-      validZoom,
-      x,
-      y,
-      validDifficulty,
-      global,
-      keywords
-    )
-
-    // A tile is a pure function of (z, x, y) and the filter params — nothing
-    // in it depends on the requesting user — so every non-empty tile is
-    // publicly cacheable, filtered or not. The window is kept short (≈ rebuild
-    // cadence) so mutations become visible quickly. Empty tiles aren't cached:
-    // they may start containing data on the next rebuild.
+    // A tile is a pure function of (z, x, y) — nothing in it depends on the
+    // requesting user or on any filter — so every non-empty tile is publicly
+    // cacheable. The window is kept short (≈ rebuild cadence) so mutations
+    // become visible quickly. Empty tiles aren't cached: they may start
+    // containing data on the next rebuild.
     val cacheControl =
       if (mvtBytes.isEmpty) "no-store"
       else "public, max-age=10, must-revalidate"
