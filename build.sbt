@@ -209,6 +209,10 @@ Compile / javaOptions ++= Seq(
 
 // The apiv2.routes file should always be last as it contains the catch-all routes
 val routeFiles: Seq[String] = Seq(
+  // Ahead of challenge.api on purpose: its literal /challenge/reports and
+  // /challenge/report/:id paths would otherwise be swallowed by that
+  // file's GET /challenge/:id.
+  "challengereport.api",
   "challenge.api",
   "changes.api",
   "comment.api",
