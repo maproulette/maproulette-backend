@@ -6,9 +6,12 @@ package org.maproulette.framework.repository
 
 import anorm.SqlParser._
 import anorm._
+import java.sql.Connection
 import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
-import org.maproulette.framework.model.{TeamImage, TeamImageData}
+import org.maproulette.framework.model.{TeamImage, TeamImageData, TeamImageFile}
+import org.maproulette.framework.psql.filter.{BaseParameter, FilterParameter, Operator}
+import org.maproulette.framework.psql.{Order, OrderField, Query}
 import play.api.db.Database
 
 /**
@@ -16,70 +19,42 @@ import play.api.db.Database
   */
 @Singleton
 class TeamImageRepository @Inject() (override val db: Database) extends RepositoryMixin {
+  import TeamImageRepository._
+
   implicit val baseTable: String = TeamImage.TABLE
 
-  // The image bytes are excluded on purpose so listings stay cheap; only
-  // `retrieveData` pulls them.
-  private val selectColumns =
-    """ti.id, ti.team_id, g.name AS team_name, ti.name, ti.content_type,
-       octet_length(ti.data) AS size, ti.status, ti.requested_by,
-       requester.name AS requested_by_name, ti.reviewed_by,
-       reviewer.name AS reviewed_by_name, ti.reviewed_at, ti.review_comment,
-       ti.created, ti.modified"""
-
-  private val fromClause =
-    """FROM team_images ti
-       INNER JOIN groups g ON g.id = ti.team_id
-       LEFT JOIN users requester ON requester.id = ti.requested_by
-       LEFT JOIN users reviewer ON reviewer.id = ti.reviewed_by"""
-
-  private val parser: RowParser[TeamImage] = {
-    get[Long]("id") ~
-      get[Long]("team_id") ~
-      get[Option[String]]("team_name") ~
-      get[String]("name") ~
-      get[String]("content_type") ~
-      get[Long]("size") ~
-      get[Int]("status") ~
-      get[Option[Long]]("requested_by") ~
-      get[Option[String]]("requested_by_name") ~
-      get[Option[Long]]("reviewed_by") ~
-      get[Option[String]]("reviewed_by_name") ~
-      get[Option[DateTime]]("reviewed_at") ~
-      get[Option[String]]("review_comment") ~
-      get[DateTime]("created") ~
-      get[DateTime]("modified") map {
-      case id ~ teamId ~ teamName ~ name ~ contentType ~ size ~ status ~ requestedBy ~
-            requestedByName ~ reviewedBy ~ reviewedByName ~ reviewedAt ~ reviewComment ~
-            created ~ modified =>
-        TeamImage(
-          id,
-          teamId,
-          teamName,
-          name,
-          contentType,
-          size,
-          status,
-          requestedBy,
-          requestedByName,
-          reviewedBy,
-          reviewedByName,
-          reviewedAt,
-          reviewComment,
-          created,
-          modified
-        )
+  /**
+    * Finds 0 or more images that match the filter criteria. Filters should
+    * qualify their columns with the [[TeamImageRepository.ALIAS]] table, since
+    * the base query joins several tables.
+    *
+    * @param query The psql query object containing all the filtering and ordering information
+    * @param c An implicit connection, that defaults to None
+    */
+  def query(query: Query)(implicit c: Option[Connection] = None): List[TeamImage] = {
+    this.withMRConnection { implicit c =>
+      query.build(s"SELECT $selectColumns $fromClause").as(parser.*)
     }
   }
 
   /**
     * Retrieves a single image's metadata.
     */
-  def retrieve(id: Long): Option[TeamImage] = {
+  def retrieve(id: Long)(implicit c: Option[Connection] = None): Option[TeamImage] =
+    this
+      .query(Query.simple(List(BaseParameter(TeamImage.FIELD_ID, id, table = Some(ALIAS)))))
+      .headOption
+
+  /**
+    * Retrieves only what is needed to decide whether an image may be served
+    * and whether the caller's copy is still current. Deliberately avoids the
+    * joins and the blob that the full metadata query pulls, because this runs
+    * once per challenge card.
+    */
+  def retrieveFile(id: Long): Option[TeamImageFile] = {
     this.withMRConnection { implicit c =>
-      SQL(s"SELECT $selectColumns $fromClause WHERE ti.id = {id}")
-        .on(Symbol("id") -> id)
-        .as(this.parser.singleOpt)
+      SQL"SELECT team_id, status, content_type, modified FROM team_images WHERE id = $id"
+        .as(fileParser.singleOpt)
     }
   }
 
@@ -89,66 +64,69 @@ class TeamImageRepository @Inject() (override val db: Database) extends Reposito
   def retrieveData(id: Long): Option[TeamImageData] = {
     this.withMRConnection { implicit c =>
       SQL"SELECT content_type, data, modified FROM team_images WHERE id = $id"
-        .as(
-          (get[String]("content_type") ~ get[Array[Byte]]("data") ~ get[DateTime]("modified") map {
-            case contentType ~ data ~ modified => TeamImageData(contentType, data, modified)
-          }).singleOpt
-        )
+        .as(dataParser.singleOpt)
     }
   }
 
   /**
     * Lists a team's images, newest first. Optionally restricted to one status.
     */
-  def listForTeam(teamId: Long, status: Option[Int] = None): List[TeamImage] = {
-    this.withMRConnection { implicit c =>
-      val statusClause = status.map(_ => "AND ti.status = {status}").getOrElse("")
-      SQL(
-        s"SELECT $selectColumns $fromClause WHERE ti.team_id = {teamId} $statusClause ORDER BY ti.created DESC"
-      ).on(Symbol("teamId") -> teamId, Symbol("status") -> status)
-        .as(this.parser.*)
-    }
-  }
+  def listForTeam(teamId: Long, status: Option[Int] = None): List[TeamImage] =
+    this.listForTeams(List(teamId), status)
 
   /**
-    * Lists images across several teams, newest first. Used to build the set of
-    * images a user may choose from across all of their team memberships.
+    * Lists images across one or more teams, grouped by team and newest first.
+    * Used to build the set of images a user may choose from across all of
+    * their team memberships.
     */
   def listForTeams(teamIds: List[Long], status: Option[Int] = None): List[TeamImage] = {
     if (teamIds.isEmpty) {
       return List()
     }
 
-    this.withMRConnection { implicit c =>
-      val statusClause = status.map(_ => "AND ti.status = {status}").getOrElse("")
-      SQL(
-        s"SELECT $selectColumns $fromClause WHERE ti.team_id IN ({teamIds}) $statusClause ORDER BY g.name, ti.created DESC"
-      ).on(Symbol("teamIds") -> teamIds, Symbol("status") -> status)
-        .as(this.parser.*)
-    }
+    this.query(
+      Query.simple(
+        List(
+          BaseParameter(TeamImage.FIELD_TEAM_ID, teamIds, Operator.IN, table = Some(ALIAS)),
+          FilterParameter.conditional(
+            TeamImage.FIELD_STATUS,
+            status.getOrElse(TeamImage.STATUS_PENDING),
+            includeOnlyIfTrue = status.isDefined,
+            table = Some(ALIAS)
+          )
+        ),
+        order = Order(
+          List(
+            OrderField(TeamImage.FIELD_NAME, Order.ASC, Some("g")),
+            OrderField(TeamImage.FIELD_CREATED, Order.DESC, Some(ALIAS))
+          )
+        )
+      )
+    )
   }
 
   /**
     * Lists every image awaiting review, oldest first so the queue is served in
     * the order requests came in.
     */
-  def listPending(): List[TeamImage] = {
-    this.withMRConnection { implicit c =>
-      SQL(s"SELECT $selectColumns $fromClause WHERE ti.status = {status} ORDER BY ti.created ASC")
-        .on(Symbol("status") -> TeamImage.STATUS_PENDING)
-        .as(this.parser.*)
-    }
-  }
+  def listPending(): List[TeamImage] =
+    this.query(
+      Query.simple(
+        List(
+          BaseParameter(TeamImage.FIELD_STATUS, TeamImage.STATUS_PENDING, table = Some(ALIAS))
+        ),
+        order = Order(List(OrderField(TeamImage.FIELD_CREATED, Order.ASC, Some(ALIAS))))
+      )
+    )
 
   /**
-    * How many of a team's images are still awaiting review.
+    * A team's one image in the given review state - the image it is currently
+    * using for `STATUS_APPROVED`, the request in front of the reviewers for
+    * `STATUS_PENDING`. Rejected images are history rather than a single
+    * current thing, so asking for those is not what this is for.
     */
-  def pendingCountForTeam(teamId: Long): Int = {
-    this.withMRConnection { implicit c =>
-      SQL"SELECT COUNT(*) FROM team_images WHERE team_id = $teamId AND status = ${TeamImage.STATUS_PENDING}"
-        .as(scalar[Int].single)
-    }
-  }
+  def currentForTeam(teamId: Long, status: Int): Option[TeamImage] =
+    this.listForTeams(List(teamId), Some(status)).headOption
 
   /**
     * Stores a new image request for a team, awaiting review.
@@ -182,14 +160,52 @@ class TeamImageRepository @Inject() (override val db: Database) extends Reposito
   }
 
   /**
-    * Records a review decision. Anything other than an approval also detaches
-    * the image from every challenge using it, so rejecting a previously
-    * approved image actually removes it from those cards.
+    * Records a review decision.
     *
-    * @return true if the image existed and was updated
+    * Approving hands the team's single image slot to this image: the one the
+    * team was using is replaced, and the challenges that were on it move
+    * across first, since dropping that row would otherwise null them out
+    * through the foreign key and quietly strip the image from those cards.
+    * Anything other than an approval instead detaches this image from every
+    * challenge using it, so rejecting a previously approved image actually
+    * removes it from those cards.
+    *
+    * The replacement is resolved inside the transaction rather than handed in
+    * by the caller, so nothing can slot a second approved image in between.
+    *
+    * @return None if no such image exists, otherwise the ids of the challenges
+    *         whose image changed, which the caller has to evict from the
+    *         challenge cache
     */
-  def review(id: Long, status: Int, reviewedBy: Long, comment: Option[String]): Boolean = {
+  def review(
+      id: Long,
+      status: Int,
+      reviewedBy: Long,
+      comment: Option[String]
+  ): Option[List[Long]] = {
     this.withMRTransaction { implicit c =>
+      // Resolved before the status change, while the image being replaced is
+      // still the team's approved one and this one is not.
+      val replaced =
+        if (status == TeamImage.STATUS_APPROVED) {
+          SQL"""SELECT replaced.id FROM team_images replaced
+                INNER JOIN team_images reviewed ON reviewed.team_id = replaced.team_id
+                WHERE reviewed.id = $id AND replaced.id <> $id
+                  AND replaced.status = ${TeamImage.STATUS_APPROVED}"""
+            .as(scalar[Long].*)
+        } else {
+          List()
+        }
+
+      val moved = replaced.flatMap { replacedId =>
+        val affected =
+          SQL"SELECT id FROM challenges WHERE team_image_id = $replacedId".as(scalar[Long].*)
+        SQL"UPDATE challenges SET team_image_id = $id WHERE team_image_id = $replacedId"
+          .executeUpdate()
+        SQL"DELETE FROM team_images WHERE id = $replacedId".executeUpdate()
+        affected
+      }
+
       val updated =
         SQL"""UPDATE team_images
               SET status = $status, reviewed_by = $reviewedBy, reviewed_at = NOW(),
@@ -197,11 +213,15 @@ class TeamImageRepository @Inject() (override val db: Database) extends Reposito
               WHERE id = $id"""
           .executeUpdate() > 0
 
-      if (updated && status != TeamImage.STATUS_APPROVED) {
+      if (!updated) {
+        None
+      } else if (status == TeamImage.STATUS_APPROVED) {
+        Some(moved)
+      } else {
+        val detached = SQL"SELECT id FROM challenges WHERE team_image_id = $id".as(scalar[Long].*)
         SQL"UPDATE challenges SET team_image_id = NULL WHERE team_image_id = $id".executeUpdate()
+        Some(detached)
       }
-
-      updated
     }
   }
 
@@ -209,11 +229,53 @@ class TeamImageRepository @Inject() (override val db: Database) extends Reposito
     * Deletes an image. The challenges foreign key nulls out any references, so
     * cards that were showing it fall back to no image.
     *
-    * @return true if an image row was actually removed
+    * @return None if no such image exists, otherwise the ids of the challenges
+    *         that lost the image, which the caller has to evict from the
+    *         challenge cache
     */
-  def delete(id: Long): Boolean = {
+  def delete(id: Long): Option[List[Long]] = {
     this.withMRTransaction { implicit c =>
-      SQL"DELETE FROM team_images WHERE id = $id".executeUpdate() > 0
+      val affected = SQL"SELECT id FROM challenges WHERE team_image_id = $id".as(scalar[Long].*)
+      if (SQL"DELETE FROM team_images WHERE id = $id".executeUpdate() > 0) Some(affected) else None
     }
   }
+}
+
+object TeamImageRepository {
+  // The alias the base query gives team_images, which filters have to qualify
+  // their columns with to stay unambiguous against the joined tables.
+  val ALIAS = "ti"
+
+  // The image bytes are excluded on purpose so listings stay cheap; only
+  // `retrieveData` pulls them. octet_length reads the size out of the TOAST
+  // header, so naming `data` here does not detoast it.
+  private val selectColumns =
+    """ti.id, ti.team_id, g.name AS team_name, ti.name, ti.content_type,
+       octet_length(ti.data) AS size, ti.status, ti.requested_by,
+       requester.name AS requested_by_name, ti.reviewed_by,
+       reviewer.name AS reviewed_by_name, ti.reviewed_at, ti.review_comment,
+       ti.created, ti.modified"""
+
+  private val fromClause =
+    """FROM team_images ti
+       INNER JOIN groups g ON g.id = ti.team_id
+       LEFT JOIN users requester ON requester.id = ti.requested_by
+       LEFT JOIN users reviewer ON reviewer.id = ti.reviewed_by"""
+
+  // The aliases above are the snake_case of every TeamImage field, so the
+  // macro parser maps them without a hand-written column list.
+  val parser: RowParser[TeamImage] =
+    Macro.namedParser[TeamImage](Macro.ColumnNaming.SnakeCase)
+
+  val fileParser: RowParser[TeamImageFile] =
+    get[Long]("team_id") ~ get[Int]("status") ~ get[String]("content_type") ~
+      get[DateTime]("modified") map {
+      case teamId ~ status ~ contentType ~ modified =>
+        TeamImageFile(teamId, status, contentType, modified)
+    }
+
+  val dataParser: RowParser[TeamImageData] =
+    get[String]("content_type") ~ get[Array[Byte]]("data") ~ get[DateTime]("modified") map {
+      case contentType ~ data ~ modified => TeamImageData(contentType, data, modified)
+    }
 }

@@ -2,7 +2,7 @@
 # tags: [ Team Image ]
 # operationId: team_image_request
 # summary: Request a Challenge Image for a Team
-# description: Uploads an image for a team, creating a request that stays pending until a superuser approves it. Any active member of the team may request. Accepts PNG, JPEG, WebP and GIF up to 2MB.
+# description: Uploads an image for a team, creating a request that stays pending until a superuser approves it. A team carries a single challenge image, so only one request can be outstanding at a time and approving it replaces the image the team was using. Any active member of the team may request. Accepts PNG, JPEG, WebP and GIF up to 2MB.
 # consumes: [ multipart/form-data ]
 # requestBody:
 #   required: true
@@ -26,7 +26,7 @@
 #         schema:
 #           $ref: '#/components/schemas/org.maproulette.framework.model.TeamImage'
 #   '400':
-#     description: The file is missing, too large, not a supported image, or the team has too many pending requests
+#     description: The file is missing, too large, not a supported image, or the team already has a request awaiting review
 #   '401':
 #     description: The user is not authorized to make this request
 #   '404':
@@ -44,7 +44,7 @@ POST    /team/:teamId/image                      @org.maproulette.framework.cont
 # tags: [ Team Image ]
 # operationId: team_image_list
 # summary: List a Team's Challenge Images
-# description: Lists every image belonging to a team, including ones still awaiting review and ones that were rejected, so members can see the state of their requests
+# description: Lists every image belonging to a team - the one it is currently using, any request awaiting review, and the rejected ones kept as history - so members can see the state of their requests
 # responses:
 #   '200':
 #     description: The team's images
@@ -107,7 +107,7 @@ GET     /teamImages/pending                      @org.maproulette.framework.cont
 # tags: [ Team Image ]
 # operationId: team_image_approve
 # summary: Approve a Team Challenge Image
-# description: Approves an image, making it selectable by the owning team's members. Superuser only.
+# description: Approves an image, making it the owning team's challenge image. A team carries a single image, so approving one replaces whatever the team was using before, moving the challenges that showed the old image onto the new one. Superuser only.
 # responses:
 #   '200':
 #     description: The reviewed image

@@ -23,6 +23,19 @@ import play.api.libs.json.JodaWrites._
 import play.api.libs.json._
 
 /**
+  * The pair of fields every challenge projection emits for its team image: the
+  * id it stores, and the url clients render the card image from. Derived in
+  * one place so the projections can't drift apart.
+  */
+private[utils] object TeamImageFields {
+  def apply(teamImageId: Option[Long]): List[Option[(String, JsValue)]] =
+    List(
+      teamImageId.map(v => "teamImageId" -> JsNumber(v)),
+      teamImageId.map(v => "avatarUrl"   -> JsString(TeamImage.urlFor(v)))
+    )
+}
+
+/**
   * @author cuthbertm
   */
 trait ChallengeWrites extends DefaultWrites {
@@ -75,12 +88,8 @@ trait ChallengeWrites extends DefaultWrites {
         o.datasetUrl.map(v => "datasetUrl"                     -> JsString(v)),
         o.systemArchivedAt.map(dt => "systemArchivedAt"        -> Json.toJson(dt)),
         o.presets.map(v => "presets"                           -> Json.toJson(v)),
-        o.mrTagMetrics.map(v => "mrTagMetrics"                 -> v),
-        o.teamImageId.map(v => "teamImageId"                   -> JsNumber(v)),
-        // Clients render the card image straight from this; deriving it here
-        // keeps url construction in one place.
-        o.teamImageId.map(v => "avatarUrl" -> JsString(TeamImage.urlFor(v)))
-      )
+        o.mrTagMetrics.map(v => "mrTagMetrics"                 -> v)
+      ) ++ TeamImageFields(o.teamImageId)
 
       val json = JsObject(baseFields ++ optionFields.flatten)
 
@@ -284,10 +293,8 @@ trait BaseChallengeWrites extends DefaultWrites {
         bc.dataOriginDate.map(dt => "dataOriginDate"            -> Json.toJson(dt)),
         bc.location.map(v => "location"                         -> v),
         bc.bounding.map(v => "bounding"                         -> v),
-        bc.completionPercentage.map(v => "completionPercentage" -> JsNumber(v)),
-        bc.teamImageId.map(v => "teamImageId"                   -> JsNumber(v)),
-        bc.teamImageId.map(v => "avatarUrl"                     -> JsString(TeamImage.urlFor(v)))
-      )
+        bc.completionPercentage.map(v => "completionPercentage" -> JsNumber(v))
+      ) ++ TeamImageFields(bc.teamImageId)
 
       JsObject(baseFields ++ optionFields.flatten)
     }

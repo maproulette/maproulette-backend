@@ -75,9 +75,5 @@ class TeamImageSpec extends PlaySpec {
     "cap uploads at 2MB, matching the client-side check" in {
       TeamImage.MAX_SIZE_BYTES mustEqual 2 * 1024 * 1024
     }
-
-    "bound how many requests a team can queue for review" in {
-      TeamImage.MAX_PENDING_PER_TEAM must be > 0
-    }
   }
 }
