@@ -5,6 +5,7 @@
 
 package org.maproulette.framework.service
 
+import java.sql.Connection
 import javax.inject.{Inject, Singleton}
 import org.maproulette.framework.model.{Group, GroupMember, MemberObject}
 import org.maproulette.data.{ItemType}
@@ -244,7 +245,8 @@ class GroupService @Inject() (
     *
     * @param group The latest group data
     */
-  def updateGroup(group: Group): Option[Group] = this.repository.update(group)
+  def updateGroup(group: Group)(implicit c: Option[Connection] = None): Option[Group] =
+    this.repository.update(group)
 
   /**
     * Delete a group from the database
