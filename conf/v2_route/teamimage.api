@@ -69,24 +69,6 @@ POST    /team/:teamId/image                      @org.maproulette.framework.cont
 GET     /team/:teamId/images                     @org.maproulette.framework.controller.TeamImageController.listTeamImages(teamId:Long)
 ###
 # tags: [ Team Image ]
-# operationId: team_image_available
-# summary: List Challenge Images Available to the Current User
-# description: Lists every approved image across all teams the current user is an active member of. This is the set offered as display images when creating or editing a challenge.
-# responses:
-#   '200':
-#     description: The approved images available to the user
-#     content:
-#       application/json:
-#         schema:
-#           type: array
-#           items:
-#             $ref: '#/components/schemas/org.maproulette.framework.model.TeamImage'
-#   '401':
-#     description: The user is not authorized to make this request
-###
-GET     /teamImages/available                    @org.maproulette.framework.controller.TeamImageController.listAvailableImages()
-###
-# tags: [ Team Image ]
 # operationId: team_image_pending
 # summary: List Challenge Images Awaiting Review
 # description: Lists every image awaiting review across all teams, oldest first. Superuser only.
@@ -216,3 +198,29 @@ DELETE  /teamImage/:id                           @org.maproulette.framework.cont
 #       type: integer
 ###
 GET     /teamImage/:id/file                      @org.maproulette.framework.controller.TeamImageController.getImageFile(id:Long)
+###
+# tags: [ Team Image ]
+# operationId: team_image_for_team
+# summary: Retrieve a Team's Current Challenge Image
+# description: Serves the raw bytes of whatever image the team currently has approved, which is the picture on the cards of every challenge that team owns. Intended to be used directly as an image src, and served to anyone. A team with no approved image answers 404, which is how a client tells there is simply no picture to show.
+# responses:
+#   '200':
+#     description: The image bytes
+#     content:
+#       image/*:
+#         schema:
+#           type: string
+#           format: binary
+#   '304':
+#     description: The image has not changed since the version the client already has
+#   '404':
+#     description: The team has no approved challenge image
+# parameters:
+#   - name: teamId
+#     in: path
+#     description: The id of the team whose image is wanted
+#     required: true
+#     schema:
+#       type: integer
+###
+GET     /team/:teamId/image/file                 @org.maproulette.framework.controller.TeamImageController.getTeamImageFile(teamId:Long)

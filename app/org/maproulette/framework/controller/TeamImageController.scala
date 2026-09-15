@@ -99,18 +99,6 @@ class TeamImageController @Inject() (
   }
 
   /**
-    * Lists every approved image across all teams the current user belongs to.
-    * This is the set the challenge form offers as display images.
-    *
-    * @return 200 OK with the approved images available to the user
-    */
-  def listAvailableImages(): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.authenticatedRequest { implicit user =>
-      Ok(Json.toJson(this.teamImageService.listAvailable(user)))
-    }
-  }
-
-  /**
     * Lists every image awaiting review, oldest first.
     *
     * @return 200 OK with the pending review queue
@@ -170,6 +158,29 @@ class TeamImageController @Inject() (
   }
 
   /**
+    * Serves whatever image a team currently has approved - the picture on the
+    * cards of every challenge that team owns. Anonymous, because the url is
+    * consumed by plain img tags.
+    *
+    * A team that has no approved image is reported as not found, which is how
+    * a client tells there is simply no picture to show. Only approved images
+    * are ever served here: a request still under review is nobody's card image
+    * yet, and is reachable only through its own image endpoint.
+    *
+    * @param teamId The id of the team whose image is wanted
+    * @return 200 OK with the image bytes
+    */
+  def getTeamImageFile(teamId: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      val image = this.teamImageService
+        .approvedForTeam(teamId)
+        .getOrElse(throw new NotFoundException(s"Team $teamId has no challenge image"))
+
+      this.serveImage(image.id, request, "public, max-age=86400")
+    }
+  }
+
+  /**
     * Serves an image's bytes. Anonymous, because the url is consumed by plain
     * img tags on challenge cards.
     *
@@ -190,24 +201,41 @@ class TeamImageController @Inject() (
         throw new NotFoundException(s"No team image found with id $imageId")
       }
 
-      // Built from the metadata alone, so a revalidation never reads the blob.
-      val etag = s""""$imageId-${file.modified.getMillis}""""
-      if (request.headers.get("If-None-Match").contains(etag)) {
-        NotModified.withHeaders("ETag" -> etag)
-      } else {
-        Ok(this.teamImageService.retrieveData(imageId).data)
-          .as(file.contentType)
-          .withHeaders(
-            "ETag" -> etag,
-            // An approved image is immutable and public. One still under
-            // review is neither: it is only for this viewer, and it stops
-            // being served the moment it is rejected.
-            "Cache-Control" ->
-              (if (approved) "public, max-age=86400" else "private, no-cache"),
-            "X-Content-Type-Options" -> "nosniff",
-            "Content-Disposition"    -> "inline"
-          )
-      }
+      // An approved image's bytes never change, so it is public and cacheable.
+      // One still under review is neither: it is only for this viewer, and it
+      // stops being served the moment it is rejected.
+      this.serveImage(
+        imageId,
+        request,
+        if (approved) "public, max-age=86400" else "private, no-cache"
+      )
+    }
+  }
+
+  /**
+    * Writes an image's bytes out, answering a still-current cached copy with a
+    * 304 instead. The ETag is built from the metadata alone, so revalidating
+    * never reads the blob.
+    */
+  private def serveImage(
+      imageId: Long,
+      request: Request[AnyContent],
+      cacheControl: String
+  ): Result = {
+    val file = this.teamImageService.retrieveFile(imageId)
+    val etag = s""""$imageId-${file.modified.getMillis}""""
+
+    if (request.headers.get("If-None-Match").contains(etag)) {
+      NotModified.withHeaders("ETag" -> etag)
+    } else {
+      Ok(this.teamImageService.retrieveData(imageId).data)
+        .as(file.contentType)
+        .withHeaders(
+          "ETag"                   -> etag,
+          "Cache-Control"          -> cacheControl,
+          "X-Content-Type-Options" -> "nosniff",
+          "Content-Disposition"    -> "inline"
+        )
     }
   }
 }

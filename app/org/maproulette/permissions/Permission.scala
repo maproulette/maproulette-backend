@@ -111,14 +111,20 @@ class Permission @Inject() (
         case p: Project =>
           this.hasProjectAccess(Some(p), user, role)
         case c: Challenge =>
-          this.hasProjectAccess(
-            dalManager
-              .get()
-              .challenge
-              .retrieveRootObject(Right(c), user),
-            user,
-            role
-          )
+          // A challenge can be owned by a team, which hands the team's owners,
+          // admins and managers the run of it wherever their grants on the
+          // parent project would not have reached. Everyone else still gets in
+          // the original way, through the project.
+          if (!this.ownsChallengeThroughTeam(c, user)) {
+            this.hasProjectAccess(
+              dalManager
+                .get()
+                .challenge
+                .retrieveRootObject(Right(c), user),
+              user,
+              role
+            )
+          }
         case vc: VirtualChallenge =>
           if (vc.ownerId != user.osmProfile.id) {
             throw new IllegalAccessException(
@@ -174,6 +180,21 @@ class Permission @Inject() (
       case _ => // don't do anything, they have access
     }
   }
+
+  /**
+    * Whether the user manages the challenge by virtue of the team that owns
+    * it. Team managers and above run the team's content; plain members do not,
+    * so membership alone is not enough.
+    *
+    * @param challenge The challenge in question
+    * @param user      The user requesting access
+    */
+  def ownsChallengeThroughTeam(challenge: Challenge, user: User): Boolean =
+    challenge.ownerTeamId.exists { teamId =>
+      this.serviceManager.team
+        .retrieve(teamId)
+        .exists(team => this.serviceManager.team.isUserTeamManager(team, user, User.superUser))
+    }
 
   def hasProjectTypeAccess(
       user: User,

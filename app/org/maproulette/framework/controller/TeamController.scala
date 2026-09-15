@@ -8,8 +8,8 @@ package org.maproulette.framework.controller
 import javax.inject.Inject
 import org.maproulette.data.ActionManager
 import org.maproulette.exception.{MPExceptionUtil, StatusMessage}
-import org.maproulette.framework.service.TeamService
-import org.maproulette.framework.model.{User, MemberObject, Group}
+import org.maproulette.framework.service.{TeamImageService, TeamService}
+import org.maproulette.framework.model.{Group, ManagedTeam, MemberObject, TeamImage, User}
 import org.maproulette.framework.psql.{Paging}
 import org.maproulette.session.SessionManager
 import play.api.libs.json._
@@ -23,6 +23,7 @@ class TeamController @Inject() (
     override val actionManager: ActionManager,
     override val bodyParsers: PlayBodyParsers,
     teamService: TeamService,
+    teamImageService: TeamImageService,
     components: ControllerComponents
 ) extends AbstractController(components)
     with MapRouletteController {
@@ -100,6 +101,42 @@ class TeamController @Inject() (
       Ok(
         Json.toJson(
           this.teamService.teamUsersByUserIds(List(userId), user.getOrElse(User.guestUser))
+        )
+      )
+    }
+  }
+
+  /**
+    * Lists the teams the current user may give a challenge to, i.e. the ones
+    * whose content they run - owner, admin or manager. Each is paired with the
+    * role that qualified them and the image that team puts on its challenges,
+    * so the challenge form can offer the whole choice in one request.
+    *
+    * @return 200 OK with the teams, each with the caller's role and the team's image
+    */
+  def managedTeams(): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      val teams = this.teamService.teamsManagedBy(user)
+      val roles = this.teamService.teamRolesFor(user)
+      // One lookup for every team's image rather than a query each.
+      val imageTeamIds = this.teamImageService
+        .approvedForTeams(teams.map(_.id))
+        .map(_.teamId)
+        .toSet
+
+      Ok(
+        Json.toJson(
+          teams.flatMap { team =>
+            roles
+              .get(team.id)
+              .map(role =>
+                ManagedTeam(
+                  team,
+                  role,
+                  Option.when(imageTeamIds.contains(team.id))(TeamImage.urlForTeam(team.id))
+                )
+              )
+          }
         )
       )
     }

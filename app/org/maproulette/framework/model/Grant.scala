@@ -105,8 +105,12 @@ object Grant extends CommonField {
   val FIELD_OBJECT_ID    = "object_id"
   val FIELD_OBJECT_TYPE  = "object_type"
 
-  val ROLE_SUPER_USER        = -1
-  val ROLE_SUPER_USER_NAME   = "Superuser"
+  val ROLE_SUPER_USER      = -1
+  val ROLE_SUPER_USER_NAME = "Superuser"
+  // Sits above admin because roles are ordered by privilege, lowest first, and
+  // every check written as `role <= ROLE_ADMIN` must let an owner through.
+  val ROLE_OWNER             = 0
+  val ROLE_OWNER_NAME        = "Owner"
   val ROLE_ADMIN             = 1
   val ROLE_ADMIN_NAME        = "Admin"
   val ROLE_WRITE_ACCESS      = 2
@@ -116,6 +120,7 @@ object Grant extends CommonField {
 
   val roleNameMap = Map(
     ROLE_SUPER_USER   -> ROLE_SUPER_USER_NAME,
+    ROLE_OWNER        -> ROLE_OWNER_NAME,
     ROLE_ADMIN        -> ROLE_ADMIN_NAME,
     ROLE_WRITE_ACCESS -> ROLE_WRITE_ACCESS_NAME,
     ROLE_READ_ONLY    -> ROLE_READ_ONLY_NAME

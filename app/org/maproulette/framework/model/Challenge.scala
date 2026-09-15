@@ -145,7 +145,7 @@ case class ChallengeExtra(
     requireConfirmation: Boolean = false,
     mrTagMetrics: Option[JsObject] = None,
     paused: Boolean = false,
-    teamImageId: Option[Long] = None
+    ownerTeamId: Option[Long] = None
 ) extends DefaultWrites
 
 case class ChallengeListing(
@@ -227,7 +227,7 @@ case class BaseChallenge(
     completionPercentage: Option[Int] = Some(0),
     completionMetrics: CompletionMetrics = CompletionMetrics(),
     paused: Boolean = false,
-    teamImageId: Option[Long] = None
+    ownerTeamId: Option[Long] = None
 ) extends DefaultWrites
 
 /**
@@ -262,6 +262,13 @@ case class Challenge(
     with Identifiable {
 
   override val itemType: ItemType = ChallengeType()
+
+  /**
+    * The team that owns this challenge, if one does. Ownership decides both
+    * who may manage the challenge and which image its card shows, so it is
+    * surfaced here rather than left to callers to dig out of `extra`.
+    */
+  def ownerTeamId: Option[Long] = this.extra.ownerTeamId
 
   def isHighPriority(properties: Map[String, String], task: Task): Boolean =
     this.matchesRule(priority.highPriorityRule, properties, task)

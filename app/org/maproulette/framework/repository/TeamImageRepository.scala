@@ -149,94 +149,49 @@ class TeamImageRepository @Inject() (override val db: Database) extends Reposito
   }
 
   /**
-    * The ids of the challenges currently using an image. Callers that mutate
-    * an image need these to evict the affected challenges from the challenge
-    * cache, which detaching via SQL would otherwise leave stale.
-    */
-  def challengeIdsUsing(imageId: Long): List[Long] = {
-    this.withMRConnection { implicit c =>
-      SQL"SELECT id FROM challenges WHERE team_image_id = $imageId".as(scalar[Long].*)
-    }
-  }
-
-  /**
     * Records a review decision.
     *
-    * Approving hands the team's single image slot to this image: the one the
-    * team was using is replaced, and the challenges that were on it move
-    * across first, since dropping that row would otherwise null them out
-    * through the foreign key and quietly strip the image from those cards.
-    * Anything other than an approval instead detaches this image from every
-    * challenge using it, so rejecting a previously approved image actually
-    * removes it from those cards.
+    * Approving hands the team's single image slot to this image, so the one
+    * the team was using is dropped. Cards follow automatically: a challenge
+    * stores the team that owns it rather than an image id, so they render the
+    * new image the moment it is approved, and nothing at all once a team's
+    * only image is rejected or removed.
     *
     * The replacement is resolved inside the transaction rather than handed in
     * by the caller, so nothing can slot a second approved image in between.
     *
-    * @return None if no such image exists, otherwise the ids of the challenges
-    *         whose image changed, which the caller has to evict from the
-    *         challenge cache
+    * @return true if the image existed and was reviewed
     */
-  def review(
-      id: Long,
-      status: Int,
-      reviewedBy: Long,
-      comment: Option[String]
-  ): Option[List[Long]] = {
+  def review(id: Long, status: Int, reviewedBy: Long, comment: Option[String]): Boolean = {
     this.withMRTransaction { implicit c =>
-      // Resolved before the status change, while the image being replaced is
+      // Dropped before the status change, while the image being replaced is
       // still the team's approved one and this one is not.
-      val replaced =
-        if (status == TeamImage.STATUS_APPROVED) {
-          SQL"""SELECT replaced.id FROM team_images replaced
-                INNER JOIN team_images reviewed ON reviewed.team_id = replaced.team_id
-                WHERE reviewed.id = $id AND replaced.id <> $id
-                  AND replaced.status = ${TeamImage.STATUS_APPROVED}"""
-            .as(scalar[Long].*)
-        } else {
-          List()
-        }
-
-      val moved = replaced.flatMap { replacedId =>
-        val affected =
-          SQL"SELECT id FROM challenges WHERE team_image_id = $replacedId".as(scalar[Long].*)
-        SQL"UPDATE challenges SET team_image_id = $id WHERE team_image_id = $replacedId"
+      if (status == TeamImage.STATUS_APPROVED) {
+        SQL"""DELETE FROM team_images replaced
+              USING team_images reviewed
+              WHERE reviewed.id = $id AND replaced.team_id = reviewed.team_id
+                AND replaced.id <> $id AND replaced.status = ${TeamImage.STATUS_APPROVED}"""
           .executeUpdate()
-        SQL"DELETE FROM team_images WHERE id = $replacedId".executeUpdate()
-        affected
       }
 
-      val updated =
-        SQL"""UPDATE team_images
-              SET status = $status, reviewed_by = $reviewedBy, reviewed_at = NOW(),
-                  review_comment = $comment, modified = NOW()
-              WHERE id = $id"""
-          .executeUpdate() > 0
-
-      if (!updated) {
-        None
-      } else if (status == TeamImage.STATUS_APPROVED) {
-        Some(moved)
-      } else {
-        val detached = SQL"SELECT id FROM challenges WHERE team_image_id = $id".as(scalar[Long].*)
-        SQL"UPDATE challenges SET team_image_id = NULL WHERE team_image_id = $id".executeUpdate()
-        Some(detached)
-      }
+      SQL"""UPDATE team_images
+            SET status = $status, reviewed_by = $reviewedBy, reviewed_at = NOW(),
+                review_comment = $comment, modified = NOW()
+            WHERE id = $id"""
+        .executeUpdate() > 0
     }
   }
 
   /**
-    * Deletes an image. The challenges foreign key nulls out any references, so
-    * cards that were showing it fall back to no image.
+    * Deletes an image. Cards owned by the team fall back to no picture, since
+    * they render whatever the team currently has approved rather than a stored
+    * image id.
     *
-    * @return None if no such image exists, otherwise the ids of the challenges
-    *         that lost the image, which the caller has to evict from the
-    *         challenge cache
+    * @return true if an image row was actually removed
     */
-  def delete(id: Long): Option[List[Long]] = {
+  def delete(id: Long): Boolean = {
     this.withMRTransaction { implicit c =>
-      val affected = SQL"SELECT id FROM challenges WHERE team_image_id = $id".as(scalar[Long].*)
-      if (SQL"DELETE FROM team_images WHERE id = $id".executeUpdate() > 0) Some(affected) else None
+      SQL"DELETE FROM team_images WHERE id = $id".executeUpdate() > 0
     }
   }
 }

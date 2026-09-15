@@ -342,3 +342,21 @@ GET      /teams/projectManagers/:projectId        @org.maproulette.framework.con
 #     description: The ID for the team
 ###
 DELETE /team/:id                                    @org.maproulette.framework.controller.TeamController.deleteTeam(id: Long)
+###
+# tags: [ Team ]
+# operationId: teams_managed
+# summary: List Teams the Current User Manages
+# description: Lists the teams the current user may give a challenge to, i.e. the ones whose content they run as owner, admin or manager. Teams they merely belong to are not included. Each team is paired with the role that qualified them and the url of the image that team puts on its challenges, when it has one.
+# responses:
+#   '200':
+#     description: The teams the user manages
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.ManagedTeam'
+#   '401':
+#     description: The user is not authorized to make this request
+###
+GET     /teams/managed                           @org.maproulette.framework.controller.TeamController.managedTeams()

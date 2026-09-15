@@ -2,9 +2,9 @@
 
 # --- !Ups
 
--- Challenge display images are owned by a team and moderated: a team member
--- uploads one as a request, a superuser approves it, and from then on any
--- member of that team can attach it to their challenges.
+-- A team's challenge display image, moderated: a team member uploads one as a
+-- request, a superuser approves it, and from then on it is the picture shown
+-- on the cards of every challenge that team owns.
 CREATE TABLE IF NOT EXISTS team_images
 (
   id SERIAL NOT NULL PRIMARY KEY,
@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS team_images
   name character varying NOT NULL,
   content_type character varying NOT NULL,
   data bytea NOT NULL,
-  -- 0 = pending review, 1 = approved, 2 = rejected. Only approved images are
-  -- offered in the challenge form or served publicly.
+  -- 0 = pending review, 1 = approved, 2 = rejected. Only the approved image is
+  -- served publicly or shown on a card.
   status integer NOT NULL DEFAULT 0,
   requested_by integer,
   reviewed_by integer,
@@ -37,38 +37,10 @@ SELECT create_index_if_not_exists('team_images', 'team_id', '(team_id)');;
 -- oldest first. Keeps the index tiny and untouched once an image is reviewed.
 SELECT create_index_if_not_exists('team_images', 'status', '(created) WHERE status = 0');;
 
--- Deleting an image detaches it from every challenge using it, so revoking an
--- image actually takes effect on the cards that showed it.
-ALTER TABLE challenges ADD COLUMN IF NOT EXISTS team_image_id integer;;
-ALTER TABLE challenges DROP CONSTRAINT IF EXISTS challenges_team_image_id_fkey;;
-ALTER TABLE challenges ADD CONSTRAINT challenges_team_image_id_fkey
-  FOREIGN KEY (team_image_id) REFERENCES team_images (id) MATCH SIMPLE
-  ON UPDATE CASCADE ON DELETE SET NULL;;
-
--- Indexed for the foreign key's own referential check, which Postgres runs
--- against challenges on every team_images delete, and for the lookups that
--- find and detach the challenges using an image.
--- Partial, since team_image_id is null on the overwhelming majority of
--- challenges. An equality lookup implies NOT NULL, so both uses still hit it.
-SELECT create_index_if_not_exists('challenges', 'team_image_id', '(team_image_id) WHERE team_image_id IS NOT NULL');;
-
 -- A team carries a single challenge image. Collapse any team that predates
--- that rule down to its newest image of each review state before enforcing it,
--- moving the challenges that used a discarded image onto the survivor so no
--- card silently loses its picture. Rejected images are left alone: they are
--- history a member is shown, never something a challenge can point at.
-WITH keepers AS (
-  SELECT DISTINCT ON (team_id, status) id, team_id, status
-  FROM team_images
-  WHERE status IN (0, 1)
-  ORDER BY team_id, status, created DESC, id DESC
-)
-UPDATE challenges c
-SET team_image_id = k.id
-FROM team_images ti
-  INNER JOIN keepers k ON k.team_id = ti.team_id AND k.status = ti.status
-WHERE c.team_image_id = ti.id AND ti.id <> k.id;;
-
+-- that rule down to its newest image of each review state before enforcing it.
+-- Rejected images are left alone: they are history a member is shown, never
+-- something a card can point at.
 WITH keepers AS (
   SELECT DISTINCT ON (team_id, status) id, team_id, status
   FROM team_images
@@ -88,7 +60,4 @@ SELECT create_index_if_not_exists('team_images', 'team_pending', '(team_id) WHER
 
 # --- !Downs
 
-ALTER TABLE IF EXISTS challenges DROP CONSTRAINT IF EXISTS challenges_team_image_id_fkey;;
-ALTER TABLE IF EXISTS challenges DROP COLUMN IF EXISTS team_image_id;;
 DROP TABLE IF EXISTS team_images;;
-

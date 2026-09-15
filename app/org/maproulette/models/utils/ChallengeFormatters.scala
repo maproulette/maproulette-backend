@@ -23,15 +23,20 @@ import play.api.libs.json.JodaWrites._
 import play.api.libs.json._
 
 /**
-  * The pair of fields every challenge projection emits for its team image: the
-  * id it stores, and the url clients render the card image from. Derived in
-  * one place so the projections can't drift apart.
+  * The fields every challenge projection emits for the team that owns it: the
+  * team's id, and the url clients render the card image from. Derived in one
+  * place so the projections can't drift apart.
+  *
+  * The url is addressed by team rather than by image, so it always serves
+  * whatever image that team currently has approved - no challenge can be left
+  * pointing at an image the team has since replaced. A team with no approved
+  * image serves a 404 there, which is how a client tells there is no picture.
   */
-private[utils] object TeamImageFields {
-  def apply(teamImageId: Option[Long]): List[Option[(String, JsValue)]] =
+private[utils] object OwnerTeamFields {
+  def apply(ownerTeamId: Option[Long]): List[Option[(String, JsValue)]] =
     List(
-      teamImageId.map(v => "teamImageId" -> JsNumber(v)),
-      teamImageId.map(v => "avatarUrl"   -> JsString(TeamImage.urlFor(v)))
+      ownerTeamId.map(v => "ownerTeamId" -> JsNumber(v)),
+      ownerTeamId.map(v => "avatarUrl"   -> JsString(TeamImage.urlForTeam(v)))
     )
 }
 
@@ -89,7 +94,7 @@ trait ChallengeWrites extends DefaultWrites {
         o.systemArchivedAt.map(dt => "systemArchivedAt"        -> Json.toJson(dt)),
         o.presets.map(v => "presets"                           -> Json.toJson(v)),
         o.mrTagMetrics.map(v => "mrTagMetrics"                 -> v)
-      ) ++ TeamImageFields(o.teamImageId)
+      ) ++ OwnerTeamFields(o.ownerTeamId)
 
       val json = JsObject(baseFields ++ optionFields.flatten)
 
@@ -192,7 +197,7 @@ trait ChallengeReads extends DefaultReads {
               (jsonWithExtras \ "requireConfirmation").asOpt[Boolean].getOrElse(false),
             mrTagMetrics = (jsonWithExtras \ "mrTagMetrics").asOpt[JsObject],
             paused = (jsonWithExtras \ "paused").asOpt[Boolean].getOrElse(false),
-            teamImageId = (jsonWithExtras \ "teamImageId").asOpt[Long]
+            ownerTeamId = (jsonWithExtras \ "ownerTeamId").asOpt[Long]
           )
         )
       } catch {
@@ -294,7 +299,7 @@ trait BaseChallengeWrites extends DefaultWrites {
         bc.location.map(v => "location"                         -> v),
         bc.bounding.map(v => "bounding"                         -> v),
         bc.completionPercentage.map(v => "completionPercentage" -> JsNumber(v))
-      ) ++ TeamImageFields(bc.teamImageId)
+      ) ++ OwnerTeamFields(bc.ownerTeamId)
 
       JsObject(baseFields ++ optionFields.flatten)
     }

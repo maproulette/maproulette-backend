@@ -5,11 +5,10 @@
 
 package org.maproulette.framework.repository
 
-import org.maproulette.framework.model.{Group, MemberObject, TeamImage, User}
+import org.maproulette.framework.model.{Group, MemberObject, TeamImage}
 import org.maproulette.framework.util.{FrameworkHelper, TeamImageRepoTag}
 import org.scalatest.BeforeAndAfterEach
 import play.api.Application
-import play.api.libs.json.Json
 
 class TeamImageRepositorySpec(implicit val application: Application)
     extends FrameworkHelper
@@ -26,18 +25,8 @@ class TeamImageRepositorySpec(implicit val application: Application)
   private def request(team: Group, name: String): Long =
     this.repository.create(team.id, name, "image/png", PNG, this.defaultUser.id)
 
-  private def approve(id: Long): Option[List[Long]] =
+  private def approve(id: Long): Boolean =
     this.repository.review(id, TeamImage.STATUS_APPROVED, this.defaultUser.id, None)
-
-  private def attach(challengeId: Long, imageId: Long): Unit =
-    this.challengeDAL.update(Json.obj("teamImageId" -> imageId), User.superUser)(challengeId)
-
-  // Read the column back through the repository rather than the DAL: the DAL
-  // caches challenges, and evicting that cache after an image changes hands is
-  // the service's job (see TeamImageService.review), not something this
-  // repository can or should do.
-  private def isAttached(challengeId: Long, imageId: Long): Boolean =
-    this.repository.challengeIdsUsing(imageId).contains(challengeId)
 
   "TeamImageRepository" should {
     "store a request as pending, with the requester recorded" taggedAs TeamImageRepoTag in {
@@ -67,7 +56,7 @@ class TeamImageRepositorySpec(implicit val application: Application)
 
     "record an approval and who made it" taggedAs TeamImageRepoTag in {
       val id = request(this.teamA, "approve-me.png")
-      approve(id) mustEqual Some(List())
+      approve(id) mustEqual true
 
       val image = this.repository.retrieve(id).get
       image.status mustEqual TeamImage.STATUS_APPROVED
@@ -79,7 +68,7 @@ class TeamImageRepositorySpec(implicit val application: Application)
       val id = request(this.teamA, "reject-me.png")
       this.repository
         .review(id, TeamImage.STATUS_REJECTED, this.defaultUser.id, Some("off brand")) mustEqual
-        Some(List())
+        true
 
       val image = this.repository.retrieve(id).get
       image.status mustEqual TeamImage.STATUS_REJECTED
@@ -88,7 +77,7 @@ class TeamImageRepositorySpec(implicit val application: Application)
 
     "report nothing reviewed for an image that does not exist" taggedAs TeamImageRepoTag in {
       this.repository.review(-12345, TeamImage.STATUS_APPROVED, this.defaultUser.id, None) mustEqual
-        None
+        false
     }
 
     "list a team's images regardless of status, and filter by status on request" taggedAs TeamImageRepoTag in {
@@ -153,22 +142,6 @@ class TeamImageRepositorySpec(implicit val application: Application)
       this.repository.listForTeam(this.teamA.id, Some(TeamImage.STATUS_APPROVED)).size mustEqual 1
     }
 
-    "move the replaced image's challenges onto the new one, and report them" taggedAs TeamImageRepoTag in {
-      val original = request(this.teamA, "original-in-use.png")
-      approve(original)
-
-      val challenge = this.challengeDAL
-        .insert(this.getTestChallenge("tiReplaceChallenge"), this.defaultUser)
-      attach(challenge.id, original)
-
-      val replacement = request(this.teamA, "replacement-in-use.png")
-      // The challenges that changed image are reported back so the caller can
-      // evict them from the challenge cache.
-      approve(replacement) mustEqual Some(List(challenge.id))
-
-      isAttached(challenge.id, replacement) mustEqual true
-    }
-
     "leave another team's image alone when one team's image is replaced" taggedAs TeamImageRepoTag in {
       val theirs = request(this.teamB, "theirs.png")
       approve(theirs)
@@ -179,52 +152,35 @@ class TeamImageRepositorySpec(implicit val application: Application)
       this.repository.retrieve(theirs).map(_.status) mustEqual Some(TeamImage.STATUS_APPROVED)
     }
 
-    "detach a rejected image from the challenges using it" taggedAs TeamImageRepoTag in {
+    "leave a team with no image at all once its only one is rejected" taggedAs TeamImageRepoTag in {
       val id = request(this.teamA, "revoke-me.png")
       approve(id)
 
-      val challenge = this.challengeDAL
-        .insert(this.getTestChallenge("tiRevokeChallenge"), this.defaultUser)
-      attach(challenge.id, id)
-      isAttached(challenge.id, id) mustEqual true
+      this.repository
+        .review(id, TeamImage.STATUS_REJECTED, this.defaultUser.id, None) mustEqual true
 
-      this.repository.review(id, TeamImage.STATUS_REJECTED, this.defaultUser.id, None) mustEqual
-        Some(List(challenge.id))
-
-      isAttached(challenge.id, id) mustEqual false
+      this.repository.currentForTeam(this.teamA.id, TeamImage.STATUS_APPROVED) mustEqual None
     }
 
-    "leave challenge references alone when an image is approved" taggedAs TeamImageRepoTag in {
+    "not treat a re-approved image as replacing itself" taggedAs TeamImageRepoTag in {
       val id = request(this.teamA, "keep-me.png")
       approve(id)
+      approve(id) mustEqual true
 
-      val challenge = this.challengeDAL
-        .insert(this.getTestChallenge("tiKeepChallenge"), this.defaultUser)
-      attach(challenge.id, id)
-
-      // Re-approving must not disturb challenges already using the image, and
-      // in particular must not treat the image as replacing itself.
-      approve(id) mustEqual Some(List())
-      isAttached(challenge.id, id) mustEqual true
+      this.repository.retrieve(id).map(_.status) mustEqual Some(TeamImage.STATUS_APPROVED)
     }
 
-    "detach a deleted image from the challenges using it" taggedAs TeamImageRepoTag in {
+    "remove a deleted image from the team" taggedAs TeamImageRepoTag in {
       val id = request(this.teamA, "delete-me.png")
       approve(id)
 
-      val challenge = this.challengeDAL
-        .insert(this.getTestChallenge("tiDeleteChallenge"), this.defaultUser)
-      attach(challenge.id, id)
-
-      this.repository.challengeIdsUsing(id) mustEqual List(challenge.id)
-      this.repository.delete(id) mustEqual Some(List(challenge.id))
-
+      this.repository.delete(id) mustEqual true
       this.repository.retrieve(id) mustEqual None
-      this.repository.challengeIdsUsing(id) mustEqual List()
+      this.repository.currentForTeam(this.teamA.id, TeamImage.STATUS_APPROVED) mustEqual None
     }
 
     "report nothing removed when the image does not exist" taggedAs TeamImageRepoTag in {
-      this.repository.delete(-12345) mustEqual None
+      this.repository.delete(-12345) mustEqual false
     }
 
     "drop a team's images when the team itself is deleted" taggedAs TeamImageRepoTag in {

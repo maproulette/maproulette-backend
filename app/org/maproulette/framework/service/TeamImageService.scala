@@ -16,7 +16,6 @@ import org.maproulette.framework.model.{
   User
 }
 import org.maproulette.framework.repository.TeamImageRepository
-import org.maproulette.models.dal.ChallengeDAL
 import org.maproulette.permissions.Permission
 
 /**
@@ -32,7 +31,6 @@ class TeamImageService @Inject() (
     repository: TeamImageRepository,
     groupService: GroupService,
     teamService: TeamService,
-    challengeDAL: ChallengeDAL,
     permission: Permission
 ) {
 
@@ -86,44 +84,18 @@ class TeamImageService @Inject() (
     }
 
   /**
-    * Requires that an image may be attached to a challenge by this user. Image
-    * ids are just numbers on the wire, so without this anyone could borrow
-    * another team's image, or an image still awaiting review, by guessing an
-    * id.
+    * The image a team is currently using on its challenges, if it has one.
+    * This is what a card renders, and what the public image endpoint serves.
     */
-  def requireUsable(imageId: Long, user: User): Unit = {
-    val image = this.retrieve(imageId)
-    if (image.status != TeamImage.STATUS_APPROVED) {
-      throw new InvalidException(
-        s"Team image $imageId has not been approved and cannot be used on a challenge"
-      )
-    }
-    if (!this.hasTeamAccess(image.teamId, user)) {
-      throw new InvalidException(
-        s"You must be a member of team ${image.teamId} to use its images"
-      )
-    }
-  }
+  def approvedForTeam(teamId: Long): Option[TeamImage] =
+    this.repository.currentForTeam(teamId, TeamImage.STATUS_APPROVED)
 
   /**
-    * The ids of the teams whose approved images the user may choose from, i.e.
-    * every team they are an active member of. Read straight from the
-    * memberships rather than via full team objects, since only the ids are
-    * wanted.
+    * The approved images of several teams at once, for listing teams alongside
+    * the picture each one puts on its challenges without a query per team.
     */
-  def teamIdsFor(user: User): List[Long] =
-    this.groupService
-      .getMembershipsForMembers(UserType().typeId, List(user.id))
-      .filter(_.status != TeamMember.STATUS_INVITED)
-      .map(_.groupId)
-      .distinct
-
-  /**
-    * Every approved image across the teams the user belongs to. This is the
-    * set the challenge form offers as display images.
-    */
-  def listAvailable(user: User): List[TeamImage] =
-    this.repository.listForTeams(this.teamIdsFor(user), Some(TeamImage.STATUS_APPROVED))
+  def approvedForTeams(teamIds: List[Long]): List[TeamImage] =
+    this.repository.listForTeams(teamIds, Some(TeamImage.STATUS_APPROVED))
 
   def listForTeam(teamId: Long): List[TeamImage] = this.repository.listForTeam(teamId)
 
@@ -160,18 +132,16 @@ class TeamImageService @Inject() (
 
   /**
     * Records a review decision and returns the reviewed image. Approving hands
-    * the team's single image slot to this image and moves the challenges that
-    * were on the old one across; anything else detaches it from the challenges
-    * using it. Either way challenges change image in SQL, which the challenge
-    * cache has no way of noticing, so the repository reports back which ones
-    * to evict.
+    * the team's single image slot to this image, replacing whatever the team
+    * had before. Cards need no attention either way: a challenge stores the
+    * team that owns it, not an image id, so they follow the team's current
+    * image on their own.
     */
   def review(imageId: Long, status: Int, reviewedBy: Long, comment: Option[String]): TeamImage = {
-    val affected = this.repository
-      .review(imageId, status, reviewedBy, comment.map(_.trim).filter(_.nonEmpty))
-      .getOrElse(throw new NotFoundException(s"No team image found with id $imageId"))
-
-    affected.foreach(this.challengeDAL.cacheManager.cache.remove)
+    if (!this.repository
+          .review(imageId, status, reviewedBy, comment.map(_.trim).filter(_.nonEmpty))) {
+      throw new NotFoundException(s"No team image found with id $imageId")
+    }
     this.retrieve(imageId)
   }
 
@@ -196,12 +166,7 @@ class TeamImageService @Inject() (
       )
     }
 
-    // Deleting detaches the image from the challenges showing it, which the
-    // challenge cache has no way of noticing, so those challenges are evicted.
-    this.repository
-      .delete(imageId)
-      .getOrElse(Nil)
-      .foreach(this.challengeDAL.cacheManager.cache.remove)
+    this.repository.delete(imageId)
   }
 
   private def team(teamId: Long) =

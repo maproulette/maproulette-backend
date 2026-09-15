@@ -123,11 +123,25 @@ object TeamImage extends CommonField {
       signature.zipWithIndex.forall { case (b, i) => (data(offset + i) & 0xff) == b }
 
   /**
-    * The url that serves an image's bytes. Left relative so the same stored
-    * value works across environments; approved images are immutable, so no
-    * cache-busting stamp is needed and the endpoint's ETag covers the rest.
+    * The url that serves a particular image's bytes, used where a specific
+    * image is the subject - a team reviewing its own requests, a superuser
+    * working the queue. Left relative so the same stored value works across
+    * environments; an image's bytes never change, so no cache-busting stamp is
+    * needed and the endpoint's ETag covers the rest.
     */
   def urlFor(imageId: Long): String = s"/api/v2/teamImage/$imageId/file"
+
+  /**
+    * The url that serves whatever image a team currently has approved, which
+    * is what a challenge card renders.
+    *
+    * Addressed by team rather than by image on purpose: a challenge stores
+    * only the team that owns it, so replacing the team's image changes every
+    * one of its cards at once and no card can be left pointing at an image
+    * that is gone. A team with no approved image answers 404 here, which is
+    * how a client tells there is no picture to show.
+    */
+  def urlForTeam(teamId: Long): String = s"/api/v2/team/$teamId/image/file"
 }
 
 /**
