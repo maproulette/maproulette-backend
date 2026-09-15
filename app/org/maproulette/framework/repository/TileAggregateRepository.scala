@@ -28,18 +28,45 @@ import play.api.db.Database
   * ----------
   * Emitting one marker per grid cell made dense regions look like graph paper:
   * cells are evenly spaced and axis-aligned, so the markers were too. Instead a
-  * tile now reads micro-aggregates DETAIL_BITS levels *deeper* than the display
-  * zoom (a 64x64 lattice of them per tile, ~4 MVT pixels apart), runs
-  * `ST_ClusterKMeans` over them in Web Mercator, then merges any centroids that
-  * would land within MIN_SEPARATION_PX of each other. Marker positions follow
-  * the data instead of the grid, and cluster extent adapts to local density.
+  * tile reads micro-aggregates DETAIL_BITS levels *deeper* than the display
+  * zoom (a 64x64 lattice of them per tile, ~8 CSS pixels apart) and runs
+  * `ST_ClusterKMeans` over them in Web Mercator. Marker positions follow the
+  * data instead of the grid, and cluster extent adapts to local density.
   *
-  * The merge is what makes zooming out behave. k-means returns exactly k
-  * clusters however tightly packed its input is, so a dense region that shrinks
-  * to a handful of pixels at low zoom would otherwise get every one of its k
-  * centroids stacked on the same spot. Merging by on-screen distance means the
-  * marker count falls out of how much room the data actually occupies: k is
-  * only a ceiling, and zooming out consolidates clusters for real.
+  * Two screen-pixel measures then decide how many of those clusters are drawn
+  * and how far apart they sit. k-means returns exactly k clusters however
+  * tightly packed its input is, so a dense region that shrinks to a few pixels
+  * at low zoom would otherwise get every one of its k centroids stacked on the
+  * same spot.
+  *
+  *   - `k` is the number of CANDIDATE_PITCH_PX grid squares the tile's
+  *     micro-aggregates actually occupy, so cluster count tracks how much room
+  *     the data takes up on screen and zooming out consolidates markers for
+  *     real, because the data covers fewer squares.
+  *   - The candidates are then thinned to a hard minimum on-screen distance of
+  *     MIN_SEPARATION_PX (see `separationWalk`): biggest cluster first, and any
+  *     candidate closer than that to one already kept is absorbed into the
+  *     nearest kept marker rather than drawn. Frontend cluster bubbles are up
+  *     to 54 CSS px across, so this is what stops them overlapping.
+  *
+  * The grid sizes `k` at half the separation distance on purpose: offering
+  * k-means more candidate positions than can survive the thinning lets it place
+  * them on the data, and the walk keeps whichever ones fit. Measured on a
+  * 166k-task database, sizing candidates on the separation grid instead cost
+  * about a quarter of the markers for no change in spacing.
+  *
+  * This replaced a chain of `ST_ClusterDBSCAN(eps, minpoints = 1)` merge passes,
+  * which is single-linkage clustering: A merges with B, B with C, and the
+  * cluster walks across the tile a marker at a time. Dense regions are exactly
+  * where every centroid has a neighbour within eps, so the walk never stopped --
+  * on that same database the tile covering South Africa emitted *one* marker at
+  * every display zoom from 2 to 6, and at z=5 its member cells spanned
+  * 1005 x 1202 km (205 x 246 CSS px). The thinning walk cannot chain: it
+  * compares each candidate against the markers already kept, never against the
+  * ones those markers displaced, so `MIN_SEPARATION_PX` is a floor on the
+  * distance between drawn markers and a ceiling on how far an absorbed count
+  * sits from the marker reporting it. The same tile now emits 4 markers at z=3,
+  * 29 at z=5 and 37 at z=11, no two of them closer than 64 CSS px.
   *
   * Reading a deeper pyramid level costs no extra storage -- level z+DETAIL_BITS
   * already exists -- and the row count per tile is bounded by construction, so
@@ -55,14 +82,21 @@ import play.api.db.Database
   *     depends on the whole tile's contents. It is still a pure function of
   *     (z, x, y, filters), which is what tile caching requires.
   *
-  * All four code paths (this repository's live queries, plus `rebuild_leaf_cell`
-  * and `rebuild_all_tile_cells`, last redefined in evolution 122) share one
+  * A tile is a pure function of (z, x, y). The map applies no filters at all:
+  * challenge-level filters (difficulty, global, keywords) belong to the grid and
+  * list views, so the map shows every task that is available work and the
+  * pyramid stores a single count per cell (evolution 123). Nothing here reads a
+  * user's identity or a filter parameter, which is what keeps tiles HTTP
+  * cacheable and lets zoom 0..11 come entirely from pre-computed cells.
+  *
+  * All three code paths (this repository's z=12 query, plus `rebuild_leaf_cell`
+  * and `rebuild_all_tile_cells`, last redefined in evolution 123) share one
   * eligibility filter: a task is available work when it has a valid location,
   * `status IN (0,3,6)`, is not archived, and its challenge/project are enabled
   * and not deleted or archived, with the challenge not paused. `enabled` is
   * MapRoulette's "discoverable" flag, so requiring it on both challenge and
   * project keeps hidden work off the explore map; a paused challenge has work
-  * that cannot be locked or completed, so it is off the map too. Keep all four
+  * that cannot be locked or completed, so it is off the map too. Keep all three
   * paths in sync.
   */
 @Singleton
@@ -88,40 +122,49 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
   // is clamped at MAX_CELL_ZOOM, so near the top of the pyramid the display
   // zoom eats into the depth available and the tile falls back on CELL_BITS
   // alone: at z = MAX_CELL_ZOOM a tile reads 2^CELL_BITS per axis whatever
-  // DETAIL_BITS says. With CELL_BITS = 4 that is 16 per axis, 256 cells, so
-  // k-means still has more input than MAX_CLUSTERS to partition and the cells
-  // (16px) are finer than MIN_SEPARATION_PX, so the merge still fires.
-  // Coarsening the grid to CELL_BITS = 3 instead would leave 64 cells of 32px
-  // there -- k equal to the input size, which makes k-means an identity, and
-  // cells wider than the merge distance, which makes the separation pass a
-  // no-op. The top cluster zoom would be back to one marker per grid cell.
+  // DETAIL_BITS says. With CELL_BITS = 4 that is 16 per axis, 256 cells of
+  // 32 CSS px -- finer than MIN_SEPARATION_PX, so several of them still fall in
+  // one grid square and the clustering has something to do. Coarsening the grid
+  // to CELL_BITS = 3 instead would leave 64 cells of 64px there, each wider than
+  // a grid square: one occupied square per cell, k equal to the input size,
+  // k-means an identity, and the top cluster zoom back to one marker per cell.
   private val DETAIL_BITS = 2
 
-  // Upper bound on markers emitted per tile at zoom 0..11. This is a ceiling,
-  // not a target: the separation pass below merges whatever would overlap, so
-  // the actual count adapts to how much room the data occupies on screen. A
-  // 256px tile fits about (256 / 25)^2 markers at the minimum separation, so
-  // asking for more than 100 could never survive the merge.
-  private val MAX_CLUSTERS = 100
+  // Hard minimum on-screen distance between two emitted markers, in CSS pixels.
+  // Frontend cluster bubbles run 30 to 54 CSS px across (radius 15-27 by count),
+  // so 64 leaves the largest pair a visible gap and every smaller pair more.
+  // `separationWalk` enforces this exactly rather than on average: raise it for
+  // an emptier map, lower it for a denser one, but not below 54 or bubbles
+  // start to touch.
+  private val MIN_SEPARATION_PX = 64.0
 
-  // Minimum on-screen distance between two emitted markers, in CSS pixels.
-  // k-means always returns exactly k clusters no matter how tightly packed the
-  // input is, so at low zoom a dense region collapses to a few pixels and every
-  // centroid lands on top of its neighbours. Merging centroids closer than this
-  // is what stops markers stacking; it also means zooming out genuinely
-  // consolidates clusters instead of just redrawing the same pile.
-  private val MIN_SEPARATION_PX = 25.0
+  // Pitch of the grid whose occupied squares set `k`, the number of candidate
+  // clusters k-means places. Half the separation distance: the thinning walk can
+  // only keep candidates that are far enough apart, so handing it a finer choice
+  // of positions leaves more of them standing (measured: about a quarter more
+  // markers than sizing `k` on the separation grid itself, at identical
+  // spacing). Finer still mostly buys k-means work that the walk throws away.
+  private val CANDIDATE_PITCH_PX = MIN_SEPARATION_PX / 2
 
-  /** CSS pixels per tile edge -- the unit MIN_SEPARATION_PX is measured in. */
-  private val TILE_SIZE_PX = 256.0
+  /**
+    * CSS pixels per tile edge -- the unit MIN_SEPARATION_PX is measured in.
+    *
+    * 512, not 256: MapLibre vector sources default to `tileSize: 512`, so the
+    * frontend requests zoom `floor(map zoom)` and draws one of these tiles
+    * across 512 CSS pixels. Measuring against 256 made every pixel figure here
+    * mean twice as much ground as it claimed.
+    */
+  private val TILE_SIZE_PX = 512.0
 
-  // One merge pass separates centroids that were within MIN_SEPARATION_PX, but
-  // the merged centroid can land back within range of a third one, so a single
-  // pass is not a fixpoint. Measured over every populated tile in a full
-  // pyramid, two passes converged (a third and fourth changed nothing); three
-  // is that plus margin. Each pass runs on at most MAX_CLUSTERS rows, so the
-  // extra pass is free.
-  private val SEPARATION_PASSES = 3
+  // Upper bound on the candidate clusters k-means is asked for. A cost backstop,
+  // not a shaping knob: `k` is the number of occupied candidate squares and a
+  // tile holds only (TILE_SIZE_PX / CANDIDATE_PITCH_PX)^2 of them, so the
+  // ceiling is set to exactly that and never binds. Lowering it would stop the
+  // grid, rather than this number, from deciding the marker count. Markers
+  // actually emitted are far fewer -- the thinning walk keeps at most
+  // (TILE_SIZE_PX / MIN_SEPARATION_PX)^2 of them.
+  private val MAX_CLUSTERS =
+    math.ceil(math.pow(TILE_SIZE_PX / CANDIDATE_PITCH_PX, 2)).toInt
 
   /** Highest display zoom backed by the pre-computed pyramid. */
   val MAX_CELL_ZOOM = 11
@@ -134,133 +177,52 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
   // ---------------------------------------------------------------------------
 
   /**
-    * MVT for display zoom 0..11 with no keyword/location filter. Micro-aggregates
-    * come from the pre-computed `tile_cells` pyramid (difficulty/global applied by
-    * summing `counts_by_filter` buckets) and are clustered with k-means.
+    * MVT for display zoom 0..11. Micro-aggregates come from the pre-computed
+    * `tile_cells` pyramid and are clustered with k-means. This is every request
+    * below z=12: with no filters to apply, there is nothing a tile needs from
+    * `tasks`, so the cost is bounded by the cell count (a few thousand rows read
+    * through the primary key) rather than by how many tasks the database holds.
     */
   def getMvtCellsPrecomputed(
       z: Int,
       x: Int,
-      y: Int,
-      difficulty: Option[Int],
-      global: Boolean
+      y: Int
   )(implicit c: Option[Connection] = None): Array[Byte] =
-    mvtQuery(
-      kmeansMvtQuery(precomputedSource(difficulty, global)),
-      precomputedParams(z, x, y)
-    )
+    mvtQuery(kmeansMvtQuery(precomputedSource), precomputedParams(z, x, y))
 
   /**
     * Micro-aggregate source for the pre-computed path: the cells of one display
-    * tile, with the requested difficulty/global buckets summed.
+    * tile. A cell's `sum_lat`/`sum_lng` are sums over its tasks, so dividing by
+    * `task_count` gives their centroid, and the count is also the weight the
+    * clustering carries -- the number the marker will report.
     */
-  private def precomputedSource(difficulty: Option[Int], global: Boolean): String = {
-    // counts_by_filter has a fixed, code-controlled key set, so composing the
-    // keys into a SQL expression is safe (no user input is interpolated).
-    val countExpr = buildFilterCountKeys(difficulty, global)
-      .map(k => s"COALESCE((tc.counts_by_filter->>'$k')::int, 0)")
-      .mkString(" + ")
-
-    // A cell's stored sum_lat/sum_lng sum over *every* task in it, so dividing
-    // by the cell's total gives the centroid of all of them -- the best estimate
-    // of where the cell's tasks are, and the same point this path has always
-    // emitted. What was wrong was the weight: carrying the cell *total* into the
-    // merge lets a cell drag a cluster around in proportion to the tasks the
-    // filter threw away, so a marker reporting a handful of expert tasks could
-    // sit on top of a thousand easy ones.
-    //
-    // Rescaling the centroid to the filtered count keeps `sum / weight` at that
-    // same centroid while making the weight the count actually being reported.
-    // Measured against the base tables on a 166k-task database with a
-    // difficulty filter, mean cluster displacement drops from 563m to 2m at
-    // z=8 (worst 2345m -> 4m) and from 68m to 3m at z=11 (worst 298m -> 12m).
-    //
-    // Cells with nothing left after filtering drop out entirely.
-    val src = s"""
+  private val precomputedSource: String = """
       SELECT
-        cx,
-        cy,
-        filtered * (sum_lat / total) AS sum_lat,
-        filtered * (sum_lng / total) AS sum_lng,
-        filtered::double precision   AS weight,
-        filtered                     AS task_count
-      FROM (
-        SELECT
-          tc.cx,
-          tc.cy,
-          tc.sum_lat,
-          tc.sum_lng,
-          tc.task_count AS total,
-          ($countExpr)  AS filtered
-        FROM tile_cells tc
-        WHERE tc.z = {levelZ}
-          AND tc.cx BETWEEN {cxMin} AND {cxMax}
-          AND tc.cy BETWEEN {cyMin} AND {cyMax}
-          AND tc.task_count > 0
-      ) cells
-      WHERE filtered > 0
-      ORDER BY cx, cy
+        tc.cx,
+        tc.cy,
+        tc.sum_lat,
+        tc.sum_lng,
+        tc.task_count::double precision AS weight,
+        tc.task_count                   AS task_count
+      FROM tile_cells tc
+      WHERE tc.z = {levelZ}
+        AND tc.cx BETWEEN {cxMin} AND {cxMax}
+        AND tc.cy BETWEEN {cyMin} AND {cyMax}
+        AND tc.task_count > 0
+      ORDER BY tc.cx, tc.cy
     """
-
-    src
-  }
 
   /** Bound parameters shared by every pre-computed-path query for a tile. */
   private def precomputedParams(z: Int, x: Int, y: Int): Seq[NamedParameter] = {
     val (xMin, yMin, xMax, yMax)     = tileBounds3857(z, x, y)
     val (cxMin, cyMin, cxMax, cyMax) = cellRange(z, x, y)
-    boundsParams(xMin, yMin, xMax, yMax) ++ Seq(
-      NamedParameter("epsMeters", separationMeters(z)),
+    boundsParams(xMin, yMin, xMax, yMax) ++ clusteringParams(z) ++ Seq(
       NamedParameter("levelZ", detailLevel(z)),
       NamedParameter("cxMin", cxMin),
       NamedParameter("cxMax", cxMax),
       NamedParameter("cyMin", cyMin),
       NamedParameter("cyMax", cyMax)
     )
-  }
-
-  /**
-    * MVT for display zoom 0..11 with keyword filters. Keyword membership cannot be
-    * pre-computed, so the micro-aggregates are binned from `tasks` on the fly --
-    * on the *same* grid the pre-computed path reads, then clustered by the same
-    * k-means. A filtered map therefore clusters like an unfiltered one.
-    */
-  def getMvtCellsLive(
-      z: Int,
-      x: Int,
-      y: Int,
-      difficulty: Option[Int],
-      global: Boolean,
-      keywords: Option[String]
-  )(implicit c: Option[Connection] = None): Array[Byte] = {
-    val (xMin, yMin, xMax, yMax) = tileBounds3857(z, x, y)
-    val binZoom                  = detailLevel(z) + CELL_BITS
-    val filter                   = liveFilter(difficulty, global, keywords)
-
-    // Every task here already passes the filter, so the centroid weight and
-    // the reported count are the same number.
-    val src = s"""
-      SELECT
-        lng_to_tile_x(ST_X(t.location), $binZoom) AS cx,
-        lat_to_tile_y(ST_Y(t.location), $binZoom) AS cy,
-        SUM(ST_Y(t.location))                     AS sum_lat,
-        SUM(ST_X(t.location))                     AS sum_lng,
-        COUNT(*)::double precision                AS weight,
-        COUNT(*)::int                             AS task_count
-      FROM tasks t
-      INNER JOIN challenges c ON c.id = t.parent_id
-      INNER JOIN projects   p ON p.id = c.parent_id
-      WHERE t.location && ST_Transform(
-              ST_MakeEnvelope({xMin}, {yMin}, {xMax}, {yMax}, 3857), 4326)
-        AND NOT ST_IsEmpty(t.location)
-        ${filter.where}
-      GROUP BY 1, 2
-      ORDER BY 1, 2
-    """
-
-    val params = boundsParams(xMin, yMin, xMax, yMax) ++
-      Seq(NamedParameter("epsMeters", separationMeters(z))) ++ filter.params
-    mvtQuery(kmeansMvtQuery(src), params)
   }
 
   /**
@@ -272,13 +234,9 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
   def getMvtTasksLive(
       z: Int,
       x: Int,
-      y: Int,
-      difficulty: Option[Int],
-      global: Boolean,
-      keywords: Option[String]
+      y: Int
   )(implicit c: Option[Connection] = None): Array[Byte] = {
     val (xMin, yMin, xMax, yMax) = tileBounds3857(z, x, y)
-    val filter                   = liveFilter(difficulty, global, keywords)
 
     val query = s"""
       WITH eligible AS (
@@ -289,7 +247,7 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
         WHERE t.location && ST_Transform(
                 ST_MakeEnvelope({xMin}, {yMin}, {xMax}, {yMax}, 3857), 4326)
           AND NOT ST_IsEmpty(t.location)
-          ${filter.where}
+          $AVAILABLE_WORK
       ),
       grouped AS (
         SELECT
@@ -323,7 +281,7 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
       ) AS tile
     """
 
-    mvtQuery(query, boundsParams(xMin, yMin, xMax, yMax) ++ filter.params)
+    mvtQuery(query, boundsParams(xMin, yMin, xMax, yMax))
   }
 
   // ---------------------------------------------------------------------------
@@ -391,11 +349,12 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
     *
     * These queries carry a large *estimated* cost -- a spatial scan crossed with
     * a pile of geometry expressions -- while doing very little actual work, so
-    * LLVM compilation never pays for itself. Worse, k-means pushes the estimate
-    * past `jit_optimize_above_cost` / `jit_inline_above_cost` (500k by default),
-    * which switches on LLVM optimization and inlining: measured on the keyword
-    * path, ~400ms of compilation on top of ~44ms of query. `SET LOCAL` scopes
-    * the setting to this transaction, so pooled connections are unaffected.
+    * LLVM compilation never pays for itself. Worse, the estimate can pass
+    * `jit_optimize_above_cost` / `jit_inline_above_cost` (500k by default),
+    * which switches on LLVM optimization and inlining. Measured on the z=12
+    * query over a whole-world envelope: 903ms with JIT on against 136ms with it
+    * off, nearly all of it compilation. `SET LOCAL` scopes the setting to this
+    * transaction, so pooled connections are unaffected.
     */
   private def mvtQuery(query: String, params: Seq[NamedParameter])(
       implicit c: Option[Connection] = None
@@ -405,64 +364,22 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
       SQL(query).on(params: _*).as(get[Array[Byte]]("mvt").single)
     }
 
-  /** Shared WHERE fragment + bound parameters for the live paths. */
-  private case class LiveFilter(where: String, params: Seq[NamedParameter])
-
   /**
-    * Build the eligibility + difficulty/global/keyword filter shared by the live
-    * MVT queries. All user-provided values are bound parameters; only
-    * code-controlled identifiers are interpolated.
+    * The eligibility filter: what makes a task available work. Mirrored
+    * verbatim by `rebuild_leaf_cell` and `rebuild_all_tile_cells` (evolution
+    * 123), which is how the pre-computed pyramid and this live z=12 query agree
+    * on what the map shows. Keep them in sync.
     *
-    * Keywords are matched with EXISTS rather than by joining `tags_on_challenges`.
-    * A keyword names a tag on the *challenge*, so joining multiplies every one of
-    * its tasks by the number of requested tags it carries -- a challenge matching
-    * two keywords counted each of its tasks twice, inflating cluster counts and
-    * pulling centroids toward multi-tagged challenges. A semi-join asks the
-    * question that was actually meant ("is this challenge tagged with any of
-    * these?") and answers it once per challenge.
+    * Assumes `tasks t`, `challenges c` and `projects p` are in scope. No user
+    * input reaches it, and it takes no parameters -- there is nothing to filter
+    * by beyond availability itself.
     */
-  private def liveFilter(
-      difficulty: Option[Int],
-      global: Boolean,
-      keywords: Option[String]
-  ): LiveFilter = {
-    val keywordList = keywords
-      .map(_.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty).toList)
-      .getOrElse(Nil)
-    val hasKeywords = keywordList.nonEmpty
-
-    val keywordParamNames = keywordList.indices.map(i => s"kw$i").toList
-    val keywordClause =
-      if (hasKeywords)
-        s"""AND EXISTS (
-              SELECT 1
-              FROM tags_on_challenges toc
-              INNER JOIN tags tg ON tg.id = toc.tag_id
-              WHERE toc.challenge_id = c.id
-                AND LOWER(tg.name) IN (${keywordParamNames.map(n => s"{$n}").mkString(", ")})
-            )"""
-      else ""
-    val difficultyClause = if (difficulty.isDefined) "AND c.difficulty = {difficulty}" else ""
-    val globalClause     = if (!global) "AND c.is_global = false" else ""
-
-    val where =
-      s"""AND t.status IN (0, 3, 6)
+  private val AVAILABLE_WORK: String =
+    """AND t.status IN (0, 3, 6)
           AND t.archived = false
           AND c.deleted = false AND c.enabled = true AND c.is_archived = false
           AND c.paused = false
-          AND p.deleted = false AND p.enabled = true
-          $globalClause
-          $difficultyClause
-          $keywordClause"""
-
-    val params = scala.collection.mutable.ListBuffer[NamedParameter]()
-    keywordParamNames.zip(keywordList).foreach {
-      case (name, value) => params += NamedParameter(name, value)
-    }
-    if (difficulty.isDefined) params += NamedParameter("difficulty", difficulty.get)
-
-    LiveFilter(where, params.toSeq)
-  }
+          AND p.deleted = false AND p.enabled = true"""
 
   private def boundsParams(
       xMin: Double,
@@ -478,22 +395,6 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
     )
 
   /**
-    * Build the list of `counts_by_filter` JSON keys to sum for the given
-    * filters. Returns a hardcoded key set — safe to interpolate into SQL.
-    */
-  private def buildFilterCountKeys(difficulty: Option[Int], global: Boolean): List[String] = {
-    val difficulties = difficulty match {
-      case Some(d) if d >= 1 && d <= 3 => List(s"d$d")
-      case _                           => List("d1", "d2", "d3", "d0")
-    }
-    val globals = if (global) List("gf", "gt") else List("gf")
-    for {
-      d <- difficulties
-      g <- globals
-    } yield s"${d}_${g}"
-  }
-
-  /**
     * Pyramid level the micro-aggregates for a display tile are read from:
     * DETAIL_BITS below the display zoom, clamped to the leaf. Reading deeper
     * than the display zoom is what gives k-means a fine enough input to place
@@ -502,13 +403,20 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
   private def detailLevel(z: Int): Int = math.min(z + DETAIL_BITS, MAX_CELL_ZOOM)
 
   /**
-    * MIN_SEPARATION_PX expressed in Web Mercator meters at display zoom `z`.
+    * A CSS-pixel distance expressed in Web Mercator meters at display zoom `z`.
     * Mercator maps pixels to 3857 units linearly at every latitude, so this is
     * an exact pixel distance rather than an approximation that drifts near the
     * poles.
     */
-  private def separationMeters(z: Int): Double =
-    MIN_SEPARATION_PX * (WEB_MERCATOR_EXTENT * 2) / ((1L << z) * TILE_SIZE_PX)
+  private def pixelsToMeters(px: Double, z: Int): Double =
+    px * (WEB_MERCATOR_EXTENT * 2) / ((1L << z) * TILE_SIZE_PX)
+
+  /** Bound parameters for the two pixel distances the clustering is sized by. */
+  private def clusteringParams(z: Int): Seq[NamedParameter] =
+    Seq(
+      NamedParameter("epsMeters", pixelsToMeters(MIN_SEPARATION_PX, z)),
+      NamedParameter("candidateMeters", pixelsToMeters(CANDIDATE_PITCH_PX, z))
+    )
 
   /**
     * Inclusive cell-coordinate range, at `detailLevel(z)`'s cell grid, covered by
@@ -531,30 +439,28 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
     * ST_ClusterKMeans seeds from the order its input arrives in: the same points
     * in a different order give a genuinely different partition, not just
     * relabelled clusters, and the sort does reach it -- `k` is a single row, so
-    * the join over `src` is driven by the ordered CTE scan.
-    *
-    * The separation pass below then makes the *emitted* markers insensitive to
-    * that partition in any tile that renders: MAX_CLUSTERS is about the number
-    * of positions a 256px tile can hold at MIN_SEPARATION_PX apart, so a tile
-    * cannot both exceed the cluster ceiling and keep its clusters further apart
-    * than the merge distance. Wherever k-means had a free choice, the merge
-    * takes it back. The ordering is kept as cheap insurance for the edge of
-    * that argument, not because tiles visibly drift without it.
+    * the join over `src` is driven by the ordered CTE scan. Tiles are HTTP
+    * cached, so a marker that moves between two requests for the same tile is a
+    * correctness problem; the grid merge only pins down markers that shared a
+    * square, so the ordering is what pins down the rest.
     *
     * Clustering happens on Web Mercator coordinates so distance means the same
     * thing in every direction on screen; clustering raw lon/lat would distort
     * cluster shape more and more with latitude. `src` is MATERIALIZED because it
-    * is read twice -- once to size `k`, once to cluster -- and on the keyword
-    * path recomputing it would mean a second scan of `tasks`. `k` is capped at
+    * is read twice -- once to size `k`, once to cluster. `k` is capped at
     * the input size because ST_ClusterKMeans rejects asking for more clusters
     * than it has points, and floored at 1 so the argument is always valid. An
     * empty `src` yields no rows at all, so the window function never runs and
     * ST_AsMVT's NULL becomes an empty tile.
     *
-    * `m0` is the raw k-means result; `m1..mN` are the separation passes that
-    * enforce MIN_SEPARATION_PX (see `separationPass`). Every stage carries the
-    * same four additive columns, which is why the passes can chain: merging
-    * markers is just summing them, so counts survive any number of passes.
+    * `candidates` is the raw k-means result and `markers` is what survives the
+    * thinning walk (see `separationWalk`), with the counts of the candidates it
+    * displaced folded in. `markers` still carries the same four columns, but
+    * `weight` is no longer the denominator of `task_count`: it stays the weight
+    * of the surviving candidate alone, so `sum_lat / weight` is that candidate's
+    * own centroid and absorbing a neighbour raises a marker's count without
+    * moving it. Nothing downstream needs the two to agree -- the position comes
+    * from the sums and the label from `task_count`.
     */
   private def kmeansMvtQuery(src: String): String =
     clusteredQuery(
@@ -572,25 +478,23 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
         ) AS geom,
         2 AS group_type,
         task_count::int AS task_count
-      FROM m$SEPARATION_PASSES
+      FROM markers
     ) AS tile"""
     )
 
   /**
     * The clustered markers for a tile as plain numbers, before MVT encoding.
-    * Shares the whole `src` -> k-means -> separation chain with the MVT paths,
+    * Shares the whole `src` -> k-means -> grid-merge chain with the MVT paths,
     * so a test can assert where a marker landed and what it reports. Markers
     * outside the tile are dropped, matching ST_AsMVTGeom's clipping.
     */
   private[repository] def clusterMarkers(
       z: Int,
       x: Int,
-      y: Int,
-      difficulty: Option[Int],
-      global: Boolean
+      y: Int
   )(implicit c: Option[Connection] = None): List[(Double, Double, Int)] = {
     val query = clusteredQuery(
-      precomputedSource(difficulty, global),
+      precomputedSource,
       s"""
     SELECT lat, lng, task_count
     FROM (
@@ -598,8 +502,8 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
         sum_lat / weight AS lat,
         sum_lng / weight AS lng,
         task_count::int  AS task_count
-      FROM m$SEPARATION_PASSES
-    ) markers
+      FROM markers
+    ) positioned
     WHERE ST_Intersects(
             ST_Transform(ST_SetSRID(ST_MakePoint(lng, lat), 4326), 3857),
             ST_MakeEnvelope({xMin}, {yMin}, {xMax}, {yMax}, 3857))"""
@@ -616,16 +520,24 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
     * Wrap a micro-aggregate source query in the k-means clustering shared by
     * both zoom 0..11 paths, then apply `projection` to the clustered result.
     */
-  private def clusteredQuery(src: String, projection: String): String = {
-    val passes = 1.to(SEPARATION_PASSES).map(i => separationPass(s"m${i - 1}", s"m$i"))
+  private def clusteredQuery(src: String, projection: String): String =
     s"""
-    WITH src AS MATERIALIZED (
+    WITH RECURSIVE src AS MATERIALIZED (
       $src
     ),
-    k AS (
-      SELECT GREATEST(1, LEAST($MAX_CLUSTERS, COUNT(*)))::int AS n FROM src
+    pts AS (
+      ${mercatorPoints("src")}
     ),
-    m0 AS (
+    k AS (
+      SELECT GREATEST(1, LEAST($MAX_CLUSTERS, COUNT(*)))::int AS n
+      FROM (
+        SELECT DISTINCT
+          FLOOR(ST_X(pts.geom) / {candidateMeters}::float8),
+          FLOOR(ST_Y(pts.geom) / {candidateMeters}::float8)
+        FROM pts
+      ) occupied
+    ),
+    candidates AS (
       SELECT
         SUM(sum_lat)    AS sum_lat,
         SUM(sum_lng)    AS sum_lng,
@@ -633,53 +545,123 @@ class TileAggregateRepository @Inject() (override val db: Database) extends Repo
         SUM(task_count) AS task_count
       FROM (
         SELECT
-          ST_ClusterKMeans(
-            ST_Transform(
-              ST_SetSRID(ST_MakePoint(src.sum_lng / src.weight, src.sum_lat / src.weight), 4326),
-              3857),
-            k.n) OVER () AS cluster_id,
-          src.sum_lat,
-          src.sum_lng,
-          src.weight,
-          src.task_count
-        FROM src CROSS JOIN k
+          ST_ClusterKMeans(pts.geom, k.n) OVER () AS cluster_id,
+          pts.sum_lat,
+          pts.sum_lng,
+          pts.weight,
+          pts.task_count
+        FROM pts CROSS JOIN k
       ) clustered
       GROUP BY cluster_id
     ),
-    ${passes.mkString(",\n    ")}
+    $separationWalk
     $projection
   """
-  }
 
   /**
-    * One separation pass: collapse every marker in `from` that sits within
-    * MIN_SEPARATION_PX of another into a single weighted marker in `to`.
-    *
-    * DBSCAN with `minpoints = 1` is single-linkage clustering at `eps` -- every
-    * point is a core point, so nothing is reported as noise. That matters:
-    * DBSCAN marks noise with a NULL cluster id, and a GROUP BY would fold all of
-    * it into one bogus marker sitting at the average of unrelated places.
+    * Project a relation of weighted sums to its Web Mercator marker positions,
+    * keeping the four additive columns alongside. `sum_lat / weight` is the
+    * weighted centroid of whatever the row aggregates.
     */
-  private def separationPass(from: String, to: String): String = s"""$to AS (
+  private def mercatorPoints(from: String): String = s"""SELECT
+        $from.sum_lat,
+        $from.sum_lng,
+        $from.weight,
+        $from.task_count,
+        ST_Transform(
+          ST_SetSRID(
+            ST_MakePoint($from.sum_lng / $from.weight, $from.sum_lat / $from.weight), 4326),
+          3857) AS geom
+      FROM $from"""
+
+  /**
+    * The candidate ranking, the thinning walk over it, and the `markers` it
+    * leaves: every candidate cluster in rank order, keeping one only when no
+    * already-kept marker sits within MIN_SEPARATION_PX of it.
+    *
+    * Rank is by descending task count, so the markers a reader would notice
+    * missing are the ones kept, and a displaced candidate is always smaller than
+    * whatever displaced it. Position breaks ties, which makes the emitted
+    * markers independent of how k-means happened to label its clusters.
+    *
+    * Comparing against the kept set -- rather than against every earlier
+    * candidate -- is what bounds the damage. Each displaced candidate is within
+    * MIN_SEPARATION_PX of the marker that displaced it, so folding its count
+    * into the nearest kept marker moves that count by less than one separation
+    * distance. Comparing against all earlier candidates instead would also give
+    * a valid separation, but a candidate could then be displaced by one that was
+    * itself displaced, leaving its tasks reported arbitrarily far away.
+    *
+    * The walk is inherently sequential -- whether a candidate is kept depends on
+    * the whole prefix before it -- hence the recursive CTE carrying the kept
+    * ranks in an array. It runs on at most MAX_CLUSTERS rows.
+    */
+  private val separationWalk: String = s"""ranked AS (
       SELECT
-        SUM(sum_lat)    AS sum_lat,
-        SUM(sum_lng)    AS sum_lng,
-        SUM(weight)     AS weight,
-        SUM(task_count) AS task_count
+        ROW_NUMBER() OVER (
+          ORDER BY placed.task_count DESC, placed.sum_lat, placed.sum_lng
+        ) AS rank,
+        placed.sum_lat,
+        placed.sum_lng,
+        placed.weight,
+        placed.task_count,
+        placed.geom
       FROM (
-        SELECT
-          ST_ClusterDBSCAN(
-            ST_Transform(
-              ST_SetSRID(ST_MakePoint(c.sum_lng / c.weight, c.sum_lat / c.weight), 4326),
-              3857),
-            {epsMeters}::float8, 1) OVER () AS merge_id,
-          c.sum_lat,
-          c.sum_lng,
-          c.weight,
-          c.task_count
-        FROM $from c
-      ) q
-      GROUP BY merge_id
+        ${mercatorPoints("candidates")}
+      ) placed
+    ),
+    walk AS (
+      SELECT ranked.rank, TRUE AS kept, ARRAY[ranked.rank] AS kept_ranks
+      FROM ranked
+      WHERE ranked.rank = 1
+      UNION ALL
+      SELECT
+        next.rank,
+        NOT EXISTS (
+          SELECT 1
+          FROM ranked held
+          WHERE held.rank = ANY(walk.kept_ranks)
+            AND ST_DWithin(held.geom, next.geom, {epsMeters}::float8)
+        ) AS kept,
+        CASE
+          WHEN EXISTS (
+            SELECT 1
+            FROM ranked held
+            WHERE held.rank = ANY(walk.kept_ranks)
+              AND ST_DWithin(held.geom, next.geom, {epsMeters}::float8)
+          ) THEN walk.kept_ranks
+          ELSE walk.kept_ranks || next.rank
+        END AS kept_ranks
+      FROM walk
+      INNER JOIN ranked next ON next.rank = walk.rank + 1
+    ),
+    kept AS (
+      SELECT ranked.*
+      FROM ranked
+      INNER JOIN walk ON walk.rank = ranked.rank AND walk.kept
+    ),
+    markers AS (
+      SELECT
+        kept.sum_lat,
+        kept.sum_lng,
+        kept.weight,
+        kept.task_count + COALESCE(absorbed.task_count, 0) AS task_count
+      FROM kept
+      LEFT JOIN (
+        SELECT host.rank AS host_rank, SUM(displaced.task_count) AS task_count
+        FROM (
+          SELECT ranked.*
+          FROM ranked
+          INNER JOIN walk ON walk.rank = ranked.rank AND NOT walk.kept
+        ) displaced
+        CROSS JOIN LATERAL (
+          SELECT kept.rank
+          FROM kept
+          ORDER BY kept.geom <-> displaced.geom, kept.rank
+          LIMIT 1
+        ) host
+        GROUP BY host.rank
+      ) absorbed ON absorbed.host_rank = kept.rank
     )"""
 
   /**
