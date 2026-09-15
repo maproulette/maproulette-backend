@@ -20,18 +20,11 @@ import play.api.db.Database
 class TeamAvatarRepository @Inject() (override val db: Database) extends RepositoryMixin {
   implicit val baseTable: String = TeamAvatar.TABLE
 
-  // The bytes are excluded on purpose; only `retrieveData` pulls them.
-  private val parser: RowParser[TeamAvatar] = {
-    get[Long]("team_id") ~
-      get[String]("content_type") ~
-      get[Long]("size") ~
-      get[Option[Long]]("uploaded_by") ~
-      get[DateTime]("created") ~
-      get[DateTime]("modified") map {
-      case teamId ~ contentType ~ size ~ uploadedBy ~ created ~ modified =>
-        TeamAvatar(teamId, contentType, size, uploadedBy, created, modified)
-    }
-  }
+  // The query below aliases the snake_case of every TeamAvatar field, so the
+  // macro parser maps them without a hand-written column list. The bytes are
+  // excluded on purpose; only `retrieveData` pulls them.
+  private val parser: RowParser[TeamAvatar] =
+    Macro.namedParser[TeamAvatar](Macro.ColumnNaming.SnakeCase)
 
   /**
     * Retrieves a team's avatar metadata.
@@ -50,11 +43,7 @@ class TeamAvatarRepository @Inject() (override val db: Database) extends Reposit
   def retrieveData(teamId: Long): Option[TeamImageData] = {
     this.withMRConnection { implicit c =>
       SQL"SELECT content_type, data, modified FROM team_avatars WHERE team_id = $teamId"
-        .as(
-          (get[String]("content_type") ~ get[Array[Byte]]("data") ~ get[DateTime]("modified") map {
-            case contentType ~ data ~ modified => TeamImageData(contentType, data, modified)
-          }).singleOpt
-        )
+        .as(TeamImageRepository.dataParser.singleOpt)
     }
   }
 
@@ -88,9 +77,12 @@ class TeamAvatarRepository @Inject() (override val db: Database) extends Reposit
   /**
     * Deletes a team's stored avatar.
     *
+    * Accepts a caller-supplied connection for the same reason `upsert` does:
+    * dropping the bytes and clearing the team's avatar url are one fact.
+    *
     * @return true if the team had a stored avatar to remove
     */
-  def delete(teamId: Long): Boolean = {
+  def delete(teamId: Long)(implicit c: Option[Connection] = None): Boolean = {
     this.withMRTransaction { implicit c =>
       SQL"DELETE FROM team_avatars WHERE team_id = $teamId".executeUpdate() > 0
     }

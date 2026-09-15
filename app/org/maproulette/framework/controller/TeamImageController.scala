@@ -31,11 +31,7 @@ class TeamImageController @Inject() (
 ) extends AbstractController(components)
     with MapRouletteController {
 
-  // Give the multipart parser a little room past the limit we enforce, so an
-  // upload that is merely too big still gets the friendly error below rather
-  // than the parser's, while a wildly oversized one is refused before it is
-  // buffered to disk.
-  private val maxUploadBytes = TeamImage.MAX_SIZE_BYTES * 2
+  private val maxUploadBytes = TeamImage.MAX_UPLOAD_BYTES
 
   /**
     * Requests a new image for a team. Any active member can ask; the image is

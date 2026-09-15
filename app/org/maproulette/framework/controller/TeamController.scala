@@ -54,6 +54,8 @@ class TeamController @Inject() (
 
   implicit val challengeWrites: Writes[Challenge] = Challenge.writes.challengeWrites
 
+  private val maxUploadBytes = TeamImage.MAX_UPLOAD_BYTES
+
   /**
     * Create a new team
     */
@@ -415,7 +417,7 @@ class TeamController @Inject() (
   private def team(teamId: Long, user: User): Group =
     this.teamService
       .retrieve(teamId, user)
-      .getOrElse(throw new NotFoundException(s"No team found with id $teamId"))
+      .getOrElse(throw new NotFoundException(s"No team with id $teamId found"))
 
   /**
     * Uploads a team's avatar, replacing whatever avatar it had. The bytes are
@@ -430,54 +432,52 @@ class TeamController @Inject() (
     * @return 200 OK with the updated team
     */
   def uploadAvatar(teamId: Long): Action[MultipartFormData[Files.TemporaryFile]] =
-    Action.async(parse.multipartFormData) { implicit request =>
+    Action.async(parse.multipartFormData(maxLength = maxUploadBytes)) { implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
         val existing = this.team(teamId, user)
         // Checked before anything is stored, so a non-admin can't write bytes
         // and only be turned away afterwards
         this.permission.hasObjectAdminAccess(existing, user)
 
-        request.body.file("image") match {
-          case Some(upload) =>
-            if (upload.fileSize > TeamAvatar.MAX_SIZE_BYTES) {
-              throw new InvalidException(
-                s"Image is larger than the ${TeamAvatar.MAX_SIZE_BYTES / (1024 * 1024)}MB limit"
-              )
-            }
+        val upload = request.body
+          .file("image")
+          .getOrElse(throw new InvalidException("No image file provided in the 'image' field"))
 
-            val data = java.nio.file.Files.readAllBytes(upload.ref.path)
-            // The declared content type is caller-supplied, so the leading
-            // bytes are what we actually trust before storing something we
-            // will later serve back from our own origin.
-            val contentType = TeamAvatar.detectContentType(data) match {
-              case Some(detected) => detected
-              case None =>
-                throw new InvalidException(
-                  s"Unsupported image format. Supported formats: ${TeamAvatar.ALLOWED_CONTENT_TYPES.toList.sorted
-                    .mkString(", ")}"
-                )
-            }
-
-            // Storing the bytes and pointing the team's avatar url at them
-            // are two writes describing one fact, so they commit together. Left
-            // apart, a failure between them strands the bytes with the url
-            // still on the team's previous avatar, and the url carries a
-            // `?v=<modified>` stamp that would then be stale in browser caches
-            // until the next upload.
-            val updated = this.db.withTransaction { connection =>
-              implicit val c: Option[Connection] = Some(connection)
-              val modified =
-                this.teamAvatarRepository.upsert(teamId, contentType, data, user.id)
-              this.teamService.updateTeam(
-                existing.copy(avatarURL = Some(TeamAvatar.urlFor(teamId, modified.getMillis))),
-                user
-              )
-            }
-
-            Ok(Json.toJson(updated.get))
-          case None =>
-            throw new InvalidException("No image file provided in the 'image' field")
+        if (upload.fileSize > TeamImage.MAX_SIZE_BYTES) {
+          throw new InvalidException(
+            s"Image is larger than the ${TeamImage.MAX_SIZE_BYTES / (1024 * 1024)}MB limit"
+          )
         }
+
+        val data = java.nio.file.Files.readAllBytes(upload.ref.path)
+        // The declared content type is caller-supplied, so the leading bytes
+        // are what we actually trust before storing something we will later
+        // serve back from our own origin.
+        val contentType = TeamImage
+          .detectContentType(data)
+          .getOrElse(
+            throw new InvalidException(
+              s"Unsupported image format. Supported formats: ${TeamImage.ALLOWED_CONTENT_TYPES.toList.sorted
+                .mkString(", ")}"
+            )
+          )
+
+        // Storing the bytes and pointing the team's avatar url at them are
+        // two writes describing one fact, so they commit together. Left
+        // apart, a failure between them strands the bytes with the url still
+        // on the team's previous avatar, and the url carries a `?v=<modified>`
+        // stamp that would then be stale in browser caches until the next
+        // upload.
+        val updated = this.db.withTransaction { connection =>
+          implicit val c: Option[Connection] = Some(connection)
+          val modified                       = this.teamAvatarRepository.upsert(teamId, contentType, data, user.id)
+          this.teamService.updateTeam(
+            existing.copy(avatarURL = Some(TeamAvatar.urlFor(teamId, modified.getMillis))),
+            user
+          )
+        }
+
+        Ok(Json.toJson(updated.get))
       }
     }
 
@@ -494,12 +494,18 @@ class TeamController @Inject() (
       val existing = this.team(teamId, user)
       this.permission.hasObjectAdminAccess(existing, user)
 
-      this.teamAvatarRepository.delete(teamId)
       val remainingURL = existing.avatarURL.filterNot(TeamAvatar.isStoredAvatarUrl(_, teamId))
 
-      Ok(
-        Json.toJson(this.teamService.updateTeam(existing.copy(avatarURL = remainingURL), user).get)
-      )
+      // One fact again, for the same reason the upload path commits together:
+      // dropping the bytes while leaving the url pointing at them would serve
+      // a 404 from every card showing this team.
+      val updated = this.db.withTransaction { connection =>
+        implicit val c: Option[Connection] = Some(connection)
+        this.teamAvatarRepository.delete(teamId)
+        this.teamService.updateTeam(existing.copy(avatarURL = remainingURL), user)
+      }
+
+      Ok(Json.toJson(updated.get))
     }
   }
 
@@ -512,23 +518,28 @@ class TeamController @Inject() (
     */
   def getAvatarFile(teamId: Long): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
-      this.teamAvatarRepository.retrieveData(teamId) match {
-        case Some(avatar) =>
-          val etag = "\"" + s"$teamId-${avatar.modified.getMillis}" + "\""
-          if (request.headers.get("If-None-Match").contains(etag)) {
-            NotModified.withHeaders("ETag" -> etag)
-          } else {
-            Ok(avatar.data)
-              .as(avatar.contentType)
-              .withHeaders(
-                "ETag"                   -> etag,
-                "Cache-Control"          -> "public, max-age=86400",
-                "X-Content-Type-Options" -> "nosniff",
-                "Content-Disposition"    -> "inline"
-              )
-          }
-        case None =>
-          throw new NotFoundException(s"No avatar found for team $teamId")
+      // The ETag comes from the metadata alone, so revalidating an unchanged
+      // avatar answers 304 without ever reading the bytes out of the database.
+      val avatar = this.teamAvatarRepository
+        .retrieve(teamId)
+        .getOrElse(throw new NotFoundException(s"No avatar found for team $teamId"))
+      val etag = s""""$teamId-${avatar.modified.getMillis}""""
+
+      if (request.headers.get("If-None-Match").contains(etag)) {
+        NotModified.withHeaders("ETag" -> etag)
+      } else {
+        val stored = this.teamAvatarRepository
+          .retrieveData(teamId)
+          .getOrElse(throw new NotFoundException(s"No avatar found for team $teamId"))
+
+        Ok(stored.data)
+          .as(stored.contentType)
+          .withHeaders(
+            "ETag"                   -> etag,
+            "Cache-Control"          -> "public, max-age=86400",
+            "X-Content-Type-Options" -> "nosniff",
+            "Content-Disposition"    -> "inline"
+          )
       }
     }
   }
