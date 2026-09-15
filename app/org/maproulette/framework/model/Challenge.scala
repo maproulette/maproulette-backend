@@ -88,6 +88,20 @@ case class PriorityRule(operator: String, key: String, value: String, valueType:
   }
 }
 
+/**
+  * A user granted a role on a single challenge, as opposed to reaching it
+  * through the parent project or through the team that owns it.
+  */
+case class ChallengeManager(
+    userId: Long,
+    name: String,
+    role: Int
+)
+
+object ChallengeManager {
+  implicit val writes: Writes[ChallengeManager] = Json.writes[ChallengeManager]
+}
+
 case class ChallengeGeneral(
     owner: Long,
     parent: Long,

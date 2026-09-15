@@ -4,7 +4,7 @@
  */
 package org.maproulette.framework.model
 
-import org.maproulette.data.{ItemType, UserType, ProjectType, GroupType, Actions}
+import org.maproulette.data.{ItemType, UserType, ProjectType, GroupType, ChallengeType, Actions}
 import org.maproulette.framework.psql.CommonField
 import play.api.libs.json._
 import play.api.libs.functional.syntax._
@@ -77,6 +77,9 @@ object GrantTarget {
   // Convenience methods for generating GrantTarget instances for common types
   def project(projectId: Long) = GrantTarget(ProjectType(), projectId)
   def group(groupId: Long)     = GrantTarget(GroupType(), groupId)
+  // A role granted on a single challenge, reaching where the parent project's
+  // grants do not. See ChallengeService.addUserToChallenge.
+  def challenge(challengeId: Long) = GrantTarget(ChallengeType(), challengeId)
 }
 
 case class Grant(

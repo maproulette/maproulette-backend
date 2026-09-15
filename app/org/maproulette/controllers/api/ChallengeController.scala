@@ -2146,4 +2146,48 @@ class ChallengeController @Inject() (
         )
       }
   }
+
+  /**
+    * Gets the users granted a role on this challenge directly, as opposed to
+    * those who reach it through the parent project or an owning team
+    *
+    * @param id The id of the challenge whose managers are desired
+    */
+  def getChallengeManagers(id: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      Ok(Json.toJson(this.serviceManager.challenge.challengeManagers(id, user)))
+    }
+  }
+
+  /**
+    * Grants a user a role on this challenge, reaching where the parent
+    * project's grants do not. Replaces any role they already held on it
+    *
+    * @param id     The id of the challenge to grant the role on
+    * @param userId The id of the user receiving the role
+    * @param role   The role to grant
+    */
+  def addUserToChallenge(id: Long, userId: Long, role: Int): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        this.serviceManager.challenge.addUserToChallenge(id, userId, role, user)
+        Ok(Json.toJson(this.serviceManager.challenge.challengeManagers(id, user)))
+      }
+  }
+
+  /**
+    * Clears any role a user was granted on this challenge directly. Roles they
+    * hold through the parent project or an owning team are untouched
+    *
+    * @param id     The id of the challenge to revoke the role on
+    * @param userId The id of the user losing the role
+    */
+  def removeUserFromChallenge(id: Long, userId: Long): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        this.serviceManager.challenge.removeUserFromChallenge(id, userId, user)
+        Ok(Json.toJson(this.serviceManager.challenge.challengeManagers(id, user)))
+      }
+  }
+
 }

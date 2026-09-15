@@ -113,9 +113,10 @@ class Permission @Inject() (
         case c: Challenge =>
           // A challenge can be owned by a team, which hands the team's owners,
           // admins and managers the run of it wherever their grants on the
-          // parent project would not have reached. Everyone else still gets in
-          // the original way, through the project.
-          if (!this.ownsChallengeThroughTeam(c, user)) {
+          // parent project would not have reached. A user can also be granted a
+          // role on the challenge itself, which reaches just as far. Everyone
+          // else still gets in the original way, through the project.
+          if (!this.ownsChallengeThroughTeam(c, user) && !this.hasChallengeGrant(c, user, role)) {
             this.hasProjectAccess(
               dalManager
                 .get()
@@ -189,6 +190,22 @@ class Permission @Inject() (
     * @param challenge The challenge in question
     * @param user      The user requesting access
     */
+  /**
+    * Whether the user holds a role on this challenge directly, granted on the
+    * challenge rather than inherited from the parent project or an owning team.
+    *
+    * @param challenge The challenge being reached for
+    * @param user      The user reaching for it
+    * @param role      The weakest role that would do. Roles are ordered with the
+    *                  lowest number the most powerful, so a stronger role passes.
+    */
+  def hasChallengeGrant(challenge: Challenge, user: User, role: Int): Boolean =
+    user.grants.exists(grant =>
+      grant.target.objectType == ChallengeType() &&
+        grant.target.objectId == challenge.id &&
+        grant.role <= role
+    )
+
   def ownsChallengeThroughTeam(challenge: Challenge, user: User): Boolean =
     challenge.ownerTeamId.exists { teamId =>
       this.serviceManager.team
