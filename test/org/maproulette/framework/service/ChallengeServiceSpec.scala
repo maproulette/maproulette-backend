@@ -67,8 +67,8 @@ class ChallengeServiceSpec(implicit val application: Application) extends Framew
     }
 
     "let a granted user write to the challenge they were granted" taggedAs ChallengeTag in {
-      val challenge   = this.freshChallenge("grantedWrite")
-      val permission  = this.application.injector.instanceOf(classOf[Permission])
+      val challenge  = this.freshChallenge("grantedWrite")
+      val permission = this.application.injector.instanceOf(classOf[Permission])
 
       // Before the grant the outsider is just that, and the parent project
       // gives them nothing.

@@ -5,16 +5,8 @@
 package org.maproulette.framework.service
 
 import javax.inject.{Inject, Singleton}
-import org.maproulette.data.UserType
 import org.maproulette.exception.{InvalidException, NotFoundException}
-import org.maproulette.framework.model.{
-  MemberObject,
-  TeamImage,
-  TeamImageData,
-  TeamImageFile,
-  TeamMember,
-  User
-}
+import org.maproulette.framework.model.{MemberObject, TeamImage, TeamImageData, TeamImageFile, User}
 import org.maproulette.framework.repository.TeamImageRepository
 import org.maproulette.permissions.Permission
 

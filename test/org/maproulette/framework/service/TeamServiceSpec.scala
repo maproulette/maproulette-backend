@@ -630,7 +630,12 @@ class TeamServiceSpec(implicit val application: Application) extends FrameworkHe
 
     "list the projects a team has been granted a role on" taggedAs TeamTag in {
       val team = this.ownedTeam("teamProjects")
-      this.service.addTeamToProject(team.id, this.defaultProject.id, Grant.ROLE_ADMIN, this.defaultUser)
+      this.service.addTeamToProject(
+        team.id,
+        this.defaultProject.id,
+        Grant.ROLE_ADMIN,
+        this.defaultUser
+      )
 
       val projects = this.service.teamProjects(team.id, this.defaultUser)
       projects.map(_.id) mustEqual List(this.defaultProject.id)
