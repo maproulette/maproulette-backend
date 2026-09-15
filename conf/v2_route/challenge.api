@@ -1887,5 +1887,86 @@ GET     /challenge/:id/like                     @org.maproulette.controllers.api
 #       type: integer
 ###
 GET     /challenge/:id/likeCount                @org.maproulette.controllers.api.ChallengeController.getChallengeLikeCount(id:Long)
+###
+# tags: [ Challenge ]
+# operationId: challenge_get_managers
+# summary: Get the users granted a role on a challenge
+# description: Gets the users granted a role on the challenge itself, as opposed to those who reach it through the parent project or an owning team
+# responses:
+#   '200':
+#     description: a list of users and the role each holds on the challenge
+#   '401':
+#     description: The user is not authorized to make this request
+#   '404':
+#     description: No challenge with the provided id was found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the challenge
+#     required: true
+#     schema:
+#       type: integer
+###
+GET     /challenge/:id/managers                 @org.maproulette.controllers.api.ChallengeController.getChallengeManagers(id:Long)
+###
+# tags: [ Challenge ]
+# operationId: challenge_add_user
+# summary: Grant a user a role on a challenge
+# description: Grants a user a role on this challenge, reaching where the parent project's grants do not. Replaces any role they already held on it. Requires admin on the challenge
+# responses:
+#   '200':
+#     description: the challenge's managers after the change
+#   '401':
+#     description: The user is not authorized to make this request
+#   '404':
+#     description: No challenge or user with the provided id was found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the challenge
+#     required: true
+#     schema:
+#       type: integer
+#   - name: userId
+#     in: path
+#     description: The id of the user receiving the role
+#     required: true
+#     schema:
+#       type: integer
+#   - name: role
+#     in: path
+#     description: The role to grant - 1 Admin, 2 Write, 3 Read
+#     required: true
+#     schema:
+#       type: integer
+###
+POST    /challenge/:id/user/:userId/:role       @org.maproulette.controllers.api.ChallengeController.addUserToChallenge(id:Long, userId:Long, role:Int)
+###
+# tags: [ Challenge ]
+# operationId: challenge_remove_user
+# summary: Clear a user's role on a challenge
+# description: Clears any role the user was granted on this challenge directly. Roles they hold through the parent project or an owning team are untouched. Requires admin on the challenge
+# responses:
+#   '200':
+#     description: the challenge's managers after the change
+#   '401':
+#     description: The user is not authorized to make this request
+#   '404':
+#     description: No challenge with the provided id was found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the challenge
+#     required: true
+#     schema:
+#       type: integer
+#   - name: userId
+#     in: path
+#     description: The id of the user losing the role
+#     required: true
+#     schema:
+#       type: integer
+###
+DELETE  /challenge/:id/user/:userId             @org.maproulette.controllers.api.ChallengeController.removeUserFromChallenge(id:Long, userId:Long)
 ### NoDocs ###
 GET     /healthCheck                                 @org.maproulette.controllers.api.ChallengeController.healthCheck()
