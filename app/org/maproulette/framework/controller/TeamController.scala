@@ -10,7 +10,14 @@ import org.maproulette.data.ActionManager
 import org.maproulette.exception.{MPExceptionUtil, StatusMessage}
 import org.maproulette.framework.mixins.ParentMixin
 import org.maproulette.framework.service.{ServiceManager, TeamImageService, TeamService}
-import org.maproulette.framework.model.{Challenge, Group, ManagedTeam, MemberObject, TeamImage, User}
+import org.maproulette.framework.model.{
+  Challenge,
+  Group,
+  ManagedTeam,
+  MemberObject,
+  TeamImage,
+  User
+}
 import org.maproulette.framework.psql.{Paging}
 import org.maproulette.session.SessionManager
 import play.api.libs.json._
