@@ -7,7 +7,8 @@ package org.maproulette.framework.controller
 
 import javax.inject.Inject
 import org.maproulette.data.ActionManager
-import org.maproulette.exception.{InvalidException, NotFoundException, StatusMessage}
+import org.maproulette.exception.{NotFoundException, StatusMessage}
+import org.maproulette.framework.mixins.ImageUploadMixin
 import org.maproulette.framework.model.TeamImage
 import org.maproulette.framework.service.TeamImageService
 import org.maproulette.permissions.Permission
@@ -29,13 +30,10 @@ class TeamImageController @Inject() (
     permission: Permission,
     components: ControllerComponents
 ) extends AbstractController(components)
-    with MapRouletteController {
+    with MapRouletteController
+    with ImageUploadMixin {
 
-  // Give the multipart parser a little room past the limit we enforce, so an
-  // upload that is merely too big still gets the friendly error below rather
-  // than the parser's, while a wildly oversized one is refused before it is
-  // buffered to disk.
-  private val maxUploadBytes = TeamImage.MAX_SIZE_BYTES * 2
+  private val maxUploadBytes = TeamImage.MAX_UPLOAD_BYTES
 
   /**
     * Requests a new image for a team. Any active member can ask; the image is
@@ -49,28 +47,7 @@ class TeamImageController @Inject() (
       this.sessionManager.authenticatedRequest { implicit user =>
         this.teamImageService.requireTeamAccess(teamId, user)
 
-        val upload = request.body
-          .file("image")
-          .getOrElse(throw new InvalidException("No image file provided in the 'image' field"))
-
-        if (upload.fileSize > TeamImage.MAX_SIZE_BYTES) {
-          throw new InvalidException(
-            s"Image is larger than the ${TeamImage.MAX_SIZE_BYTES / (1024 * 1024)}MB limit"
-          )
-        }
-
-        val data = java.nio.file.Files.readAllBytes(upload.ref.path)
-        // The declared content type is caller-supplied, so the leading bytes
-        // are what we actually trust before storing something we will later
-        // serve back from our own origin.
-        val contentType = TeamImage
-          .detectContentType(data)
-          .getOrElse(
-            throw new InvalidException(
-              s"Unsupported image format. Supported formats: ${TeamImage.ALLOWED_CONTENT_TYPES.toList.sorted
-                .mkString(", ")}"
-            )
-          )
+        val upload = this.readImageUpload(request)
 
         val name = request.body.dataParts
           .get("name")
@@ -80,7 +57,11 @@ class TeamImageController @Inject() (
           .orElse(Option(upload.filename).map(_.trim).filter(_.nonEmpty))
           .getOrElse("Untitled image")
 
-        Ok(Json.toJson(this.teamImageService.request(teamId, name, contentType, data, user.id)))
+        Ok(
+          Json.toJson(
+            this.teamImageService.request(teamId, name, upload.contentType, upload.data, user.id)
+          )
+        )
       }
     }
 
@@ -213,29 +194,21 @@ class TeamImageController @Inject() (
   }
 
   /**
-    * Writes an image's bytes out, answering a still-current cached copy with a
-    * 304 instead. The ETag is built from the metadata alone, so revalidating
-    * never reads the blob.
+    * Writes an image's bytes out through the shared serving rules.
     */
   private def serveImage(
       imageId: Long,
       request: Request[AnyContent],
       cacheControl: String
   ): Result = {
-    val file = this.teamImageService.retrieveFile(imageId)
-    val etag = s""""$imageId-${file.modified.getMillis}""""
-
-    if (request.headers.get("If-None-Match").contains(etag)) {
-      NotModified.withHeaders("ETag" -> etag)
-    } else {
-      Ok(this.teamImageService.retrieveData(imageId).data)
-        .as(file.contentType)
-        .withHeaders(
-          "ETag"                   -> etag,
-          "Cache-Control"          -> cacheControl,
-          "X-Content-Type-Options" -> "nosniff",
-          "Content-Disposition"    -> "inline"
-        )
-    }
+    implicit val r: Request[AnyContent] = request
+    val file                            = this.teamImageService.retrieveFile(imageId)
+    this.serveImageBytes(
+      etagKey = imageId.toString,
+      modified = file.modified,
+      contentType = file.contentType,
+      data = this.teamImageService.retrieveData(imageId).data,
+      cacheControl = cacheControl
+    )
   }
 }

@@ -5,6 +5,7 @@
 
 package org.maproulette.framework.service
 
+import java.sql.Connection
 import javax.inject.{Inject, Singleton}
 import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.framework.model._
@@ -836,19 +837,36 @@ class TeamService @Inject() (
     * @param team The latest team data
     * @param user The user updating the team
     */
-  def updateTeam(team: Group, user: User): Option[Group] = {
+  def updateTeam(team: Group, user: User)(
+      implicit c: Option[Connection] = None
+  ): Option[Group] = {
     // Only a team admin can update a team
     this.ensureTeam(team)
     this.permission.hasObjectAdminAccess(team, user)
     val updatedGroup = this.groupService.updateGroup(team)
 
-    webSocketProvider.sendMessage(
-      WebSocketMessages.teamUpdate(
-        WebSocketMessages.TeamUpdateData(team.id, None)
-      )
-    )
+    // Announcing the update is only truthful once the write is durable. When
+    // this runs inside a caller's transaction the write is not committed yet
+    // and may still roll back, so the caller broadcasts afterwards instead.
+    if (c.isEmpty) {
+      this.broadcastTeamUpdate(team.id)
+    }
     updatedGroup
   }
+
+  /**
+    * Tells connected clients a team changed. Callers that wrap `updateTeam` in
+    * their own transaction own this and must call it once that transaction has
+    * committed, so a rollback cannot announce an update that never happened.
+    *
+    * @param teamId The id of the team that changed
+    */
+  def broadcastTeamUpdate(teamId: Long): Unit =
+    webSocketProvider.sendMessage(
+      WebSocketMessages.teamUpdate(
+        WebSocketMessages.TeamUpdateData(teamId, None)
+      )
+    )
 
   /**
     * Deletes a team from the database

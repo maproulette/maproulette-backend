@@ -107,6 +107,12 @@ object TeamImage extends CommonField {
   // Images are meant to be small card thumbnails, not full photos.
   val MAX_SIZE_BYTES: Int = 2 * 1024 * 1024
 
+  // What the multipart parsers are given, as opposed to the limit the upload
+  // endpoints enforce themselves. The room past MAX_SIZE_BYTES lets an upload
+  // that is merely too big reach the friendly error rather than the parser's,
+  // while a wildly oversized one is refused before it is buffered to disk.
+  val MAX_UPLOAD_BYTES: Long = MAX_SIZE_BYTES.toLong * 2
+
   /**
     * Determines the image format from the file's leading bytes. The
     * browser-supplied content type is only a hint, so the magic number is what
