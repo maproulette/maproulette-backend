@@ -4,7 +4,7 @@
  */
 package org.maproulette.framework.model
 
-import org.maproulette.data.{ItemType, UserType, ProjectType, GroupType, Actions}
+import org.maproulette.data.{ItemType, UserType, ProjectType, GroupType, ChallengeType, Actions}
 import org.maproulette.framework.psql.CommonField
 import play.api.libs.json._
 import play.api.libs.functional.syntax._
@@ -77,6 +77,9 @@ object GrantTarget {
   // Convenience methods for generating GrantTarget instances for common types
   def project(projectId: Long) = GrantTarget(ProjectType(), projectId)
   def group(groupId: Long)     = GrantTarget(GroupType(), groupId)
+  // A role granted on a single challenge, reaching where the parent project's
+  // grants do not. See ChallengeService.addUserToChallenge.
+  def challenge(challengeId: Long) = GrantTarget(ChallengeType(), challengeId)
 }
 
 case class Grant(
@@ -105,8 +108,12 @@ object Grant extends CommonField {
   val FIELD_OBJECT_ID    = "object_id"
   val FIELD_OBJECT_TYPE  = "object_type"
 
-  val ROLE_SUPER_USER        = -1
-  val ROLE_SUPER_USER_NAME   = "Superuser"
+  val ROLE_SUPER_USER      = -1
+  val ROLE_SUPER_USER_NAME = "Superuser"
+  // Sits above admin because roles are ordered by privilege, lowest first, and
+  // every check written as `role <= ROLE_ADMIN` must let an owner through.
+  val ROLE_OWNER             = 0
+  val ROLE_OWNER_NAME        = "Owner"
   val ROLE_ADMIN             = 1
   val ROLE_ADMIN_NAME        = "Admin"
   val ROLE_WRITE_ACCESS      = 2
@@ -116,6 +123,7 @@ object Grant extends CommonField {
 
   val roleNameMap = Map(
     ROLE_SUPER_USER   -> ROLE_SUPER_USER_NAME,
+    ROLE_OWNER        -> ROLE_OWNER_NAME,
     ROLE_ADMIN        -> ROLE_ADMIN_NAME,
     ROLE_WRITE_ACCESS -> ROLE_WRITE_ACCESS_NAME,
     ROLE_READ_ONLY    -> ROLE_READ_ONLY_NAME

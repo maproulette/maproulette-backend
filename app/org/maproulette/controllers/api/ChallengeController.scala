@@ -1371,6 +1371,32 @@ class ChallengeController @Inject() (
   }
 
   /**
+    * Checks that any team the request wants to hand the challenge to is one
+    * the user is actually entitled to hand it to. Team ids are just numbers on
+    * the wire, so without this anyone could park a challenge under another
+    * team - taking that team's image onto the card and handing its managers a
+    * challenge they never asked for - simply by guessing an id.
+    *
+    * @param body The incoming challenge json
+    * @param user The user making the request
+    */
+  private def validateOwnerTeam(body: JsValue, user: User): Unit =
+    (body \ "ownerTeamId").toOption match {
+      case None | Some(JsNull) => // nothing to check; ownership is left alone
+      case Some(value) =>
+        val teamId = value
+          .asOpt[Long]
+          .getOrElse(throw new InvalidException("ownerTeamId must be a number"))
+        this.serviceManager.team.requireChallengeOwnership(teamId, user)
+    }
+
+  override def updateUpdateBody(body: JsValue, user: User): JsValue = {
+    val jsonBody = super.updateUpdateBody(body, user)
+    this.validateOwnerTeam(jsonBody, user)
+    jsonBody
+  }
+
+  /**
     * This function allows sub classes to modify the body, primarily this would be used for inserting
     * default elements into the body that shouldn't have to be required to create an object.
     *
@@ -1379,6 +1405,7 @@ class ChallengeController @Inject() (
     */
   override def updateCreateBody(body: JsValue, user: User): JsValue = {
     var jsonBody = super.updateCreateBody(body, user)
+    this.validateOwnerTeam(jsonBody, user)
     jsonBody = Utils.insertIntoJson(jsonBody, "owner", user.osmProfile.id, true)(LongWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "enabled", true)(BooleanWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "deleted", false)(BooleanWrites)
@@ -2119,4 +2146,48 @@ class ChallengeController @Inject() (
         )
       }
   }
+
+  /**
+    * Gets the users granted a role on this challenge directly, as opposed to
+    * those who reach it through the parent project or an owning team
+    *
+    * @param id The id of the challenge whose managers are desired
+    */
+  def getChallengeManagers(id: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      Ok(Json.toJson(this.serviceManager.challenge.challengeManagers(id, user)))
+    }
+  }
+
+  /**
+    * Grants a user a role on this challenge, reaching where the parent
+    * project's grants do not. Replaces any role they already held on it
+    *
+    * @param id     The id of the challenge to grant the role on
+    * @param userId The id of the user receiving the role
+    * @param role   The role to grant
+    */
+  def addUserToChallenge(id: Long, userId: Long, role: Int): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        this.serviceManager.challenge.addUserToChallenge(id, userId, role, user)
+        Ok(Json.toJson(this.serviceManager.challenge.challengeManagers(id, user)))
+      }
+  }
+
+  /**
+    * Clears any role a user was granted on this challenge directly. Roles they
+    * hold through the parent project or an owning team are untouched
+    *
+    * @param id     The id of the challenge to revoke the role on
+    * @param userId The id of the user losing the role
+    */
+  def removeUserFromChallenge(id: Long, userId: Long): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        this.serviceManager.challenge.removeUserFromChallenge(id, userId, user)
+        Ok(Json.toJson(this.serviceManager.challenge.challengeManagers(id, user)))
+      }
+  }
+
 }

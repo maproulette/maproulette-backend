@@ -8,8 +8,16 @@ package org.maproulette.framework.controller
 import javax.inject.Inject
 import org.maproulette.data.ActionManager
 import org.maproulette.exception.{MPExceptionUtil, StatusMessage}
-import org.maproulette.framework.service.TeamService
-import org.maproulette.framework.model.{User, MemberObject, Group}
+import org.maproulette.framework.mixins.ParentMixin
+import org.maproulette.framework.service.{ServiceManager, TeamImageService, TeamService}
+import org.maproulette.framework.model.{
+  Challenge,
+  Group,
+  ManagedTeam,
+  MemberObject,
+  TeamImage,
+  User
+}
 import org.maproulette.framework.psql.{Paging}
 import org.maproulette.session.SessionManager
 import play.api.libs.json._
@@ -22,10 +30,15 @@ class TeamController @Inject() (
     override val sessionManager: SessionManager,
     override val actionManager: ActionManager,
     override val bodyParsers: PlayBodyParsers,
+    val serviceManager: ServiceManager,
     teamService: TeamService,
+    teamImageService: TeamImageService,
     components: ControllerComponents
 ) extends AbstractController(components)
-    with MapRouletteController {
+    with MapRouletteController
+    with ParentMixin {
+
+  implicit val challengeWrites: Writes[Challenge] = Challenge.writes.challengeWrites
 
   /**
     * Create a new team
@@ -100,6 +113,42 @@ class TeamController @Inject() (
       Ok(
         Json.toJson(
           this.teamService.teamUsersByUserIds(List(userId), user.getOrElse(User.guestUser))
+        )
+      )
+    }
+  }
+
+  /**
+    * Lists the teams the current user may give a challenge to, i.e. the ones
+    * whose content they run - owner, admin or manager. Each is paired with the
+    * role that qualified them and the image that team puts on its challenges,
+    * so the challenge form can offer the whole choice in one request.
+    *
+    * @return 200 OK with the teams, each with the caller's role and the team's image
+    */
+  def managedTeams(): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      val teams = this.teamService.teamsManagedBy(user)
+      val roles = this.teamService.teamRolesFor(user)
+      // One lookup for every team's image rather than a query each.
+      val imageTeamIds = this.teamImageService
+        .approvedForTeams(teams.map(_.id))
+        .map(_.teamId)
+        .toSet
+
+      Ok(
+        Json.toJson(
+          teams.flatMap { team =>
+            roles
+              .get(team.id)
+              .map(role =>
+                ManagedTeam(
+                  team,
+                  role,
+                  Option.when(imageTeamIds.contains(team.id))(TeamImage.urlForTeam(team.id))
+                )
+              )
+          }
         )
       )
     }
@@ -250,6 +299,41 @@ class TeamController @Inject() (
         Ok(
           Json.toJson(
             this.teamService.getTeamsManagingProject(projectId, user)
+          )
+        )
+      }
+    }
+
+  /**
+    * Gets the projects a team manages, i.e. those it has been granted a role
+    * on. The inverse of getTeamsManagingProject
+    *
+    * @param teamId The id of the team for which projects are desired
+    */
+  def getTeamProjects(teamId: Long): Action[AnyContent] =
+    Action.async { implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        Ok(
+          Json.toJson(
+            this.teamService.teamProjects(teamId, User.userOrMocked(user))
+          )
+        )
+      }
+    }
+
+  /**
+    * Gets the challenges a team owns, i.e. those given to it
+    *
+    * @param teamId The id of the team for which challenges are desired
+    */
+  def getTeamChallenges(teamId: Long): Action[AnyContent] =
+    Action.async { implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        // The parent project is embedded rather than left as an id, so a client
+        // showing these challenges can name their project without a second trip
+        Ok(
+          this.insertProjectJSON(
+            this.teamService.teamChallenges(teamId, User.userOrMocked(user))
           )
         )
       }
