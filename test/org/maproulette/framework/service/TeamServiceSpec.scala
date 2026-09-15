@@ -5,8 +5,11 @@
 
 package org.maproulette.framework.service
 
+import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.framework.model.{
+  ChallengeExtra,
   TeamMember,
+  TeamRole,
   Group,
   MemberObject,
   User,
@@ -455,7 +458,237 @@ class TeamServiceSpec(implicit val application: Application) extends FrameworkHe
       Seq(this.defaultTeam.name, team.name) must contain(allMemberships.head.teamName)
       Seq(this.defaultTeam.name, team.name) must contain(allMemberships(1).teamName)
     }
+
+    "make whoever creates a team its owner" taggedAs TeamTag in {
+      val team  = ownedTeam("ownerOnCreate")
+      val owner = MemberObject.user(this.defaultUser.id)
+
+      this.service.teamRoleFor(team, owner, this.defaultUser) mustEqual Some(TeamRole.OWNER)
+      this.service.teamOwners(team).map(_.memberId) mustEqual List(this.defaultUser.id)
+    }
+
+    "treat an owner as satisfying every lesser role" taggedAs TeamTag in {
+      val team  = ownedTeam("ownerOutranks")
+      val owner = MemberObject.user(this.defaultUser.id)
+
+      this.service.isTeamOwner(team, owner, this.defaultUser) mustEqual true
+      this.service.isTeamAdmin(team, owner, this.defaultUser) mustEqual true
+      this.service.isTeamManager(team, owner, this.defaultUser) mustEqual true
+    }
+
+    "not let a plain member manage the content of a team" taggedAs TeamTag in {
+      val team   = ownedTeam("memberManages")
+      val member = MemberObject.user(this.randomUser.id)
+      this.service
+        .addTeamMember(team, member, TeamRole.MEMBER, TeamMember.STATUS_MEMBER, this.defaultUser)
+
+      this.service.isTeamManager(team, member, this.defaultUser) mustEqual false
+      this.service.isTeamAdmin(team, member, this.defaultUser) mustEqual false
+    }
+
+    "let a manager manage the content of a team but not its membership" taggedAs TeamTag in {
+      val team    = ownedTeam("managerScope")
+      val manager = MemberObject.user(this.randomUser.id)
+      this.service
+        .addTeamMember(team, manager, TeamRole.MANAGER, TeamMember.STATUS_MEMBER, this.defaultUser)
+
+      this.service.isTeamManager(team, manager, this.defaultUser) mustEqual true
+      this.service.isTeamAdmin(team, manager, this.defaultUser) mustEqual false
+    }
+
+    "refuse to demote the last owner of a team" taggedAs TeamTag in {
+      val team = ownedTeam("lastOwnerDemote")
+      intercept[InvalidException] {
+        this.service.updateMemberRole(
+          team,
+          MemberObject.user(this.defaultUser.id),
+          TeamRole.ADMIN,
+          this.defaultUser
+        )
+      }
+    }
+
+    "refuse to remove the last owner of a team" taggedAs TeamTag in {
+      val team = ownedTeam("lastOwnerRemove")
+      intercept[InvalidException] {
+        this.service
+          .removeTeamMember(team, MemberObject.user(this.defaultUser.id), this.defaultUser)
+      }
+    }
+
+    "let an owner step down once another owner exists" taggedAs TeamTag in {
+      val team      = ownedTeam("ownershipHandover")
+      val successor = MemberObject.user(this.randomUser.id)
+      this.service
+        .addTeamMember(team, successor, TeamRole.OWNER, TeamMember.STATUS_MEMBER, this.defaultUser)
+
+      this.service.updateMemberRole(
+        team,
+        MemberObject.user(this.defaultUser.id),
+        TeamRole.ADMIN,
+        this.defaultUser
+      ) mustEqual true
+      this.service.teamOwners(team).map(_.memberId) mustEqual List(this.randomUser.id)
+    }
+
+    "not let an admin hand out the owner role" taggedAs TeamTag in {
+      val team  = ownedTeam("adminGrantsOwner")
+      val admin = MemberObject.user(this.randomUser.id)
+      this.service
+        .addTeamMember(team, admin, TeamRole.ADMIN, TeamMember.STATUS_MEMBER, this.defaultUser)
+
+      intercept[IllegalAccessException] {
+        this.service.updateMemberRole(
+          team,
+          MemberObject.user(this.anotherUser.id),
+          TeamRole.OWNER,
+          this.randomUser
+        )
+      }
+    }
+
+    "reject a role that is not a team role" taggedAs TeamTag in {
+      val team = ownedTeam("bogusRole")
+      intercept[InvalidException] {
+        this.service.addTeamMember(
+          team,
+          MemberObject.user(this.randomUser.id),
+          99,
+          TeamMember.STATUS_MEMBER,
+          this.defaultUser
+        )
+      }
+    }
+
+    "only let an owner delete a team" taggedAs TeamTag in {
+      val team = ownedTeam("ownerDeletes")
+      this.service.addTeamMember(
+        team,
+        MemberObject.user(this.randomUser.id),
+        TeamRole.ADMIN,
+        TeamMember.STATUS_MEMBER,
+        this.defaultUser
+      )
+
+      intercept[IllegalAccessException] {
+        this.service.deleteTeam(team, this.randomUser)
+      }
+      this.service.deleteTeam(team, this.defaultUser) mustEqual true
+    }
+
+    "offer only the teams whose content a user runs" taggedAs TeamTag in {
+      val managed = ownedTeam("managedByUser")
+      val joined  = ownedTeam("merelyJoined")
+      this.service.addTeamMember(
+        managed,
+        MemberObject.user(this.anotherUser.id),
+        TeamRole.MANAGER,
+        TeamMember.STATUS_MEMBER,
+        this.defaultUser
+      )
+      this.service.addTeamMember(
+        joined,
+        MemberObject.user(this.anotherUser.id),
+        TeamRole.MEMBER,
+        TeamMember.STATUS_MEMBER,
+        this.defaultUser
+      )
+
+      val offered = this.service.teamsManagedBy(freshUser(this.anotherUser)).map(_.id)
+      offered must contain(managed.id)
+      offered must not contain joined.id
+    }
+
+    "leave an invitation out of the teams a user runs until it is accepted" taggedAs TeamTag in {
+      val team = ownedTeam("invitePending")
+      this.service.addTeamMember(
+        team,
+        MemberObject.user(this.anotherUser.id),
+        TeamRole.MANAGER,
+        TeamMember.STATUS_INVITED,
+        this.defaultUser
+      )
+
+      this.service.teamsManagedBy(freshUser(this.anotherUser)).map(_.id) must not contain team.id
+    }
+
+    "refuse a challenge to a team the user merely belongs to" taggedAs TeamTag in {
+      val team = ownedTeam("challengeOwnership")
+      this.service.addTeamMember(
+        team,
+        MemberObject.user(this.randomUser.id),
+        TeamRole.MEMBER,
+        TeamMember.STATUS_MEMBER,
+        this.defaultUser
+      )
+
+      intercept[InvalidException] {
+        this.service.requireChallengeOwnership(team.id, freshUser(this.randomUser))
+      }
+      this.service.requireChallengeOwnership(team.id, this.defaultUser)
+    }
+
+    "list the projects a team has been granted a role on" taggedAs TeamTag in {
+      val team = this.ownedTeam("teamProjects")
+      this.service.addTeamToProject(
+        team.id,
+        this.defaultProject.id,
+        Grant.ROLE_ADMIN,
+        this.defaultUser
+      )
+
+      val projects = this.service.teamProjects(team.id, this.defaultUser)
+      projects.map(_.id) mustEqual List(this.defaultProject.id)
+    }
+
+    "list no projects for a team that manages none" taggedAs TeamTag in {
+      val team = this.ownedTeam("teamProjectsEmpty")
+      this.service.teamProjects(team.id, this.defaultUser) mustEqual List.empty
+    }
+
+    "list the challenges given to a team" taggedAs TeamTag in {
+      val team = this.ownedTeam("teamChallenges")
+      val challenge = this.challengeDAL.insert(
+        this
+          .getTestChallenge("TeamServiceSpec_ownedChallenge")
+          .copy(extra = ChallengeExtra(ownerTeamId = Some(team.id))),
+        User.superUser
+      )
+
+      val challenges = this.service.teamChallenges(team.id, User.superUser)
+      challenges.map(_.id) mustEqual List(challenge.id)
+    }
+
+    "list no challenges for a team that owns none" taggedAs TeamTag in {
+      val team = this.ownedTeam("teamChallengesEmpty")
+      this.service.teamChallenges(team.id, User.superUser) mustEqual List.empty
+    }
+
+    "refuse to list the contents of a team that does not exist" taggedAs TeamTag in {
+      intercept[NotFoundException] {
+        this.service.teamProjects(-1000, this.defaultUser)
+      }
+      intercept[NotFoundException] {
+        this.service.teamChallenges(-1000, this.defaultUser)
+      }
+    }
   }
+
+  /** A team the default user owns, named for the test that asked for it. */
+  private def ownedTeam(label: String): Group =
+    this.service
+      .create(
+        this.getTestTeam(s"TeamServiceSpec_$label"),
+        MemberObject.user(this.defaultUser.id),
+        this.defaultUser
+      )
+      .get
+
+  /**
+    * Re-read a user so their grants reflect role changes made during the test
+    * rather than whatever the cached copy was created with.
+    */
+  private def freshUser(user: User): User = this.serviceManager.user.retrieve(user.id).get
 
   override implicit val projectTestName: String = "TeamServiceSpecProject"
 

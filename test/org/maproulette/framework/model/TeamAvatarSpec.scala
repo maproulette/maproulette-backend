@@ -17,24 +17,4 @@ class TeamAvatarSpec extends PlaySpec {
       TeamAvatar.urlFor(7, 1234) must not equal TeamAvatar.urlFor(7, 5678)
     }
   }
-
-  "TeamAvatar.isStoredAvatarUrl" should {
-    "recognize a url this team's avatar is served from" in {
-      TeamAvatar.isStoredAvatarUrl("/api/v2/team/7/avatar/file?v=1234", 7) mustEqual true
-    }
-
-    "recognize one without a version stamp" in {
-      TeamAvatar.isStoredAvatarUrl("/api/v2/team/7/avatar/file", 7) mustEqual true
-    }
-
-    "not claim another team's avatar" in {
-      TeamAvatar.isStoredAvatarUrl("/api/v2/team/70/avatar/file?v=1234", 7) mustEqual false
-    }
-
-    // Removing an uploaded avatar clears the team's url, so mistaking an
-    // external url for one of ours would delete something we never stored.
-    "not claim an external url" in {
-      TeamAvatar.isStoredAvatarUrl("https://example.com/logo.png", 7) mustEqual false
-    }
-  }
 }

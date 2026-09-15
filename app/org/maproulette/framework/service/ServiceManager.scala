@@ -37,6 +37,8 @@ class ServiceManager @Inject() (
     taskReviewMetricsService: Provider[TaskReviewMetricsService],
     taskService: Provider[TaskService],
     teamService: Provider[TeamService],
+    teamImageService: Provider[TeamImageService],
+    teamAvatarService: Provider[TeamAvatarService],
     notificationService: Provider[NotificationService],
     leaderboardService: Provider[LeaderboardService],
     taskHistoryService: Provider[TaskHistoryService],
@@ -95,6 +97,10 @@ class ServiceManager @Inject() (
   def taskHistory: TaskHistoryService = taskHistoryService.get()
 
   def team: TeamService = teamService.get()
+
+  def teamImage: TeamImageService = teamImageService.get()
+
+  def teamAvatar: TeamAvatarService = teamAvatarService.get()
 
   def notification: NotificationService = notificationService.get()
 

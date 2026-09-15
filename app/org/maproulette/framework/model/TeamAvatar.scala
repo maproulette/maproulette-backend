@@ -22,15 +22,11 @@ case class TeamAvatar(
     modified: DateTime
 )
 
+// An avatar is a team image like any other, so the format and size rules live
+// on TeamImage and callers read them from there - repeating them here would
+// only give one rule a second name to drift from.
 object TeamAvatar {
   val TABLE = "team_avatars"
-
-  // An avatar is a team image like any other, so it is held to the same format
-  // and size rules rather than a parallel set that could drift from them.
-  val ALLOWED_CONTENT_TYPES: Set[String] = TeamImage.ALLOWED_CONTENT_TYPES
-  val MAX_SIZE_BYTES: Int                = TeamImage.MAX_SIZE_BYTES
-
-  def detectContentType(data: Array[Byte]): Option[String] = TeamImage.detectContentType(data)
 
   /**
     * The url that serves a team's avatar, stored in groups.avatar_url so the
@@ -41,12 +37,6 @@ object TeamAvatar {
     * timestamp. That lets the response be cached hard while still changing the
     * moment a new avatar is uploaded.
     */
-  def urlFor(teamId: Long, version: Long): String = s"/api/v2/team/$teamId/avatar/file?v=$version"
-
-  /**
-    * Whether a stored avatar url is one of ours for the given team, as opposed
-    * to an external url the team pasted in.
-    */
-  def isStoredAvatarUrl(url: String, teamId: Long): Boolean =
-    url.startsWith(s"/api/v2/team/$teamId/avatar/file")
+  def urlFor(teamId: Long, version: Long): String =
+    s"/api/v2/team/$teamId/avatar/file?v=$version"
 }

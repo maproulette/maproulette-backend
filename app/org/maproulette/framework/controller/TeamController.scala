@@ -5,22 +5,26 @@
 
 package org.maproulette.framework.controller
 
-import java.sql.Connection
 import javax.inject.Inject
 import org.maproulette.data.ActionManager
-import org.maproulette.exception.{
-  InvalidException,
-  MPExceptionUtil,
-  NotFoundException,
-  StatusMessage
+import org.maproulette.exception.{MPExceptionUtil, StatusMessage}
+import org.maproulette.framework.mixins.{ImageUploadMixin, ParentMixin}
+import org.maproulette.framework.service.{
+  ServiceManager,
+  TeamAvatarService,
+  TeamImageService,
+  TeamService
 }
-import org.maproulette.framework.service.TeamService
-import org.maproulette.framework.model.{User, MemberObject, Group, TeamAvatar}
-import org.maproulette.framework.repository.TeamAvatarRepository
+import org.maproulette.framework.model.{
+  Challenge,
+  Group,
+  ManagedTeam,
+  MemberObject,
+  TeamImage,
+  User
+}
 import org.maproulette.framework.psql.{Paging}
-import org.maproulette.permissions.Permission
 import org.maproulette.session.SessionManager
-import play.api.db.Database
 import play.api.libs.Files
 import play.api.libs.json._
 import play.api.mvc._
@@ -32,13 +36,19 @@ class TeamController @Inject() (
     override val sessionManager: SessionManager,
     override val actionManager: ActionManager,
     override val bodyParsers: PlayBodyParsers,
+    val serviceManager: ServiceManager,
     teamService: TeamService,
-    teamAvatarRepository: TeamAvatarRepository,
-    permission: Permission,
-    db: Database,
+    teamImageService: TeamImageService,
+    teamAvatarService: TeamAvatarService,
     components: ControllerComponents
 ) extends AbstractController(components)
-    with MapRouletteController {
+    with MapRouletteController
+    with ImageUploadMixin
+    with ParentMixin {
+
+  implicit val challengeWrites: Writes[Challenge] = Challenge.writes.challengeWrites
+
+  private val maxUploadBytes = TeamImage.MAX_UPLOAD_BYTES
 
   /**
     * Create a new team
@@ -113,6 +123,42 @@ class TeamController @Inject() (
       Ok(
         Json.toJson(
           this.teamService.teamUsersByUserIds(List(userId), user.getOrElse(User.guestUser))
+        )
+      )
+    }
+  }
+
+  /**
+    * Lists the teams the current user may give a challenge to, i.e. the ones
+    * whose content they run - owner, admin or manager. Each is paired with the
+    * role that qualified them and the image that team puts on its challenges,
+    * so the challenge form can offer the whole choice in one request.
+    *
+    * @return 200 OK with the teams, each with the caller's role and the team's image
+    */
+  def managedTeams(): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      val teams = this.teamService.teamsManagedBy(user)
+      val roles = this.teamService.teamRolesFor(user)
+      // One lookup for every team's image rather than a query each.
+      val imageTeamIds = this.teamImageService
+        .approvedForTeams(teams.map(_.id))
+        .map(_.teamId)
+        .toSet
+
+      Ok(
+        Json.toJson(
+          teams.flatMap { team =>
+            roles
+              .get(team.id)
+              .map(role =>
+                ManagedTeam(
+                  team,
+                  role,
+                  Option.when(imageTeamIds.contains(team.id))(TeamImage.urlForTeam(team.id))
+                )
+              )
+          }
         )
       )
     }
@@ -269,6 +315,41 @@ class TeamController @Inject() (
     }
 
   /**
+    * Gets the projects a team manages, i.e. those it has been granted a role
+    * on. The inverse of getTeamsManagingProject
+    *
+    * @param teamId The id of the team for which projects are desired
+    */
+  def getTeamProjects(teamId: Long): Action[AnyContent] =
+    Action.async { implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        Ok(
+          Json.toJson(
+            this.teamService.teamProjects(teamId, User.userOrMocked(user))
+          )
+        )
+      }
+    }
+
+  /**
+    * Gets the challenges a team owns, i.e. those given to it
+    *
+    * @param teamId The id of the team for which challenges are desired
+    */
+  def getTeamChallenges(teamId: Long): Action[AnyContent] =
+    Action.async { implicit request =>
+      this.sessionManager.userAwareRequest { implicit user =>
+        // The parent project is embedded rather than left as an id, so a client
+        // showing these challenges can name their project without a second trip
+        Ok(
+          this.insertProjectJSON(
+            this.teamService.teamChallenges(teamId, User.userOrMocked(user))
+          )
+        )
+      }
+    }
+
+  /**
     * Update a team's name, description, and/or avatar URL
     *
     * @param teamId      The id of the team to update
@@ -325,96 +406,32 @@ class TeamController @Inject() (
   }
 
   /**
-    * Fetches a team, or fails with a 404.
-    */
-  private def team(teamId: Long, user: User): Group =
-    this.teamService
-      .retrieve(teamId, user)
-      .getOrElse(throw new NotFoundException(s"No team found with id $teamId"))
-
-  /**
-    * Uploads a team's avatar, replacing whatever avatar it had. The bytes are
-    * stored by us and the team's avatar url is pointed at them, so the rest of
-    * the app keeps treating the avatar as a plain url.
-    *
-    * Unlike a team's challenge images this needs no review: a team admin could
-    * already point the avatar url at any image on the internet, so gating only
-    * the uploaded case would be stricter about the safer of the two paths.
+    * Uploads a team's avatar, replacing whatever avatar it had.
     *
     * @param teamId The id of the team whose avatar is being set
     * @return 200 OK with the updated team
     */
   def uploadAvatar(teamId: Long): Action[MultipartFormData[Files.TemporaryFile]] =
-    Action.async(parse.multipartFormData) { implicit request =>
+    Action.async(parse.multipartFormData(maxLength = maxUploadBytes)) { implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
-        val existing = this.team(teamId, user)
-        // Checked before anything is stored, so a non-admin can't write bytes
-        // and only be turned away afterwards
-        this.permission.hasObjectAdminAccess(existing, user)
-
-        request.body.file("image") match {
-          case Some(upload) =>
-            if (upload.fileSize > TeamAvatar.MAX_SIZE_BYTES) {
-              throw new InvalidException(
-                s"Image is larger than the ${TeamAvatar.MAX_SIZE_BYTES / (1024 * 1024)}MB limit"
-              )
-            }
-
-            val data = java.nio.file.Files.readAllBytes(upload.ref.path)
-            // The declared content type is caller-supplied, so the leading
-            // bytes are what we actually trust before storing something we
-            // will later serve back from our own origin.
-            val contentType = TeamAvatar.detectContentType(data) match {
-              case Some(detected) => detected
-              case None =>
-                throw new InvalidException(
-                  s"Unsupported image format. Supported formats: ${TeamAvatar.ALLOWED_CONTENT_TYPES.toList.sorted
-                    .mkString(", ")}"
-                )
-            }
-
-            // Storing the bytes and pointing the team's avatar url at them
-            // are two writes describing one fact, so they commit together. Left
-            // apart, a failure between them strands the bytes with the url
-            // still on the team's previous avatar, and the url carries a
-            // `?v=<modified>` stamp that would then be stale in browser caches
-            // until the next upload.
-            val updated = this.db.withTransaction { connection =>
-              implicit val c: Option[Connection] = Some(connection)
-              val modified =
-                this.teamAvatarRepository.upsert(teamId, contentType, data, user.id)
-              this.teamService.updateTeam(
-                existing.copy(avatarURL = Some(TeamAvatar.urlFor(teamId, modified.getMillis))),
-                user
-              )
-            }
-
-            Ok(Json.toJson(updated.get))
-          case None =>
-            throw new InvalidException("No image file provided in the 'image' field")
-        }
+        val upload = this.readImageUpload(request)
+        Ok(
+          Json.toJson(
+            this.teamAvatarService.upload(teamId, upload.data, upload.contentType, user)
+          )
+        )
       }
     }
 
   /**
-    * Removes a team's uploaded avatar. An avatar url the team pasted in
-    * themselves is left alone - there are no bytes of ours behind it, and
-    * clearing it would be deleting something this endpoint never set.
+    * Removes a team's uploaded avatar.
     *
     * @param teamId The id of the team whose avatar is being removed
     * @return 200 OK with the updated team
     */
   def deleteAvatar(teamId: Long): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
-      val existing = this.team(teamId, user)
-      this.permission.hasObjectAdminAccess(existing, user)
-
-      this.teamAvatarRepository.delete(teamId)
-      val remainingURL = existing.avatarURL.filterNot(TeamAvatar.isStoredAvatarUrl(_, teamId))
-
-      Ok(
-        Json.toJson(this.teamService.updateTeam(existing.copy(avatarURL = remainingURL), user).get)
-      )
+      Ok(Json.toJson(this.teamAvatarService.remove(teamId, user)))
     }
   }
 
@@ -427,24 +444,16 @@ class TeamController @Inject() (
     */
   def getAvatarFile(teamId: Long): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
-      this.teamAvatarRepository.retrieveData(teamId) match {
-        case Some(avatar) =>
-          val etag = "\"" + s"$teamId-${avatar.modified.getMillis}" + "\""
-          if (request.headers.get("If-None-Match").contains(etag)) {
-            NotModified.withHeaders("ETag" -> etag)
-          } else {
-            Ok(avatar.data)
-              .as(avatar.contentType)
-              .withHeaders(
-                "ETag"                   -> etag,
-                "Cache-Control"          -> "public, max-age=86400",
-                "X-Content-Type-Options" -> "nosniff",
-                "Content-Disposition"    -> "inline"
-              )
-          }
-        case None =>
-          throw new NotFoundException(s"No avatar found for team $teamId")
-      }
+      val avatar = this.teamAvatarService.retrieve(teamId)
+      this.serveImageBytes(
+        etagKey = teamId.toString,
+        modified = avatar.modified,
+        contentType = avatar.contentType,
+        data = this.teamAvatarService.retrieveData(teamId).data,
+        // The url carries a `?v=<modified>` stamp, so the bytes behind any one
+        // url never change and a revalidation could only ever answer 304.
+        cacheControl = "public, max-age=31536000, immutable"
+      )
     }
   }
 }

@@ -7,11 +7,10 @@ package org.maproulette.framework.controller
 
 import javax.inject.Inject
 import org.maproulette.data.ActionManager
-import org.maproulette.exception.{InvalidException, NotFoundException, StatusMessage}
-import org.maproulette.framework.model.{Group, MemberObject, TeamImage, TeamMember, User}
-import org.maproulette.framework.repository.TeamImageRepository
-import org.maproulette.framework.service.TeamService
-import org.maproulette.models.dal.ChallengeDAL
+import org.maproulette.exception.{NotFoundException, StatusMessage}
+import org.maproulette.framework.mixins.ImageUploadMixin
+import org.maproulette.framework.model.TeamImage
+import org.maproulette.framework.service.TeamImageService
 import org.maproulette.permissions.Permission
 import org.maproulette.session.SessionManager
 import play.api.libs.Files
@@ -27,66 +26,14 @@ class TeamImageController @Inject() (
     override val sessionManager: SessionManager,
     override val actionManager: ActionManager,
     override val bodyParsers: PlayBodyParsers,
-    teamImageRepository: TeamImageRepository,
-    teamService: TeamService,
-    challengeDAL: ChallengeDAL,
+    teamImageService: TeamImageService,
     permission: Permission,
     components: ControllerComponents
 ) extends AbstractController(components)
-    with MapRouletteController {
+    with MapRouletteController
+    with ImageUploadMixin {
 
-  /**
-    * Fetches a team, or fails with a 404.
-    */
-  private def team(teamId: Long): Group =
-    this.teamService
-      .retrieve(teamId)
-      .getOrElse(throw new NotFoundException(s"No team found with id $teamId"))
-
-  /**
-    * Fetches an image, or fails with a 404.
-    */
-  private def image(imageId: Long): TeamImage =
-    this.teamImageRepository
-      .retrieve(imageId)
-      .getOrElse(throw new NotFoundException(s"No team image found with id $imageId"))
-
-  /**
-    * Runs a mutation that may detach the image from challenges, evicting any
-    * challenge it was attached to from the challenge cache. The detaching is
-    * done in SQL, which the cache has no way of noticing on its own, so
-    * without this a challenge would keep reporting an image it no longer has.
-    */
-  private def withChallengeCacheEviction[T](imageId: Long)(mutate: => T): T = {
-    val affected = this.teamImageRepository.challengeIdsUsing(imageId)
-    val result   = mutate
-    affected.foreach(this.challengeDAL.cacheManager.cache.remove)
-    result
-  }
-
-  private def isMemberOf(teamId: Long, user: User): Boolean =
-    this.teamService
-      .isActiveTeamMember(this.team(teamId), MemberObject.user(user.id), User.superUser)
-
-  /**
-    * Requires that the user is an active member of the team (superusers pass
-    * regardless, as they do everywhere else).
-    */
-  private def requireTeamMembership(teamId: Long, user: User): Unit = {
-    if (!this.permission.isSuperUser(user) && !this.isMemberOf(teamId, user)) {
-      throw new IllegalAccessException(
-        s"You must be a member of team $teamId to manage its images"
-      )
-    }
-  }
-
-  /**
-    * Whether a user may look at one of a team's images before it has been
-    * approved - superusers because they review them, team members because
-    * they are the ones asking for them.
-    */
-  private def canPreview(teamId: Long, user: User): Boolean =
-    this.permission.isSuperUser(user) || this.isMemberOf(teamId, user)
+  private val maxUploadBytes = TeamImage.MAX_UPLOAD_BYTES
 
   /**
     * Requests a new image for a team. Any active member can ask; the image is
@@ -96,51 +43,25 @@ class TeamImageController @Inject() (
     * @return 200 OK with the newly created (pending) image
     */
   def requestImage(teamId: Long): Action[MultipartFormData[Files.TemporaryFile]] =
-    Action.async(parse.multipartFormData) { implicit request =>
+    Action.async(parse.multipartFormData(maxLength = maxUploadBytes)) { implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
-        this.requireTeamMembership(teamId, user)
+        this.teamImageService.requireTeamAccess(teamId, user)
 
-        if (this.teamImageRepository
-              .pendingCountForTeam(teamId) >= TeamImage.MAX_PENDING_PER_TEAM) {
-          throw new InvalidException(
-            s"Team $teamId already has ${TeamImage.MAX_PENDING_PER_TEAM} images awaiting review"
+        val upload = this.readImageUpload(request)
+
+        val name = request.body.dataParts
+          .get("name")
+          .flatMap(_.headOption)
+          .map(_.trim)
+          .filter(_.nonEmpty)
+          .orElse(Option(upload.filename).map(_.trim).filter(_.nonEmpty))
+          .getOrElse("Untitled image")
+
+        Ok(
+          Json.toJson(
+            this.teamImageService.request(teamId, name, upload.contentType, upload.data, user.id)
           )
-        }
-
-        request.body.file("image") match {
-          case Some(upload) =>
-            if (upload.fileSize > TeamImage.MAX_SIZE_BYTES) {
-              throw new InvalidException(
-                s"Image is larger than the ${TeamImage.MAX_SIZE_BYTES / (1024 * 1024)}MB limit"
-              )
-            }
-
-            val data = java.nio.file.Files.readAllBytes(upload.ref.path)
-            // The declared content type is caller-supplied, so the leading
-            // bytes are what we actually trust before storing something we
-            // will later serve back from our own origin.
-            val contentType = TeamImage.detectContentType(data) match {
-              case Some(detected) => detected
-              case None =>
-                throw new InvalidException(
-                  s"Unsupported image format. Supported formats: ${TeamImage.ALLOWED_CONTENT_TYPES.toList.sorted
-                    .mkString(", ")}"
-                )
-            }
-
-            val name = request.body.dataParts
-              .get("name")
-              .flatMap(_.headOption)
-              .map(_.trim)
-              .filter(_.nonEmpty)
-              .orElse(Option(upload.filename).map(_.trim).filter(_.nonEmpty))
-              .getOrElse("Untitled image")
-
-            val id = this.teamImageRepository.create(teamId, name, contentType, data, user.id)
-            Ok(Json.toJson(this.image(id)))
-          case None =>
-            throw new InvalidException("No image file provided in the 'image' field")
-        }
+        )
       }
     }
 
@@ -153,30 +74,8 @@ class TeamImageController @Inject() (
     */
   def listTeamImages(teamId: Long): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
-      this.requireTeamMembership(teamId, user)
-      Ok(Json.toJson(this.teamImageRepository.listForTeam(teamId)))
-    }
-  }
-
-  /**
-    * Lists every approved image across all teams the current user belongs to.
-    * This is the set the challenge form offers as display images.
-    *
-    * @return 200 OK with the approved images available to the user
-    */
-  def listAvailableImages(): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.authenticatedRequest { implicit user =>
-      val teamIds = this.teamService
-        .teamUsersByUserIds(List(user.id), user)
-        .filter(_.status != TeamMember.STATUS_INVITED)
-        .map(_.teamId)
-        .distinct
-
-      Ok(
-        Json.toJson(
-          this.teamImageRepository.listForTeams(teamIds, Some(TeamImage.STATUS_APPROVED))
-        )
-      )
+      this.teamImageService.requireTeamAccess(teamId, user)
+      Ok(Json.toJson(this.teamImageService.listForTeam(teamId)))
     }
   }
 
@@ -188,7 +87,7 @@ class TeamImageController @Inject() (
   def listPendingImages(): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
       this.permission.hasSuperAccess(user)
-      Ok(Json.toJson(this.teamImageRepository.listPending()))
+      Ok(Json.toJson(this.teamImageService.listPending()))
     }
   }
 
@@ -198,12 +97,8 @@ class TeamImageController @Inject() (
     * @param imageId The id of the image to approve
     * @return 200 OK with the reviewed image
     */
-  def approveImage(imageId: Long): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.authenticatedRequest { implicit user =>
-      this.permission.hasSuperAccess(user)
-      this.review(imageId, TeamImage.STATUS_APPROVED, user, request.getQueryString("comment"))
-    }
-  }
+  def approveImage(imageId: Long): Action[AnyContent] =
+    this.review(imageId, TeamImage.STATUS_APPROVED)
 
   /**
     * Rejects an image. Rejecting one that was previously approved also
@@ -212,22 +107,20 @@ class TeamImageController @Inject() (
     * @param imageId The id of the image to reject
     * @return 200 OK with the reviewed image
     */
-  def rejectImage(imageId: Long): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.authenticatedRequest { implicit user =>
-      this.permission.hasSuperAccess(user)
-      this.review(imageId, TeamImage.STATUS_REJECTED, user, request.getQueryString("comment"))
-    }
-  }
+  def rejectImage(imageId: Long): Action[AnyContent] =
+    this.review(imageId, TeamImage.STATUS_REJECTED)
 
-  private def review(imageId: Long, status: Int, user: User, comment: Option[String]): Result = {
-    this.image(imageId)
-    this.teamImageRepository.review(
-      imageId,
-      status,
-      user.id,
-      comment.map(_.trim).filter(_.nonEmpty)
-    )
-    Ok(Json.toJson(this.image(imageId)))
+  private def review(imageId: Long, status: Int): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        this.permission.hasSuperAccess(user)
+        Ok(
+          Json.toJson(
+            this.teamImageService
+              .review(imageId, status, user.id, request.getQueryString("comment"))
+          )
+        )
+      }
   }
 
   /**
@@ -240,23 +133,31 @@ class TeamImageController @Inject() (
     */
   def deleteImage(imageId: Long): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
-      val existing = this.image(imageId)
-
-      val allowed = this.permission.isSuperUser(user) ||
-        this.teamService
-          .isTeamAdmin(this.team(existing.teamId), MemberObject.user(user.id), User.superUser) ||
-        (existing.requestedBy.contains(user.id) && existing.status == TeamImage.STATUS_PENDING)
-
-      if (!allowed) {
-        throw new IllegalAccessException(
-          "Only a team admin or the requester of a still-pending image can remove it"
-        )
-      }
-
-      this.withChallengeCacheEviction(imageId) {
-        this.teamImageRepository.delete(imageId)
-      }
+      this.teamImageService.delete(imageId, user)
       Ok(Json.toJson(StatusMessage("OK", JsString(s"Team image $imageId deleted"))))
+    }
+  }
+
+  /**
+    * Serves whatever image a team currently has approved - the picture on the
+    * cards of every challenge that team owns. Anonymous, because the url is
+    * consumed by plain img tags.
+    *
+    * A team that has no approved image is reported as not found, which is how
+    * a client tells there is simply no picture to show. Only approved images
+    * are ever served here: a request still under review is nobody's card image
+    * yet, and is reachable only through its own image endpoint.
+    *
+    * @param teamId The id of the team whose image is wanted
+    * @return 200 OK with the image bytes
+    */
+  def getTeamImageFile(teamId: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      val image = this.teamImageService
+        .approvedForTeam(teamId)
+        .getOrElse(throw new NotFoundException(s"Team $teamId has no challenge image"))
+
+      this.serveImage(image.id, request, "public, max-age=86400")
     }
   }
 
@@ -275,34 +176,39 @@ class TeamImageController @Inject() (
     */
   def getImageFile(imageId: Long): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
-      val metadata = this.image(imageId)
-      val approved = metadata.status == TeamImage.STATUS_APPROVED
-      if (!approved && !user.exists(this.canPreview(metadata.teamId, _))) {
+      val file     = this.teamImageService.retrieveFile(imageId)
+      val approved = file.status == TeamImage.STATUS_APPROVED
+      if (!approved && !user.exists(this.teamImageService.hasTeamAccess(file.teamId, _))) {
         throw new NotFoundException(s"No team image found with id $imageId")
       }
 
-      this.teamImageRepository.retrieveData(imageId) match {
-        case Some(image) =>
-          val etag = "\"" + s"$imageId-${image.modified.getMillis}" + "\""
-          if (request.headers.get("If-None-Match").contains(etag)) {
-            NotModified.withHeaders("ETag" -> etag)
-          } else {
-            Ok(image.data)
-              .as(image.contentType)
-              .withHeaders(
-                "ETag" -> etag,
-                // An approved image is immutable and public. One still under
-                // review is neither: it is only for this viewer, and it stops
-                // being served the moment it is rejected.
-                "Cache-Control" ->
-                  (if (approved) "public, max-age=86400" else "private, no-cache"),
-                "X-Content-Type-Options" -> "nosniff",
-                "Content-Disposition"    -> "inline"
-              )
-          }
-        case None =>
-          throw new NotFoundException(s"No team image found with id $imageId")
-      }
+      // An approved image's bytes never change, so it is public and cacheable.
+      // One still under review is neither: it is only for this viewer, and it
+      // stops being served the moment it is rejected.
+      this.serveImage(
+        imageId,
+        request,
+        if (approved) "public, max-age=86400" else "private, no-cache"
+      )
     }
+  }
+
+  /**
+    * Writes an image's bytes out through the shared serving rules.
+    */
+  private def serveImage(
+      imageId: Long,
+      request: Request[AnyContent],
+      cacheControl: String
+  ): Result = {
+    implicit val r: Request[AnyContent] = request
+    val file                            = this.teamImageService.retrieveFile(imageId)
+    this.serveImageBytes(
+      etagKey = imageId.toString,
+      modified = file.modified,
+      contentType = file.contentType,
+      data = this.teamImageService.retrieveData(imageId).data,
+      cacheControl = cacheControl
+    )
   }
 }

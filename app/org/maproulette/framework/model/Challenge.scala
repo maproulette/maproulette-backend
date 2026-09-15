@@ -88,6 +88,20 @@ case class PriorityRule(operator: String, key: String, value: String, valueType:
   }
 }
 
+/**
+  * A user granted a role on a single challenge, as opposed to reaching it
+  * through the parent project or through the team that owns it.
+  */
+case class ChallengeManager(
+    userId: Long,
+    name: String,
+    role: Int
+)
+
+object ChallengeManager {
+  implicit val writes: Writes[ChallengeManager] = Json.writes[ChallengeManager]
+}
+
 case class ChallengeGeneral(
     owner: Long,
     parent: Long,
@@ -145,7 +159,7 @@ case class ChallengeExtra(
     requireConfirmation: Boolean = false,
     mrTagMetrics: Option[JsObject] = None,
     paused: Boolean = false,
-    teamImageId: Option[Long] = None
+    ownerTeamId: Option[Long] = None
 ) extends DefaultWrites
 
 case class ChallengeListing(
@@ -227,7 +241,7 @@ case class BaseChallenge(
     completionPercentage: Option[Int] = Some(0),
     completionMetrics: CompletionMetrics = CompletionMetrics(),
     paused: Boolean = false,
-    teamImageId: Option[Long] = None
+    ownerTeamId: Option[Long] = None
 ) extends DefaultWrites
 
 /**
@@ -262,6 +276,13 @@ case class Challenge(
     with Identifiable {
 
   override val itemType: ItemType = ChallengeType()
+
+  /**
+    * The team that owns this challenge, if one does. Ownership decides both
+    * who may manage the challenge and which image its card shows, so it is
+    * surfaced here rather than left to callers to dig out of `extra`.
+    */
+  def ownerTeamId: Option[Long] = this.extra.ownerTeamId
 
   def isHighPriority(properties: Map[String, String], task: Task): Boolean =
     this.matchesRule(priority.highPriorityRule, properties, task)
@@ -514,6 +535,8 @@ object Challenge extends CommonField {
   val FIELD_GLOBAL    = "is_global"
   val FIELD_STATUS    = "status"
   val FIELD_DELETED   = "deleted"
+  // The team a challenge has been given to, if any. See TeamService.teamChallenges.
+  val FIELD_OWNER_TEAM_ID = "owner_team_id"
 
   /**
     * This will check to make sure that the rule string is fully valid.

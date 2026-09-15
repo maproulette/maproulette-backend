@@ -129,7 +129,7 @@ class TeamService @Inject() (
         this.addTeamMember(
           createdTeam,
           admin,
-          Grant.ROLE_ADMIN,
+          TeamRole.OWNER,
           TeamMember.STATUS_MEMBER,
           User.superUser
         )
@@ -184,27 +184,45 @@ class TeamService @Inject() (
   }
 
   /**
-    * Retrieve active members of a team granted admin role on the team
+    * Retrieve active members of a team granted the admin role or better, i.e.
+    * everyone who can invite and remove people
     *
     * @param team The team for which admins are desired
     * @param user The user making the request
     */
-  def teamAdmins(team: Group, user: User): List[GroupMember] = {
+  def teamAdmins(team: Group, user: User): List[GroupMember] =
+    this.teamMembersHolding(team, TeamRole.ADMIN)
+
+  /**
+    * Retrieve active members of a team granted the owner role, the only ones
+    * who can delete it
+    *
+    * @param team The team for which owners are desired
+    */
+  def teamOwners(team: Group): List[GroupMember] =
+    this.teamMembersHolding(team, TeamRole.OWNER)
+
+  /**
+    * Retrieve the active members of a team whose role is at least as
+    * privileged as the given one. Roles are ordered lowest-number-first, so
+    * asking for admins also returns owners.
+    */
+  private def teamMembersHolding(team: Group, role: Int): List[GroupMember] = {
     // Everyone has read access to teams, so no need to check permissions
     this.ensureTeam(team)
-    val adminMemberIds = this.grantService
+    val memberIds = this.grantService
       .retrieveMatchingGrants(
-        role = Some(Grant.ROLE_ADMIN),
         target = Some(GrantTarget.group(team.id)),
         user = User.superUser
       )
+      .filter(grant => grant.role <= role)
       .map(grant => grant.grantee.granteeId)
 
     this.groupService.groupMembers(
       team,
       Query.simple(
         List(
-          BaseParameter(GroupMember.FIELD_MEMBER_ID, adminMemberIds, Operator.IN),
+          BaseParameter(GroupMember.FIELD_MEMBER_ID, memberIds, Operator.IN),
           BaseParameter(GroupMember.FIELD_STATUS, TeamMember.STATUS_INVITED, Operator.NE)
         )
       )
@@ -282,6 +300,7 @@ class TeamService @Inject() (
     // Only team admin can add members to a team
     this.ensureTeam(team)
     this.permission.hasObjectAdminAccess(team, user)
+    this.ensureGrantableRole(team, role, user)
 
     val addedMember = this.groupService.addGroupMember(team, member, status)
     this.grantTeamRole(team, role, member)
@@ -431,8 +450,8 @@ class TeamService @Inject() (
       this.permission.hasObjectAdminAccess(team, user)
     }
 
-    // Don't let the last admin get removed from the team
-    this.ensureNotLastAdmin(team, member)
+    // Don't let the last owner get removed from the team
+    this.ensureNotLastOwner(team, member)
 
     this.groupService.removeGroupMember(team, member)
     this.clearTeamRoles(team, member)
@@ -459,15 +478,17 @@ class TeamService @Inject() (
     // Only a team admin can update the role of a member
     this.ensureTeam(team)
     this.permission.hasObjectAdminAccess(team, user)
+    this.ensureGrantableRole(team, role, user)
 
     // Make sure the member is actually on the team before we update their role
     if (this.getTeamMember(team, member, user) == None) {
       throw new InvalidException(s"Cannot update role on team for non-member")
     }
 
-    // Don't let the last admin get demoted
-    if (Grant.hasLesserPrivilege(role, Grant.ROLE_ADMIN)) {
-      this.ensureNotLastAdmin(team, member)
+    // Demoting away from owner is the only change that can leave a team with
+    // nobody able to delete it
+    if (Grant.hasLesserPrivilege(role, TeamRole.OWNER)) {
+      this.ensureNotLastOwner(team, member)
     }
     this.setTeamRole(team, role, member)
 
@@ -650,15 +671,84 @@ class TeamService @Inject() (
   }
 
   /**
-    * Determines if a member has been granted the admin role on a team
+    * The role an active member holds on a team, if they hold one. A member can
+    * only ever have a single team role - `setTeamRole` clears the old grant
+    * before making the new one - so the most privileged grant found is it.
+    *
+    * @param team   The team
+    * @param member The member whose role is wanted
+    * @param user   The user making the request
+    */
+  def teamRoleFor(team: Group, member: MemberObject, user: User): Option[Int] =
+    if (!this.isActiveTeamMember(team, member, user)) {
+      None
+    } else {
+      this.grantService
+        .retrieveMatchingGrants(
+          grantee = Some(List(Grantee(Actions.getItemType(member.objectType).get, member.objectId))),
+          target = Some(GrantTarget.group(team.id)),
+          user = User.superUser
+        )
+        .map(_.role)
+        .sorted
+        .headOption
+    }
+
+  /**
+    * Determines if a member holds at least the given role on a team. Roles are
+    * ordered lowest-number-first, so an owner satisfies a request for admin.
+    *
+    * @param team   The team
+    * @param role   The least privileged role that satisfies the test
+    * @param member The member to test
+    * @param user   The user making the request
+    */
+  def hasTeamRoleAtLeast(team: Group, role: Int, member: MemberObject, user: User): Boolean =
+    this.teamRoleFor(team, member, user).exists(_ <= role)
+
+  /**
+    * Determines if a member can invite and remove people on a team, i.e. holds
+    * the admin role or better
     *
     * @param team   The team
     * @param member The member to test for admin role on team
     * @param user   The user making the request
     */
   def isTeamAdmin(team: Group, member: MemberObject, user: User): Boolean = {
-    this.hasTeamRole(team, Grant.ROLE_ADMIN, member, user)
+    this.hasTeamRoleAtLeast(team, TeamRole.ADMIN, member, user)
   }
+
+  /**
+    * Determines if a member can create, edit and delete the team's projects
+    * and challenges, i.e. holds the manager role or better
+    *
+    * @param team   The team
+    * @param member The member to test for manager role on team
+    * @param user   The user making the request
+    */
+  def isTeamManager(team: Group, member: MemberObject, user: User): Boolean =
+    this.hasTeamRoleAtLeast(team, TeamRole.MANAGER, member, user)
+
+  /**
+    * Determines if a user member can create, edit and delete the team's
+    * projects and challenges
+    *
+    * @param team       The team
+    * @param memberUser The user member to test for manager role on team
+    * @param user       The user making the request
+    */
+  def isUserTeamManager(team: Group, memberUser: User, user: User): Boolean =
+    this.isTeamManager(team, MemberObject.user(memberUser.id), user)
+
+  /**
+    * Determines if a member owns a team, and so may delete it
+    *
+    * @param team   The team
+    * @param member The member to test for the owner role on team
+    * @param user   The user making the request
+    */
+  def isTeamOwner(team: Group, member: MemberObject, user: User): Boolean =
+    this.hasTeamRoleAtLeast(team, TeamRole.OWNER, member, user)
 
   /**
     * Determines if a user member has been granted the admin role on a team
@@ -669,6 +759,77 @@ class TeamService @Inject() (
     */
   def isUserTeamAdmin(team: Group, memberUser: User, user: User): Boolean =
     this.isTeamAdmin(team, MemberObject.user(memberUser.id), user)
+
+  /**
+    * The role a user holds on each team they are an active member of, keyed by
+    * team id. A member is granted their role the moment they are invited, so
+    * an invitation they have not accepted is deliberately absent - it confers
+    * nothing until taken up.
+    *
+    * Grants are read straight from the grant service rather than off the user
+    * object, so a role change takes effect here without waiting on the user
+    * cache.
+    *
+    * @param user The user whose team roles are wanted
+    */
+  def teamRolesFor(user: User): Map[Long, Int] = {
+    val activeTeamIds = this.groupService
+      .getMembershipsForMembers(UserType().typeId, List(user.id))
+      .filter(_.status != TeamMember.STATUS_INVITED)
+      .map(_.groupId)
+      .toSet
+
+    this.grantService
+      .retrieveGrantsTo(Grantee.user(user.id), User.superUser)
+      .filter(g => g.target.objectType == GroupType() && activeTeamIds.contains(g.target.objectId))
+      .groupBy(_.target.objectId)
+      // A member holds a single team role, but take the most privileged grant
+      // rather than an arbitrary one if that ever stops being true.
+      .map { case (teamId, grants) => teamId -> grants.map(_.role).min }
+  }
+
+  /**
+    * The teams a user may hand a challenge to: the ones whose content they
+    * run, i.e. where they hold the manager role or better. A plain member's
+    * teams are deliberately absent - belonging to a team is not licence to
+    * publish challenges under its name.
+    *
+    * @param user The user whose manageable teams are wanted
+    */
+  def teamsManagedBy(user: User): List[Group] =
+    this.list(
+      this
+        .teamRolesFor(user)
+        .collect {
+          case (teamId, role) if TeamRole.managesContent(role) =>
+            teamId
+        }
+        .toList,
+      user
+    )
+
+  /**
+    * Requires that the user may give a challenge to the given team, i.e. that
+    * they run that team's content. Handing a challenge to a team puts the
+    * team's image on its card and gives the team's managers the run of it, so
+    * it is not something an outsider - or a plain member - gets to do.
+    *
+    * @param teamId The id of the team the challenge is being given to
+    * @param user   The user making the request
+    */
+  def requireChallengeOwnership(teamId: Long, user: User): Unit = {
+    val team = this.retrieve(teamId, user) match {
+      case Some(t) => t
+      case None    => throw new NotFoundException(s"No team with id $teamId found")
+    }
+
+    if (!this.permission.isSuperUser(user) &&
+        !this.isUserTeamManager(team, user, User.superUser)) {
+      throw new InvalidException(
+        s"You must be a manager of team $teamId to give one of its challenges"
+      )
+    }
+  }
 
   /**
     * Update a team
@@ -684,13 +845,28 @@ class TeamService @Inject() (
     this.permission.hasObjectAdminAccess(team, user)
     val updatedGroup = this.groupService.updateGroup(team)
 
-    webSocketProvider.sendMessage(
-      WebSocketMessages.teamUpdate(
-        WebSocketMessages.TeamUpdateData(team.id, None)
-      )
-    )
+    // Announcing the update is only truthful once the write is durable. When
+    // this runs inside a caller's transaction the write is not committed yet
+    // and may still roll back, so the caller broadcasts afterwards instead.
+    if (c.isEmpty) {
+      this.broadcastTeamUpdate(team.id)
+    }
     updatedGroup
   }
+
+  /**
+    * Tells connected clients a team changed. Callers that wrap `updateTeam` in
+    * their own transaction own this and must call it once that transaction has
+    * committed, so a rollback cannot announce an update that never happened.
+    *
+    * @param teamId The id of the team that changed
+    */
+  def broadcastTeamUpdate(teamId: Long): Unit =
+    webSocketProvider.sendMessage(
+      WebSocketMessages.teamUpdate(
+        WebSocketMessages.TeamUpdateData(teamId, None)
+      )
+    )
 
   /**
     * Deletes a team from the database
@@ -700,8 +876,13 @@ class TeamService @Inject() (
     * @return Boolean if delete was successful
     */
   def deleteTeam(team: Group, user: User): Boolean = {
-    // Only a team admin can delete a team
-    this.permission.hasObjectAdminAccess(team, user)
+    // Deleting a team takes its projects' and challenges' management with it,
+    // so it is the one thing reserved to an owner rather than any admin
+    this.ensureTeam(team)
+    if (!this.permission.isSuperUser(user) &&
+        !this.isTeamOwner(team, MemberObject.user(user.id), User.superUser)) {
+      throw new IllegalAccessException("Only an owner of the team can delete it")
+    }
     this.groupService.deleteGroup(team)
     this.grantService.deleteMatchingGrants(
       target = Some(GrantTarget.group(team.id)),
@@ -805,6 +986,93 @@ class TeamService @Inject() (
   }
 
   /**
+    * Retrieves the projects the given team has been granted a role on, i.e.
+    * the projects it manages. The inverse of [[getTeamsManagingProject]].
+    *
+    * Filtered to what the requesting user may see: a project that is disabled
+    * is only listed for someone granted a role on it, so a stranger browsing a
+    * team does not learn about work that is not on display.
+    *
+    * @param teamId The id of the team whose managed projects are desired
+    * @param user   The user making the request
+    */
+  def teamProjects(teamId: Long, user: User): List[Project] = {
+    this.ensureTeamExists(teamId, user)
+
+    val projectIds =
+      this.projectGrantsForTeams(List(teamId), user).map(_.target.objectId).distinct
+    val projects = this.serviceManager.project.list(projectIds).filter(!_.deleted)
+
+    if (this.permission.isSuperUser(user)) {
+      return projects
+    }
+
+    val managedProjectIds = user.managedProjectIds().toSet
+    projects.filter(project => project.enabled || managedProjectIds.contains(project.id))
+  }
+
+  /**
+    * Retrieves the challenges the given team owns, i.e. those handed to it via
+    * their `ownerTeamId`.
+    *
+    * Filtered to what the requesting user may see, on the same terms as
+    * [[ChallengeService.challengeVisibilityFilter]]: a challenge is visible
+    * when both it and its parent project are enabled, or when the user is
+    * granted a role on that parent project. That filter joins the projects
+    * table, which the challenge query does not, so the same rule is applied
+    * here over the parents the results actually name.
+    *
+    * @param teamId The id of the team whose challenges are desired
+    * @param user   The user making the request
+    */
+  def teamChallenges(teamId: Long, user: User): List[Challenge] = {
+    this.ensureTeamExists(teamId, user)
+
+    val challenges = this.serviceManager.challenge.query(
+      Query.simple(
+        List(
+          BaseParameter(
+            Challenge.FIELD_OWNER_TEAM_ID,
+            teamId,
+            table = Some(Challenge.TABLE)
+          ),
+          BaseParameter(
+            Challenge.FIELD_DELETED,
+            false,
+            table = Some(Challenge.TABLE)
+          )
+        )
+      )
+    )
+
+    if (this.permission.isSuperUser(user)) {
+      return challenges
+    }
+
+    val managedProjectIds = user.managedProjectIds().toSet
+    val enabledParentIds = this.serviceManager.project
+      .list(challenges.map(_.general.parent).distinct)
+      .filter(project => project.enabled && !project.deleted)
+      .map(_.id)
+      .toSet
+
+    challenges.filter { challenge =>
+      managedProjectIds.contains(challenge.general.parent) ||
+      (challenge.general.enabled && enabledParentIds.contains(challenge.general.parent))
+    }
+  }
+
+  /**
+    * Everyone has read access to teams, so this only establishes that the team
+    * is real before its contents are listed.
+    */
+  private def ensureTeamExists(teamId: Long, user: User): Unit =
+    this.retrieve(teamId, user) match {
+      case Some(_) => ()
+      case None    => throw new NotFoundException(s"No team with id $teamId found")
+    }
+
+  /**
     * Remove all granted roles to member on team
     */
   private def clearTeamRoles(team: Group, member: MemberObject) = {
@@ -863,16 +1131,31 @@ class TeamService @Inject() (
   }
 
   /**
-    * Ensure the current member is not the last administrator of the team,
-    * throwing an exception if so. Useful for operations that would remove or
-    * alter the role of an existing administrator
+    * Ensure the current member is not the last owner of the team, throwing an
+    * exception if so. Every team needs someone who can delete it, so this
+    * guards the operations that would remove or demote an existing owner
     */
-  private def ensureNotLastAdmin(team: Group, member: MemberObject) = {
-    val admins = this.teamAdmins(team, User.superUser)
-    if (admins.size == 1 && admins.head.asMemberObject() == member) {
+  private def ensureNotLastOwner(team: Group, member: MemberObject) = {
+    val owners = this.teamOwners(team)
+    if (owners.size == 1 && owners.head.asMemberObject() == member) {
       throw new InvalidException(
-        "Teams must have at least one administrator"
+        "Teams must have at least one owner"
       )
+    }
+  }
+
+  /**
+    * Ensure a role is one a team actually has, and that the caller is entitled
+    * to hand it out. Admins run the membership of a team, but handing someone
+    * the keys to delete it is the owners' call alone
+    */
+  private def ensureGrantableRole(team: Group, role: Int, user: User) = {
+    if (!TeamRole.isValid(role)) {
+      throw new InvalidException(s"$role is not a team role")
+    }
+    if (role == TeamRole.OWNER && !this.permission.isSuperUser(user) &&
+        !this.isTeamOwner(team, MemberObject.user(user.id), User.superUser)) {
+      throw new IllegalAccessException("Only an owner of the team can make someone else an owner")
     }
   }
 }
