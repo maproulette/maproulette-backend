@@ -521,6 +521,8 @@ object Challenge extends CommonField {
   val FIELD_GLOBAL    = "is_global"
   val FIELD_STATUS    = "status"
   val FIELD_DELETED   = "deleted"
+  // The team a challenge has been given to, if any. See TeamService.teamChallenges.
+  val FIELD_OWNER_TEAM_ID = "owner_team_id"
 
   /**
     * This will check to make sure that the rule string is fully valid.

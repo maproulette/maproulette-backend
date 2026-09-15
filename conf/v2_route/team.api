@@ -330,6 +330,50 @@ DELETE   /team/:teamId/project/:projectId        @org.maproulette.framework.cont
 GET      /teams/projectManagers/:projectId        @org.maproulette.framework.controller.TeamController.getTeamsManagingProject(projectId:Long)
 ###
 # tags: [ Team ]
+# operationId: team_get_team_projects
+# summary: Get the projects a team manages
+# description: Get the projects the team has been granted an Admin, Write or Read role on. Projects that are not enabled are only listed for a user granted a role on them
+# responses:
+#   '200':
+#     description: a list of projects
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Project'
+#   '404':
+#     description: No team with the provided id was found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the team for which projects are desired
+###
+GET      /team/:id/projects                       @org.maproulette.framework.controller.TeamController.getTeamProjects(id:Long)
+###
+# tags: [ Team ]
+# operationId: team_get_team_challenges
+# summary: Get the challenges a team owns
+# description: Get the challenges that have been given to the team. A challenge is listed when both it and its parent project are enabled, or when the user is granted a role on that parent project
+# responses:
+#   '200':
+#     description: a list of challenges
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
+#   '404':
+#     description: No team with the provided id was found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the team for which challenges are desired
+###
+GET      /team/:id/challenges                     @org.maproulette.framework.controller.TeamController.getTeamChallenges(id:Long)
+###
+# tags: [ Team ]
 # operationId: team_delete_a_team
 # summary: Delete a team
 # description: Deletes a team with ID

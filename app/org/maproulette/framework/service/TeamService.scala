@@ -968,6 +968,93 @@ class TeamService @Inject() (
   }
 
   /**
+    * Retrieves the projects the given team has been granted a role on, i.e.
+    * the projects it manages. The inverse of [[getTeamsManagingProject]].
+    *
+    * Filtered to what the requesting user may see: a project that is disabled
+    * is only listed for someone granted a role on it, so a stranger browsing a
+    * team does not learn about work that is not on display.
+    *
+    * @param teamId The id of the team whose managed projects are desired
+    * @param user   The user making the request
+    */
+  def teamProjects(teamId: Long, user: User): List[Project] = {
+    this.ensureTeamExists(teamId, user)
+
+    val projectIds =
+      this.projectGrantsForTeams(List(teamId), user).map(_.target.objectId).distinct
+    val projects = this.serviceManager.project.list(projectIds).filter(!_.deleted)
+
+    if (this.permission.isSuperUser(user)) {
+      return projects
+    }
+
+    val managedProjectIds = user.managedProjectIds().toSet
+    projects.filter(project => project.enabled || managedProjectIds.contains(project.id))
+  }
+
+  /**
+    * Retrieves the challenges the given team owns, i.e. those handed to it via
+    * their `ownerTeamId`.
+    *
+    * Filtered to what the requesting user may see, on the same terms as
+    * [[ChallengeService.challengeVisibilityFilter]]: a challenge is visible
+    * when both it and its parent project are enabled, or when the user is
+    * granted a role on that parent project. That filter joins the projects
+    * table, which the challenge query does not, so the same rule is applied
+    * here over the parents the results actually name.
+    *
+    * @param teamId The id of the team whose challenges are desired
+    * @param user   The user making the request
+    */
+  def teamChallenges(teamId: Long, user: User): List[Challenge] = {
+    this.ensureTeamExists(teamId, user)
+
+    val challenges = this.serviceManager.challenge.query(
+      Query.simple(
+        List(
+          BaseParameter(
+            Challenge.FIELD_OWNER_TEAM_ID,
+            teamId,
+            table = Some(Challenge.TABLE)
+          ),
+          BaseParameter(
+            Challenge.FIELD_DELETED,
+            false,
+            table = Some(Challenge.TABLE)
+          )
+        )
+      )
+    )
+
+    if (this.permission.isSuperUser(user)) {
+      return challenges
+    }
+
+    val managedProjectIds = user.managedProjectIds().toSet
+    val enabledParentIds = this.serviceManager.project
+      .list(challenges.map(_.general.parent).distinct)
+      .filter(project => project.enabled && !project.deleted)
+      .map(_.id)
+      .toSet
+
+    challenges.filter { challenge =>
+      managedProjectIds.contains(challenge.general.parent) ||
+      (challenge.general.enabled && enabledParentIds.contains(challenge.general.parent))
+    }
+  }
+
+  /**
+    * Everyone has read access to teams, so this only establishes that the team
+    * is real before its contents are listed.
+    */
+  private def ensureTeamExists(teamId: Long, user: User): Unit =
+    this.retrieve(teamId, user) match {
+      case Some(_) => ()
+      case None    => throw new NotFoundException(s"No team with id $teamId found")
+    }
+
+  /**
     * Remove all granted roles to member on team
     */
   private def clearTeamRoles(team: Group, member: MemberObject) = {

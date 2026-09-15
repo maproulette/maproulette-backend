@@ -5,8 +5,9 @@
 
 package org.maproulette.framework.service
 
-import org.maproulette.exception.InvalidException
+import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.framework.model.{
+  ChallengeExtra,
   TeamMember,
   TeamRole,
   Group,
@@ -625,6 +626,46 @@ class TeamServiceSpec(implicit val application: Application) extends FrameworkHe
         this.service.requireChallengeOwnership(team.id, freshUser(this.randomUser))
       }
       this.service.requireChallengeOwnership(team.id, this.defaultUser)
+    }
+
+    "list the projects a team has been granted a role on" taggedAs TeamTag in {
+      val team = this.ownedTeam("teamProjects")
+      this.service.addTeamToProject(team.id, this.defaultProject.id, Grant.ROLE_ADMIN, this.defaultUser)
+
+      val projects = this.service.teamProjects(team.id, this.defaultUser)
+      projects.map(_.id) mustEqual List(this.defaultProject.id)
+    }
+
+    "list no projects for a team that manages none" taggedAs TeamTag in {
+      val team = this.ownedTeam("teamProjectsEmpty")
+      this.service.teamProjects(team.id, this.defaultUser) mustEqual List.empty
+    }
+
+    "list the challenges given to a team" taggedAs TeamTag in {
+      val team = this.ownedTeam("teamChallenges")
+      val challenge = this.challengeDAL.insert(
+        this
+          .getTestChallenge("TeamServiceSpec_ownedChallenge")
+          .copy(extra = ChallengeExtra(ownerTeamId = Some(team.id))),
+        User.superUser
+      )
+
+      val challenges = this.service.teamChallenges(team.id, User.superUser)
+      challenges.map(_.id) mustEqual List(challenge.id)
+    }
+
+    "list no challenges for a team that owns none" taggedAs TeamTag in {
+      val team = this.ownedTeam("teamChallengesEmpty")
+      this.service.teamChallenges(team.id, User.superUser) mustEqual List.empty
+    }
+
+    "refuse to list the contents of a team that does not exist" taggedAs TeamTag in {
+      intercept[NotFoundException] {
+        this.service.teamProjects(-1000, this.defaultUser)
+      }
+      intercept[NotFoundException] {
+        this.service.teamChallenges(-1000, this.defaultUser)
+      }
     }
   }
 
