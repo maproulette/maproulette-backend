@@ -1,0 +1,188 @@
+###
+# tags: [ Challenge Report ]
+# operationId: challenge_report_create
+# summary: Report a Challenge
+# description: Files a report against a challenge's design -- that it is poorly designed and is causing incorrect edits -- as opposed to a bug or a feature request. Any authenticated user may file one. The reporter is taken from the session, and filing also posts a challenge comment naming the reporter and quoting the report, which is what notifies the challenge owner. A reporter may only have one open report per challenge at a time.
+# requestBody:
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: object
+#         required: [ comment ]
+#         properties:
+#           comment:
+#             type: string
+#             description: The reporter's explanation of the problem, between 100 and 1000 characters
+#           email:
+#             type: string
+#             description: An optional contact address for follow-up. Visible only to superusers, never on the challenge itself.
+# responses:
+#   '201':
+#     description: The newly created report
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeReport'
+#   '400':
+#     description: The comment is missing, too short, too long, the email is malformed, or the reporter already has an open report on this challenge
+#   '401':
+#     description: The user is not authorized to make this request
+#   '404':
+#     description: The challenge was not found
+# parameters:
+#   - name: challengeId
+#     in: path
+#     description: The id of the challenge being reported
+#     required: true
+#     schema:
+#       type: integer
+###
+POST    /challenge/:challengeId/report               @org.maproulette.framework.controller.ChallengeReportController.create(challengeId:Long)
+###
+# tags: [ Challenge Report ]
+# operationId: challenge_report_own_open
+# summary: Retrieve Your Open Report on a Challenge
+# description: Returns the requesting user's own still-open report against a challenge, so the UI can show that a report is already pending instead of inviting a duplicate. Only ever returns the caller's own report, so it requires no elevated permission. Responds 204 when the user has no open report.
+# responses:
+#   '200':
+#     description: The user's open report on this challenge
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeReport'
+#   '204':
+#     description: The user has no open report on this challenge
+#   '401':
+#     description: The user is not authorized to make this request
+# parameters:
+#   - name: challengeId
+#     in: path
+#     description: The id of the challenge in question
+#     required: true
+#     schema:
+#       type: integer
+###
+GET     /challenge/:challengeId/report/mine          @org.maproulette.framework.controller.ChallengeReportController.retrieveOwnOpenReport(challengeId:Long)
+###
+# tags: [ Challenge Report ]
+# operationId: challenge_report_list
+# summary: List Challenge Reports
+# description: Lists reports filed against challenges, newest first, for the admin triage dashboard. Restricted to superusers, because a report carries the reporter's identity and any email address they volunteered. Each returned report includes the total number of matches in fullCount.
+# responses:
+#   '200':
+#     description: The matching reports
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeReport'
+#   '400':
+#     description: The requested status is not a valid report status
+#   '401':
+#     description: The user is not authorized to make this request
+# parameters:
+#   - name: status
+#     in: query
+#     description: Restrict to reports in one triage state
+#     required: false
+#     schema:
+#       type: string
+#       enum: [open, actioned, dismissed]
+#   - name: challengeId
+#     in: query
+#     description: Restrict to reports against a single challenge
+#     required: false
+#     schema:
+#       type: integer
+#   - name: activeOnly
+#     in: query
+#     description: Only include reports whose challenge is neither deleted nor archived, which is the set an admin can still act on
+#     required: false
+#     schema:
+#       type: boolean
+#       default: false
+#   - name: limit
+#     in: query
+#     description: The maximum number of reports to return
+#     required: false
+#     schema:
+#       type: integer
+#       default: 50
+#   - name: page
+#     in: query
+#     description: The zero-based page offset
+#     required: false
+#     schema:
+#       type: integer
+#       default: 0
+###
+GET     /challenge/reports                           @org.maproulette.framework.controller.ChallengeReportController.list(status:Option[String] ?= None, challengeId:Option[Long] ?= None, activeOnly:Boolean ?= false, limit:Int ?= 50, page:Int ?= 0)
+###
+# tags: [ Challenge Report ]
+# operationId: challenge_report_retrieve
+# summary: Retrieve a Challenge Report
+# description: Retrieves a single report against a challenge. Restricted to superusers.
+# responses:
+#   '200':
+#     description: The report
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeReport'
+#   '401':
+#     description: The user is not authorized to make this request
+#   '404':
+#     description: The report was not found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the report
+#     required: true
+#     schema:
+#       type: integer
+###
+GET     /challenge/report/:id                        @org.maproulette.framework.controller.ChallengeReportController.retrieve(id:Long)
+###
+# tags: [ Challenge Report ]
+# operationId: challenge_report_update_status
+# summary: Triage a Challenge Report
+# description: Records an admin's decision on a report -- actioned, say after archiving the offending challenge, or dismissed. Reports are resolved rather than deleted so the record of what was raised and what was done about it survives. Restricted to superusers.
+# requestBody:
+#   required: true
+#   content:
+#     application/json:
+#       schema:
+#         type: object
+#         required: [ status ]
+#         properties:
+#           status:
+#             type: string
+#             enum: [open, actioned, dismissed]
+#             description: The triage state to move the report to
+#           reviewComment:
+#             type: string
+#             description: An optional note recording what was done about the report
+# responses:
+#   '200':
+#     description: The updated report
+#     content:
+#       application/json:
+#         schema:
+#           $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeReport'
+#   '400':
+#     description: The status is missing or not a valid report status
+#   '401':
+#     description: The user is not authorized to make this request
+#   '404':
+#     description: The report was not found
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the report being resolved
+#     required: true
+#     schema:
+#       type: integer
+###
+PUT     /challenge/report/:id/status                 @org.maproulette.framework.controller.ChallengeReportController.updateStatus(id:Long)
