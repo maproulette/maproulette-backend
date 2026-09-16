@@ -16,8 +16,10 @@ import org.slf4j.LoggerFactory
 
 /**
   * Handles reports filed against a challenge's design. Filing is open to any
-  * authenticated user; reading and triaging is restricted to superusers, since
-  * a report carries the reporter's identity and possibly their email address.
+  * authenticated user, and what a report says is readable by anyone, since
+  * filing posts a public challenge comment saying the same thing. The triage
+  * queue is restricted to superusers: it carries the email address a reporter
+  * may have volunteered, and the notes admins leave for each other.
   *
   * Filing a report also posts a challenge comment naming the reporter and
   * quoting the report, which is what tells the challenge owner that something
@@ -139,6 +141,47 @@ class ChallengeReportService @Inject() (
     */
   def retrieveOwnOpenReport(user: User, challengeId: Long): Option[ChallengeReport] =
     this.repository.retrieveOpenForReporter(challengeId, user.id)
+
+  /**
+    * Retrieves every report filed against a challenge, newest first and
+    * resolved ones included, so anyone weighing up the challenge can see what
+    * has been raised about it and where each report stands.
+    *
+    * Open to anyone, signed in or not, because filing a report already posts a
+    * challenge comment naming the reporter and quoting what they wrote -- the
+    * reporter's identity and words are public either way. What is not public is
+    * stripped: see [[publicView]].
+    *
+    * @param challengeId The challenge in question
+    * @return The reports against that challenge
+    */
+  def retrieveReportsForChallenge(challengeId: Long): List[ChallengeReport] =
+    this.repository.listForChallenge(challengeId).map(this.publicView)
+
+  /**
+    * Reduces a report to the parts that are already public knowledge. Out go
+    * the email address the reporter volunteered for follow-up, which the
+    * accompanying challenge comment deliberately omits, and the admin side of
+    * the triage record -- who ruled on the report and the note they left for
+    * their own purposes. The outcome and its date survive, so a reader can see
+    * that a report was dealt with.
+    */
+  private def publicView(report: ChallengeReport): ChallengeReport =
+    report.copy(
+      reporterEmail = None,
+      reviewedBy = None,
+      reviewedByName = None,
+      reviewComment = None
+    )
+
+  /**
+    * The ids of every challenge carrying at least one open report, so the
+    * archive scheduler can leave those challenges alone until an admin has
+    * ruled. Internal to the scheduler -- it names no reporter, but it is not
+    * exposed over the API either.
+    */
+  def challengeIdsWithOpenReports(): Set[Long] =
+    this.repository.challengeIdsWithOpenReports().toSet
 
   /**
     * Lists reports for the admin dashboard.
