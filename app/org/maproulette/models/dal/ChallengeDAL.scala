@@ -784,6 +784,32 @@ class ChallengeDAL @Inject() (
     * @param id      The id of the object that you are updating
     * @return An optional object, it will return None if no object found with a matching id that was supplied
     */
+  /**
+    * Taking a challenge away from the team that owns it is that team's call.
+    *
+    * Being able to edit a challenge is not the same as being entitled to move
+    * it: a project admin can edit everything in their project, but the team
+    * whose name and image the challenge carries is the one that gets to decide
+    * it should stop. So a change of owning team -- including handing it back to
+    * nobody -- needs the mover to run the team it is leaving, while a challenge
+    * nobody owns can be given to any team the user runs.
+    *
+    * The team it is going *to* is checked separately, when the request arrives.
+    */
+  private def requireOwningTeamConsent(
+      existing: Challenge,
+      updates: JsValue,
+      user: User
+  ): Unit = {
+    val requested = (updates \ "ownerTeamId").toOption
+
+    for {
+      currentTeamId  <- existing.ownerTeamId
+      requestedValue <- requested
+      if !requestedValue.asOpt[Long].contains(currentTeamId)
+    } this.serviceManager.team.requireOwningTeamManagement(currentTeamId, user)
+  }
+
   override def update(
       updates: JsValue,
       user: User
@@ -792,6 +818,7 @@ class ChallengeDAL @Inject() (
     val updatedChallenge = this.cacheManager.withUpdatingCache(Long => retrieveById) {
       implicit cachedItem =>
         this.permission.hasObjectWriteAccess(cachedItem, user)
+        this.requireOwningTeamConsent(cachedItem, updates, user)
         val highPriorityRule = (updates \ "highPriorityRule")
           .asOpt[String]
           .getOrElse(cachedItem.priority.highPriorityRule.getOrElse("")) match {

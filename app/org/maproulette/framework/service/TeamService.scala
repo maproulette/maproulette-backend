@@ -830,6 +830,18 @@ class TeamService @Inject() (
   def requireProjectOwnership(teamId: Long, user: User): Unit =
     this.requireTeamManagement(teamId, user, "projects")
 
+  /**
+    * Ensures the user may take work away from the team that currently holds it.
+    * Moving a challenge or project out of a team is that team's call: being
+    * able to edit the thing is not the same as being entitled to reassign what
+    * the team is credited with, so the mover has to run the team it is leaving.
+    *
+    * @param teamId The team the work is being taken from
+    * @param user   The user making the request
+    */
+  def requireOwningTeamManagement(teamId: Long, user: User): Unit =
+    this.requireTeamManagement(teamId, user, "work")
+
   private def requireTeamManagement(teamId: Long, user: User, subject: String): Unit = {
     val team = this.retrieve(teamId, user) match {
       case Some(t) => t
@@ -839,7 +851,7 @@ class TeamService @Inject() (
     if (!this.permission.isSuperUser(user) &&
         !this.isUserTeamManager(team, user, User.superUser)) {
       throw new InvalidException(
-        s"You must be a manager of team $teamId to give one of its $subject"
+        s"You must be a manager of team $teamId to reassign its $subject"
       )
     }
   }
