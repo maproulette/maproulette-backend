@@ -18,7 +18,7 @@ import anorm._
 import org.maproulette.permissions.Permission
 import org.maproulette.session.SearchParameters
 import org.slf4j.LoggerFactory
-import play.api.libs.json.JsValue
+import play.api.libs.json.{JsNull, JsValue}
 
 /**
   * The project service handles all the business logic for the Project objects
@@ -371,6 +371,16 @@ class ProjectService @Inject() (
         val requireConfirmation =
           (updates \ "requireConfirmation").asOpt[Boolean].getOrElse(cachedItem.requireConfirmation)
 
+        // Absent leaves ownership alone and an explicit null gives the project
+        // back, matching how a challenge's owning team is updated. The caller's
+        // right to hand it to this team is checked in the controller, before
+        // the update is attempted.
+        val ownerTeamId = (updates \ "ownerTeamId").toOption match {
+          case None         => cachedItem.ownerTeamId
+          case Some(JsNull) => None
+          case Some(teamId) => teamId.asOpt[Long]
+        }
+
         this.repository.update(
           Project(
             id = id,
@@ -382,7 +392,8 @@ class ProjectService @Inject() (
             isVirtual = isVirtual,
             featured = featured,
             isArchived = isArchived,
-            requireConfirmation = requireConfirmation
+            requireConfirmation = requireConfirmation,
+            ownerTeamId = ownerTeamId
           )
         )
       }(id = id)

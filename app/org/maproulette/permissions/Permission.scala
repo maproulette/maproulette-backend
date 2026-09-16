@@ -206,6 +206,19 @@ class Permission @Inject() (
         grant.role <= role
     )
 
+  /**
+    * Whether the user manages the project by virtue of the team that owns it.
+    * Team managers and above run the team's content; plain members do not, and
+    * a team merely granted a role on the project comes through the grant check
+    * instead.
+    */
+  def ownsProjectThroughTeam(project: Project, user: User): Boolean =
+    project.ownerTeamId.exists { teamId =>
+      this.serviceManager.team
+        .retrieve(teamId)
+        .exists(team => this.serviceManager.team.isUserTeamManager(team, user, User.superUser))
+    }
+
   def ownsChallengeThroughTeam(challenge: Challenge, user: User): Boolean =
     challenge.ownerTeamId.exists { teamId =>
       this.serviceManager.team
@@ -227,7 +240,8 @@ class Permission @Inject() (
         // Make sure we're dealing with the latest user data
         this.serviceManager.user.retrieve(user.id) match {
           case Some(u) =>
-            if (!u.grantsForProject(p.id).exists(_.role <= role)) {
+            if (!u.grantsForProject(p.id).exists(_.role <= role) &&
+                !this.ownsProjectThroughTeam(p, user)) {
               throw new IllegalAccessException(
                 s"User [${user.id}] does not have required access to this project [${p.id}]"
               )

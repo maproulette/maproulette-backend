@@ -315,6 +315,65 @@ class TeamController @Inject() (
     }
 
   /**
+    * Grants a team a role on a single challenge. Every member of the team is
+    * indirectly granted that role on the challenge alone, which is how someone
+    * is let at one piece of work without being handed the whole project.
+    *
+    * @param teamId      The id of the team to receive the role
+    * @param challengeId The id of the challenge
+    * @param role        The role to grant the team on the challenge
+    */
+  def addTeamToChallenge(teamId: Long, challengeId: Long, role: Int): Action[AnyContent] =
+    Action.async { implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        this.teamService.addTeamToChallenge(teamId, challengeId, role, user)
+        Ok
+      }
+    }
+
+  /**
+    * Sets a team's granted role on a challenge, clearing any prior granted
+    * roles.
+    *
+    * @param teamId      The id of the team to receive the role
+    * @param challengeId The id of the challenge
+    * @param role        The role to grant the team on the challenge
+    */
+  def setTeamChallengeRole(teamId: Long, challengeId: Long, role: Int): Action[AnyContent] =
+    Action.async { implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        this.teamService.addTeamToChallenge(teamId, challengeId, role, user, true)
+        Ok
+      }
+    }
+
+  /**
+    * Removes a team from a challenge, clearing any roles it was granted there
+    *
+    * @param teamId      The id of the team to remove
+    * @param challengeId The id of the challenge
+    */
+  def removeTeamFromChallenge(teamId: Long, challengeId: Long): Action[AnyContent] =
+    Action.async { implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        this.teamService.removeTeamFromChallenge(teamId, challengeId, user)
+        Ok
+      }
+    }
+
+  /**
+    * Gets any teams that have been granted roles on a challenge
+    *
+    * @param challengeId The id of the challenge for which teams are desired
+    */
+  def getTeamsManagingChallenge(challengeId: Long): Action[AnyContent] =
+    Action.async { implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        Ok(Json.toJson(this.teamService.getTeamsManagingChallenge(challengeId, user)))
+      }
+    }
+
+  /**
     * Gets the projects a team manages, i.e. those it has been granted a role
     * on. The inverse of getTeamsManagingProject
     *
