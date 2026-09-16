@@ -269,5 +269,14 @@ trait TestSpec extends PlaySpec with MockitoSugar {
 
     // Mocks for Grants
     when(this.grantService.retrieve(1)).thenReturn(Some(this.adminGrant(1, 1).copy(id = 1)))
+
+    // Access is resolved through Permission.effectiveRole, which asks two more
+    // questions of the world: which teams are attached to the thing being
+    // reached for, and what the user does in them. Neither is what these specs
+    // are about -- they cover the grants a person holds directly -- so both
+    // answer "no teams involved" rather than returning a mock's null.
+    when(this.grantService.retrieveGrantsOn(any[GrantTarget](), any[User]()))
+      .thenReturn(List.empty)
+    when(this.teamService.teamRolesFor(any[User]())).thenReturn(Map.empty[Long, Int])
   }
 }
