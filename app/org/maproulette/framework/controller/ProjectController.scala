@@ -62,22 +62,22 @@ class ProjectController @Inject() (
   }
 
   /**
-    * Ensures a project is only handed to a team the user actually runs.
-    * Ownership is taken from the request body, so without this anyone could
-    * hang their project off another team's name -- and put that team's image on
-    * its card -- simply by guessing an id.
+    * Ensures a project is only handed to a team the user runs -- its owners,
+    * admins and managers, but not its plain members. The team is taken from the
+    * request body, so without this anyone could hang their project off another
+    * team's name, and put that team's image on its card, by guessing an id.
     *
     * @param body The incoming project json
     * @param user The user making the request
     */
-  private def validateOwnerTeam(body: JsValue, user: User): Unit =
+  private def validateTeamAssignment(body: JsValue, user: User): Unit =
     (body \ "ownerTeamId").toOption match {
       case None | Some(JsNull) => // nothing to check; ownership is left alone
       case Some(value) =>
         val teamId = value
           .asOpt[Long]
           .getOrElse(throw new InvalidException("ownerTeamId must be a number"))
-        this.teamService.requireProjectOwnership(teamId, user)
+        this.teamService.requireTeamManager(teamId, user, "projects")
     }
 
   /**
@@ -95,7 +95,7 @@ class ProjectController @Inject() (
       jsonBody = Utils.insertIntoJson(jsonBody, "enabled", true)(BooleanWrites)
       jsonBody = Utils.insertIntoJson(jsonBody, "isArchived", false)(BooleanWrites)
       jsonBody = Utils.insertIntoJson(jsonBody, "requireConfirmation", false)(BooleanWrites)
-      this.validateOwnerTeam(jsonBody, user)
+      this.validateTeamAssignment(jsonBody, user)
       jsonBody
         .validate[Project]
         .fold(
@@ -126,7 +126,7 @@ class ProjectController @Inject() (
     implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
         try {
-          this.validateOwnerTeam(request.body, user)
+          this.validateTeamAssignment(request.body, user)
           this.projectService.update(id, request.body, user) match {
             case Some(project) =>
               this.actionManager

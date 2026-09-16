@@ -809,38 +809,19 @@ class TeamService @Inject() (
     )
 
   /**
-    * Requires that the user may give a challenge to the given team, i.e. that
-    * they run that team's content. Handing a challenge to a team puts the
-    * team's image on its card and gives the team's managers the run of it, so
-    * it is not something an outsider - or a plain member - gets to do.
+    * Requires that the user runs the given team's work, which is what entitles
+    * them to publish under its name or to move what it is credited with.
     *
-    * @param teamId The id of the team the challenge is being given to
-    * @param user   The user making the request
-    */
-  def requireChallengeOwnership(teamId: Long, user: User): Unit =
-    this.requireTeamManagement(teamId, user, "challenges")
-
-  /**
-    * Ensures the user may hand a project to the given team. Same rule as for a
-    * challenge: belonging to a team is not licence to publish under its name.
+    * "Runs" means the manager role or better, so an owner, an admin and a
+    * manager all pass and only a plain member is refused -- belonging to a team
+    * is not the same as speaking for it.
     *
-    * @param teamId The team the project is being given to
-    * @param user   The user making the request
+    * @param teamId  The team in question
+    * @param user    The user making the request
+    * @param subject What is being assigned or moved, for the error message
     */
-  def requireProjectOwnership(teamId: Long, user: User): Unit =
-    this.requireTeamManagement(teamId, user, "projects")
-
-  /**
-    * Ensures the user may take work away from the team that currently holds it.
-    * Moving a challenge or project out of a team is that team's call: being
-    * able to edit the thing is not the same as being entitled to reassign what
-    * the team is credited with, so the mover has to run the team it is leaving.
-    *
-    * @param teamId The team the work is being taken from
-    * @param user   The user making the request
-    */
-  def requireOwningTeamManagement(teamId: Long, user: User): Unit =
-    this.requireTeamManagement(teamId, user, "work")
+  def requireTeamManager(teamId: Long, user: User, subject: String): Unit =
+    this.requireTeamManagement(teamId, user, subject)
 
   private def requireTeamManagement(teamId: Long, user: User, subject: String): Unit = {
     val team = this.retrieve(teamId, user) match {

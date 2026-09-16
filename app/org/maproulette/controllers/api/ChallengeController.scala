@@ -1380,19 +1380,19 @@ class ChallengeController @Inject() (
     * @param body The incoming challenge json
     * @param user The user making the request
     */
-  private def validateOwnerTeam(body: JsValue, user: User): Unit =
+  private def validateTeamAssignment(body: JsValue, user: User): Unit =
     (body \ "ownerTeamId").toOption match {
       case None | Some(JsNull) => // nothing to check; ownership is left alone
       case Some(value) =>
         val teamId = value
           .asOpt[Long]
           .getOrElse(throw new InvalidException("ownerTeamId must be a number"))
-        this.serviceManager.team.requireChallengeOwnership(teamId, user)
+        this.serviceManager.team.requireTeamManager(teamId, user, "challenges")
     }
 
   override def updateUpdateBody(body: JsValue, user: User): JsValue = {
     val jsonBody = super.updateUpdateBody(body, user)
-    this.validateOwnerTeam(jsonBody, user)
+    this.validateTeamAssignment(jsonBody, user)
     jsonBody
   }
 
@@ -1405,7 +1405,7 @@ class ChallengeController @Inject() (
     */
   override def updateCreateBody(body: JsValue, user: User): JsValue = {
     var jsonBody = super.updateCreateBody(body, user)
-    this.validateOwnerTeam(jsonBody, user)
+    this.validateTeamAssignment(jsonBody, user)
     jsonBody = Utils.insertIntoJson(jsonBody, "owner", user.osmProfile.id, true)(LongWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "enabled", true)(BooleanWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "deleted", false)(BooleanWrites)

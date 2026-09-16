@@ -807,7 +807,7 @@ class ChallengeDAL @Inject() (
       currentTeamId  <- existing.ownerTeamId
       requestedValue <- requested
       if !requestedValue.asOpt[Long].contains(currentTeamId)
-    } this.serviceManager.team.requireOwningTeamManagement(currentTeamId, user)
+    } this.serviceManager.team.requireTeamManager(currentTeamId, user, "work")
   }
 
   override def update(

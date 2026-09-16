@@ -690,9 +690,9 @@ class TeamServiceSpec(implicit val application: Application) extends FrameworkHe
       )
 
       intercept[InvalidException] {
-        this.service.requireChallengeOwnership(team.id, freshUser(this.randomUser))
+        this.service.requireTeamManager(team.id, freshUser(this.randomUser), "challenges")
       }
-      this.service.requireChallengeOwnership(team.id, this.defaultUser)
+      this.service.requireTeamManager(team.id, this.defaultUser, "challenges")
     }
 
     "list the projects a team has been granted a role on" taggedAs TeamTag in {
