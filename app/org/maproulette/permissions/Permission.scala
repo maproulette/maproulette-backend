@@ -111,19 +111,9 @@ class Permission @Inject() (
         case p: Project =>
           this.hasProjectAccess(Some(p), user, role)
         case c: Challenge =>
-          // A challenge can be owned by a team, which hands the team's owners,
-          // admins and managers the run of it wherever their grants on the
-          // parent project would not have reached. A user can also be granted a
-          // role on the challenge itself, which reaches just as far. Everyone
-          // else still gets in the original way, through the project.
-          if (!this.ownsChallengeThroughTeam(c, user) && !this.hasChallengeGrant(c, user, role)) {
-            this.hasProjectAccess(
-              dalManager
-                .get()
-                .challenge
-                .retrieveRootObject(Right(c), user),
-              user,
-              role
+          if (!this.effectiveRole(c, user).exists(_ <= role)) {
+            throw new IllegalAccessException(
+              s"User [${user.id}] does not have required access to this challenge [${c.id}]"
             )
           }
         case vc: VirtualChallenge =>
@@ -183,47 +173,110 @@ class Permission @Inject() (
   }
 
   /**
-    * Whether the user manages the challenge by virtue of the team that owns
-    * it. Team managers and above run the team's content; plain members do not,
-    * so membership alone is not enough.
+    * The strongest role a user holds on a project, counting every route by
+    * which access can arrive: a grant made to them, a grant made to a team they
+    * run, and the team that owns the project.
     *
-    * @param challenge The challenge in question
-    * @param user      The user requesting access
+    * This is the single answer to "what may this person do here". Every access
+    * check resolves through it, so a new way in is wired up once rather than in
+    * each caller -- which is how a team's grant came to reach projects, through
+    * the grant list, while reaching challenges not at all.
+    *
+    * @param project The project being reached for
+    * @param user    The user reaching for it
+    * @return The most privileged role held, or None for no access at all
     */
+  def effectiveRole(project: Project, user: User): Option[Int] =
+    if (this.isSuperUser(user)) {
+      Some(Grant.ROLE_SUPER_USER)
+    } else {
+      // Read the user back so a role granted moments ago is not missed.
+      val latest = this.serviceManager.user.retrieve(user.id) match {
+        case Some(u) => u
+        case None    => throw new NotFoundException("No user found to check for access")
+      }
+
+      // A user's grant list is assembled with the project grants of every team
+      // they belong to folded in, which would hand a plain member whatever the
+      // team was granted. Only grants made to the person count as their own;
+      // what a team confers is resolved from their role in it.
+      val ownRoles = latest
+        .grantsForProject(project.id)
+        .filter(_.grantee.granteeType == UserType())
+        .map(_.role)
+      val teamIds = this.teamsAttachedTo(GrantTarget.project(project.id)) ++ project.ownerTeamId
+
+      (ownRoles ++ this.roleThroughTeams(teamIds, user)).reduceOption(_ min _)
+    }
+
   /**
-    * Whether the user holds a role on this challenge directly, granted on the
-    * challenge rather than inherited from the parent project or an owning team.
+    * The strongest role a user holds on a challenge. Beyond the routes a
+    * project has, a challenge can be reached through a grant on the challenge
+    * itself, and failing everything else it inherits whatever the user holds on
+    * the parent project.
     *
     * @param challenge The challenge being reached for
     * @param user      The user reaching for it
-    * @param role      The weakest role that would do. Roles are ordered with the
-    *                  lowest number the most powerful, so a stronger role passes.
+    * @return The most privileged role held, or None for no access at all
     */
-  def hasChallengeGrant(challenge: Challenge, user: User, role: Int): Boolean =
-    user.grants.exists(grant =>
-      grant.target.objectType == ChallengeType() &&
-        grant.target.objectId == challenge.id &&
-        grant.role <= role
-    )
+  def effectiveRole(challenge: Challenge, user: User): Option[Int] =
+    if (this.isSuperUser(user)) {
+      Some(Grant.ROLE_SUPER_USER)
+    } else {
+      val ownRoles = user.grants
+        .filter(g =>
+          g.grantee.granteeType == UserType() &&
+            g.target.objectType == ChallengeType() && g.target.objectId == challenge.id
+        )
+        .map(_.role)
+      val teamIds = this.teamsAttachedTo(GrantTarget.challenge(challenge.id)) ++
+        challenge.ownerTeamId
 
-  /**
-    * Whether the user manages the project by virtue of the team that owns it.
-    * Team managers and above run the team's content; plain members do not, and
-    * a team merely granted a role on the project comes through the grant check
-    * instead.
-    */
-  def ownsProjectThroughTeam(project: Project, user: User): Boolean =
-    project.ownerTeamId.exists { teamId =>
-      this.serviceManager.team
-        .retrieve(teamId)
-        .exists(team => this.serviceManager.team.isUserTeamManager(team, user, User.superUser))
+      val direct = (ownRoles ++ this.roleThroughTeams(teamIds, user)).reduceOption(_ min _)
+
+      // Inheritance from the project is the original model and still the way
+      // most people get in, so it is consulted last and only when needed.
+      direct.orElse(
+        this.dalManager
+          .get()
+          .challenge
+          .retrieveRootObject(Right(challenge), user)
+          .flatMap(parent => this.effectiveRole(parent, user))
+      )
     }
 
-  def ownsChallengeThroughTeam(challenge: Challenge, user: User): Boolean =
-    challenge.ownerTeamId.exists { teamId =>
+  /**
+    * The ids of every team granted a role on a target. The role on that grant
+    * is deliberately not read: what a team's members may do follows the role
+    * they hold in the team, which [[roleThroughTeams]] resolves.
+    */
+  def teamsAttachedTo(target: GrantTarget): Set[Long] =
+    this.serviceManager.grant
+      .retrieveGrantsOn(target, User.superUser)
+      .filter(_.grantee.granteeType == GroupType())
+      .map(_.grantee.granteeId)
+      .toSet
+
+  /**
+    * The role a user picks up from a set of teams associated with some work --
+    * whether they own it or are merely attached to it, which the permission
+    * layer treats alike.
+    *
+    * What they get is the role they hold in the team, carried across unchanged:
+    * team roles are the generic grant roles under team-facing names, so an
+    * owner's 0 satisfies a check for admin and a manager's 2 one for write. A
+    * plain member gets nothing -- belonging to a team is not running its work.
+    */
+  def roleThroughTeams(teamIds: Set[Long], user: User): Option[Int] =
+    if (teamIds.isEmpty) {
+      None
+    } else {
       this.serviceManager.team
-        .retrieve(teamId)
-        .exists(team => this.serviceManager.team.isUserTeamManager(team, user, User.superUser))
+        .teamRolesFor(user)
+        .collect {
+          case (teamId, role) if teamIds.contains(teamId) && TeamRole.managesContent(role) => role
+        }
+        .reduceOption(_ min _)
     }
 
   def hasProjectTypeAccess(
@@ -237,16 +290,10 @@ class Permission @Inject() (
   ): Unit = if (!this.isSuperUser(user)) {
     project match {
       case Some(p) =>
-        // Make sure we're dealing with the latest user data
-        this.serviceManager.user.retrieve(user.id) match {
-          case Some(u) =>
-            if (!u.grantsForProject(p.id).exists(_.role <= role) &&
-                !this.ownsProjectThroughTeam(p, user)) {
-              throw new IllegalAccessException(
-                s"User [${user.id}] does not have required access to this project [${p.id}]"
-              )
-            }
-          case None => throw new NotFoundException("No user found to check for access")
+        if (!this.effectiveRole(p, user).exists(_ <= role)) {
+          throw new IllegalAccessException(
+            s"User [${user.id}] does not have required access to this project [${p.id}]"
+          )
         }
 
       case None =>

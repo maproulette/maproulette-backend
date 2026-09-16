@@ -69,6 +69,27 @@ class ProjectRepository @Inject() (override val db: Database, grantService: Gran
     )
 
   /**
+    * The ids of the projects owned by any of the given teams. Ownership is a
+    * column rather than a grant, so it is looked up separately from the teams
+    * attached by grant -- both reach the same listing.
+    *
+    * @param teamIds The teams whose projects are wanted
+    */
+  def projectIdsOwnedByTeams(teamIds: List[Long])(
+      implicit c: Option[Connection] = None
+  ): List[Long] = {
+    if (teamIds.isEmpty) {
+      List.empty
+    } else {
+      this.withMRConnection { implicit c =>
+        SQL("SELECT id FROM projects WHERE owner_team_id IN ({teamIds}) AND deleted = false")
+          .on(Symbol("teamIds") -> teamIds)
+          .as(long("id").*)
+      }
+    }
+  }
+
+  /**
     * Inserts a project into the database
     *
     * @param project The project to insert into the database. The project will failed to be inserted
