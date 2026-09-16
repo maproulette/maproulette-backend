@@ -69,6 +69,27 @@ class ProjectRepository @Inject() (override val db: Database, grantService: Gran
     )
 
   /**
+    * The ids of the projects owned by any of the given teams. Ownership is a
+    * column rather than a grant, so it is looked up separately from the teams
+    * attached by grant -- both reach the same listing.
+    *
+    * @param teamIds The teams whose projects are wanted
+    */
+  def projectIdsOwnedByTeams(teamIds: List[Long])(
+      implicit c: Option[Connection] = None
+  ): List[Long] = {
+    if (teamIds.isEmpty) {
+      List.empty
+    } else {
+      this.withMRConnection { implicit c =>
+        SQL("SELECT id FROM projects WHERE owner_team_id IN ({teamIds}) AND deleted = false")
+          .on(Symbol("teamIds") -> teamIds)
+          .as(long("id").*)
+      }
+    }
+  }
+
+  /**
     * Inserts a project into the database
     *
     * @param project The project to insert into the database. The project will failed to be inserted
@@ -79,8 +100,8 @@ class ProjectRepository @Inject() (override val db: Database, grantService: Gran
     */
   def create(project: Project)(implicit c: Option[Connection] = None): Project = {
     this.withMRTransaction { implicit c =>
-      SQL("""INSERT INTO projects (name, owner_id, display_name, description, enabled, is_virtual, featured, require_confirmation)
-              VALUES ({name}, {ownerId}, {displayName}, {description}, {enabled}, {virtual}, {featured}, {requireConfirmation})
+      SQL("""INSERT INTO projects (name, owner_id, display_name, description, enabled, is_virtual, featured, require_confirmation, owner_team_id)
+              VALUES ({name}, {ownerId}, {displayName}, {description}, {enabled}, {virtual}, {featured}, {requireConfirmation}, {ownerTeamId})
               RETURNING *""")
         .on(
           Symbol("name")                -> project.name,
@@ -90,7 +111,8 @@ class ProjectRepository @Inject() (override val db: Database, grantService: Gran
           Symbol("enabled")             -> project.enabled,
           Symbol("virtual")             -> project.isVirtual.getOrElse(false),
           Symbol("featured")            -> project.featured,
-          Symbol("requireConfirmation") -> project.requireConfirmation
+          Symbol("requireConfirmation") -> project.requireConfirmation,
+          Symbol("ownerTeamId")         -> project.ownerTeamId
         )
         .as(this.parser.*)
         .head
@@ -115,7 +137,8 @@ class ProjectRepository @Inject() (override val db: Database, grantService: Gran
            is_virtual = {virtual},
            featured = {featured},
            is_archived = {isArchived},
-           require_confirmation = {requireConfirmation}
+           require_confirmation = {requireConfirmation},
+           owner_team_id = {ownerTeamId}
            WHERE id = {id}
            RETURNING *
         """)
@@ -129,6 +152,7 @@ class ProjectRepository @Inject() (override val db: Database, grantService: Gran
           Symbol("featured")            -> project.featured,
           Symbol("isArchived")          -> project.isArchived,
           Symbol("requireConfirmation") -> project.requireConfirmation,
+          Symbol("ownerTeamId")         -> project.ownerTeamId,
           Symbol("id")                  -> project.id
         )
         .as(this.parser.*)
@@ -407,9 +431,11 @@ object ProjectRepository extends Readers {
       get[Boolean]("projects.featured") ~
       get[Boolean]("projects.is_archived") ~
       get[Boolean]("projects.require_confirmation") ~
-      get[Option[play.api.libs.json.JsValue]]("projects.completion_metrics") map {
+      get[Option[play.api.libs.json.JsValue]]("projects.completion_metrics") ~
+      get[Option[Long]]("projects.owner_team_id") map {
       case id ~ ownerId ~ name ~ created ~ modified ~ description ~ enabled ~ displayName ~ deleted ~
-            isVirtual ~ featured ~ isArchived ~ requireConfirmation ~ completionMetricsJson =>
+            isVirtual ~ featured ~ isArchived ~ requireConfirmation ~ completionMetricsJson ~
+            ownerTeamId =>
         new Project(
           id,
           ownerId,
@@ -427,7 +453,8 @@ object ProjectRepository extends Readers {
           requireConfirmation,
           completionMetricsJson
             .flatMap(_.asOpt[CompletionMetrics])
-            .getOrElse(CompletionMetrics())
+            .getOrElse(CompletionMetrics()),
+          ownerTeamId
         )
     }
   }

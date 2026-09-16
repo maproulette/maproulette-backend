@@ -10,6 +10,7 @@ import java.sql.Connection
 import javax.inject.{Inject, Singleton}
 import org.maproulette.Config
 import org.maproulette.cache.CacheManager
+import org.maproulette.data.{GroupType, ProjectType, UserType}
 import org.maproulette.framework.model._
 import org.maproulette.framework.psql._
 import org.maproulette.framework.psql.filter._
@@ -18,7 +19,7 @@ import anorm._
 import org.maproulette.permissions.Permission
 import org.maproulette.session.SearchParameters
 import org.slf4j.LoggerFactory
-import play.api.libs.json.JsValue
+import play.api.libs.json.{JsNull, JsValue}
 
 /**
   * The project service handles all the business logic for the Project objects
@@ -139,6 +140,34 @@ class ProjectService @Inject() (
     * @param order The ordering for the resultant managed projects
     * @return A list of projects managed by the user
     */
+  /**
+    * The projects a user reaches through their teams: those a team is attached
+    * to, where the user runs that team's content. What they may do there
+    * follows their role in the team, which the permission layer resolves; this
+    * is only about which projects to list.
+    *
+    * @param user The user whose team-reachable projects are wanted
+    */
+  private def teamManagedProjectIds(user: User): List[Long] = {
+    // The teams whose content this user runs; what they may then do on each
+    // project is the permission layer's business, not this listing's.
+    val runnableTeamIds = this.serviceManager.team
+      .teamRolesFor(user)
+      .collect { case (teamId, role) if TeamRole.managesContent(role) => teamId }
+      .toList
+
+    if (runnableTeamIds.isEmpty) {
+      List.empty
+    } else {
+      val attached = this.serviceManager.grant
+        .retrieveGrantsTo(GroupType(), runnableTeamIds, User.superUser)
+        .filter(_.target.objectType == ProjectType())
+        .map(_.target.objectId)
+
+      (attached ++ this.repository.projectIdsOwnedByTeams(runnableTeamIds)).distinct
+    }
+  }
+
   def getManagedProjects(
       user: User,
       paging: Paging = Paging(),
@@ -150,7 +179,15 @@ class ProjectService @Inject() (
     if (permission.isSuperUser(user) && !onlyOwned) {
       this.find(searchString, paging, onlyEnabled, order)
     } else {
-      if (user.grants.isEmpty && !permission.isSuperUser(user)) {
+      // managedProjectIds() counts the project grants of every team the user
+      // belongs to, which would list work a plain member cannot actually touch.
+      // Take only the grants made to them, and add back what their teams confer.
+      val directProjectIds = user.grants
+        .filter(g => g.grantee.granteeType == UserType() && g.target.objectType == ProjectType())
+        .map(_.target.objectId)
+      val manageableProjectIds = (directProjectIds ++ this.teamManagedProjectIds(user)).distinct
+
+      if (manageableProjectIds.isEmpty && !permission.isSuperUser(user)) {
         List.empty
       } else {
         // TODO No sql should exist in the service layer
@@ -159,7 +196,7 @@ class ProjectService @Inject() (
               FROM projects"""
         val baseFilterGroup = FilterGroup(
           List(
-            BaseParameter(Project.FIELD_ID, user.managedProjectIds(), Operator.IN),
+            BaseParameter(Project.FIELD_ID, manageableProjectIds, Operator.IN),
             BaseParameter(Project.FIELD_NAME, SQLUtils.search(searchString), Operator.LIKE),
             FilterParameter.conditional(
               Project.FIELD_ENABLED,
@@ -371,6 +408,16 @@ class ProjectService @Inject() (
         val requireConfirmation =
           (updates \ "requireConfirmation").asOpt[Boolean].getOrElse(cachedItem.requireConfirmation)
 
+        // Absent leaves ownership alone and an explicit null gives the project
+        // back, matching how a challenge's owning team is updated. The caller's
+        // right to hand it to this team is checked in the controller, before
+        // the update is attempted.
+        val ownerTeamId = (updates \ "ownerTeamId").toOption match {
+          case None         => cachedItem.ownerTeamId
+          case Some(JsNull) => None
+          case Some(teamId) => teamId.asOpt[Long]
+        }
+
         this.repository.update(
           Project(
             id = id,
@@ -382,7 +429,8 @@ class ProjectService @Inject() (
             isVirtual = isVirtual,
             featured = featured,
             isArchived = isArchived,
-            requireConfirmation = requireConfirmation
+            requireConfirmation = requireConfirmation,
+            ownerTeamId = ownerTeamId
           )
         )
       }(id = id)

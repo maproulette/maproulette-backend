@@ -21,6 +21,7 @@ import org.maproulette.data.UserType
 import org.maproulette.framework.util.{FrameworkHelper, TeamTag}
 import org.maproulette.framework.psql.{Paging}
 import play.api.Application
+import play.api.libs.json.{JsNull, Json}
 
 /**
   * @author mcuthbert
@@ -612,6 +613,72 @@ class TeamServiceSpec(implicit val application: Application) extends FrameworkHe
       this.service.teamsManagedBy(freshUser(this.anotherUser)).map(_.id) must not contain team.id
     }
 
+    "refuse to take a challenge from a team the user does not run" taggedAs TeamTag in {
+      val owning = ownedTeam("owningTeamConsent")
+      val challenge = this.challengeDAL.insert(
+        this
+          .getTestChallenge("TeamServiceSpec_ownedByTeam")
+          .copy(extra = ChallengeExtra(ownerTeamId = Some(owning.id))),
+        User.superUser
+      )
+
+      // An admin of the parent project can edit everything in it, including
+      // this challenge -- but they do not run the team whose name it carries,
+      // so they may not move it elsewhere. Being a plain member of that team
+      // does not help either.
+      this.serviceManager.user.addUserToProject(
+        this.randomUser.osmProfile.id,
+        this.defaultProject.id,
+        Grant.ROLE_ADMIN,
+        User.superUser
+      )
+      this.service.addTeamMember(
+        owning,
+        MemberObject.user(this.randomUser.id),
+        TeamRole.MEMBER,
+        TeamMember.STATUS_MEMBER,
+        this.defaultUser
+      )
+
+      intercept[InvalidException] {
+        this.challengeDAL.update(
+          Json.obj("ownerTeamId" -> JsNull),
+          freshUser(this.randomUser)
+        )(challenge.id)
+      }
+    }
+
+    "let a manager of the owning team hand the challenge back" taggedAs TeamTag in {
+      val owning = ownedTeam("owningTeamHandBack")
+      val challenge = this.challengeDAL.insert(
+        this
+          .getTestChallenge("TeamServiceSpec_handBack")
+          .copy(extra = ChallengeExtra(ownerTeamId = Some(owning.id))),
+        User.superUser
+      )
+
+      // The team's owner created it, so they run it and may give it up.
+      val updated = this.challengeDAL.update(
+        Json.obj("ownerTeamId" -> JsNull),
+        this.defaultUser
+      )(challenge.id)
+
+      updated.flatMap(_.extra.ownerTeamId) mustEqual None
+    }
+
+    "leave a challenge nobody owns open to any team the user runs" taggedAs TeamTag in {
+      val team = ownedTeam("unownedChallenge")
+      val challenge =
+        this.challengeDAL.insert(this.getTestChallenge("TeamServiceSpec_unowned"), User.superUser)
+
+      val updated = this.challengeDAL.update(
+        Json.obj("ownerTeamId" -> team.id),
+        this.defaultUser
+      )(challenge.id)
+
+      updated.flatMap(_.extra.ownerTeamId) mustEqual Some(team.id)
+    }
+
     "refuse a challenge to a team the user merely belongs to" taggedAs TeamTag in {
       val team = ownedTeam("challengeOwnership")
       this.service.addTeamMember(
@@ -623,9 +690,9 @@ class TeamServiceSpec(implicit val application: Application) extends FrameworkHe
       )
 
       intercept[InvalidException] {
-        this.service.requireChallengeOwnership(team.id, freshUser(this.randomUser))
+        this.service.requireTeamManager(team.id, freshUser(this.randomUser), "challenges")
       }
-      this.service.requireChallengeOwnership(team.id, this.defaultUser)
+      this.service.requireTeamManager(team.id, this.defaultUser, "challenges")
     }
 
     "list the projects a team has been granted a role on" taggedAs TeamTag in {

@@ -809,15 +809,21 @@ class TeamService @Inject() (
     )
 
   /**
-    * Requires that the user may give a challenge to the given team, i.e. that
-    * they run that team's content. Handing a challenge to a team puts the
-    * team's image on its card and gives the team's managers the run of it, so
-    * it is not something an outsider - or a plain member - gets to do.
+    * Requires that the user runs the given team's work, which is what entitles
+    * them to publish under its name or to move what it is credited with.
     *
-    * @param teamId The id of the team the challenge is being given to
-    * @param user   The user making the request
+    * "Runs" means the manager role or better, so an owner, an admin and a
+    * manager all pass and only a plain member is refused -- belonging to a team
+    * is not the same as speaking for it.
+    *
+    * @param teamId  The team in question
+    * @param user    The user making the request
+    * @param subject What is being assigned or moved, for the error message
     */
-  def requireChallengeOwnership(teamId: Long, user: User): Unit = {
+  def requireTeamManager(teamId: Long, user: User, subject: String): Unit =
+    this.requireTeamManagement(teamId, user, subject)
+
+  private def requireTeamManagement(teamId: Long, user: User, subject: String): Unit = {
     val team = this.retrieve(teamId, user) match {
       case Some(t) => t
       case None    => throw new NotFoundException(s"No team with id $teamId found")
@@ -826,7 +832,7 @@ class TeamService @Inject() (
     if (!this.permission.isSuperUser(user) &&
         !this.isUserTeamManager(team, user, User.superUser)) {
       throw new InvalidException(
-        s"You must be a manager of team $teamId to give one of its challenges"
+        s"You must be a manager of team $teamId to reassign its $subject"
       )
     }
   }
@@ -957,6 +963,107 @@ class TeamService @Inject() (
     this.serviceManager.project.clearCache(projectId)
     this.serviceManager.user.clearCache()
     true
+  }
+
+  /**
+    * Adds a team to a challenge. Every member of the team is indirectly granted
+    * the given role on that challenge alone -- it is for letting a team at one
+    * piece of work without handing them the whole project.
+    *
+    * Distinct from a team owning the challenge: an owning team runs it and puts
+    * its image on the card, where a grant is help at whatever role it names.
+    *
+    * @param id          The id of the team being added
+    * @param challengeId The challenge the team is being added to
+    * @param role        The role to grant, 1 - Admin, 2 - Write, 3 - Read
+    * @param user        The user making the request
+    * @param clear       Whether to replace the team's existing roles rather than add to them
+    */
+  def addTeamToChallenge(
+      id: Long,
+      challengeId: Long,
+      role: Int,
+      user: User,
+      clear: Boolean = false
+  ): Boolean = {
+    if (!this.retrieve(id, user).isDefined) {
+      throw new NotFoundException(s"No team with id ${id} found")
+    }
+    this.requireChallengeAdmin(challengeId, user)
+
+    if (clear) {
+      this.grantService.deleteMatchingGrants(
+        grantee = Some(Grantee.group(id)),
+        target = Some(GrantTarget.challenge(challengeId)),
+        user = User.superUser
+      )
+    }
+
+    this.grantService.createGrant(
+      Grant(-1, "", Grantee.group(id), role, GrantTarget.challenge(challengeId)),
+      User.superUser
+    )
+
+    this.serviceManager.user.clearCache()
+    true
+  }
+
+  /**
+    * Removes a team from a challenge, taking every role it held there with it.
+    *
+    * @param id          The id of the team being removed
+    * @param challengeId The challenge the team is being removed from
+    * @param user        The user making the request
+    */
+  def removeTeamFromChallenge(id: Long, challengeId: Long, user: User): Boolean = {
+    if (!this.retrieve(id, user).isDefined) {
+      throw new NotFoundException(s"No team with id ${id} found")
+    }
+    this.requireChallengeAdmin(challengeId, user)
+
+    this.grantService.deleteMatchingGrants(
+      grantee = Some(Grantee.group(id)),
+      target = Some(GrantTarget.challenge(challengeId)),
+      user = User.superUser
+    )
+
+    this.serviceManager.user.clearCache()
+    true
+  }
+
+  /**
+    * Retrieve any teams granted a role on a challenge
+    *
+    * @param challengeId The challenge for which teams are desired
+    * @param user        The user making the request
+    */
+  def getTeamsManagingChallenge(challengeId: Long, user: User): List[ManagingTeam] = {
+    val challenge = this.serviceManager.challenge.retrieve(challengeId) match {
+      case Some(c) => c
+      case None    => throw new NotFoundException(s"No challenge with id $challengeId found")
+    }
+    this.permission.hasObjectReadAccess(challenge, user)
+
+    val teamGrants = this.grantService
+      .retrieveGrantsOn(GrantTarget.challenge(challengeId), User.superUser)
+      .filter(_.grantee.granteeType == GroupType())
+
+    this
+      .list(teamGrants.map(_.grantee.granteeId).distinct, user)
+      .map(team => ManagingTeam(team, teamGrants.filter(_.grantee.granteeId == team.id)))
+  }
+
+  /**
+    * Only someone who administers a challenge may say who else gets at it,
+    * whether through the parent project, a role on the challenge itself, or the
+    * team that owns it.
+    */
+  private def requireChallengeAdmin(challengeId: Long, user: User): Unit = {
+    val challenge = this.serviceManager.challenge.retrieve(challengeId) match {
+      case Some(c) => c
+      case None    => throw new NotFoundException(s"No challenge with id $challengeId found")
+    }
+    this.permission.hasObjectAdminAccess(challenge, user)
   }
 
   /**
