@@ -99,6 +99,41 @@ class ChallengeReportRepositorySpec(implicit val application: Application) exten
       this.repository.retrieveOpenForReporter(challenge.id, this.defaultUser.id) mustEqual None
     }
 
+    "return every report on a challenge, newest first, resolved ones included" taggedAs ChallengeReportRepoTag in {
+      val challenge =
+        this.createChallengeStructure("report_challenge_history", this.defaultProject.id, 1)
+      val other = this.createChallengeStructure("report_other_history", this.defaultProject.id, 1)
+
+      this.repository.listForChallenge(challenge.id) mustEqual List()
+
+      val first = report(challenge)
+      this.repository
+        .updateStatus(first.id, ChallengeReport.STATUS_DISMISSED, this.defaultUser, None)
+      val second = report(challenge)
+
+      // A report on a different challenge stays out of this challenge's history.
+      report(other)
+
+      val history = this.repository.listForChallenge(challenge.id)
+      history.map(_.id) mustEqual List(second.id, first.id)
+      history.map(_.status) mustEqual
+        List(ChallengeReport.STATUS_OPEN, ChallengeReport.STATUS_DISMISSED)
+      history.map(_.reporterId).distinct mustEqual List(Some(this.defaultUser.id))
+    }
+
+    "name only the challenges carrying an open report" taggedAs ChallengeReportRepoTag in {
+      val challenge = this.createChallengeStructure("report_open_ids", this.defaultProject.id, 1)
+
+      this.repository.challengeIdsWithOpenReports() must not contain challenge.id
+
+      val open = report(challenge)
+      this.repository.challengeIdsWithOpenReports() must contain(challenge.id)
+
+      this.repository
+        .updateStatus(open.id, ChallengeReport.STATUS_ACTIONED, this.defaultUser, None)
+      this.repository.challengeIdsWithOpenReports() must not contain challenge.id
+    }
+
     "filter a listing by status and by challenge, newest first" taggedAs ChallengeReportRepoTag in {
       val challenge = this.createChallengeStructure("report_listing", this.defaultProject.id, 1)
 

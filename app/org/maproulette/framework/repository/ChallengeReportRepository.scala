@@ -171,8 +171,8 @@ class ChallengeReportRepository @Inject() (override val db: Database) extends Re
 
   /**
     * Retrieves a reporter's still-open report against one challenge, if they
-    * have one. This is the only report-reading path open to a non-superuser:
-    * it returns nothing but the caller's own report.
+    * have one. It returns nothing but the caller's own report, so a
+    * non-superuser may read through it.
     */
   def retrieveOpenForReporter(challengeId: Long, reporterId: Long): Option[ChallengeReport] = {
     this.withMRConnection { implicit c =>
@@ -190,6 +190,37 @@ class ChallengeReportRepository @Inject() (override val db: Database) extends Re
           Symbol("status")      -> ChallengeReport.STATUS_OPEN
         )
         .as(this.parser.singleOpt)
+    }
+  }
+
+  /**
+    * Lists every report filed against one challenge, newest first, resolved
+    * ones included. Rows come back whole; it is the service that decides which
+    * parts of them a given caller may see.
+    */
+  def listForChallenge(challengeId: Long): List[ChallengeReport] = {
+    this.withMRConnection { implicit c =>
+      SQL(
+        s"""SELECT COUNT(*) OVER() AS full_count, $selectColumns
+            $fromClause
+            WHERE cr.challenge_id = {challengeId}
+            ORDER BY cr.reported_at DESC"""
+      ).on(Symbol("challengeId") -> challengeId)
+        .as(this.parser.*)
+    }
+  }
+
+  /**
+    * The ids of every challenge carrying at least one open report. The archive
+    * scheduler uses this to leave reported challenges alone: archiving one
+    * would drop it out of the admin triage queue, which defaults to challenges
+    * that are still active, before anyone had ruled on the report.
+    */
+  def challengeIdsWithOpenReports(): List[Long] = {
+    this.withMRConnection { implicit c =>
+      SQL"""SELECT DISTINCT challenge_id FROM challenge_reports
+            WHERE status = ${ChallengeReport.STATUS_OPEN}"""
+        .as(get[Long]("challenge_id").*)
     }
   }
 

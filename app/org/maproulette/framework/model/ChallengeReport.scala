@@ -11,9 +11,11 @@ import play.api.libs.json._
 /**
   * A report against a challenge's design -- "this challenge is poorly designed
   * and is causing people to make incorrect edits" -- rather than a bug or a
-  * feature request. Any authenticated user can file one; only superusers can
-  * read them, because a report names the reporter and may carry the email
-  * address they volunteered for follow-up.
+  * feature request. Any authenticated user can file one, and anyone can read
+  * what has been reported about a challenge, since filing also posts a public
+  * challenge comment naming the reporter and quoting the report. The triage
+  * queue is superusers only: it carries the email address the reporter may have
+  * volunteered for follow-up, and the notes admins leave on a decision.
   *
   * Reports are resolved, never deleted: an admin marks one actioned (say, after
   * archiving the challenge) or dismissed, so the history of what was reported

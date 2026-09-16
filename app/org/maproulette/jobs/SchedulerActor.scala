@@ -756,9 +756,20 @@ class SchedulerActor @Inject() (
 
     logger.info(action + " - Stale Date: " + staleDate);
 
+    // A challenge someone has reported is left alone until an admin has ruled
+    // on the report: archiving it would drop it out of the triage queue, which
+    // defaults to challenges that are still active, before anyone looked at it.
+    val reportedChallengeIds = this.serviceManager.challengeReport.challengeIdsWithOpenReports()
+    if (reportedChallengeIds.nonEmpty) {
+      logger.info(
+        action + " - Skipping " + reportedChallengeIds.size + " challenge(s) with an open report"
+      )
+    }
+
     this.serviceManager.challenge
       .activeChallenges()
       .filter(challenge => challenge.created.toString("yyyy-MM-dd") < staleDate)
+      .filterNot(challenge => reportedChallengeIds.contains(challenge.id))
       .foreach(challenge => {
 
         val tasks         = this.serviceManager.challenge.getTasksByParentId(challenge.id);

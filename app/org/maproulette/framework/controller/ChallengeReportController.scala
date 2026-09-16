@@ -70,6 +70,22 @@ class ChallengeReportController @Inject() (
   }
 
   /**
+    * Lists every report filed against a challenge, resolved ones included, so a
+    * reader can see what has been raised about it and where each report stands.
+    * Open to anyone, like the challenge comments that filing a report posts:
+    * the reporter's identity and words are already public through those. The
+    * reporter's email and the admin side of the triage record are stripped.
+    *
+    * @param challengeId The challenge in question
+    * @return The reports against that challenge, newest first
+    */
+  def listForChallenge(challengeId: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { _ =>
+      Ok(Json.toJson(this.challengeReportService.retrieveReportsForChallenge(challengeId)))
+    }
+  }
+
+  /**
     * Lists reports, newest first. Superusers only.
     *
     * @param status Restrict to one triage status, by name ("open", "actioned", "dismissed")

@@ -66,6 +66,29 @@ POST    /challenge/:challengeId/report               @org.maproulette.framework.
 GET     /challenge/:challengeId/report/mine          @org.maproulette.framework.controller.ChallengeReportController.retrieveOwnOpenReport(challengeId:Long)
 ###
 # tags: [ Challenge Report ]
+# operationId: challenge_report_list_for_challenge
+# summary: List the Reports Against a Challenge
+# description: Returns every report filed against a challenge, newest first, resolved ones included, so a reader can see what has been raised about it and where each report stands. Open to anyone, like the challenge comments that filing a report posts -- the reporter's identity and words are already public through those. The email a reporter volunteered for follow-up, and the admin side of the triage record (who ruled on a report and the note they left), are stripped; the outcome and its date remain.
+# responses:
+#   '200':
+#     description: The reports against this challenge
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/org.maproulette.framework.model.ChallengeReport'
+# parameters:
+#   - name: challengeId
+#     in: path
+#     description: The id of the challenge in question
+#     required: true
+#     schema:
+#       type: integer
+###
+GET     /challenge/:challengeId/reports              @org.maproulette.framework.controller.ChallengeReportController.listForChallenge(challengeId:Long)
+###
+# tags: [ Challenge Report ]
 # operationId: challenge_report_list
 # summary: List Challenge Reports
 # description: Lists reports filed against challenges, newest first, for the admin triage dashboard. Restricted to superusers, because a report carries the reporter's identity and any email address they volunteered. Each returned report includes the total number of matches in fullCount.
