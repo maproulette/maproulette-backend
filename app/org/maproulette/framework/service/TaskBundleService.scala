@@ -102,9 +102,10 @@ class TaskBundleService @Inject() (
   ): TaskBundle = {
     val bundle = this.getTaskBundle(user, bundleId)
 
-    if (!permission.isSuperUser(user) && bundle.ownerId != user.id) {
+    if (!permission.isSuperUser(user) && bundle.ownerId != user.id &&
+        !this.holdsReviewClaim(user, bundle)) {
       throw new IllegalAccessException(
-        "Only a super user or the original user can reset this bundle."
+        "Only a super user, the original user, or the reviewer of this bundle can reset it."
       )
     }
 
@@ -125,9 +126,10 @@ class TaskBundleService @Inject() (
     val bundle = this.getTaskBundle(user, bundleId)
 
     // Verify permissions to modify this bundle
-    if (!permission.isSuperUser(user) && bundle.ownerId != user.id) {
+    if (!permission.isSuperUser(user) && bundle.ownerId != user.id &&
+        !this.holdsReviewClaim(user, bundle)) {
       throw new IllegalAccessException(
-        "Only a super user or the original user can delete this bundle."
+        "Only a super user, the original user, or the reviewer of this bundle can delete it."
       )
     }
 
@@ -145,7 +147,8 @@ class TaskBundleService @Inject() (
     val primaryTask = bundle.tasks.getOrElse(List()).find(_.isBundlePrimary.getOrElse(false))
 
     // Verify permissions to delete this bundle
-    if (!permission.isSuperUser(user) && bundle.ownerId != user.id && primaryTask.isDefined &&
+    if (!permission.isSuperUser(user) && bundle.ownerId != user.id &&
+        !this.holdsReviewClaim(user, bundle) && primaryTask.isDefined &&
         primaryTask.get.status.getOrElse(-1) != org.maproulette.framework.model.Task.STATUS_SKIPPED &&
         primaryTask.get.status.getOrElse(-1) != org.maproulette.framework.model.Task.STATUS_TOO_HARD) {
       val challengeId = bundle.tasks.getOrElse(List()).head.parent
@@ -155,6 +158,14 @@ class TaskBundleService @Inject() (
 
     this.repository.deleteTaskBundle(user, bundle.bundleId)
   }
+
+  /**
+    * Whether the given user is the reviewer currently holding the claim on this bundle.
+    *
+    * @param bundle The bundle to check the review claim on
+    */
+  private def holdsReviewClaim(user: User, bundle: TaskBundle): Boolean =
+    bundle.tasks.getOrElse(List()).exists(_.review.reviewClaimedBy.contains(user.id))
 
   /**
     * Fetches a TaskBundle with the given bundle id.

@@ -591,6 +591,107 @@ class TaskDAL @Inject() (
   }
 
   /**
+    * Sets the completion status of tasks on behalf of the users who originally completed them.
+    * Intended for a reviewer correcting the completion status of tasks they hold the review
+    * lock on: the tasks' review state, mapper attribution and mapper credit all stay with the
+    * original mapper, and the tasks are left locked so reviewing can continue.
+    *
+    * @param tasks  The tasks to set the completion status on
+    * @param status The status to set
+    * @param user   The reviewer setting the status
+    * @return The number of rows updated
+    */
+  def setCompletionStatusForReview(tasks: List[Task], status: Int, user: User): Int = {
+    if (tasks.isEmpty) {
+      throw new InvalidException(
+        "Must be at least one task in list to setCompletionStatusForReview."
+      )
+    }
+    if (user.guest) {
+      throw new IllegalAccessException("Guest users cannot make edits to tasks.")
+    }
+    if (!this.permission.isSuperUser(user) &&
+        !tasks.forall(_.review.reviewClaimedBy.contains(user.id))) {
+      throw new IllegalAccessException(
+        "Only the reviewer who claimed a task can update its completion status."
+      )
+    }
+
+    for (task <- tasks) {
+      this.manager.challenge.retrieveById(task.parent) match {
+        case Some(parentChallenge) if parentChallenge.extra.paused =>
+          throw new InvalidException(
+            "This challenge is currently paused. Tasks cannot be completed until it is resumed."
+          )
+        case _ => // challenge not paused, or not found (shouldn't happen) - allow
+      }
+
+      if (!Task
+            .isValidStatusProgression(task.status.getOrElse(Task.STATUS_CREATED), status, true)) {
+        throw new InvalidException("Invalid task status supplied.")
+      }
+    }
+
+    var updatedRows  = 0
+    val updatedTasks = scala.collection.mutable.ListBuffer[Task]()
+
+    this.withMRTransaction { implicit c =>
+      for (task <- tasks) {
+        val rows =
+          SQL"""UPDATE tasks t SET status = $status
+                  WHERE t.id = (
+                     SELECT t2.id FROM tasks t2
+                     LEFT JOIN locked l on (l.item_id = t2.id OR t2.id = ANY(l.bundled_tasks)) AND l.item_type = ${task.itemType.typeId}
+                     WHERE t2.id = ${task.id} AND (l.user_id = ${user.id} OR l.user_id IS NULL)
+                   )""".executeUpdate()
+
+        if (rows == 0) {
+          throw new IllegalAccessException(
+            s"This task is locked by another user, cannot update status at this time."
+          )
+        }
+        updatedRows += rows
+      }
+    }
+
+    for (task <- tasks) {
+      val oldStatus = task.status.getOrElse(Task.STATUS_CREATED)
+      val mapper    = task.completedBy.flatMap(this.serviceManager.user.retrieve)
+
+      mapper.foreach { completer =>
+        this.manager.statusAction.setStatusAction(completer, task, status)
+
+        if (oldStatus != status) {
+          this.serviceManager.userMetrics.rollbackUserScore(oldStatus, completer.id)
+          this.serviceManager.userMetrics
+            .updateUserScore(Option(status), None, None, false, false, None, completer.id)
+        }
+      }
+
+      this.cacheManager.withOptionCaching { () =>
+        Some(task.copy(status = Some(status), modified = new DateTime()))
+      }
+
+      this.retrieveById(task.id) match {
+        case Some(latestTask) => updatedTasks += latestTask
+        case None             =>
+      }
+    }
+
+    Future {
+      updatedTasks.foreach { latestTask =>
+        webSocketProvider.sendMessage(
+          WebSocketMessages.taskUpdated(latestTask, Some(WebSocketMessages.userSummary(user)))
+        )
+      }
+    }
+
+    this.manager.challenge.updateFinishedStatus(user = user)(tasks.head.parent)
+
+    updatedRows
+  }
+
+  /**
     * Sets the task for a given user. The user cannot set the status of a task unless the object has
     * been locked by the same user before hand.
     * Will throw an InvalidException if the task status cannot be set due to the current task status

@@ -980,6 +980,29 @@ PUT     /taskBundle/:bundleId/:status                           @org.maproulette
 PUT     /task/:id/review/:status                           @org.maproulette.framework.controller.TaskReviewController.setTaskReviewStatus(id:Long, status:Int, tags:String ?="", newTaskStatus:String ?= "", errorTags:String ?= "")
 ###
 # tags: [ Task ]
+# operationId: task_update_task_completion_status_as_reviewer
+# summary: Update Task Completion Status as a Reviewer
+# description: Will update the completion status of a task being reviewed without altering its
+#              review status. Credit for the task stays with the original mapper. If the task
+#              belongs to a bundle, every task in the bundle is updated.
+# responses:
+#   '200':
+#     description: The updated task
+#   '401':
+#     description: The user is not authorized to make this request
+#   '404':
+#     description: The task with the supplied ID was not found.
+# parameters:
+#   - name: id
+#     in: path
+#     description: The ID of the task
+#   - name: status
+#     in: path
+#     description: The status to update the task to. 1 - Fixed, 2 - False Positive, 3 - Skipped, 5 - Already Fixed, 6 - Too Hard
+###
+PUT     /task/:id/completionStatus/:status                 @org.maproulette.framework.controller.TaskReviewController.setTaskCompletionStatus(id:Long, status:Int)
+###
+# tags: [ Task ]
 # operationId: task_changes_review_status_to_unnecessary_on_tasks_matc
 # summary: Changes review status to "Unnecessary" on tasks matching criteria
 # description: Will change review status on tasks that match the given search parameters
