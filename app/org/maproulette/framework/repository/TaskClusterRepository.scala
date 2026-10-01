@@ -38,12 +38,21 @@ class TaskClusterRepository @Inject() (
 
   val pointParser = this.challengeDAL.pointParser
 
-  private val joinClause =
+  // The joins search filters may reference.
+  private val filterJoinClause =
     """
     INNER JOIN challenges c ON c.id = tasks.parent_id
     INNER JOIN projects p ON p.id = c.parent_id
     LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
+  """
+
+  // A task can match more than one lock row (e.g. its own edit lock plus a
+  // bundle lock, or a review claim), so this join can repeat tasks.
+  private val joinClause =
+    s"""
+    $filterJoinClause
     LEFT OUTER JOIN locked l ON (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks))
+      AND l.item_type = 2
   """
 
   // SQL query used to select list of ClusteredPoint data
@@ -63,6 +72,33 @@ class TaskClusterRepository @Inject() (
   """
 
   /**
+    * CTEs that assign each task matching the query to one of `numberOfPoints`
+    * k-means clusters, exposing (taskId, challengeId, taskLocation, kmeans) as
+    * `task_clusters`. The window function materializes every matching row, so
+    * to reduce the amount of memory needed we only include the columns needed
+    * for clustering (callers can join back to the tasks table if they need other
+    * properties).
+    */
+  private def clusterCTEs(query: Query, numberOfPoints: Int): String =
+    s"""
+      WITH filtered_tasks AS (
+        SELECT tasks.id as taskId,
+               tasks.parent_id as challengeId,
+               tasks.location AS taskLocation
+        FROM tasks
+        $filterJoinClause
+        WHERE ${query.filter.sql()}
+        AND tasks.location IS NOT NULL
+      ),
+      task_clusters AS (
+        SELECT *,
+               ST_ClusterKMeans(filtered_tasks.taskLocation,
+                 (SELECT LEAST(COUNT(*), $numberOfPoints) FROM filtered_tasks)::Integer) OVER () AS kmeans
+        FROM filtered_tasks
+      )
+    """
+
+  /**
     * Queries task clusters with the given query filters and number of points
     *
     * @param query - Query with the built-in filters
@@ -77,40 +113,23 @@ class TaskClusterRepository @Inject() (
     this.withMRTransaction { implicit c =>
       val result = SQL(
         s"""
-          WITH filtered_tasks AS (
-            SELECT tasks.*, 
-                   tasks.id as taskId, 
-                   tasks.status as taskStatus,
-                   tasks.priority as taskPriority, 
-                   tasks.geojson::TEXT as taskGeojson,
-                   task_review.*, 
-                   c.name as challengeName,
-                   tasks.location AS taskLocation,
-                   c.id AS challengeId,
-                   c.status AS challengeStatus
-            FROM tasks
-            $joinClause
-            WHERE ${query.filter.sql()}
-            AND tasks.location IS NOT NULL
-          ),
-          task_clusters AS (
-            SELECT *, 
-                   ST_ClusterKMeans(filtered_tasks.taskLocation, 
-                     (SELECT LEAST(COUNT(*), $numberOfPoints) FROM filtered_tasks)::Integer) OVER () AS kmeans
-            FROM filtered_tasks
+          ${this.clusterCTEs(query, numberOfPoints)},
+          clusters AS (
+            SELECT kmeans,
+                   count(*) as numberOfPoints,
+                   CASE WHEN count(*)=1 THEN (array_agg(taskId))[1] END as taskId,
+                   ST_AsGeoJSON(ST_Centroid(ST_Collect(taskLocation))) AS geom,
+                   ST_AsGeoJSON(ST_ConvexHull(ST_Collect(taskLocation))) AS bounding,
+                   array_agg(distinct challengeId) as challengeIds
+            FROM task_clusters
+            GROUP BY kmeans
           )
-        
-          SELECT kmeans, 
-                 count(*) as numberOfPoints,
-                 CASE WHEN count(*)=1 THEN (array_agg(taskId))[1] END as taskId,
-                 CASE WHEN count(*)=1 THEN (array_agg(taskGeojson))[1] END as geojson,
-                 CASE WHEN count(*)=1 THEN (array_agg(taskStatus))[1] END as taskStatus,
-                 CASE WHEN count(*)=1 THEN (array_agg(taskPriority))[1] END as taskPriority,
-                 ST_AsGeoJSON(ST_Centroid(ST_Collect(taskLocation))) AS geom,
-                 ST_AsGeoJSON(ST_ConvexHull(ST_Collect(taskLocation))) AS bounding,
-                 array_agg(distinct challengeId) as challengeIds
-          FROM task_clusters
-          GROUP BY kmeans 
+          SELECT clusters.*,
+                 tasks.status as taskStatus,
+                 tasks.priority as taskPriority,
+                 tasks.geojson::TEXT as geojson
+          FROM clusters
+          LEFT OUTER JOIN tasks ON tasks.id = clusters.taskId
           ORDER BY kmeans
         """
       ).on(query.parameters(): _*).as(this.getTaskClusterParser(params).*)
@@ -135,33 +154,10 @@ class TaskClusterRepository @Inject() (
   )(implicit c: Option[Connection] = None): List[ClusteredPoint] = {
     this.withMRConnection { implicit c =>
       val result = SQL(s"""
-          WITH filtered_tasks AS (
-            SELECT tasks.*, 
-                   tasks.id as taskId, 
-                   tasks.status as taskStatus,
-                   tasks.priority as taskPriority, 
-                   tasks.geojson::TEXT as taskGeojson,
-                   task_review.*, 
-                   c.name as challengeName,
-                   tasks.location AS taskLocation,
-                   c.id AS challengeId,
-                   c.status AS challengeStatus,
-                   l.user_id as locked_by
-            FROM tasks
-            $joinClause
-            WHERE ${query.filter.sql()}
-            AND tasks.location IS NOT NULL
-          ),
-          task_clusters AS (
-            SELECT *, 
-                   ST_ClusterKMeans(filtered_tasks.taskLocation, 
-                     (SELECT LEAST(COUNT(*), $numberOfPoints) FROM filtered_tasks)::Integer) OVER () AS kmeans
-            FROM filtered_tasks
-          )
-          SELECT *, cooperative_work_json::TEXT as cooperative_work,
-                 ST_AsGeoJSON(taskLocation) AS location
-          FROM task_clusters
-          WHERE kmeans = $clusterId
+          ${this.clusterCTEs(query, numberOfPoints)}
+          $selectTaskMarkersSQL
+          INNER JOIN task_clusters ON task_clusters.taskId = tasks.id
+          WHERE task_clusters.kmeans = $clusterId
       """).as(this.pointParser.*)
 
       result

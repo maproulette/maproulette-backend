@@ -26,6 +26,8 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
     extends SearchParametersMixin
     with TaskFilterMixin {
 
+  val MAX_CLUSTER_DEGREES = 10
+
   /**
     * Retrieves task clusters
     *
@@ -37,6 +39,7 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       params: SearchParameters,
       numberOfPoints: Int = this.repository.DEFAULT_NUMBER_OF_POINTS
   ): List[TaskCluster] = {
+    ensureScoped(params)
     val filtered = this.filterOnSearchParameters(params)(false)
     val query    = this.filterOutDeletedParents(filtered)
 
@@ -56,6 +59,7 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
       params: SearchParameters,
       numberOfPoints: Int = this.repository.DEFAULT_NUMBER_OF_POINTS
   ): List[ClusteredPoint] = {
+    ensureScoped(params)
     val query = this.filterOutDeletedParents(this.filterOnSearchParameters(params)(false))
     this.repository.queryTasksInCluster(query, clusterId, numberOfPoints)
   }
@@ -282,6 +286,34 @@ class TaskClusterService @Inject() (repository: TaskClusterRepository)
     if (params.location.isEmpty && params.boundingGeometries.isEmpty) {
       throw new InvalidException(
         "Bounding Box (or Bounding Polygons) required to retrieve tasks within a bounding box"
+      )
+    }
+  }
+
+  /**
+    * Clustering runs k-means over every matching task, so a search that isn't
+    * narrowed to some challenges or a modest area covers the whole tasks table
+    * and use a ton of RAM or even spill gigabytes of data to temp files. This
+    * function enforces that the client supplied filters that will narrow the
+    * results down to some tractable set, and raises an error otherwise.
+    *
+    * @throws InvalidException if the search parameters aren't narrow enough
+    */
+  private def ensureScoped(params: SearchParameters): Unit = {
+    val inverted = params.invertFields.getOrElse(List())
+    def small(l: SearchLocation) =
+      math.abs(l.right - l.left) <= MAX_CLUSTER_DEGREES &&
+        math.abs(l.top - l.bottom) <= MAX_CLUSTER_DEGREES
+
+    val byChallenge =
+      params.getChallengeIds.exists(_.nonEmpty) && !inverted.contains("cid")
+    val byTaskArea      = params.location.exists(small) && !inverted.contains("tbb")
+    val byChallengeArea = params.bounding.exists(small) && !inverted.contains("bb")
+
+    if (!byChallenge && !byTaskArea && !byChallengeArea) {
+      throw new InvalidException(
+        s"Task clusters require a challenge id (cid) or a bounding box (tbb or bb) " +
+          s"no larger than $MAX_CLUSTER_DEGREES degrees on a side"
       )
     }
   }
