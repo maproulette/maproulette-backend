@@ -8,6 +8,8 @@ package org.maproulette.framework.service
 import java.util.UUID
 import play.api.libs.json._
 
+import org.maproulette.exception.InvalidException
+
 import org.maproulette.session.{
   SearchParameters,
   SearchChallengeParameters,
@@ -40,6 +42,42 @@ class TaskClusterServiceSpec(implicit val application: Application) extends Fram
       )
       response.length mustEqual 1
       response.head.numberOfPoints mustEqual 3
+    }
+
+    "reject unscoped task cluster requests" taggedAs (TaskTag) in {
+      an[InvalidException] should be thrownBy this.service.getTaskClusters(SearchParameters())
+      an[InvalidException] should be thrownBy this.service.getTaskClusters(
+        SearchParameters(location = Some(SearchLocation(-180, -85, 180, 85)))
+      )
+      an[InvalidException] should be thrownBy this.service.getTaskClusters(
+        SearchParameters(
+          challengeParams = SearchChallengeParameters(challengeIds = Some(List(randomChallenge.id))),
+          invertFields = Some(List("cid"))
+        )
+      )
+      an[InvalidException] should be thrownBy this.service.getTaskClusters(
+        SearchParameters(
+          location = Some(SearchLocation(-61, -33, -60, -32)),
+          invertFields = Some(List("tbb"))
+        )
+      )
+      an[InvalidException] should be thrownBy this.service.getTaskClusters(
+        SearchParameters(projectIds = Some(List(randomChallenge.general.parent)))
+      )
+      an[InvalidException] should be thrownBy this.service.getTasksInCluster(0, SearchParameters())
+    }
+
+    "get task clusters in a bounding box" taggedAs (TaskTag) in {
+      val response = this.service.getTaskClusters(
+        SearchParameters(location = Some(SearchLocation(-61, -33, -60, -32)))
+      )
+      response.map(_.numberOfPoints).sum must be >= 3
+    }
+
+    "accept task clusters scoped by a challenge bounding box" taggedAs (TaskTag) in {
+      noException should be thrownBy this.service.getTaskClusters(
+        SearchParameters(bounding = Some(SearchLocation(-61, -33, -60, -32)))
+      )
     }
 
     "get tasks in cluster" taggedAs (TaskTag) in {
