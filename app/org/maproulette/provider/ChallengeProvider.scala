@@ -42,6 +42,24 @@ class ChallengeProvider @Inject() (
 
   private val logger = LoggerFactory.getLogger(this.getClass)
 
+  private val buildProgressInterval = 1000
+
+  private def logBuildProgress(challengeId: Long, count: Int, total: Int, startTime: Long): Unit = {
+    val elapsedSeconds = (System.currentTimeMillis() - startTime) / 1000.0
+    val rate           = if (elapsedSeconds > 0) count / elapsedSeconds else 0.0
+    logger.info(
+      f"Building challenge $challengeId: $count%d of $total%d tasks in $elapsedSeconds%.1fs ($rate%.1f tasks/sec)"
+    )
+  }
+
+  private def logBuildCompletion(challengeId: Long, count: Int, startTime: Long): Unit = {
+    val elapsedSeconds = (System.currentTimeMillis() - startTime) / 1000.0
+    val rate           = if (elapsedSeconds > 0) count / elapsedSeconds else 0.0
+    logger.info(
+      f"Built $count%d tasks for challenge $challengeId in $elapsedSeconds%.1fs ($rate%.1f tasks/sec)"
+    )
+  }
+
   /**
     * Runs a block in a transaction on a connection borrowed from the dedicated
     * background pool so that heavy, long-held build operations (e.g. bulk task
@@ -97,7 +115,13 @@ class ChallengeProvider @Inject() (
             }
 
             if (isLineByLineGeoJson(splitJson)) {
+              val buildStart = System.currentTimeMillis()
+              var processed  = 0
               val failedLines = splitJson.zipWithIndex.flatMap(line => {
+                processed += 1
+                if (processed % buildProgressInterval == 0) {
+                  logBuildProgress(challenge.id, processed, splitJson.length, buildStart)
+                }
                 try {
                   val jsonData = Json.parse(normalizeRFC7464Sequence(line._1))
                   this.createNewTask(
@@ -112,6 +136,7 @@ class ChallengeProvider @Inject() (
                     Some(line._2)
                 }
               })
+              logBuildCompletion(challenge.id, processed - failedLines.length, buildStart)
               if (failedLines.nonEmpty) {
                 this.challengeDAL.update(
                   Json.obj(
@@ -450,7 +475,13 @@ class ChallengeProvider @Inject() (
           )
         }
       } else {
+        val buildStart = System.currentTimeMillis()
+        var processed  = 0
         val createdTasks = featureList.flatMap { value =>
+          processed += 1
+          if (processed % buildProgressInterval == 0) {
+            logBuildProgress(parent.id, processed, featureListLength, buildStart)
+          }
           if (!single) {
             this.createNewTask(
               user,
@@ -473,7 +504,7 @@ class ChallengeProvider @Inject() (
             case None    => List.empty
           }
         } else {
-          logger.debug(s"${featureList.size} tasks created from json file.")
+          logBuildCompletion(parent.id, createdTasks.size, buildStart)
           createdTasks
         }
       }
@@ -509,10 +540,15 @@ class ChallengeProvider @Inject() (
         val modifiedQuery = rewriteQuery(ql)
         logger.info(modifiedQuery)
 
+        val requestStart = System.currentTimeMillis()
         val jsonFuture =
           this.ws.url(osmQLProvider.providerURL).withRequestTimeout(timeout).post(modifiedQuery)
         jsonFuture onComplete {
           case Success(result) =>
+            logger.info(
+              f"Overpass query for challenge ${challenge.id} returned status ${result.status} after ${(System
+                .currentTimeMillis() - requestStart) / 1000.0}%.1fs"
+            )
             if (result.status == Status.OK) {
               val contentType = result.header("Content-Type")
 
@@ -541,9 +577,16 @@ class ChallengeProvider @Inject() (
               var targetTypeFailed = false
 
               // parse the results. Overpass has its own format and is not geojson
-              val elements = (payload \ "elements").as[List[JsValue]]
+              val elements     = (payload \ "elements").as[List[JsValue]]
+              val elementCount = elements.size
+              val buildStart   = System.currentTimeMillis()
+              var processed    = 0
               try {
                 elements.foreach { element =>
+                  processed += 1
+                  if (processed % buildProgressInterval == 0) {
+                    logBuildProgress(challenge.id, processed, elementCount, buildStart)
+                  }
                   // Verify target type if we are given one.
                   challenge.creation.overpassTargetType match {
                     case Some(targetType) if StringUtils.isNotEmpty(targetType) =>
@@ -685,6 +728,7 @@ class ChallengeProvider @Inject() (
                       )
                   }
                 }
+                logBuildCompletion(challenge.id, processed, buildStart)
                 partial match {
                   case true =>
                     this.challengeDAL.update(
