@@ -158,7 +158,7 @@ class TaskClusterRepository @Inject() (
           $selectTaskMarkersSQL
           INNER JOIN task_clusters ON task_clusters.taskId = tasks.id
           WHERE task_clusters.kmeans = $clusterId
-      """).as(this.pointParser.*)
+      """).on(query.parameters(): _*).as(this.pointParser.*)
 
       result
     }

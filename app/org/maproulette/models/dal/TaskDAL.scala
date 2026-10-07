@@ -1488,9 +1488,9 @@ class TaskDAL @Inject() (
         isBundlePrimary
       )
 
-      val filters    = new StringBuilder()
-      val joinClause = new StringBuilder()
-      this.updateWhereClause(params, filters, joinClause)
+      val filters          = new StringBuilder()
+      val joinClause       = new StringBuilder()
+      val filterParameters = this.updateWhereClause(params, filters, joinClause)
 
       val commentParser = for {
         taskId   <- long("task_id")
@@ -1533,7 +1533,7 @@ class TaskDAL @Inject() (
             WHERE tasks.parent_id IN (#${challengeIds.mkString(",")}) AND #${filters.toString}
             ORDER BY tasks.id
             LIMIT #${this.sqlLimit(limit)} OFFSET #${page * limit}
-      """
+      """.on(filterParameters.toSeq: _*)
       (query.as(parser.*), allComments)
     }
 

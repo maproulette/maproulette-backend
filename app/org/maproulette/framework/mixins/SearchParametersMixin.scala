@@ -4,6 +4,7 @@
  */
 package org.maproulette.framework.mixins
 
+import anorm.NamedParameter
 import org.maproulette.session.{SearchParameters, SearchLocation}
 import org.maproulette.framework.psql.SQLUtils
 import org.maproulette.framework.psql.filter._
@@ -317,8 +318,9 @@ trait SearchParametersMixin {
       case Some(fid) =>
         FilterGroup(
           List(
-            CustomParameter(
-              s"LOWER(TRIM(${Task.TABLE}.${Task.FIELD_NAME}::TEXT)) LIKE LOWER('%${fid.trim}%')"
+            SQLParameter(
+              s"LOWER(TRIM(${Task.TABLE}.${Task.FIELD_NAME}::TEXT)) LIKE LOWER({taskFeatureId})",
+              List(NamedParameter("taskFeatureId", s"%${fid.trim}%"))
             )
           )
         )
@@ -855,28 +857,41 @@ trait SearchParametersMixin {
               case Some(tp) =>
                 val searchType = params.taskParams.taskPropertySearchType.getOrElse("equals")
 
-                val query = new StringBuilder(s"""${Task.TABLE}.${Task.FIELD_ID} IN (
+                val clauses    = new StringBuilder
+                val parameters = scala.collection.mutable.ListBuffer.empty[NamedParameter]
+                tp.zipWithIndex.foreach {
+                  case ((k, v), index) =>
+                    val keyParam   = s"taskPropKey$index"
+                    val valueParam = s"taskPropValue$index"
+                    searchType match {
+                      case SearchParameters.TASK_PROP_SEARCH_TYPE_EQUALS =>
+                        clauses ++= s" AND features->'properties'->>{$keyParam} = {$valueParam} "
+                        parameters += NamedParameter(keyParam, k)
+                        parameters += NamedParameter(valueParam, v)
+                      case SearchParameters.TASK_PROP_SEARCH_TYPE_NOT_EQUAL =>
+                        clauses ++= s" AND features->'properties'->>{$keyParam} != {$valueParam} "
+                        parameters += NamedParameter(keyParam, k)
+                        parameters += NamedParameter(valueParam, v)
+                      case SearchParameters.TASK_PROP_SEARCH_TYPE_CONTAINS =>
+                        clauses ++= s" AND features->'properties'->>{$keyParam} LIKE {$valueParam} "
+                        parameters += NamedParameter(keyParam, k)
+                        parameters += NamedParameter(valueParam, s"%$v%")
+                      case SearchParameters.TASK_PROP_SEARCH_TYPE_EXISTS =>
+                        clauses ++= s" AND features->'properties'->>{$keyParam} IS NOT NULL "
+                        parameters += NamedParameter(keyParam, k)
+                      case SearchParameters.TASK_PROP_SEARCH_TYPE_MISSING =>
+                        clauses ++= s" AND features->'properties'->>{$keyParam} IS NULL "
+                        parameters += NamedParameter(keyParam, k)
+                      case _ => // should not happen
+                    }
+                }
+
+                val query = s"""${Task.TABLE}.${Task.FIELD_ID} IN (
                     | SELECT id FROM tasks,
                     | jsonb_array_elements(geojson->'features') features
                     | WHERE parent_id IN (${l.mkString(",")})
-                    | AND (true""".stripMargin)
-                for ((k, v) <- tp) {
-                  searchType match {
-                    case SearchParameters.TASK_PROP_SEARCH_TYPE_EQUALS =>
-                      query ++= s" AND features->'properties'->>'${k}' = '${v}' "
-                    case SearchParameters.TASK_PROP_SEARCH_TYPE_NOT_EQUAL =>
-                      query ++= s" AND features->'properties'->>'${k}' != '${v}' "
-                    case SearchParameters.TASK_PROP_SEARCH_TYPE_CONTAINS =>
-                      query ++= s" AND features->'properties'->>'${k}' LIKE '${SQLUtils.search(v)}' "
-                    case SearchParameters.TASK_PROP_SEARCH_TYPE_EXISTS =>
-                      query ++= s" AND features->'properties'->>'${k}' IS NOT NULL "
-                    case SearchParameters.TASK_PROP_SEARCH_TYPE_MISSING =>
-                      query ++= s" AND features->'properties'->>'${k}' IS NULL "
-                    case _ => // should not happen
-                  }
-                }
-                query ++= "))"
-                FilterGroup(List(CustomParameter(query.toString())))
+                    | AND (true${clauses.toString}))""".stripMargin
+                FilterGroup(List(SQLParameter(query, parameters.toList)))
               case _ => FilterGroup(List())
             }
         }

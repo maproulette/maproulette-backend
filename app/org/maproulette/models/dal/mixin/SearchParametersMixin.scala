@@ -33,7 +33,7 @@ trait SearchParametersMixin
     this.paramsBounding(params, whereClause)
     this.paramsTaskStatus(params, whereClause)
     this.paramsTaskId(params, whereClause)
-    this.paramsTaskFeatureId(params, whereClause)
+    parameters ++= this.paramsTaskFeatureId(params, whereClause)
     this.paramsProjectSearch(params, whereClause)
     this.paramsTaskReviewStatus(params, whereClause)
     this.paramsMetaReviewStatus(params, whereClause)
@@ -50,7 +50,7 @@ trait SearchParametersMixin
     this.paramsBoundingGeometries(params, whereClause)
 
     // For efficiency can only query on task properties with a parent challenge id
-    this.paramsTaskProps(params, whereClause)
+    parameters ++= this.paramsTaskProps(params, whereClause)
 
     parameters ++= this.addSearchToQuery(params, whereClause)(projectSearch)
     parameters ++= this.addChallengeTagMatchingToQuery(params, whereClause, joinClause)
@@ -106,8 +106,13 @@ trait SearchParametersMixin
     this.appendInWhereClause(whereClause, this.filterTaskId(params).sql())
   }
 
-  def paramsTaskFeatureId(params: SearchParameters, whereClause: StringBuilder): Unit = {
-    this.appendInWhereClause(whereClause, this.filterTaskFeatureId(params).sql())
+  def paramsTaskFeatureId(
+      params: SearchParameters,
+      whereClause: StringBuilder
+  ): List[NamedParameter] = {
+    val filter = this.filterTaskFeatureId(params)
+    this.appendInWhereClause(whereClause, filter.sql())
+    filter.parameters()
   }
 
   def paramsTaskPriorities(params: SearchParameters, whereClause: StringBuilder): Unit = {
@@ -168,8 +173,13 @@ trait SearchParametersMixin
     this.appendInWhereClause(whereClause, this.filterBoundingGeometries(params).sql())
   }
 
-  def paramsTaskProps(params: SearchParameters, whereClause: StringBuilder): Unit = {
-    this.appendInWhereClause(whereClause, this.filterTaskProps(params).sql())
+  def paramsTaskProps(
+      params: SearchParameters,
+      whereClause: StringBuilder
+  ): List[NamedParameter] = {
+    val filter = this.filterTaskProps(params)
+    this.appendInWhereClause(whereClause, filter.sql())
+    filter.parameters()
   }
 
   def paramsOwner(

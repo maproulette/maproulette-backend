@@ -5,6 +5,7 @@
 
 package org.maproulette.framework.mixins
 
+import anorm.NamedParameter
 import org.scalatestplus.play.PlaySpec
 import org.maproulette.framework.mixins.SearchParametersMixin
 import org.maproulette.session._
@@ -159,9 +160,18 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
   "filterTaskFeatureId" should {
     "match on task feature id" in {
       val params = SearchParameters(taskParams = SearchTaskParameters(taskFeatureId = Some("123")))
-      this
-        .filterTaskFeatureId(params)
-        .sql() mustEqual s"LOWER(TRIM(tasks.name::TEXT)) LIKE LOWER('%123%')"
+      val filter = this.filterTaskFeatureId(params)
+      filter.sql() mustEqual "LOWER(TRIM(tasks.name::TEXT)) LIKE LOWER({taskFeatureId})"
+      filter.parameters() mustEqual List(NamedParameter("taskFeatureId", "%123%"))
+    }
+
+    "bind the feature id so it cannot be injected" in {
+      val params = SearchParameters(
+        taskParams = SearchTaskParameters(taskFeatureId = Some("x' OR '1'='1"))
+      )
+      val filter = this.filterTaskFeatureId(params)
+      filter.sql() mustEqual "LOWER(TRIM(tasks.name::TEXT)) LIKE LOWER({taskFeatureId})"
+      filter.parameters() mustEqual List(NamedParameter("taskFeatureId", "%x' OR '1'='1%"))
     }
   }
 
@@ -493,12 +503,32 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
         challengeParams = SearchChallengeParameters(challengeIds = Some(List(12345))),
         taskParams = SearchTaskParameters(taskProperties = Some(Map("x" -> "1")))
       )
-      this.filterTaskProps(params).sql() mustEqual
+      val filter = this.filterTaskProps(params)
+      filter.sql() mustEqual
         """tasks.id IN (
              | SELECT id FROM tasks,
              | jsonb_array_elements(geojson->'features') features
              | WHERE parent_id IN (12345)
-             | AND (true AND features->'properties'->>'x' = '1' ))""".stripMargin
+             | AND (true AND features->'properties'->>{taskPropKey0} = {taskPropValue0} ))""".stripMargin
+      filter.parameters() mustEqual List(
+        NamedParameter("taskPropKey0", "x"),
+        NamedParameter("taskPropValue0", "1")
+      )
+    }
+
+    "bind task property keys and values so they cannot be injected" in {
+      val params = SearchParameters(
+        challengeParams = SearchChallengeParameters(challengeIds = Some(List(12345))),
+        taskParams = SearchTaskParameters(
+          taskProperties = Some(Map("x' OR '1'='1" -> "y' OR '1'='1"))
+        )
+      )
+      val filter = this.filterTaskProps(params)
+      filter.sql() must not include ("OR '1'='1")
+      filter.parameters() mustEqual List(
+        NamedParameter("taskPropKey0", "x' OR '1'='1"),
+        NamedParameter("taskPropValue0", "y' OR '1'='1")
+      )
     }
   }
 
