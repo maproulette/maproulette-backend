@@ -125,22 +125,6 @@ object CustomBasemap {
   */
 case class Follower(id: Long, user: User, status: Int) extends Identifiable
 object Follower {
-  implicit val tokenWrites: Writes[RequestToken]            = Json.writes[RequestToken]
-  implicit val tokenReads: Reads[RequestToken]              = Json.reads[RequestToken]
-  implicit val settingsWrites: Writes[UserSettings]         = Json.writes[UserSettings]
-  implicit val settingsReads: Reads[UserSettings]           = Json.reads[UserSettings]
-  implicit val userGrantWrites: Writes[Grant]               = Grant.writes
-  implicit val userGrantReads: Reads[Grant]                 = Grant.reads
-  implicit val locationWrites: Writes[Location]             = Json.writes[Location]
-  implicit val locationReads: Reads[Location]               = Json.reads[Location]
-  implicit val osmWrites: Writes[OSMProfile]                = Json.writes[OSMProfile]
-  implicit val osmReads: Reads[OSMProfile]                  = Json.reads[OSMProfile]
-  implicit val searchResultWrites: Writes[UserSearchResult] = Json.writes[UserSearchResult]
-  implicit val projectManagerWrites: Writes[ProjectManager] = Json.writes[ProjectManager]
-
-  implicit val userWrites: Writes[User] = Json.writes[User]
-  implicit val userReads: Reads[User]   = Json.reads[User]
-
   implicit val writes: Writes[Follower] = Json.writes[Follower]
   implicit val reads: Reads[Follower]   = Json.reads[Follower]
 
@@ -301,9 +285,42 @@ object User extends CommonField {
   val FIELD_NEEDS_REVIEW        = "needs_review"
   val FIELD_IS_REVIEWER         = "is_reviewer"
 
-  implicit val userWrites: Writes[User] = Json.writes[User]
+  /**
+    * Writes every field, including the user's OSM access token, API key and email.
+    * Only used this to return a user's own record! (e.g. via /api/v2/user/whoami)
+    */
+  val privateWrites: OWrites[User] = Json.writes[User]
+
+  /**
+    * Writes all fields except OSM access token and API key. Meant only for use
+    * in admin endpoints to allow superusers to view details of other users.
+    */
+  val adminWrites: OWrites[User] = privateWrites.transform(withoutSecrets _)
+
+  /**
+    * Default serializer which only includes the fields in the PublicUser schema
+    * (see conf/swagger.yaml).
+    */
+  implicit val userWrites: Writes[User] = Writes { user =>
+    Json.obj(
+      "id" -> user.id,
+      "osmProfile" -> Json.obj(
+        "id"          -> user.osmProfile.id,
+        "avatarURL"   -> user.osmProfile.avatarURL,
+        "displayName" -> user.osmProfile.displayName
+      ),
+      "name"    -> user.name,
+      "created" -> user.created.toString,
+      "settings" -> Json.obj(
+        "leaderboardOptOut" -> user.settings.leaderboardOptOut.contains(true)
+      )
+    )
+  }
   implicit val userReads: Reads[User]   = Json.reads[User]
   implicit val UserFormat: Format[User] = Format(userReads, userWrites)
+
+  private def withoutSecrets(o: JsObject): JsObject =
+    (o - "apiKey") + ("osmProfile" -> ((o \ "osmProfile").as[JsObject] - "requestToken"))
 
   val DEFAULT_GUEST_USER_ID = -998
   val DEFAULT_SUPER_USER_ID = -999

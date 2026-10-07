@@ -92,16 +92,33 @@ trait MRSchemaTypes {
     deriveObjectType[Unit, RequestToken](ObjectTypeName("RequestToken"))
   implicit val CustomBasemapType: ObjectType[Unit, CustomBasemap] =
     deriveObjectType[Unit, CustomBasemap](ObjectTypeName("CustomBasemap"))
+  // User, OSMProfile and UserSettings are served to anonymous callers, so they expose an
+  // allowlist of public fields, matching the PublicUser schema in conf/swagger.yml.
   implicit val UserSettingsType: ObjectType[Unit, UserSettings] =
-    deriveObjectType[Unit, UserSettings](ObjectTypeName("UserSettings"))
+    deriveObjectType[Unit, UserSettings](
+      ObjectTypeName("UserSettings"),
+      IncludeFields("leaderboardOptOut")
+    )
   implicit val LocationType: ObjectType[Unit, Location] =
     deriveObjectType[Unit, Location](ObjectTypeName("Location"))
   implicit val OSMProfileType: ObjectType[Unit, OSMProfile] =
-    deriveObjectType[Unit, OSMProfile](ObjectTypeName("OSMProfile"))
+    deriveObjectType[Unit, OSMProfile](
+      ObjectTypeName("OSMProfile"),
+      IncludeFields("id", "displayName", "avatarURL")
+    )
   implicit lazy val UserType: ObjectType[Unit, User] =
     deriveObjectType[Unit, User](
       ObjectTypeName("User"),
       Interfaces(IdentifiableType),
+      IncludeFields(
+        "id",
+        "created",
+        "osmProfile",
+        "settings",
+        "followingGroupId",
+        "followersGroupId"
+      ),
+      AddFields(Field("name", StringType, resolve = _.value.name)),
       ReplaceField(
         "followingGroupId",
         Field(

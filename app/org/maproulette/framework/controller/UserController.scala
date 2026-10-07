@@ -68,20 +68,20 @@ class UserController @Inject() (
 
   def whoami(): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
-      Ok(Json.toJson(User.withDecryptedAPIKey(user)(crypto)))
+      Ok(Json.toJson(User.withDecryptedAPIKey(user)(crypto))(User.privateWrites))
     }
   }
 
   def getUser(userId: Long): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
       if (userId == user.id || userId == user.osmProfile.id) {
-        Ok(Json.toJson(User.withDecryptedAPIKey(user)(crypto)))
+        Ok(Json.toJson(User.withDecryptedAPIKey(user)(crypto))(User.privateWrites))
       } else if (permission.isSuperUser(user)) {
         this.serviceManager.user.retrieveByOSMId(userId) match {
-          case Some(u) => Ok(Json.toJson(User.withDecryptedAPIKey(u)(crypto)))
+          case Some(u) => Ok(Json.toJson(u)(User.adminWrites))
           case None =>
             this.serviceManager.user.retrieve(userId) match {
-              case Some(u) => Ok(Json.toJson(User.withDecryptedAPIKey(u)(crypto)))
+              case Some(u) => Ok(Json.toJson(u)(User.adminWrites))
               case None    => throw new NotFoundException(s"No user found with id '$userId'")
             }
         }
@@ -97,12 +97,12 @@ class UserController @Inject() (
     implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
         if (user.name == username) {
-          Ok(Json.toJson(user))
+          Ok(Json.toJson(user)(User.privateWrites))
         } else {
           // we don't need to check access here as the API only allows super users to make the call,
           // so if not a super user, the correct IllegalAccessException will be thrown
           this.serviceManager.user.retrieveByOSMUsername(username, user) match {
-            case Some(u) => Ok(Json.toJson(u))
+            case Some(u) => Ok(Json.toJson(u)(User.adminWrites))
             case None    => throw new NotFoundException(s"No user found with OSM username '$username'")
           }
         }
@@ -120,7 +120,7 @@ class UserController @Inject() (
           }
       }
 
-      Ok(buildBasicUser(target))
+      Ok(Json.toJson(target))
     }
   }
 
@@ -128,25 +128,10 @@ class UserController @Inject() (
     implicit request =>
       this.sessionManager.userAwareRequest { implicit user =>
         this.serviceManager.user.retrieveByOSMUsername(username, User.superUser) match {
-          case Some(u) => Ok(buildBasicUser(u))
+          case Some(u) => Ok(Json.toJson(u))
           case None    => throw new NotFoundException(s"No user found with OSM username '$username'")
         }
       }
-  }
-
-  private def buildBasicUser(user: User): JsValue = {
-    val avatar       = user.osmProfile.avatarURL
-    val displayName  = user.osmProfile.displayName
-    val leaderOptOut = user.settings.leaderboardOptOut.getOrElse(false)
-
-    Json.obj(
-      "id" -> user.id,
-      "osmProfile" -> Json
-        .obj("id" -> user.osmProfile.id, "avatarURL" -> avatar, "displayName" -> displayName),
-      "name"     -> user.name,
-      "created"  -> user.created.toString,
-      "settings" -> Json.obj("leaderboardOptOut" -> leaderOptOut)
-    )
   }
 
   def searchUserByOSMUsername(username: String, limit: Int): Action[AnyContent] = Action.async {
@@ -173,8 +158,9 @@ class UserController @Inject() (
         (request.body \ "properties").toOption,
         user
       ) match {
-        case Some(u) => Ok(Json.toJson(u))
-        case None    => throw new NotFoundException(s"No user found to update with id '$id'")
+        case Some(u) if u.id == user.id => Ok(Json.toJson(u)(User.privateWrites))
+        case Some(u)                    => Ok(Json.toJson(u)(User.adminWrites))
+        case None                       => throw new NotFoundException(s"No user found to update with id '$id'")
       }
     }
   }
@@ -559,7 +545,7 @@ class UserController @Inject() (
       this.sessionManager.userAwareRequest { implicit user =>
         if (user.get != None) {
           val users = this.serviceManager.user.extendedFind(user.get)
-          Ok(Json.toJson(users))
+          Ok(Json.toJson(users.map(Json.toJson(_)(User.adminWrites))))
         } else {
           throw new IllegalAccessException(
             "User not found or does not have access rights"
@@ -602,7 +588,7 @@ class UserController @Inject() (
           user
         )
 
-        Ok(Json.toJson(users))
+        Ok(Json.toJson(users.map(Json.toJson(_)(User.adminWrites))))
       }
     }
 

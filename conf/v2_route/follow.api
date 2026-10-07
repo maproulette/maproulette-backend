@@ -9,7 +9,9 @@
 #     content:
 #       application/json:
 #         schema:
-#           $ref: '#/components/schemas/org.maproulette.framework.model.User'
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/PublicUser'
 # parameters:
 #   - name: userId
 #     in: path
@@ -29,7 +31,18 @@ GET    /user/:userId/following                      @org.maproulette.framework.c
 #     content:
 #       application/json:
 #         schema:
-#           $ref: '#/components/schemas/org.maproulette.framework.model.User'
+#           type: array
+#           items:
+#             type: object
+#             properties:
+#               id:
+#                 type: integer
+#                 format: int64
+#               user:
+#                 $ref: '#/components/schemas/PublicUser'
+#               status:
+#                 type: integer
+#                 description: 0 if following, 1 if blocked
 # parameters:
 #   - name: userId
 #     in: path
@@ -49,7 +62,9 @@ GET    /user/:userId/followers                      @org.maproulette.framework.c
 #     content:
 #       application/json:
 #         schema:
-#           $ref: '#/components/schemas/org.maproulette.framework.model.User'
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/PublicUser'
 # parameters:
 #   - name: userId
 #     in: path
@@ -69,7 +84,9 @@ POST    /user/:userId/follow                        @org.maproulette.framework.c
 #     content:
 #       application/json:
 #         schema:
-#           $ref: '#/components/schemas/org.maproulette.framework.model.User'
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/PublicUser'
 # parameters:
 #   - name: userId
 #     in: path
@@ -89,7 +106,18 @@ DELETE /user/:userId/follow                         @org.maproulette.framework.c
 #     content:
 #       application/json:
 #         schema:
-#           $ref: '#/components/schemas/org.maproulette.framework.model.User'
+#           type: array
+#           items:
+#             type: object
+#             properties:
+#               id:
+#                 type: integer
+#                 format: int64
+#               user:
+#                 $ref: '#/components/schemas/PublicUser'
+#               status:
+#                 type: integer
+#                 description: 0 if following, 1 if blocked
 # parameters:
 #   - name: userId
 #     in: path
@@ -109,7 +137,18 @@ POST    /user/:userId/block                         @org.maproulette.framework.c
 #     content:
 #       application/json:
 #         schema:
-#           $ref: '#/components/schemas/org.maproulette.framework.model.User'
+#           type: array
+#           items:
+#             type: object
+#             properties:
+#               id:
+#                 type: integer
+#                 format: int64
+#               user:
+#                 $ref: '#/components/schemas/PublicUser'
+#               status:
+#                 type: integer
+#                 description: 0 if following, 1 if blocked
 # parameters:
 #   - name: userId
 #     in: path

@@ -45,8 +45,9 @@ class UserService @Inject() (
   private val logger = LoggerFactory.getLogger(this.getClass)
 
   // The cache manager for the users
-  val cacheManager = new CacheManager[Long, User](config, Config.CACHE_ID_USERS)
-  val superUsers   = scala.collection.mutable.Set[Long]()
+  val cacheManager =
+    new CacheManager[Long, User](config, Config.CACHE_ID_USERS)(User.userReads, User.privateWrites)
+  val superUsers = scala.collection.mutable.Set[Long]()
 
   // On class initialization (called when Play initializes), seed the super user from the existing database entries
   seedSuperUserIds()
