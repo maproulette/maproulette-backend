@@ -33,7 +33,10 @@ class Config @Inject() (implicit val configuration: Configuration) {
     case Some(logo) => logo
     case None       => "/assets/images/logo.png" // default to the MapRoulette Icon
   }
-  lazy val superKey: Option[String] = this.config.getOptional[String](Config.KEY_SUPER_KEY)
+  // application.conf defaults super.key to "", which must mean "disabled": an empty key would
+  // otherwise match an empty apiKey and grant superuser access.
+  lazy val superKey: Option[String] =
+    this.config.getOptional[String](Config.KEY_SUPER_KEY).filter(_.trim.nonEmpty)
   lazy val superAccounts: List[String] = this.config
     .getOptional[String](Config.KEY_SUPER_ACCOUNTS)
     .getOrElse("")

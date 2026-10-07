@@ -35,7 +35,8 @@ class UserControllerSpec extends PlaySpec with MockitoSugar {
       Config.KEY_OSM_AUTHORIZATION_URL -> "/oauth/authorize",
       Config.KEY_OSM_CONSUMER_KEY      -> "test",
       Config.KEY_OSM_CONSUMER_SECRET   -> "test",
-      Config.KEY_OSM_OAUTH2_SCOPE      -> "read_prefs"
+      Config.KEY_OSM_OAUTH2_SCOPE      -> "read_prefs",
+      Config.KEY_SUPER_KEY             -> ""
     )
   )
   val config: Config = new Config()
@@ -128,6 +129,11 @@ class UserControllerSpec extends PlaySpec with MockitoSugar {
       status(controller.whoami()(nonNumericId)) mustEqual UNAUTHORIZED
     }
 
+    "return 401 when the apiKey is empty, even though the configured super key is empty" in {
+      val request = FakeRequest(GET, "/user/whoami").withHeaders("apiKey" -> "")
+      status(controller.whoami()(request)) mustEqual UNAUTHORIZED
+    }
+
     "return 200 with the user when a valid apiKey is provided" in {
       val request = FakeRequest(GET, "/user/whoami")
         .withHeaders("apiKey" -> s"${testUser.id}|$rawApiKey")
@@ -162,6 +168,13 @@ class UserControllerSpec extends PlaySpec with MockitoSugar {
       val expiredTick = DateTime.now().minusHours(2).getMillis
       val result      = controller.whoami()(sessionRequest(sessionToken, expiredTick))
       status(result) mustEqual UNAUTHORIZED
+    }
+  }
+
+  "SessionManager.getSessionByApiKey" should {
+    "not treat an empty key as the super key" in {
+      // GraphQL's auth(apiKey: "") field reaches this without any HTTP header
+      sessionManager.getSessionByApiKey(Some("")) mustEqual None
     }
   }
 }
