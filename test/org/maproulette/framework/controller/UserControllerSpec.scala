@@ -47,13 +47,18 @@ class UserControllerSpec extends PlaySpec with MockitoSugar {
     12345,
     DateTime.now(),
     DateTime.now(),
-    OSMProfile(54321, "TestUser", "Test User", "", Location(1.0, 2.0), DateTime.now(), "token"),
+    OSMProfile(
+      54321,
+      "TestUser",
+      "Test User",
+      "",
+      Location(1.0, 2.0),
+      DateTime.now(),
+      "ZIpXeHwiPt6tM8hkmnGBcPBTzWQu0GvtmWiUcze9uBB"
+    ),
     List.empty,
     Some(encryptedApiKey)
   )
-
-  // The oauth2 access token as found in the "token" field of the PLAY_SESSION cookie
-  val sessionToken: String = "3mxmGvQeLOg6YmT5rXo4Arx081-4N_xaYMYEVfM898U"
 
   val userService: UserService       = mock[UserService]
   val serviceManager: ServiceManager = mock[ServiceManager]
@@ -61,9 +66,8 @@ class UserControllerSpec extends PlaySpec with MockitoSugar {
   when(userService.retrieveByAPIKey(any[Long], any[String], any[User])).thenReturn(None)
   when(userService.retrieveByAPIKey(eqM(testUser.id), eqM(encryptedApiKey), any[User]))
     .thenReturn(Some(testUser))
-  when(userService.matchByRequestToken(any[Long], any[String], any[User])).thenReturn(None)
-  when(userService.matchByRequestToken(eqM(testUser.id), eqM(sessionToken), any[User]))
-    .thenReturn(Some(testUser))
+  when(userService.retrieve(any[Long])).thenReturn(None)
+  when(userService.retrieve(testUser.id)).thenReturn(Some(testUser))
 
   val permission: Permission = mock[Permission]
   val sessionManager: SessionManager = new SessionManager(
@@ -86,17 +90,19 @@ class UserControllerSpec extends PlaySpec with MockitoSugar {
     permission
   )
 
+  val sessionTokenHash: String = SessionManager.hashToken(testUser.osmProfile.requestToken)
+
   // Builds a request carrying the session attributes that Play would decode from the
-  // PLAY_SESSION cookie's data block: {token, userId, osmId, userTick}
+  // PLAY_SESSION cookie's data block: {tokenHash, userId, osmId, userTick}
   private def sessionRequest(
-      token: String,
+      tokenHash: String,
       tick: Long = DateTime.now().getMillis
   ) =
     FakeRequest(GET, "/user/whoami").withSession(
-      SessionManager.KEY_TOKEN     -> token,
-      SessionManager.KEY_USER_ID   -> testUser.id.toString,
-      SessionManager.KEY_OSM_ID    -> testUser.osmProfile.id.toString,
-      SessionManager.KEY_USER_TICK -> tick.toString
+      SessionManager.KEY_TOKEN_HASH -> tokenHash,
+      SessionManager.KEY_USER_ID    -> testUser.id.toString,
+      SessionManager.KEY_OSM_ID     -> testUser.osmProfile.id.toString,
+      SessionManager.KEY_USER_TICK  -> tick.toString
     )
 
   "GET /user/whoami" should {
@@ -117,7 +123,7 @@ class UserControllerSpec extends PlaySpec with MockitoSugar {
     }
 
     "return 200 with the user when a valid session is provided" in {
-      val result = controller.whoami()(sessionRequest(sessionToken))
+      val result = controller.whoami()(sessionRequest(sessionTokenHash))
 
       status(result) mustEqual OK
       val json = contentAsJson(result)
@@ -128,21 +134,27 @@ class UserControllerSpec extends PlaySpec with MockitoSugar {
       (json \ "apiKey").toOption mustEqual None
     }
 
-    "return 401 when the session token does not match a user" in {
-      val result = controller.whoami()(sessionRequest("unknown-session-token"))
+    "return 401 when the session token hash does not match the user's token" in {
+      val result =
+        controller.whoami()(sessionRequest(SessionManager.hashToken("unknown-session-token")))
+      status(result) mustEqual UNAUTHORIZED
+    }
+
+    "return 401 when the session holds the raw token instead of its hash" in {
+      val result = controller.whoami()(sessionRequest(testUser.osmProfile.requestToken))
       status(result) mustEqual UNAUTHORIZED
     }
 
     "return 401 when the session userTick has expired" in {
       val expiredTick = DateTime.now().minusHours(2).getMillis
-      val result      = controller.whoami()(sessionRequest(sessionToken, expiredTick))
+      val result      = controller.whoami()(sessionRequest(sessionTokenHash, expiredTick))
       status(result) mustEqual UNAUTHORIZED
     }
   }
 
   "PUT /user/:userId/apikey" should {
     "return 410 because API keys are disabled" in {
-      status(controller.generateAPIKey(testUser.id)(sessionRequest(sessionToken))) mustEqual GONE
+      status(controller.generateAPIKey(testUser.id)(sessionRequest(sessionTokenHash))) mustEqual GONE
     }
   }
 }

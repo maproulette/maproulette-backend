@@ -4,8 +4,10 @@
  */
 package org.maproulette.session
 
+import java.nio.charset.StandardCharsets.UTF_8
+import java.security.MessageDigest
+import java.util.HexFormat
 import javax.inject.{Inject, Singleton}
-import org.apache.commons.lang3.StringUtils
 import org.joda.time.DateTime
 import org.maproulette.Config
 import org.maproulette.exception.MPExceptionUtil
@@ -68,7 +70,7 @@ class SessionManager @Inject() (
     */
   def retrieveUser(token: String)(implicit request: Request[AnyContent]): Future[User] = {
     val p = Promise[User]()
-    this.sessionUser(Option(token), true)(request) onComplete {
+    this.loginUser(token) onComplete {
       case Success(user) =>
         user match {
           case Some(u) =>
@@ -120,7 +122,7 @@ class SessionManager @Inject() (
       block: Option[User] => Result
   )(implicit request: Request[Any]): Future[Result] = {
     val p = Promise[Result]()
-    this.sessionUser(retrieveSessionToken) onComplete {
+    this.sessionUser onComplete {
       case Success(result) =>
         Try(block(result)) match {
           case Success(res) => p success res
@@ -153,7 +155,7 @@ class SessionManager @Inject() (
   )(implicit request: Request[Any], requireSuperUser: Boolean = false): Future[Result] = {
     val p = Promise[Result]()
     try {
-      this.sessionUser(retrieveSessionToken) onComplete {
+      this.sessionUser onComplete {
         case Success(result) =>
           result match {
             case Some(user) =>
@@ -192,111 +194,92 @@ class SessionManager @Inject() (
   }
 
   /**
-    * Retrieves the token that is stored in the users session cookie. This is the token
-    * that a user uses to authorize various requests to OSM. This needs to be stored in
-    * a secure cookie, otherwise if someone gains access to the token they would gain access
-    * to the user account.
+    * Retrieves the hash of the OSM access token stored in the user's session cookie.
     *
     * @param request The http request
-    * @return The OSM request token. None if
-    *         no session has been established yet
+    * @return The token hash. None if no session has been established yet, or it has timed out
     */
-  def retrieveSessionToken(implicit request: RequestHeader): Option[String] = {
+  private def retrieveSessionTokenHash(implicit request: RequestHeader): Option[String] = {
     for {
-      token <- request.session.get(SessionManager.KEY_TOKEN)
-      tick  <- request.session.get(SessionManager.KEY_USER_TICK)
+      hash <- request.session.get(SessionManager.KEY_TOKEN_HASH)
+      tick <- request.session.get(SessionManager.KEY_USER_TICK)
       if tick.toLong >= DateTime
         .now()
         .getMillis - config.sessionTimeout || config.ignoreSessionTimeout
     } yield {
-      token
+      hash
     }
   }
 
   /**
-    * Based on the access token and some other session information this will retrieve the user
-    * from the database.
+    * Retrieves the user for the current session. The session cookie holds the user's id and a hash
+    * of their OSM access token. The session is valid only while that hash matches the token in the
+    * database, so changing users.oauth_token revokes it.
     *
-    * @param token The token pair, None if no token pair is found.
-    * @param create    default false, if true will create a new user in the database from the OSM User details.
-    *                  Clarification: if true, it will still only create a user if a user isn't found. The toggle
-    *                    will not create duplicate users if set to true
-    * @param request   The http request that initiated the requirement for retrieving the user
-    * @return A Future for an optional user, if user not found, or could not be created will return
-    *         None.
+    * @param request The http request
+    * @return A Future for an optional user, None if there is no valid session
     */
-  def sessionUser(token: Option[String], create: Boolean = false)(
-      implicit request: RequestHeader
-  ): Future[Option[User]] = {
-    val p      = Promise[Option[User]]()
-    val userId = request.session.get(SessionManager.KEY_USER_ID)
-    val osmId  = request.session.get(SessionManager.KEY_OSM_ID)
-    // if in dev mode we just default every request to super user request
-    config.isDevMode match {
-      case true =>
-        val impersonateUserId = config.impersonateUserId
-        if (impersonateUserId < 0) {
-          p success Some(User.superUser)
-        } else {
-          this.serviceManager.user.retrieveByOSMId(impersonateUserId) match {
-            case Some(user) => p success Some(user)
-            case None       => p success Some(User.superUser)
-          }
-        }
-      case false =>
-        token match {
-          case Some(t) =>
-            getUser(t, userId, create) onComplete {
-              case Success(optionUser) => p success optionUser
-              case Failure(f)          => p failure f
-            }
-          case None => p success None
-        }
-    }
-    p.future
-  }
-
-  /**
-    * If a session is found in the secure cookie, which includes the userId, will retrieve the userId
-    * from cache/database.
-    *
-    * @param accessToken The access token currently stored in the session
-    * @param userId      The userId stored in the session
-    * @param create      If the user does not exist, create a new user in the database. Default false
-    * @return A Future for an optional user, if user not found, or could not be created will return
-    *         None.
-    */
-  private def getUser(
-      accessToken: String,
-      userId: Option[String],
-      create: Boolean = false
-  ): Future[Option[User]] = {
-    // we use the userId for caching, so only if this is the first time the user is authorizing
-    // in a particular session will it have to hit the database.
-    val storedUser = userId match {
-      case Some(sessionId) if StringUtils.isNotEmpty(sessionId) =>
-        this.serviceManager.user
-          .matchByRequestToken(sessionId.toLong, accessToken, User.superUser)
-      case None => this.serviceManager.user.matchByRequestToken(-1, accessToken, User.superUser)
-    }
-    storedUser match {
-      case Some(u) =>
-        // if the user information is more than a day old, then lets update it.
-        if (u.modified.plusDays(1).isBefore(DateTime.now())) {
-          this.refreshProfile(u.osmProfile.requestToken, User.superUser)
-        } else {
-          Future {
-            Some(u)
-          }
-        }
+  def sessionUser(implicit request: RequestHeader): Future[Option[User]] = {
+    devModeUser match {
+      case Some(u) => Future.successful(Some(u))
       case None =>
-        if (create) {
-          this.refreshProfile(accessToken, User.superUser)
-        } else {
-          Future {
-            None
-          }
+        val user = for {
+          hash   <- retrieveSessionTokenHash
+          userId <- request.session.get(SessionManager.KEY_USER_ID)
+          u      <- this.serviceManager.user.retrieve(userId.toLong)
+          if MessageDigest.isEqual(
+            SessionManager.hashToken(u.osmProfile.requestToken).getBytes(UTF_8),
+            hash.getBytes(UTF_8)
+          )
+        } yield u
+        user match {
+          case Some(u) => refreshIfStale(u)
+          case None    => Future.successful(None)
         }
+    }
+  }
+
+  /**
+    * Retrieves the user that owns a newly issued OSM access token, creating the user from their
+    * OSM profile if they don't exist yet.
+    *
+    * @param accessToken The OSM access token
+    * @return A Future for an optional user, None if the user could not be found or created
+    */
+  private def loginUser(accessToken: String): Future[Option[User]] = {
+    devModeUser match {
+      case Some(u) => Future.successful(Some(u))
+      case None =>
+        this.serviceManager.user.matchByRequestToken(-1, accessToken, User.superUser) match {
+          case Some(u) => refreshIfStale(u)
+          case None    => this.refreshProfile(accessToken, User.superUser)
+        }
+    }
+  }
+
+  /**
+    * In dev mode every request is made as the super user, or as the user configured for
+    * impersonation.
+    */
+  private def devModeUser: Option[User] = {
+    if (!config.isDevMode) {
+      None
+    } else if (config.impersonateUserId < 0) {
+      Some(User.superUser)
+    } else {
+      Some(
+        this.serviceManager.user
+          .retrieveByOSMId(config.impersonateUserId)
+          .getOrElse(User.superUser)
+      )
+    }
+  }
+
+  private def refreshIfStale(user: User): Future[Option[User]] = {
+    if (user.modified.plusDays(1).isBefore(DateTime.now())) {
+      this.refreshProfile(user.osmProfile.requestToken, User.superUser)
+    } else {
+      Future.successful(Some(user))
     }
   }
 
@@ -355,9 +338,17 @@ class SessionManager @Inject() (
 }
 
 object SessionManager {
-  val KEY_USER_TICK = "userTick"
-  val KEY_TOKEN     = "token"
-  val KEY_USER_ID   = "userId"
-  val KEY_OSM_ID    = "osmId"
-  val KEY_STATE     = "state"
+  val KEY_USER_TICK  = "userTick"
+  val KEY_TOKEN_HASH = "tokenHash"
+  val KEY_USER_ID    = "userId"
+  val KEY_OSM_ID     = "osmId"
+  val KEY_STATE      = "state"
+
+  /**
+    * Returns the hex-encoded SHA-256 hash of an OSM access token, so we can store
+    * it in the session cookie (the cookie is signed but not encrpyted, so its unsafe
+    * to store the raw token in it).
+    */
+  def hashToken(token: String): String =
+    HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(UTF_8)))
 }

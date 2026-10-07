@@ -100,7 +100,8 @@ class AuthController @Inject() (
                     Ok(json)
                       .withHeaders(("Cache-Control", "no-cache"))
                       .withSession(
-                        SessionManager.KEY_TOKEN     -> user.osmProfile.requestToken,
+                        SessionManager.KEY_TOKEN_HASH -> SessionManager
+                          .hashToken(user.osmProfile.requestToken),
                         SessionManager.KEY_USER_ID   -> user.id.toString,
                         SessionManager.KEY_OSM_ID    -> user.osmProfile.id.toString,
                         SessionManager.KEY_USER_TICK -> DateTime.now().getMillis.toString
