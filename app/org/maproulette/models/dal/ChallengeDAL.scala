@@ -1785,7 +1785,8 @@ class ChallengeDAL @Inject() (
       boundingBox: Option[(Double, Double, Double, Double)] = None
   )(implicit c: Option[Connection] = None): String = {
     this.withMRConnection { implicit c =>
-      val filters = new StringBuilder()
+      val filters          = new StringBuilder()
+      val filterParameters = ListBuffer.empty[NamedParameter]
 
       // Verify timzone offset is valid (eg. -10:00 or +04:00 or 06:30:00)
       val tzOffset =
@@ -1841,22 +1842,24 @@ class ChallengeDAL @Inject() (
 
           p.reviewer match {
             case Some(r) =>
+              filterParameters += NamedParameter("reviewerName", s"%${r}%")
               filters.append(s""" AND t.id IN (
                   SELECT subTR.task_id FROM task_review subTR
                   INNER JOIN users u2 ON u2.id = subTR.reviewed_by
                   WHERE subTR.task_id=t.id AND
-                  LOWER(u2.name) LIKE LOWER('%${r}%')
+                  LOWER(u2.name) LIKE LOWER({reviewerName})
                 )""")
             case _ => // do nothing
           }
 
           p.owner match {
             case Some(o) =>
+              filterParameters += NamedParameter("ownerName", s"%${o}%")
               filters.append(s""" AND t.id IN (
                   SELECT subTR.task_id FROM task_review subTR
                   INNER JOIN users u3 ON u3.id = subTR.review_requested_by
                   WHERE subTR.task_id=t.id AND
-                  LOWER(u3.name) LIKE LOWER('%${o}%')
+                  LOWER(u3.name) LIKE LOWER({ownerName})
                 )""")
             case _ => // do nothing
           }
@@ -1946,7 +1949,7 @@ class ChallengeDAL @Inject() (
                             ) AS subT ) as t
                     ) As f
             )  As fc"""
-      val challengeGeometry = query.as(str("geometries").single)
+      val challengeGeometry = query.on(filterParameters.toSeq: _*).as(str("geometries").single)
       if (StringUtils.isEmpty(challengeGeometry)) {
         this.updateGeometry(challengeId)
       }
