@@ -25,8 +25,7 @@ class GraphQL @Inject() (
     actionItemSchema: ActionItemSchema
 ) {
   private val queries =
-    MRSchema.baseQueries ++
-      projectSchema.queries ++
+    projectSchema.queries ++
       challengeSchema.queries ++
       commentSchema.queries ++
       grantSchema.queries ++
@@ -36,8 +35,7 @@ class GraphQL @Inject() (
       actionItemSchema.queries
 
   private val mutations =
-    MRSchema.baseMutations ++
-      projectSchema.mutations ++
+    projectSchema.mutations ++
       challengeSchema.mutations ++
       commentSchema.mutations ++
       grantSchema.mutations ++

@@ -14,7 +14,7 @@ import org.maproulette.permissions.Permission
 import org.maproulette.session.SessionManager
 import org.maproulette.utils.Crypto
 import org.mockito.ArgumentMatchers.{any, eq => eqM}
-import org.mockito.Mockito.when
+import org.mockito.Mockito.{never, verify, when}
 import org.scalatestplus.mockito.MockitoSugar
 import org.scalatestplus.play.PlaySpec
 import play.api.Configuration
@@ -35,8 +35,7 @@ class UserControllerSpec extends PlaySpec with MockitoSugar {
       Config.KEY_OSM_AUTHORIZATION_URL -> "/oauth/authorize",
       Config.KEY_OSM_CONSUMER_KEY      -> "test",
       Config.KEY_OSM_CONSUMER_SECRET   -> "test",
-      Config.KEY_OSM_OAUTH2_SCOPE      -> "read_prefs",
-      Config.KEY_SUPER_KEY             -> ""
+      Config.KEY_OSM_OAUTH2_SCOPE      -> "read_prefs"
     )
   )
   val config: Config = new Config()
@@ -107,47 +106,14 @@ class UserControllerSpec extends PlaySpec with MockitoSugar {
       (contentAsJson(result) \ "status").validate[String].get mustEqual "NotAuthorized"
     }
 
-    "return 401 when the apiKey does not match a user" in {
-      val request =
-        FakeRequest(GET, "/user/whoami").withHeaders("apiKey" -> s"${testUser.id}|unknown-key")
-      status(controller.whoami()(request)) mustEqual UNAUTHORIZED
-    }
-
-    "return 401 when the apiKey has the wrong user id" in {
-      val request =
-        FakeRequest(GET, "/user/whoami").withHeaders("apiKey" -> s"99999|$rawApiKey")
-      status(controller.whoami()(request)) mustEqual UNAUTHORIZED
-    }
-
-    "return 401 when the apiKey is malformed" in {
-      val missingSeparator =
-        FakeRequest(GET, "/user/whoami").withHeaders("apiKey" -> "no-separator")
-      status(controller.whoami()(missingSeparator)) mustEqual UNAUTHORIZED
-
-      val nonNumericId =
-        FakeRequest(GET, "/user/whoami").withHeaders("apiKey" -> s"not-a-number|$rawApiKey")
-      status(controller.whoami()(nonNumericId)) mustEqual UNAUTHORIZED
-    }
-
-    "return 401 when the apiKey is empty, even though the configured super key is empty" in {
-      val request = FakeRequest(GET, "/user/whoami").withHeaders("apiKey" -> "")
-      status(controller.whoami()(request)) mustEqual UNAUTHORIZED
-    }
-
-    "return 200 with the user when a valid apiKey is provided" in {
-      val request = FakeRequest(GET, "/user/whoami")
-        .withHeaders("apiKey" -> s"${testUser.id}|$rawApiKey")
-      val result = controller.whoami()(request)
-
-      status(result) mustEqual OK
-      contentType(result) mustEqual Some("application/json")
-      val json = contentAsJson(result)
-      (json \ "id").validate[Long].get mustEqual testUser.id
-      (json \ "osmProfile" \ "id").validate[Long].get mustEqual testUser.osmProfile.id
-      (json \ "osmProfile" \ "displayName").validate[String].get mustEqual
-        testUser.osmProfile.displayName
-      // whoami returns the user's api key in decrypted form
-      (json \ "apiKey").validate[String].get mustEqual s"${testUser.id}|$rawApiKey"
+    "ignore the apiKey header, even when it holds a valid key" in {
+      // API key authentication is disabled. The user service would accept this key, so it
+      // must never be consulted.
+      List(s"${testUser.id}|$rawApiKey", "", "no-separator", s"99999|$rawApiKey").foreach { key =>
+        val request = FakeRequest(GET, "/user/whoami").withHeaders("apiKey" -> key)
+        status(controller.whoami()(request)) mustEqual UNAUTHORIZED
+      }
+      verify(userService, never()).retrieveByAPIKey(any[Long], any[String], any[User])
     }
 
     "return 200 with the user when a valid session is provided" in {
@@ -157,6 +123,9 @@ class UserControllerSpec extends PlaySpec with MockitoSugar {
       val json = contentAsJson(result)
       (json \ "id").validate[Long].get mustEqual testUser.id
       (json \ "osmProfile" \ "id").validate[Long].get mustEqual testUser.osmProfile.id
+      (json \ "osmProfile" \ "requestToken").validate[String].get mustEqual
+        testUser.osmProfile.requestToken
+      (json \ "apiKey").toOption mustEqual None
     }
 
     "return 401 when the session token does not match a user" in {
@@ -171,10 +140,9 @@ class UserControllerSpec extends PlaySpec with MockitoSugar {
     }
   }
 
-  "SessionManager.getSessionByApiKey" should {
-    "not treat an empty key as the super key" in {
-      // GraphQL's auth(apiKey: "") field reaches this without any HTTP header
-      sessionManager.getSessionByApiKey(Some("")) mustEqual None
+  "PUT /user/:userId/apikey" should {
+    "return 410 because API keys are disabled" in {
+      status(controller.generateAPIKey(testUser.id)(sessionRequest(sessionToken))) mustEqual GONE
     }
   }
 }

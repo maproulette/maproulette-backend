@@ -41,18 +41,6 @@ class UserSchema @Inject() (override val service: UserService)
         )
     ),
     Field(
-      name = "retrieveByApiKey",
-      description = Some("Retrieve a user based on their id and API Key"),
-      fieldType = OptionType(UserType),
-      arguments = MRSchema.idArg :: MRSchema.apiKeyArg :: Nil,
-      resolve = context =>
-        this.service.retrieveByAPIKey(
-          context.arg(MRSchema.idArg),
-          context.arg(MRSchema.apiKeyArg),
-          context.ctx.user
-        )
-    ),
-    Field(
       name = "retrieveByOSMUsername",
       description = Some("Retrieve a user based on their username"),
       fieldType = OptionType(UserType),
@@ -118,15 +106,6 @@ class UserSchema @Inject() (override val service: UserService)
   )
 
   val mutations: List[Field[UserContext, Unit]] = List(
-    Field(
-      name = "updateAPIKey",
-      description = Some("Update the API key for a specified user"),
-      fieldType = OptionType(UserType),
-      arguments = MRSchema.idArg :: Nil,
-      resolve = context =>
-        this.service
-          .generateAPIKey(this.retrieveObject(context.arg(MRSchema.idArg)), context.ctx.user)
-    ),
     Field(
       name = "delete",
       description = Some("Delete a user based on the user identifier"),

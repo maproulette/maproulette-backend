@@ -213,7 +213,6 @@ Known setup issues:
 * Exceptions with 'java.lang.NumberFormatException: For input string: "CHANGE_ME"'. Edit the `conf/dev.conf` and verify that these are not "CHANGE_ME":
   * `osm.consumerKey`
   * `osm.consumerSecret`
-  * `maproulette.super.key`
   * `maproulette.super.accounts`
 
 ---
@@ -250,7 +249,6 @@ Open the front-end UI <http://localhost:3000/> and attempt to log in. It should 
 ### Additional (Optional) Server Configuration
 
 * Open `dev.conf` in a text editor and change at least the following entries:
-    * `super.key`: a randomly chosen API key for superuser access
     * `super.accounts`: a comma-separated list of OSM accound IDs whose corresponding MapRoulette users will have superuser access. Can be an empty string.
     * `mapillary.clientId`: a [Mapillary Client ID](https://www.mapillary.com/dashboard/developers), needed if you want to use any of the Mapillary integrations.
 

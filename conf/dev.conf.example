@@ -38,10 +38,6 @@ maproulette {
     startTimeJitterForHourTasks = "30 seconds"
   }
 
-  # In general the super key should not be enabled, an API user with this key can access the system
-  # as a super user and has full access to everything. Use with caution.
-  #super.key="CHANGE_ME"
-
   # A comma-separated list of OSM user IDs that will be superusers
   # This can be empty as well
   #super.accounts="CHANGE_ME"
@@ -57,11 +53,6 @@ osm {
   # Note that you need to register your OAuth app with this server as well.
   server="https://master.apis.dev.openstreetmap.org"
   server=${?MR_OSM_SERVER}
-
-  # needed if system intends to store MR API keys in osm user preferences.
-  # replace maproulette_apikey_v2 with a unique parameter
-  # see https://wiki.openstreetmap.org/wiki/API_v0.6#Preferences_of_the_logged-in_user
-  preferences="/api/0.6/user/preferences/maproulette_apikey_v2"
 
   # The Consumer and Secret keys as provided by your OAuth app. Set via conf or environment variables.
   consumerKey="CHANGE_ME"

@@ -150,19 +150,15 @@ DELETE  /user/:osmId                                @org.maproulette.framework.c
 ###
 # tags: [ User ]
 # operationId: user_generates_an_api_key_for_a_specified_user
-# summary: Generates an API_KEY for a specified user
-# description: This API will generate or regenerate the API_KEY for a specified user
+# summary: Generates an API_KEY for a specified user (disabled)
+# description: API keys are disabled. This endpoint always responds 410 Gone.
 # responses:
-#   '200':
-#     description: The retrieved User
+#   '410':
+#     description: API keys are disabled
 #     content:
 #       application/json:
 #         schema:
-#           $ref: '#/components/schemas/org.maproulette.framework.model.User'
-#   '401':
-#     description: The user is not authorized to make this request, only super users or user matching the supplied ID can make this request
-#   '404':
-#     description: If User with provided ID is not found.
+#           $ref: '#/components/schemas/org.maproulette.exception.StatusMessage'
 # parameters:
 #   - name: userId
 #     in: path

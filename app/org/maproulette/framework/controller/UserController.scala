@@ -68,14 +68,14 @@ class UserController @Inject() (
 
   def whoami(): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
-      Ok(Json.toJson(User.withDecryptedAPIKey(user)(crypto))(User.privateWrites))
+      Ok(Json.toJson(user)(User.privateWrites))
     }
   }
 
   def getUser(userId: Long): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
       if (userId == user.id || userId == user.osmProfile.id) {
-        Ok(Json.toJson(User.withDecryptedAPIKey(user)(crypto))(User.privateWrites))
+        Ok(Json.toJson(user)(User.privateWrites))
       } else if (permission.isSuperUser(user)) {
         this.serviceManager.user.retrieveByOSMId(userId) match {
           case Some(u) => Ok(Json.toJson(u)(User.adminWrites))
@@ -443,40 +443,8 @@ class UserController @Inject() (
     }
   }
 
-  /**
-    * Generates a new API key for the user. A user can then use the API key to make API calls directly against
-    * the server. Only the current API key for the user will work on any authenticated API calls, any previous
-    * keys are immediately discarded once a new one is created.
-    *
-    * @return Will return NoContent if cannot create the key (which most likely means that no user was
-    *         found, or will return the api key as plain text.
-    */
-  def generateAPIKey(userId: Long = -1): Action[AnyContent] = Action.async { implicit request =>
-    sessionManager.authenticatedRequest { implicit user =>
-      val newAPIUser = if (permission.isSuperUser(user) && userId != -1) {
-        this.serviceManager.user.retrieve(userId) match {
-          case Some(u) => u
-          case None => // look for the user under the OSM_ID
-            this.serviceManager.user.retrieveByOSMId(userId) match {
-              case Some(u) => u
-              case None =>
-                throw new NotFoundException(
-                  s"No user found with id [$userId], no API key could be generated."
-                )
-            }
-        }
-      } else {
-        user
-      }
-      this.serviceManager.user.generateAPIKey(newAPIUser, user) match {
-        case Some(updated) =>
-          updated.apiKey match {
-            case Some(api) => Ok(api)
-            case None      => NoContent
-          }
-        case None => NoContent
-      }
-    }
+  def generateAPIKey(userId: Long = -1): Action[AnyContent] = Action {
+    Gone(Json.toJson(StatusMessage("KO", JsString("API keys are disabled"))))
   }
 
   /**

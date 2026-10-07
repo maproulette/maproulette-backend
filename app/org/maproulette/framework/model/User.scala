@@ -6,13 +6,11 @@ package org.maproulette.framework.model
 
 import java.util.Locale
 
-import javax.crypto.{BadPaddingException, IllegalBlockSizeException}
 import org.joda.time.DateTime
 import org.joda.time.format.DateTimeFormat
 import org.maproulette.Config
 import org.maproulette.cache.CacheObject
 import org.maproulette.framework.psql.CommonField
-import org.maproulette.utils.Crypto
 import org.maproulette.data._
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
@@ -286,10 +284,11 @@ object User extends CommonField {
   val FIELD_IS_REVIEWER         = "is_reviewer"
 
   /**
-    * Writes every field, including the user's OSM access token, API key and email.
-    * Only used this to return a user's own record! (e.g. via /api/v2/user/whoami)
+    * Writes every field except the API key (API keys are disabled), including
+    * the user's OSM access token and email. Only used this to return a user's
+    * own record! (e.g. via /api/v2/user/whoami)
     */
-  val privateWrites: OWrites[User] = Json.writes[User]
+  val privateWrites: OWrites[User] = Json.writes[User].transform((o: JsObject) => o - "apiKey")
 
   /**
     * Writes all fields except OSM access token and API key. Meant only for use
@@ -409,24 +408,6 @@ object User extends CommonField {
       List(),
       settings = UserSettings(theme = Some(THEME_BLACK))
     )
-
-  def withDecryptedAPIKey(user: User)(implicit crypto: Crypto): User = {
-    user.apiKey match {
-      case Some(key) if key.nonEmpty =>
-        try {
-          val decryptedAPIKey = Some(s"${user.id}|${crypto.decrypt(key)}")
-          user.copy(apiKey = decryptedAPIKey)
-        } catch {
-          case _: BadPaddingException | _: IllegalBlockSizeException =>
-            logger.debug(
-              "Invalid key found, could be that the application secret on server changed."
-            )
-            user
-          case e: Throwable => throw e
-        }
-      case _ => user
-    }
-  }
 
   /**
     * Simple helper function that if the provided Option[User] is None, will return a guest

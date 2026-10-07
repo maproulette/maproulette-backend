@@ -56,16 +56,16 @@ class UserSpec extends PlaySpec {
       (json \ "properties" \ "client").as[String] mustEqual "state"
     }
 
-    "shows everything when read by the user themselves" in {
+    "shows everything except the API key when read by the user themselves" in {
       val json = Json.toJson(user)(User.privateWrites)
 
       token(json) mustEqual Some("osm-access-token")
-      apiKey(json) mustEqual Some("7|api-key")
+      apiKey(json) mustEqual None
       email(json) mustEqual Some("mapper@example.com")
     }
 
     "round-trips through the private reader/writer (cache relies on this)" in {
-      Json.toJson(user)(User.privateWrites).as[User] mustEqual user
+      Json.toJson(user)(User.privateWrites).as[User] mustEqual user.copy(apiKey = None)
     }
 
     "shows only the public profile for a follower" in {

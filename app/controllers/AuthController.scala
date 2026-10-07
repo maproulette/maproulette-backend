@@ -9,8 +9,7 @@ import org.apache.commons.lang3.StringUtils
 import org.joda.time.DateTime
 import org.maproulette.Config
 import org.maproulette.exception._
-import org.maproulette.framework.model.{Grant, GrantTarget, User}
-import org.maproulette.framework.psql.{Order, Query}
+import org.maproulette.framework.model.{Grant, GrantTarget}
 import org.maproulette.framework.service.UserService
 import org.maproulette.models.dal.DALManager
 import org.maproulette.session.SessionManager
@@ -18,11 +17,9 @@ import org.maproulette.permissions.Permission
 import org.maproulette.utils.Crypto
 import play.api.libs.json.{JsString, Json}
 import play.api.mvc._
-import play.shaded.oauth.oauth.signpost.exception.OAuthNotAuthorizedException
 import play.api.libs.ws.WSClient
 import org.slf4j.{Logger, LoggerFactory}
 
-import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.Promise
 import scala.util.{Failure, Success}
 import scala.concurrent.Future
@@ -108,8 +105,6 @@ class AuthController @Inject() (
                         SessionManager.KEY_OSM_ID    -> user.osmProfile.id.toString,
                         SessionManager.KEY_USER_TICK -> DateTime.now().getMillis.toString
                       )
-
-                  Future(storeAPIKeyInOSM(user))
                 case Failure(e) => p failure e
               }
 
@@ -177,27 +172,6 @@ class AuthController @Inject() (
     }
   }
 
-  def withOSMSession(user: User, result: Result): Result = {
-    result.withSession(
-      SessionManager.KEY_TOKEN     -> user.osmProfile.requestToken,
-      SessionManager.KEY_USER_ID   -> user.id.toString,
-      SessionManager.KEY_OSM_ID    -> user.osmProfile.id.toString,
-      SessionManager.KEY_USER_TICK -> DateTime.now().getMillis.toString
-    )
-  }
-
-  def getRedirectURL(implicit request: Request[AnyContent], redirect: String): String = {
-    val referer    = request.headers.get(REFERER)
-    val defaultURL = "/"
-    if (StringUtils.isEmpty(redirect) && referer.isDefined) {
-      referer.get
-    } else if (StringUtils.isNotEmpty(redirect)) {
-      redirect
-    } else {
-      defaultURL
-    }
-  }
-
   private def proxyRedirect(call: Call)(implicit request: Request[AnyContent]): String = {
     config.proxyPort match {
       case Some(port) =>
@@ -213,29 +187,8 @@ class AuthController @Inject() (
     }
   }
 
-  def signIn(redirect: String): Action[AnyContent] = Action.async { implicit request =>
-    MPExceptionUtil.internalAsyncExceptionCatcher { () =>
-      val p = Promise[Result]()
-      request.body.asFormUrlEncoded match {
-        case Some(data) =>
-          val username = data.getOrElse("signInUsername", ArrayBuffer("")).mkString
-          val apiKey   = data.getOrElse("signInAPIKey", ArrayBuffer("")).mkString
-          this.sessionManager.retrieveUser(username, apiKey) match {
-            case Some(user) =>
-              p success this.withOSMSession(
-                user,
-                Redirect(getRedirectURL(request, redirect))
-                  .withHeaders(("Cache-Control", "no-cache"))
-              )
-            case None =>
-              p failure new OAuthNotAuthorizedException("Invalid username or apiKey provided")
-          }
-        case None =>
-          p failure new OAuthNotAuthorizedException("Invalid username or apiKey provided")
-      }
-      p.future
-    }
-  }
+  // Signing in with a username and API key is deprecated; sign in through the OSM OAuth flow instead.
+  def signIn(redirect: String): Action[AnyContent] = Action(apiKeysDisabled)
 
   /**
     * Signs out the user, creating essentially a blank new session and responds with a 200 OK
@@ -262,91 +215,12 @@ class AuthController @Inject() (
     }
   }
 
-  private def storeAPIKeyInOSM: User => Unit = (user: User) => {
-    if (config.getOSMServer.nonEmpty && config.getOSMPreferences.nonEmpty) {
-      logger.debug("Attempting to save api key for userId={} to their OSM preferences", user.id)
-      val decryptedAPIKey = User.withDecryptedAPIKey(user)(crypto).apiKey.getOrElse("")
+  // API keys are disabled and can no longer be generated or reset
+  def generateAPIKey(userId: Long = -1): Action[AnyContent] = Action(apiKeysDisabled)
+  def resetAllAPIKeys(): Action[AnyContent]                 = Action(apiKeysDisabled)
 
-      wsClient
-        .url(s"${config.getOSMServer}${config.getOSMPreferences}")
-        .withHttpHeaders(
-          ACCEPT          -> JSON,
-          "Authorization" -> s"Bearer ${user.osmProfile.requestToken}"
-        )
-        .put(decryptedAPIKey) onComplete {
-        case Success(response) =>
-          if (response.status != 200) {
-            logger.info(
-              "API key unsuccessfully stored in OSM preferences for user id {}. Status code {}",
-              user.id,
-              response.status
-            )
-          } else {
-            logger.debug(
-              "API key stored in OSM preferences for user id {}. Status code {}",
-              user.id,
-              response.status
-            )
-          }
-        case Failure(e) =>
-          logger.info("Future failed to store OSM preference for userId={}", user.id, e)
-      }
-    } else {
-      logger.debug("Conf lacks required settings to store maproulette users' API key in OSM")
-    }
-  }
-
-  /**
-    * Generates a new API key for the user. A user can then use the API key to make API calls directly against
-    * the server. Only the current API key for the user will work on any authenticated API calls, any previous
-    * keys are immediately discarded once a new one is created.
-    *
-    * @return Will return NoContent if cannot create the key (which most likely means that no user was
-    *         found, or will return the api key as plain text.
-    */
-  def generateAPIKey(userId: Long = -1): Action[AnyContent] = Action.async { implicit request =>
-    sessionManager.authenticatedRequest { implicit user =>
-      val newAPIUser = if (permission.isSuperUser(user) && userId != -1) {
-        this.userService.retrieve(userId) match {
-          case Some(u) => u
-          case None =>
-            throw new NotFoundException(
-              s"No user found with id [$userId], no API key could be generated."
-            )
-        }
-      } else {
-        user
-      }
-      this.userService.generateAPIKey(newAPIUser, user) match {
-        case Some(updated) =>
-          updated.apiKey match {
-            case Some(api) => {
-              Future(storeAPIKeyInOSM(updated))
-              Ok(api)
-            }
-            case None => NoContent
-          }
-        case None => NoContent
-      }
-    }
-  }
-
-  /**
-    * Super user action that will reset all the api keys.
-    *
-    * @return Simple Ok if succeeded.
-    */
-  def resetAllAPIKeys(): Action[AnyContent] = Action.async { implicit request =>
-    implicit val requireSuperUser: Boolean = true
-    sessionManager.authenticatedRequest { implicit user =>
-      this.userService
-        .query(Query.simple(List.empty, order = Order > User.FIELD_ID), user)
-        .foreach { apiUser =>
-          this.userService.generateAPIKey(apiUser, user)
-        }
-      Ok
-    }
-  }
+  private def apiKeysDisabled: Result =
+    Gone(Json.toJson(StatusMessage("KO", JsString("API keys are disabled"))))
 
   /**
     * Adds an Admin role on the project to the user

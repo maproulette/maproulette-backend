@@ -33,10 +33,6 @@ class Config @Inject() (implicit val configuration: Configuration) {
     case Some(logo) => logo
     case None       => "/assets/images/logo.png" // default to the MapRoulette Icon
   }
-  // application.conf defaults super.key to "", which must mean "disabled": an empty key would
-  // otherwise match an empty apiKey and grant superuser access.
-  lazy val superKey: Option[String] =
-    this.config.getOptional[String](Config.KEY_SUPER_KEY).filter(_.trim.nonEmpty)
   lazy val superAccounts: List[String] = this.config
     .getOptional[String](Config.KEY_SUPER_ACCOUNTS)
     .getOrElse("")
@@ -149,8 +145,6 @@ class Config @Inject() (implicit val configuration: Configuration) {
   lazy val getMRFrontend: String =
     this.config.getOptional[String](Config.KEY_MAPROULETTE_FRONTEND).get
   lazy val getOSMServer: String = this.config.getOptional[String](Config.KEY_OSM_SERVER).get
-  lazy val getOSMPreferences: String =
-    this.config.getOptional[String](Config.KEY_OSM_PREFERENCES).get
   lazy val getOSMOauth: OSMOAuth = {
     val osmServer = this.getOSMServer
     OSMOAuth(
@@ -261,7 +255,6 @@ object Config {
   val KEY_PROXY_PORT                     = s"$GROUP_MAPROULETTE.proxy.port"
   val KEY_PROXY_SSL                      = s"$GROUP_MAPROULETTE.proxy.ssl"
   val KEY_LOGO                           = s"$GROUP_MAPROULETTE.logo"
-  val KEY_SUPER_KEY                      = s"$GROUP_MAPROULETTE.super.key"
   val KEY_SUPER_ACCOUNTS                 = s"$GROUP_MAPROULETTE.super.accounts"
   val KEY_DEBUG                          = s"$GROUP_MAPROULETTE.debug"
   val KEY_DEVMODE                        = s"$GROUP_MAPROULETTE.devMode"
@@ -361,7 +354,6 @@ object Config {
 
   val GROUP_OSM                         = "osm"
   val KEY_OSM_SERVER                    = s"$GROUP_OSM.server"
-  val KEY_OSM_PREFERENCES               = s"$GROUP_OSM.preferences"
   val KEY_OSM_USER_DETAILS_URL          = s"$GROUP_OSM.userDetails"
   val KEY_OSM_REQUEST_TOKEN_URL         = s"$GROUP_OSM.requestTokenURL"
   val KEY_OSM_ACCESS_TOKEN_URL          = s"$GROUP_OSM.accessTokenURL"
