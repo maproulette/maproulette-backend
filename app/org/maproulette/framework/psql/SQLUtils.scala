@@ -41,6 +41,13 @@ object SQLUtils {
   }
 
   /**
+    * Normalizes a requested sort direction to either ASC or DESC. Anything that is not an explicit
+    * (case-insensitive) ascending request is treated as DESC.
+    */
+  def orderDirection(value: String): String =
+    if (value != null && value.equalsIgnoreCase("ASC")) "ASC" else "DESC"
+
+  /**
     * Corrects the search string by adding % before and after string, so that it doesn't rely
     * on simply an exact match. If value not supplied, then will simply return %
     *
