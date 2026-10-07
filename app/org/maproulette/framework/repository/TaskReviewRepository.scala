@@ -367,12 +367,10 @@ class TaskReviewRepository @Inject() (
           s"meta_review_status = ${mr}, meta_reviewed_at = NOW(), meta_review_started_at = task_review.review_claimed_at, "
         case None => "reviewed_at = NOW(), "
       }
-      var errorTagString = "";
-      if (reviewStatus != Task.REVIEW_STATUS_REQUESTED) {
-        errorTagString = s", error_tags = ${if (!errorTags.isEmpty) s"'${errorTags}'" else "NULL"}"
-      }
-      val updatedRows =
-        SQL(s"""UPDATE task_review SET review_status = $reviewStatus,
+      val setErrorTags =
+        if (reviewStatus != Task.REVIEW_STATUS_REQUESTED) ", error_tags = {errorTags}" else ""
+      val updatedRows = {
+        val query = SQL(s"""UPDATE task_review SET review_status = $reviewStatus,
                                  ${updateColumn} = ${updateWithUser},
                                  review_claimed_at = NULL,
                                  review_claimed_by = NULL,
@@ -380,12 +378,20 @@ class TaskReviewRepository @Inject() (
                                  additional_reviewers = ${additionalReviewers match {
           case Some(ar) => "ARRAY[" + ar.mkString(",") + "]"
           case None     => "NULL"
-        }}${errorTagString}
+        }}${setErrorTags}
                              WHERE task_review.task_id = (
                                 SELECT tasks.id FROM tasks
                                 LEFT JOIN locked l on (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks)) AND l.item_type = ${task.itemType.typeId}
                                 WHERE tasks.id = ${task.id} AND (l.user_id = ${user.id} OR l.user_id IS NULL)
-                              )""").executeUpdate()
+                              )""")
+        if (reviewStatus != Task.REVIEW_STATUS_REQUESTED) {
+          query
+            .on(Symbol("errorTags") -> (if (errorTags.isEmpty) None else Some(errorTags)))
+            .executeUpdate()
+        } else {
+          query.executeUpdate()
+        }
+      }
       // if returning 0, then this is because the item is locked by a different user
       if (updatedRows == 0) {
         throw new IllegalAccessException(
@@ -425,9 +431,11 @@ class TaskReviewRepository @Inject() (
                     ${if (reviewClaimedAt != null) s"'${reviewClaimedAt}'"
       else "NULL"},
                     ${if (originalReviewer == None) "NULL" else originalReviewer.get},
-                     ${if (!errorTags.isEmpty) s"'${errorTags}'" else "NULL"})"""
+                     {errorTags})"""
 
-      SQL(sql).executeUpdate()
+      SQL(sql)
+        .on(Symbol("errorTags") -> (if (errorTags.isEmpty) None else Some(errorTags)))
+        .executeUpdate()
     }
   }
 
@@ -458,8 +466,10 @@ class TaskReviewRepository @Inject() (
                     ${if (reviewedBy == None) "NULL" else reviewedBy.get}, ${metaReviewedBy},
                     $metaReviewStatus, NOW(),
                     ${if (reviewClaimedAt != null) s"'${reviewClaimedAt}'"
-      else "NULL"}, ${if (!errorTags.isEmpty) s"'${errorTags}'" else "NULL"})
-         """).executeUpdate()
+      else "NULL"}, {errorTags})
+         """)
+        .on(Symbol("errorTags") -> (if (errorTags.isEmpty) None else Some(errorTags)))
+        .executeUpdate()
     }
   }
 
