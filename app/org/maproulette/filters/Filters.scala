@@ -13,7 +13,8 @@ import play.filters.gzip.GzipFilter
   * @author cuthbertm
   */
 class Filters @Inject() (
+    routeHeaderFilter: RouteHeaderFilter,
     corsFilter: CORSFilter,
     gzipFilter: GzipFilter,
     httpLoggingFilter: HttpLoggingFilter
-) extends DefaultHttpFilters(corsFilter, gzipFilter, httpLoggingFilter)
+) extends DefaultHttpFilters(routeHeaderFilter, corsFilter, gzipFilter, httpLoggingFilter)
