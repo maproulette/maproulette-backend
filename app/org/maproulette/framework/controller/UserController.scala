@@ -510,15 +510,10 @@ class UserController @Inject() (
     */
   def extendedFind(limit: Int, page: Int, sort: String): Action[AnyContent] =
     Action.async { implicit request =>
-      this.sessionManager.userAwareRequest { implicit user =>
-        if (user.get != None) {
-          val users = this.serviceManager.user.extendedFind(user.get)
-          Ok(Json.toJson(users.map(Json.toJson(_)(User.adminWrites))))
-        } else {
-          throw new IllegalAccessException(
-            "User not found or does not have access rights"
-          )
-        }
+      implicit val requireSuperUser: Boolean = true
+      this.sessionManager.authenticatedRequest { implicit user =>
+        val users = this.serviceManager.user.extendedFind(user)
+        Ok(Json.toJson(users.map(Json.toJson(_)(User.adminWrites))))
       }
     }
 
