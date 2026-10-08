@@ -37,9 +37,15 @@ class GraphQLController @Inject() (
     implicit val executionContext: ExecutionContext
 ) extends AbstractController(components) {
   val exceptionHandler = ExceptionHandler {
-    case (m, e: Throwable) =>
-      logger.error(e.getMessage, e)
+    case (_, e: UserFacingError) =>
+      logger.warn(e.getMessage)
       HandledException(e.getMessage)
+    case (_, e: IllegalAccessException) =>
+      logger.warn(e.getMessage)
+      HandledException(e.getMessage)
+    case (_, e: Throwable) =>
+      logger.error(e.getMessage, e)
+      HandledException("An unexpected error occurred")
   }
   private val logger = LoggerFactory.getLogger(classOf[GraphQLController])
 

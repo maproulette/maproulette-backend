@@ -120,11 +120,8 @@ class AuthController @Inject() (
 
         responseFuture.recover {
           case ex: Exception =>
-            // Handle any exceptions that may occur during the POST request
-            // e.g., log the error, return an error response, etc.
-            ex.printStackTrace()
-            val errorMessage = s"Failed to obtain access token: ${ex.getMessage()}"
-            InternalServerError(errorMessage)
+            logger.error(ex.getMessage, ex)
+            InternalServerError("Failed to obtain access token")
         }
 
       }

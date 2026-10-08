@@ -5,6 +5,7 @@
 package org.maproulette.framework.controller
 
 import javax.inject.Inject
+import org.slf4j.LoggerFactory
 import org.maproulette.exception.StatusMessage
 import org.maproulette.framework.service.NotificationService
 import org.maproulette.framework.model.NotificationSubscriptions
@@ -31,6 +32,8 @@ class NotificationController @Inject() (
     config: Config
 ) extends AbstractController(components)
     with DefaultWrites {
+
+  private val logger = LoggerFactory.getLogger(classOf[NotificationController])
 
   implicit val notificationSubscriptionReads =
     NotificationSubscriptions.notificationSubscriptionReads
@@ -151,7 +154,10 @@ class NotificationController @Inject() (
         }
         .recover {
           case e: Exception =>
-            InternalServerError(Json.toJson(s"An error occurred: ${e.getMessage}"))
+            logger.error(e.getMessage, e)
+            InternalServerError(
+              Json.toJson("An error occurred: system notices could not be fetched")
+            )
         }
     } else {
       Future.successful(
