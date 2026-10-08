@@ -1826,11 +1826,13 @@ class ChallengeDAL @Inject() (
         case Some(p) =>
           p.taskParams.taskPropertySearch match {
             case Some(tps) =>
+              val (tpsSql, tpsParameters) = tps.toSQLWithParameters
+              filterParameters ++= tpsParameters
               filters.append(s""" AND t.id IN (
                   SELECT id FROM tasks,
                                  jsonb_array_elements(geojson->'features') features
                   WHERE parent_id IN ($challengeId)
-                  AND (${tps.toSQL}))
+                  AND (${tpsSql}))
                  """)
             case None => // do nothing
           }

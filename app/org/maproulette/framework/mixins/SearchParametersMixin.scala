@@ -846,12 +846,13 @@ trait SearchParametersMixin {
       case Some(l) =>
         params.taskParams.taskPropertySearch match {
           case Some(tps) =>
-            val query = new StringBuilder(s"""${Task.TABLE}.${Task.FIELD_ID} IN (
+            val (tpsSql, tpsParameters) = tps.toSQLWithParameters
+            val query                   = new StringBuilder(s"""${Task.TABLE}.${Task.FIELD_ID} IN (
                 | SELECT id FROM tasks,
                 | jsonb_array_elements(geojson->'features') features
                 | WHERE parent_id IN (${l.mkString(",")})
-                | AND (${tps.toSQL}))""".stripMargin)
-            FilterGroup(List(CustomParameter(query.toString())))
+                | AND (${tpsSql}))""".stripMargin)
+            FilterGroup(List(SQLParameter(query.toString, tpsParameters)))
           case _ =>
             params.taskParams.taskProperties match {
               case Some(tp) =>

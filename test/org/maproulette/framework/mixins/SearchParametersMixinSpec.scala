@@ -490,12 +490,32 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
         )
         )
       )
-      this.filterTaskProps(params).sql() mustEqual
+      val filter = this.filterTaskProps(params)
+      filter.sql() mustEqual
         """tasks.id IN (
              | SELECT id FROM tasks,
              | jsonb_array_elements(geojson->'features') features
              | WHERE parent_id IN (12345)
-             | AND ( CAST(features->'properties'->>'x' AS DOUBLE PRECISION)=1))""".stripMargin
+             | AND ( CAST(features->'properties'->>{taskProp0} AS DOUBLE PRECISION)=1))""".stripMargin
+      filter.parameters() mustEqual List(NamedParameter("taskProp0", "x"))
+    }
+
+    "bind the task property key so it cannot be injected" in {
+      val params = SearchParameters(
+        challengeParams = SearchChallengeParameters(challengeIds = Some(List(12345))),
+        taskParams = SearchTaskParameters(taskPropertySearch = Some(
+          TaskPropertySearch(
+            Some("x' OR '1'='1"),
+            Some("1"),
+            Some(SearchParameters.TASK_PROP_VALUE_TYPE_NUMBER),
+            Some(SearchParameters.TASK_PROP_SEARCH_TYPE_EQUALS)
+          )
+        )
+        )
+      )
+      val filter = this.filterTaskProps(params)
+      filter.sql() must not include ("OR '1'='1")
+      filter.parameters() mustEqual List(NamedParameter("taskProp0", "x' OR '1'='1"))
     }
 
     "match on task props when using params.taskProperties" in {

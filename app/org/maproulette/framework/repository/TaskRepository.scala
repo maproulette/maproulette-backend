@@ -12,7 +12,7 @@ import javax.inject.{Inject, Singleton}
 import org.maproulette.Config
 import org.maproulette.framework.mixins.TaskParserMixin
 import org.maproulette.framework.psql.Query
-import org.maproulette.framework.psql.filter.{BaseParameter, CustomParameter}
+import org.maproulette.framework.psql.filter.{BaseParameter, SQLParameter}
 import org.maproulette.framework.model.{User, Task}
 import org.maproulette.cache.CacheManager
 import play.api.db.Database
@@ -176,7 +176,10 @@ class TaskRepository @Inject() (override val db: Database, config: Config)
         .simple(
           List(
             BaseParameter(Task.FIELD_ID, taskId),
-            CustomParameter(s"attachment->>'id' = '$attachmentId'")
+            SQLParameter(
+              "attachment->>'id' = {attachmentId}",
+              List(NamedParameter("attachmentId", attachmentId))
+            )
           )
         )
         .build(
