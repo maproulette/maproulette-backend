@@ -4,8 +4,6 @@
  */
 package org.maproulette.session
 
-import java.net.URLDecoder
-
 import org.maproulette.exception.InvalidException
 import org.maproulette.utils.Utils
 import play.api.libs.json._
@@ -343,21 +341,16 @@ object SearchParameters {
   }
 
   /**
-    * Retrieves the search cookie from the cookie list and creates a search parameter object
-    * to send along with the request. It will also check the query string and if any parameters
-    * are found it will override the values in the cookie.
+    * Creates a search parameter object from the request query string to send along with the request.
     *
-    * @param block   The block of code to be executed after the cookie has been retrieved
-    * @param request The request that the cookie came in on
+    * @param block   The block of code to be executed after the search parameters have been built
+    * @param request The request that the parameters came in on
     * @tparam T The response type from the block of code
     * @return The response from the block of code
     */
   // format: off
   def withSearch[T](block: SearchParameters => T)(implicit request: Request[AnyContent]): T = {
-    val params = request.cookies.get("search") match {
-      case Some(c) => convert(c.value)
-      case None => SearchParameters()
-    }
+    val params = SearchParameters()
 
     val projectIds = request.getQueryString("pid") match {
       case Some(q) => Utils.toLongList(q)
@@ -593,22 +586,6 @@ object SearchParameters {
     ))
   }
   // format: off
-
-  /**
-    * Will attempt to convert the cookie to SearchParameters, if it fails it simply initializes an
-    * empty SearchParameters
-    *
-    * @param value
-    * @return
-    */
-  def convert(value: String): SearchParameters = {
-    try {
-      Utils.omitEmpty(Json.parse(URLDecoder.decode(value, "UTF-8")).as[JsObject], false, false).as[SearchParameters]
-    } catch {
-      case e: Exception =>
-        SearchParameters()
-    }
-  }
 
   /**
     * If we don't want to use default taskStatus (0,3,6) but want to use all then
