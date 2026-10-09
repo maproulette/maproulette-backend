@@ -172,8 +172,7 @@ class TaskDAL @Inject() (
       user: User
   )(implicit id: Long, c: Option[Connection] = None): Option[Task] = {
     this.cacheManager.withUpdatingCache(Long => retrieveById) { implicit cachedItem =>
-      val name     = (value \ "name").asOpt[String].getOrElse(cachedItem.name)
-      val parentId = (value \ "parentId").asOpt[Long].getOrElse(cachedItem.parent)
+      val name = (value \ "name").asOpt[String].getOrElse(cachedItem.name)
       val instruction =
         (value \ "instruction").asOpt[String].getOrElse(cachedItem.instruction.getOrElse(""))
       // status should probably not be allowed to be set through the update function, and rather
@@ -222,7 +221,6 @@ class TaskDAL @Inject() (
       val task = this.mergeUpdate(
         cachedItem.copy(
           name = name,
-          parent = parentId,
           instruction = Some(instruction),
           status = Some(status),
           mappedOn = mappedOn,
@@ -252,9 +250,9 @@ class TaskDAL @Inject() (
       }
 
       if (status == Task.STATUS_CREATED || status == Task.STATUS_SKIPPED) {
-        this.manager.challenge.updateReadyStatus()(parentId)
+        this.manager.challenge.updateReadyStatus()(cachedItem.parent)
       } else {
-        this.manager.challenge.updateFinishedStatus(user = user)(parentId)
+        this.manager.challenge.updateFinishedStatus(user = user)(cachedItem.parent)
       }
 
       if (status == Task.STATUS_CREATED) {
@@ -312,6 +310,28 @@ class TaskDAL @Inject() (
       element: Task,
       user: User
   )(implicit id: Long, c: Option[Connection] = None): Option[Task] = {
+    // before clearing the cache grab the cachedItem
+    // by setting the delete implicit to true we clear out the cache for the element
+    // The cachedItem could be
+    // For new tasks (id <= 0, e.g. insert() passes -1) there is nothing to look up, so
+    // skip the guaranteed-miss cache/DB lookup entirely.
+    val cachedItem = if (id > 0) {
+      this.cacheManager.withUpdatingCache(Long => retrieveById) { implicit cachedItem =>
+        Some(cachedItem)
+      }(id, true, true)
+    } else {
+      None
+    }
+    cachedItem.foreach { existing =>
+      if (existing.parent != element.parent) {
+        // the request sent a parentId that does not match the task's; reject it
+        // (otherwise we risk checking access permissions on the wrong challenge,
+        // or moving the task between challenges when applying the update)
+        throw new InvalidException(
+          s"Task [${existing.id}] cannot be moved to a different challenge"
+        )
+      }
+    }
     this.permission.hasObjectWriteAccess(element, user)
     validateGeoJson(element.geometries)
     // Add type: FeatureCollection (some legacy clients omit it, but we want
@@ -324,18 +344,6 @@ class TaskDAL @Inject() (
         throw new NotFoundException(
           s"No parent was found for task with parentId [${element.parent}, this should never happen."
         )
-    }
-    // before clearing the cache grab the cachedItem
-    // by setting the delete implicit to true we clear out the cache for the element
-    // The cachedItem could be
-    // For new tasks (id <= 0, e.g. insert() passes -1) there is nothing to look up, so
-    // skip the guaranteed-miss cache/DB lookup entirely.
-    val cachedItem = if (id > 0) {
-      this.cacheManager.withUpdatingCache(Long => retrieveById) { implicit cachedItem =>
-        Some(cachedItem)
-      }(id, true, true)
-    } else {
-      None
     }
     this.withMRTransaction { implicit c =>
       val result =

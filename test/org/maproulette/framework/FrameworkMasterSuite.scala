@@ -26,6 +26,7 @@ class FrameworkMasterSuite extends Suites with BeforeAndAfterAll with TestDataba
     new ChallengeReportRepositorySpec,
     new ChallengeReportServiceSpec,
     new org.maproulette.permissions.TeamAccessSpec,
+    new org.maproulette.permissions.TaskUpdateAccessSpec,
     new TeamImageRepositorySpec,
     new TeamAvatarRepositorySpec,
     new ChallengeListingServiceSpec,
