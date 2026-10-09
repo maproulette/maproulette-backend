@@ -43,5 +43,17 @@ class OrderSpec extends PlaySpec {
       Order(List(OrderField(FIELD), OrderField(FIELD2)))
         .sql() mustEqual s"ORDER BY $FIELD,$FIELD2 DESC"
     }
+
+    "Reject an order field that would start a SQL comment" in {
+      intercept[java.sql.SQLException] {
+        Order(List(OrderField("id--"))).sql()
+      }
+    }
+
+    "Reject an order field containing a hyphen" in {
+      intercept[java.sql.SQLException] {
+        Order(List(OrderField("review-requested-by"))).sql()
+      }
+    }
   }
 }

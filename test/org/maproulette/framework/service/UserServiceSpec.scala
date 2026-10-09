@@ -500,7 +500,7 @@ class UserServiceSpec(implicit val application: Application) extends FrameworkHe
               ),
               BaseParameter("p.owner_id", user.osmProfile.id),
               SubQueryFilter(
-                user.osmProfile.id.toString,
+                "p.id",
                 Query.simple(
                   List(
                     BaseParameter("ug.group_id", "g.id", useValueDirectly = true),

@@ -389,9 +389,10 @@ class DataManager @Inject() (
       this.paramsTaskStatus(searchParams, searchFilters)
       this.paramsTaskReviewStatus(searchParams, searchFilters)
       this.paramsTaskId(searchParams, searchFilters)
-      this.paramsOwner(searchParams, searchFilters)
-      this.paramsReviewer(searchParams, searchFilters)
-      this.paramsMapper(searchParams, searchFilters)
+      val searchParameters =
+        this.paramsOwner(searchParams, searchFilters) ++
+          this.paramsReviewer(searchParams, searchFilters) ++
+          this.paramsMapper(searchParams, searchFilters)
 
       // The percentage columns are a bit of a hack simply so that we can order by the percentages.
       // It won't decrease performance as this is simple basic math calculations, but it certainly
@@ -426,7 +427,12 @@ class DataManager @Inject() (
         """
 
       SQL(query)
-        .on(Symbol("ss") -> this.search(searchString), Symbol("offset") -> offset)
+        .on(
+          (searchParameters ++ List[NamedParameter](
+            Symbol("ss")     -> this.search(searchString),
+            Symbol("offset") -> offset
+          )): _*
+        )
         .as(parser.*)
     }
   }

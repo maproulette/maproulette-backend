@@ -34,15 +34,15 @@ trait SearchParametersMixin
     this.paramsTaskStatus(params, whereClause)
     this.paramsTaskId(params, whereClause)
     parameters ++= this.paramsTaskFeatureId(params, whereClause)
-    this.paramsProjectSearch(params, whereClause)
+    parameters ++= this.paramsProjectSearch(params, whereClause)
     this.paramsTaskReviewStatus(params, whereClause)
     this.paramsMetaReviewStatus(params, whereClause)
-    this.paramsOwner(params, whereClause)
-    this.paramsReviewer(params, whereClause)
-    this.paramsMetaReviewer(params, whereClause)
-    this.paramsMapper(params, whereClause)
+    parameters ++= this.paramsOwner(params, whereClause)
+    parameters ++= this.paramsReviewer(params, whereClause)
+    parameters ++= this.paramsMetaReviewer(params, whereClause)
+    parameters ++= this.paramsMapper(params, whereClause)
     this.paramsTaskPriorities(params, whereClause)
-    this.paramsTaskTags(params, whereClause)
+    parameters ++= this.paramsTaskTags(params, whereClause)
     this.paramsPriority(params, whereClause)
     this.paramsChallengeDifficulty(params, whereClause)
     this.paramsChallengeStatus(params, whereClause)
@@ -72,8 +72,13 @@ trait SearchParametersMixin
     parameters
   }
 
-  def paramsProjectSearch(params: SearchParameters, whereClause: StringBuilder): Unit = {
-    this.appendInWhereClause(whereClause, this.filterProjectSearch(params).sql())
+  def paramsProjectSearch(
+      params: SearchParameters,
+      whereClause: StringBuilder
+  ): List[NamedParameter] = {
+    val filter = this.filterProjectSearch(params)
+    this.appendInWhereClause(whereClause, filter.sql())
+    filter.parameters()
   }
 
   def paramsProjects(params: SearchParameters, whereClause: StringBuilder): List[NamedParameter] = {
@@ -123,8 +128,10 @@ trait SearchParametersMixin
     this.appendInWhereClause(whereClause, this.filterPriority(params).sql())
   }
 
-  def paramsTaskTags(params: SearchParameters, whereClause: StringBuilder): Unit = {
-    this.appendInWhereClause(whereClause, this.filterTaskTags(params).sql())
+  def paramsTaskTags(params: SearchParameters, whereClause: StringBuilder): List[NamedParameter] = {
+    val filter = this.filterTaskTags(params)
+    this.appendInWhereClause(whereClause, filter.sql())
+    filter.parameters()
   }
 
   def paramsTaskReviewStatus(
@@ -185,29 +192,37 @@ trait SearchParametersMixin
   def paramsOwner(
       params: SearchParameters,
       whereClause: StringBuilder
-  ): Unit = {
-    this.appendInWhereClause(whereClause, this.filterOwner(params).sql())
+  ): List[NamedParameter] = {
+    val filter = this.filterOwner(params)
+    this.appendInWhereClause(whereClause, filter.sql())
+    filter.parameters()
   }
 
   def paramsReviewer(
       params: SearchParameters,
       whereClause: StringBuilder
-  ): Unit = {
-    this.appendInWhereClause(whereClause, this.filterReviewer(params).sql())
+  ): List[NamedParameter] = {
+    val filter = this.filterReviewer(params)
+    this.appendInWhereClause(whereClause, filter.sql())
+    filter.parameters()
   }
 
   def paramsMetaReviewer(
       params: SearchParameters,
       whereClause: StringBuilder
-  ): Unit = {
-    this.appendInWhereClause(whereClause, this.filterMetaReviewer(params).sql())
+  ): List[NamedParameter] = {
+    val filter = this.filterMetaReviewer(params)
+    this.appendInWhereClause(whereClause, filter.sql())
+    filter.parameters()
   }
 
   def paramsMapper(
       params: SearchParameters,
       whereClause: StringBuilder
-  ): Unit = {
-    this.appendInWhereClause(whereClause, this.filterMapper(params).sql())
+  ): List[NamedParameter] = {
+    val filter = this.filterMapper(params)
+    this.appendInWhereClause(whereClause, filter.sql())
+    filter.parameters()
   }
 
   def paramsMappers(
