@@ -28,7 +28,7 @@ class ChallengeListingServiceSpec(implicit val application: Application) extends
           grouping = Grouping(GroupField(Challenge.FIELD_ID, Some(Challenge.TABLE)))
         )
       )
-      challenges.size mustEqual 11
+      challenges.map(_.id) must contain allElementsOf this.defaultChallenges.map(_.id)
     }
 
     "fetch challenges with reviews" taggedAs (ChallengeListingTag) in {

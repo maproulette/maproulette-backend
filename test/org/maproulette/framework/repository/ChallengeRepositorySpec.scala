@@ -59,8 +59,8 @@ class ChallengeRepositorySpec(implicit val application: Application) extends Fra
         .findRelevantChallenges(Some(List(this.defaultChallenge.general.parent, vpProject.id)))
 
       // Should include the virtual project challenge
-      challengeIds.get.size mustEqual 11
-      challengeIds.get contains newChallenge.id
+      challengeIds.get must contain theSameElementsAs
+        (this.defaultChallenges.map(_.id) :+ newChallenge.id)
     }
   }
 
