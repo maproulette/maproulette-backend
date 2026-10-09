@@ -51,6 +51,7 @@ object ChallengeListingRepository {
   val standardColumns: String =
     """challenges.id, 
       |challenges.parent_id, 
+      |challenges.owner_id, 
       |challenges.name, 
       |challenges.enabled, 
       |array_remove(array_agg(virtual_project_challenges.project_id), NULL) AS virtual_parent_ids,
@@ -65,14 +66,25 @@ object ChallengeListingRepository {
   val parser: RowParser[ChallengeListing] = {
     get[Long]("challenges.id") ~
       get[Long]("challenges.parent_id") ~
+      get[Long]("challenges.owner_id") ~
       get[String]("challenges.name") ~
       get[Boolean]("challenges.enabled") ~
       get[Option[Array[Long]]]("virtual_parent_ids") ~
       get[Option[Int]]("challenges.status") ~
       get[Boolean]("challenges.is_archived") ~
       get[Boolean]("challenges.paused") map {
-      case id ~ parent ~ name ~ enabled ~ virtualParents ~ status ~ isArchived ~ paused =>
-        ChallengeListing(id, parent, name, enabled, virtualParents, status, isArchived, paused)
+      case id ~ parent ~ owner ~ name ~ enabled ~ virtualParents ~ status ~ isArchived ~ paused =>
+        ChallengeListing(
+          id,
+          parent,
+          owner,
+          name,
+          enabled,
+          virtualParents,
+          status,
+          isArchived,
+          paused
+        )
     }
   }
 }
