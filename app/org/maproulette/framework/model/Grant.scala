@@ -5,6 +5,7 @@
 package org.maproulette.framework.model
 
 import org.maproulette.data.{ItemType, UserType, ProjectType, GroupType, ChallengeType, Actions}
+import org.maproulette.exception.InvalidException
 import org.maproulette.framework.psql.CommonField
 import play.api.libs.json._
 import play.api.libs.functional.syntax._
@@ -134,4 +135,18 @@ object Grant extends CommonField {
 
   def hasGreaterPrivilege(proposedRole: Int, benchmarkRole: Int) =
     proposedRole < benchmarkRole
+
+  /**
+    * The roles an ordinary grant may confer on a target
+    * (superuser is special and not in this list).
+    */
+  def validRoles(target: GrantTarget): List[Int] = target.objectType match {
+    case GroupType() => TeamRole.all
+    case _           => List(ROLE_ADMIN, ROLE_WRITE_ACCESS, ROLE_READ_ONLY)
+  }
+
+  def validateRole(role: Int, target: GrantTarget): Unit =
+    if (!validRoles(target).contains(role)) {
+      throw new InvalidException(s"Invalid role $role")
+    }
 }

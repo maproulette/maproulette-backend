@@ -923,6 +923,8 @@ class TeamService @Inject() (
     }
     this.permission.hasProjectAccess(this.serviceManager.project.retrieve(projectId), user)
 
+    Grant.validateRole(role, GrantTarget.project(projectId))
+
     if (clear) {
       this.grantService.deleteMatchingGrants(
         grantee = Some(Grantee.group(id)),
@@ -990,6 +992,8 @@ class TeamService @Inject() (
       throw new NotFoundException(s"No team with id ${id} found")
     }
     this.requireChallengeAdmin(challengeId, user)
+
+    Grant.validateRole(role, GrantTarget.challenge(challengeId))
 
     if (clear) {
       this.grantService.deleteMatchingGrants(

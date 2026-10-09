@@ -384,6 +384,31 @@ class UserServiceSpec(implicit val application: Application) extends FrameworkHe
         .size mustEqual 2
     }
 
+    "not add a user to a project with an invalid role" taggedAs UserTag in {
+      val owner =
+        this.userService.create(this.getTestUser(54321, "InvalidRoleOwner"), User.superUser)
+      val project = this.serviceManager.project
+        .create(Project(-1, owner.osmProfile.id, "InvalidRoleTestProject"), owner)
+      val user =
+        this.userService.create(this.getTestUser(54322, "InvalidRoleTest"), User.superUser)
+      this.userService.addUserToProject(
+        user.osmProfile.id,
+        project.id,
+        Grant.ROLE_WRITE_ACCESS,
+        owner
+      )
+
+      List(Grant.ROLE_SUPER_USER, Grant.ROLE_OWNER, 4).foreach { role =>
+        intercept[InvalidException] {
+          this.userService.addUserToProject(user.osmProfile.id, project.id, role, owner, clear = true)
+        }
+      }
+
+      // The rejected requests must not have cleared the existing grant first
+      this.userService.retrieve(user.id).get.grantsForProject(project.id).map(_.role) mustEqual
+        List(Grant.ROLE_WRITE_ACCESS)
+    }
+
     "remove a user from a project" taggedAs UserTag in {
       val user =
         this.userService.create(this.getTestUser(20, "RemoveUserFromProjectTest"), User.superUser)
