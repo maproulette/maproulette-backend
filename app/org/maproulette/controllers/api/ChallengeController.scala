@@ -15,12 +15,7 @@ import org.joda.time.{DateTime, DateTimeZone}
 import org.maproulette.Config
 import org.maproulette.controllers.ParentController
 import org.maproulette.data._
-import org.maproulette.exception.{
-  InvalidException,
-  MPExceptionUtil,
-  NotFoundException,
-  StatusMessage
-}
+import org.maproulette.exception.{InvalidException, NotFoundException, StatusMessage}
 import org.maproulette.framework.model._
 import org.maproulette.framework.psql.Paging
 import org.maproulette.framework.service.{ServiceManager, TagService}
@@ -37,13 +32,11 @@ import play.api.libs.Files
 import play.api.libs.json._
 import anorm._
 import anorm.SqlParser
-import play.api.libs.ws.WSClient
 import play.api.mvc._
 import play.shaded.oauth.oauth.signpost.exception.OAuthNotAuthorizedException
 
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.Future
 import scala.io.Source
-import scala.util.{Failure, Success}
 
 /**
   * The challenge controller handles all operations for the Challenge objects.
@@ -62,7 +55,6 @@ class ChallengeController @Inject() (
     override val tagService: TagService,
     challengeProvider: ChallengeProvider,
     val serviceManager: ServiceManager,
-    wsClient: WSClient,
     permission: Permission,
     override val config: Config,
     components: ControllerComponents,
@@ -1281,69 +1273,6 @@ class ChallengeController @Inject() (
           case _ => throw new NotFoundException(s"Challenge with id $challengeId not found")
         }
       }
-  }
-
-  /**
-    * Creates or updates a challenge directly from Github. It uses the following files:
-    * ${name}_create.json - The json file containing all the information to generate the file
-    * ${name}_geojson.json - The geojson used to build the challenge tasks, can be used to update later
-    * ${name}_info.md - An information file that will be used to display information about the challenge
-    *
-    * @param projectId The project that you are building the challenge under
-    * @param username  The github username of where the challenge information exists
-    * @param repo      The repo that the challenge information exists in
-    * @param name      The name of the challenge files.
-    * @return A response with the newly created challenge
-    */
-  def createFromGithub(
-      projectId: Long,
-      username: String,
-      repo: String,
-      name: String,
-      rebuild: Boolean
-  ): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.authenticatedFutureRequest { implicit user =>
-      val result  = Promise[Result]()
-      val baseURL = s"https://raw.githubusercontent.com/$username/$repo/master/${name}_";
-      this.wsClient.url(s"${baseURL}create.json").get() onComplete {
-        case Success(response) =>
-          try {
-            // inject the info link into the challenge
-            val challengeJson = Utils.insertIntoJson(
-              Utils.insertIntoJson(response.json, "infoLink", s"${baseURL}info.md", false),
-              "remoteGeoJson",
-              s"${baseURL}geojson_{x}.json",
-              true
-            )
-            val challengeName = (challengeJson \ "name").asOpt[String].getOrElse(name)
-            // look for the challenge, if the name exists we will attempt to update the challenge
-            val challengeID = this.dal.retrieveByName(challengeName, projectId) match {
-              case Some(c) => c.id
-              case None    => -1
-            }
-            val updatedBody =
-              this.updateCreateBody(Utils.insertIntoJson(challengeJson, "parent", projectId), user)
-            if (challengeID > 0) {
-              // if rebuild set to true, remove all the tasks first from the challenge before recreating them
-              this.dal.deleteTasks(user, challengeID)
-              // if you provide the ID in the post method we will send you to the update path
-              this.internalUpdate(updatedBody, user)(challengeID.toString, -1) match {
-                case Some(value) => result success Ok(this.inject(value))
-                case None        => result success NotModified
-              }
-            } else {
-              this.internalCreate(updatedBody, updatedBody.validate[Challenge].get, user) match {
-                case Some(value) => result success Ok(this.inject(value))
-                case None        => result success NotModified
-              }
-            }
-          } catch {
-            case e: Throwable => result success MPExceptionUtil.manageException(e)
-          }
-        case Failure(error) => throw error
-      }
-      result.future
-    }
   }
 
   override def internalCreate(requestBody: JsValue, element: Challenge, user: User)(

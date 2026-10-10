@@ -329,7 +329,6 @@ See also the Swagger API documentation. You can view the documentation by going 
 
 - [Creating Challenges](docs/challenge_api.md)
 - [Deployment](docs/deployment.md)
-- [Github Example](docs/github_example.md)
 - [GraphQL](docs/graphql.md)
 - [Tag Changes](docs/tag_changes.md)
 - [Testing](docs/testing.md)

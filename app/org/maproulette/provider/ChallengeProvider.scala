@@ -153,7 +153,7 @@ class ChallengeProvider @Inject() (
         // lastly try remote
         challenge.creation.remoteGeoJson match {
           case Some(url) if StringUtils.isNotEmpty(url) =>
-            this.buildTasksFromRemoteJson(url, 1, challenge, user, removeUnmatched)
+            this.buildTasksFromRemoteJson(url, challenge, user, removeUnmatched)
             true
           case _ => false
         }
@@ -220,16 +220,14 @@ class ChallengeProvider @Inject() (
   }
 
   /**
-    * Builds all the tasks from the remote json, it will check for multiple files from the geojson.
+    * Builds all the tasks from the remote json
     *
-    * @param filePrefix The url or file prefix of the remote geojson
-    * @param fileNumber The current file number
-    * @param challenge  The challenge to build the tasks in
-    * @param user       The user creating the tasks
+    * @param url       The url of the remote geojson
+    * @param challenge The challenge to build the tasks in
+    * @param user      The user creating the tasks
     */
   def buildTasksFromRemoteJson(
-      filePrefix: String,
-      fileNumber: Int,
+      url: String,
       challenge: Challenge,
       user: User,
       removeUnmatched: Boolean
@@ -241,8 +239,6 @@ class ChallengeProvider @Inject() (
       }
     }
 
-    val url     = filePrefix.replace("{x}", fileNumber.toString)
-    val seqJSON = filePrefix.contains("{x}")
     this.ws
       .url(url)
       .withRequestTimeout(this.config.getOSMQLProvider.requestTimeout)
@@ -295,31 +291,21 @@ class ChallengeProvider @Inject() (
               user
             )(challenge.id)
         }
-        if (seqJSON) {
-          this.buildTasksFromRemoteJson(filePrefix, fileNumber + 1, challenge, user, false)
-        } else {
-          this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(challenge.id)
-          this.challengeDAL.markTasksRefreshed()(challenge.id)
+        this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(challenge.id)
+        this.challengeDAL.markTasksRefreshed()(challenge.id)
 
-          //we need to reapply task priority rules since task locations were updated
-          Future {
-            this.withBackgroundPool { c =>
-              this.challengeDAL.updateTaskPriorities(user)(challenge.id, c)
-              this.challengeDAL.updateBoundingBox()(challenge.id, c)
-            }
+        //we need to reapply task priority rules since task locations were updated
+        Future {
+          this.withBackgroundPool { c =>
+            this.challengeDAL.updateTaskPriorities(user)(challenge.id, c)
+            this.challengeDAL.updateBoundingBox()(challenge.id, c)
           }
         }
       case Failure(f) =>
-        if (fileNumber > 1) {
-          // todo need to figure out if actual failure or if not finding the next file
-          this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(challenge.id)
-          this.challengeDAL.updateBoundingBox()(challenge.id)
-        } else {
-          this.challengeDAL.update(
-            Json.obj("status" -> Challenge.STATUS_FAILED, "StatusMessage" -> f.getMessage),
-            user
-          )(challenge.id)
-        }
+        this.challengeDAL.update(
+          Json.obj("status" -> Challenge.STATUS_FAILED, "StatusMessage" -> f.getMessage),
+          user
+        )(challenge.id)
     }
   }
 

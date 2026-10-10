@@ -1564,41 +1564,6 @@ POST     /challenge/:id/tasks/extract             @org.maproulette.controllers.a
 GET     /challenge/:id/matchChangesets          @org.maproulette.controllers.api.ChallengeController.matchChangeSets(id:Long, skipSet:Boolean ?= false)
 ###
 # tags: [ Challenge ]
-# operationId: challenge_create_challenge_from_github
-# summary: Create Challenge from Github
-# description: This will pull the following files from Github, ${name}_create.json, ${name}_geojson.json, ${name}_info.md, and create a Challenge from it. The create file will be the json used to create the challenge. Similarly to if you supplied json in the create method. The info.md file is just an informational file that can be used later for challenge information to the user. And geojson.json which is used to generate the tasks. If the challenge has been previously created, it will just update the tasks from the geojson
-# responses:
-#   '200':
-#     description: The retrieved Challenge
-#     content:
-#       application/json:
-#         schema:
-#           $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
-#   '401':
-#     description: The user is not authorized to make this request
-#   '404':
-#     description: No Project with provided ID found
-# parameters:
-#   - name: id
-#     in: path
-#     description: The ID of the parent project
-#     required: true
-#   - name: username
-#     in: path
-#     description: username of the github user that owns the repo
-#     required: true
-#   - name: repo
-#     in: path
-#     description: Github repositories that contains the challenge files
-#     required: true
-#   - name: name
-#     in: path
-#     description: The name of the challenge that prefixes all the github files
-#     required: true
-###
-POST     /project/:projectId/challenge/:username/:repo/:name   @org.maproulette.controllers.api.ChallengeController.createFromGithub(projectId:Long, username:String, repo:String, name:String, rebuild:Boolean ?= false)
-###
-# tags: [ Challenge ]
 # operationId: challenge_extracts_a_challenge_package
 # summary: Extracts a Challenge Package
 # description: This will retrieve a package of the challenge, which will contain json to recreate the challenge, geojson to recreate the tasks, info page in md format if any, all the comments extracted from for the challenge and any metrics and the time the challenge was extracted.
