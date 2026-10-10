@@ -250,17 +250,19 @@ class CommentRepository @Inject() (override val db: Database) extends Repository
   /**
     * Deletes a comment from the database
     *
+    * @param taskId    The id of the task the comment belongs to
     * @param commentId The id for the comment being deleted
     * @param c         Implicit provided optional connection
+    * @return true if a comment was deleted, false if no comment with that id exists on that task
     */
-  def delete(commentId: Long)(
+  def delete(taskId: Long, commentId: Long)(
       implicit c: Option[Connection] = None
   ): Boolean = {
     withMRConnection { implicit c =>
       Query
-        .simple(List(BaseParameter("id", commentId)))
+        .simple(List(BaseParameter("id", commentId), BaseParameter("task_id", taskId)))
         .build("DELETE FROM task_comments")
-        .execute()
+        .executeUpdate() > 0
     }
   }
 }
