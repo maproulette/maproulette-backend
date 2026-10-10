@@ -53,14 +53,12 @@ class DataController @Inject() (
   }
 
   /**
-    * Gets the recent activity for one or more users
+    * Gets the recent contributions of the logged-in user
     *
-    * @param osmUserIds OSM user ids for which activity is desired
-    * @param limit  the limit on the number of activities return
-    * @param offset paging, starting at 0
-    * @return List of action summaries associated with the user
+    * @param limit the limit on the number of contributions returned
+    * @return List of the user's recent task actions, newest first
     */
-  def getRecentUserActivity(osmUserIds: String, limit: Int, offset: Int): Action[AnyContent] =
+  def getUserContributions(limit: Int): Action[AnyContent] =
     Action.async { implicit request =>
       val actualLimit = if (limit == -1) {
         this.config.numberOfActivities
@@ -69,15 +67,9 @@ class DataController @Inject() (
       }
 
       this.sessionManager.authenticatedRequest { user =>
-        // If no users were explicitly specified, use the current user. If -1 is
-        // given, do not limit by user
-        val osmIds = Utils.toLongList(osmUserIds) match {
-          case Some(ids) if ids.contains(-1) => List.empty
-          case Some(ids)                     => ids
-          case None                          => List(user.osmProfile.id)
-        }
-
-        Ok(Json.toJson(this.actionManager.getRecentActivity(osmIds, actualLimit, offset)))
+        Ok(
+          Json.toJson(this.actionManager.getRecentActivity(List(user.osmProfile.id), actualLimit))
+        )
       }
     }
 
