@@ -151,23 +151,6 @@ class TeamService @Inject() (
   }
 
   /**
-    * Retrieve memberships in all teams for given user member ids
-    *
-    * @param memberIds The ids of the member objects (NOT users!) representing the team users
-    * @param user The user making the request
-    * @return TeamUser representations of the memberships
-    */
-  def listTeamUsers(memberIds: List[Long], user: User): List[TeamUser] = {
-    // Everyone has read access to teams, so no need to check permissions
-    if (memberIds.isEmpty) {
-      return List()
-    }
-
-    val members = this.groupService.listGroupMembers(memberIds)
-    this.memberUsers(members, user)
-  }
-
-  /**
     * Retrieve TeamUser representation of all member users on a team
     *
     * @param teamIds ids of teams for which members are desired

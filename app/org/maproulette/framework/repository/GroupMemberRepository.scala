@@ -38,23 +38,6 @@ class GroupMemberRepository @Inject() (
   }
 
   /**
-    * Gets all the members with matching ids
-    *
-    * @param ids The ids of desired group members
-    * @param query query object containing any additional filtering, paging and ordering information
-    * @return A list of members
-    */
-  def list(ids: List[Long], query: Query = Query.empty): List[GroupMember] = {
-    this.query(
-      query.addFilterGroup(
-        FilterGroup(
-          List(BaseParameter(GroupMember.FIELD_ID, ids, Operator.IN))
-        )
-      )
-    )
-  }
-
-  /**
     * Gets all the members that belong to a Group
     *
     * @param group The group for which members are desired

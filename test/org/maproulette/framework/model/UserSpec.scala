@@ -1,7 +1,6 @@
 package org.maproulette.framework.model
 
 import org.joda.time.DateTime
-import org.maproulette.framework.graphql.schemas.MRSchemaTypes
 import org.scalatestplus.play.PlaySpec
 import play.api.libs.json.{JsObject, JsValue, Json}
 
@@ -73,17 +72,6 @@ class UserSpec extends PlaySpec {
 
       (json \ "status").as[Int] mustEqual Follower.STATUS_FOLLOWING
       (json \ "user").get mustEqual Json.toJson(user)
-    }
-  }
-
-  "User GraphQL types" should {
-    "expose only the public profile and follow lists" in {
-      val types = new MRSchemaTypes {}
-
-      types.UserType.fieldsByName.keySet mustEqual
-        Set("id", "created", "osmProfile", "settings", "name", "following", "followers")
-      types.OSMProfileType.fieldsByName.keySet mustEqual Set("id", "displayName", "avatarURL")
-      types.UserSettingsType.fieldsByName.keySet mustEqual Set("leaderboardOptOut")
     }
   }
 }

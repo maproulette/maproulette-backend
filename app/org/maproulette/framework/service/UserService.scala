@@ -754,27 +754,6 @@ class UserService @Inject() (
         .headOption
     }
 
-  /**
-    * Retrieves a list of users from the supplied list of OSM ids
-    *
-    * @param osmIds The list of OSM ids for users to be retrieved
-    * @param paging paging object to handle paging in response
-    * @return A list of users, empty list if none found
-    */
-  def retrieveListByOSMId(osmIds: List[Long], paging: Paging = Paging()): List[User] = {
-    if (osmIds.isEmpty) {
-      return List.empty
-    }
-
-    this.query(
-      Query.simple(
-        List(BaseParameter(User.FIELD_OSM_ID, osmIds, Operator.IN)),
-        paging = paging
-      ),
-      User.superUser
-    )
-  }
-
   def query(query: Query, user: User): List[User] = this.repository.query(query)
 
   /**

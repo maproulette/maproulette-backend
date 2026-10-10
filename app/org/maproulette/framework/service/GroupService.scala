@@ -95,14 +95,6 @@ class GroupService @Inject() (
   def create(group: Group): Option[Group] = this.repository.create(group)
 
   /**
-    * Retrieve group members with matching ids
-    *
-    * @param ids The ids of desired group members
-    */
-  def listGroupMembers(ids: List[Long]): List[GroupMember] =
-    this.groupMemberRepository.list(ids)
-
-  /**
     * Retrieve members of the given group
     *
     * @param group The group for which members are desired
