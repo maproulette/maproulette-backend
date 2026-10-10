@@ -3,7 +3,7 @@ GET     /data/challenge/:challengeId/users          @org.maproulette.controllers
 ### NoDocs ###
 POST    /data/challenge/summary                     @org.maproulette.controllers.api.DataController.getChallengeSummaries(projectList:String ?= "", priority:String ?= "", onlyEnabled:Boolean ?= true)
 ### NoDocs ###
-GET     /data/user/activity                         @org.maproulette.controllers.api.DataController.getRecentUserActivity(osmUserIds:String ?= "", limit:Int ?= -1, offset:Int ?= 0)
+GET     /data/user/activity                         @org.maproulette.controllers.api.DataController.getRecentUserActivity(osmUserIds:String ?= "", limit:Int ?= -1, offset:Int ?= 0, includeDetails:Boolean ?= false)
 ### NoDocs ###
 GET     /data/user/summary                          @org.maproulette.controllers.api.DataController.getUserSummary(projectList:String ?= "", start:String ?= "", end:String ?= "", priority:Int ?= -1)
 ### NoDocs ###

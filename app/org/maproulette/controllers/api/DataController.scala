@@ -8,6 +8,7 @@ import javax.inject.Inject
 import org.maproulette.Config
 import org.maproulette.data._
 import org.maproulette.framework.model.Challenge
+import org.maproulette.framework.service.ServiceManager
 import org.maproulette.models.dal.ChallengeDAL
 import org.maproulette.session.{SearchParameters, SessionManager}
 import org.maproulette.permissions.Permission
@@ -29,7 +30,8 @@ class DataController @Inject() (
     actionManager: ActionManager,
     components: ControllerComponents,
     statusActionManager: StatusActionManager,
-    permission: Permission
+    permission: Permission,
+    serviceManager: ServiceManager
 ) extends AbstractController(components) {
 
   implicit val actionWrites              = actionManager.actionItemWrites
@@ -58,9 +60,15 @@ class DataController @Inject() (
     * @param osmUserIds OSM user ids for which activity is desired
     * @param limit  the limit on the number of activities return
     * @param offset paging, starting at 0
+    * @param includeDetails whether to include the user, task and challenge of each action
     * @return List of action summaries associated with the user
     */
-  def getRecentUserActivity(osmUserIds: String, limit: Int, offset: Int): Action[AnyContent] =
+  def getRecentUserActivity(
+      osmUserIds: String,
+      limit: Int,
+      offset: Int,
+      includeDetails: Boolean
+  ): Action[AnyContent] =
     Action.async { implicit request =>
       val actualLimit = if (limit == -1) {
         this.config.numberOfActivities
@@ -77,9 +85,65 @@ class DataController @Inject() (
           case None                          => List(user.osmProfile.id)
         }
 
-        Ok(Json.toJson(this.actionManager.getRecentActivity(osmIds, actualLimit, offset)))
+        val activity = this.actionManager.getRecentActivity(osmIds, actualLimit, offset)
+        if (includeDetails) {
+          Ok(this.withActivityDetails(activity))
+        } else {
+          Ok(Json.toJson(activity))
+        }
       }
     }
+
+  private def withActivityDetails(activity: List[ActionItem]): JsValue = {
+    val taskActivity = activity.filter(_.typeId.contains(Actions.ITEM_TYPE_TASK))
+    val users = this.serviceManager.user
+      .retrieveListByOSMId(activity.flatMap(_.osmUserId).distinct)
+      .map(u => u.osmProfile.id -> u)
+      .toMap
+    val tasks = this.serviceManager.task
+      .retrieveListById(taskActivity.flatMap(_.itemId).distinct)
+      .map(t => t.id -> t)
+      .toMap
+    val challenges = this.serviceManager.challenge
+      .list(taskActivity.flatMap(_.parentId).distinct)
+      .map(c => c.id -> c)
+      .toMap
+    val projects = this.serviceManager.project
+      .list(challenges.values.map(_.general.parent).toList.distinct)
+      .map(p => p.id -> p)
+      .toMap
+
+    Json.toJson(activity.map { item =>
+      val isTask = item.typeId.contains(Actions.ITEM_TYPE_TASK)
+      Json.toJson(item).as[JsObject] ++ Json.obj(
+        "created" -> item.created.map(_.toString),
+        "user" -> item.osmUserId.flatMap(users.get).map { u =>
+          Json.obj(
+            "id" -> u.id,
+            "osmProfile" -> Json.obj(
+              "id"          -> u.osmProfile.id,
+              "displayName" -> u.osmProfile.displayName,
+              "avatarURL"   -> u.osmProfile.avatarURL
+            )
+          )
+        },
+        "task" -> item.itemId.filter(_ => isTask).flatMap(tasks.get).map { t =>
+          Json.obj("id" -> t.id, "location" -> t.location)
+        },
+        "challenge" -> item.parentId.filter(_ => isTask).flatMap(challenges.get).map { c =>
+          Json.obj(
+            "id"   -> c.id,
+            "name" -> c.name,
+            "general" -> Json.obj(
+              "parent" -> projects.get(c.general.parent).map { p =>
+                Json.obj("id" -> p.id, "name" -> p.name, "displayName" -> p.displayName)
+              }
+            )
+          )
+        }
+      )
+    })
+  }
 
   def getUserChallengeSummary(
       challengeId: Long,
