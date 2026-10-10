@@ -11,6 +11,7 @@ import javax.inject.{Inject, Singleton}
 import org.maproulette.Config
 import org.maproulette.cache.CacheManager
 import org.maproulette.data.{GroupType, ProjectType, UserType}
+import org.maproulette.exception.InvalidException
 import org.maproulette.framework.model._
 import org.maproulette.framework.psql._
 import org.maproulette.framework.psql.filter._
@@ -105,6 +106,7 @@ class ProjectService @Inject() (
     * @return The new project with the new project ID
     */
   def create(project: Project, user: User): Project = {
+    project.ownerTeamId.foreach(this.serviceManager.team.requireTeamManager(_, user, "projects"))
     // only super users can feature a project
     val featured = project.featured && permission.isSuperUser(user)
 
@@ -409,13 +411,26 @@ class ProjectService @Inject() (
           (updates \ "requireConfirmation").asOpt[Boolean].getOrElse(cachedItem.requireConfirmation)
 
         // Absent leaves ownership alone and an explicit null gives the project
-        // back, matching how a challenge's owning team is updated. The caller's
-        // right to hand it to this team is checked in the controller, before
-        // the update is attempted.
+        // back, matching how a challenge's owning team is updated.
         val ownerTeamId = (updates \ "ownerTeamId").toOption match {
           case None         => cachedItem.ownerTeamId
           case Some(JsNull) => None
-          case Some(teamId) => teamId.asOpt[Long]
+          case Some(teamId) =>
+            teamId.asOpt[Long] match {
+              case Some(t) => Some(t)
+              case None    => throw new InvalidException("ownerTeamId must be a number")
+            }
+        }
+
+        // Only a project admin can change which team owns the project,
+        // and that admin must also be a manager of both the old and new team.
+        if (owner != cachedItem.owner || ownerTeamId != cachedItem.ownerTeamId) {
+          this.permission.hasObjectAdminAccess(cachedItem, user)
+        }
+        if (ownerTeamId != cachedItem.ownerTeamId) {
+          (cachedItem.ownerTeamId ++ ownerTeamId).foreach(
+            this.serviceManager.team.requireTeamManager(_, user, "projects")
+          )
         }
 
         this.repository.update(

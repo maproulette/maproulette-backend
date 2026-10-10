@@ -9,15 +9,10 @@ import com.fasterxml.jackson.databind.JsonMappingException
 import javax.inject.Inject
 import org.apache.commons.lang3.StringUtils
 import org.maproulette.data.{Created => ActionCreated, _}
-import org.maproulette.exception.{
-  InvalidException,
-  MPExceptionUtil,
-  NotFoundException,
-  StatusMessage
-}
+import org.maproulette.exception.{MPExceptionUtil, NotFoundException, StatusMessage}
 import org.maproulette.framework.model.{Challenge, Project, User}
 import org.maproulette.framework.psql.{Paging, _}
-import org.maproulette.framework.service.{CommentService, ProjectService, TeamService}
+import org.maproulette.framework.service.{CommentService, ProjectService}
 import org.maproulette.models.dal.TaskDAL
 import org.maproulette.session.{SearchParameters, SessionManager}
 import org.maproulette.utils.Utils
@@ -33,7 +28,6 @@ class ProjectController @Inject() (
     override val bodyParsers: PlayBodyParsers,
     projectService: ProjectService,
     commentService: CommentService,
-    teamService: TeamService,
     taskDAL: TaskDAL,
     components: ControllerComponents
 ) extends AbstractController(components)
@@ -62,25 +56,6 @@ class ProjectController @Inject() (
   }
 
   /**
-    * Ensures a project is only handed to a team the user runs -- its owners,
-    * admins and managers, but not its plain members. The team is taken from the
-    * request body, so without this anyone could hang their project off another
-    * team's name, and put that team's image on its card, by guessing an id.
-    *
-    * @param body The incoming project json
-    * @param user The user making the request
-    */
-  private def validateTeamAssignment(body: JsValue, user: User): Unit =
-    (body \ "ownerTeamId").toOption match {
-      case None | Some(JsNull) => // nothing to check; ownership is left alone
-      case Some(value) =>
-        val teamId = value
-          .asOpt[Long]
-          .getOrElse(throw new InvalidException("ownerTeamId must be a number"))
-        this.teamService.requireTeamManager(teamId, user, "projects")
-    }
-
-  /**
     * API function call to create a project
     *
     * @return 201 Created with the json body of the created object
@@ -95,7 +70,6 @@ class ProjectController @Inject() (
       jsonBody = Utils.insertIntoJson(jsonBody, "enabled", true)(BooleanWrites)
       jsonBody = Utils.insertIntoJson(jsonBody, "isArchived", false)(BooleanWrites)
       jsonBody = Utils.insertIntoJson(jsonBody, "requireConfirmation", false)(BooleanWrites)
-      this.validateTeamAssignment(jsonBody, user)
       jsonBody
         .validate[Project]
         .fold(
@@ -126,7 +100,6 @@ class ProjectController @Inject() (
     implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
         try {
-          this.validateTeamAssignment(request.body, user)
           this.projectService.update(id, request.body, user) match {
             case Some(project) =>
               this.actionManager

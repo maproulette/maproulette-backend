@@ -1008,6 +1008,11 @@ class ChallengeDAL @Inject() (
             case None         => cachedItem.extra.ownerTeamId
           }
 
+          // To assign or clear the owning team, you need to be a challenge admin
+          if (ownerTeamId != cachedItem.extra.ownerTeamId) {
+            this.permission.hasObjectAdminAccess(cachedItem, user)
+          }
+
           val reviewSetting = (updates \ "reviewSetting")
             .asOpt[Int]
             .getOrElse(cachedItem.extra.reviewSetting)

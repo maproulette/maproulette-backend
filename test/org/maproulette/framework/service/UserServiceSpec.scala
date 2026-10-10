@@ -400,7 +400,13 @@ class UserServiceSpec(implicit val application: Application) extends FrameworkHe
 
       List(Grant.ROLE_SUPER_USER, Grant.ROLE_OWNER, 4).foreach { role =>
         intercept[InvalidException] {
-          this.userService.addUserToProject(user.osmProfile.id, project.id, role, owner, clear = true)
+          this.userService.addUserToProject(
+            user.osmProfile.id,
+            project.id,
+            role,
+            owner,
+            clear = true
+          )
         }
       }
 

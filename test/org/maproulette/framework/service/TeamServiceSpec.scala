@@ -648,7 +648,7 @@ class TeamServiceSpec(implicit val application: Application) extends FrameworkHe
       }
     }
 
-    "let a manager of the owning team hand the challenge back" taggedAs TeamTag in {
+    "let the owner of the owning team hand the challenge back" taggedAs TeamTag in {
       val owning = ownedTeam("owningTeamHandBack")
       val challenge = this.challengeDAL.insert(
         this

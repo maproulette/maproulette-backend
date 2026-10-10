@@ -363,7 +363,8 @@ class GrantServiceSpec(implicit val application: Application) extends FrameworkH
 
     "not allow creating a superuser grant by non-superuser" taggedAs GrantTag in {
       intercept[IllegalAccessException] {
-        this.service.createSuperUserGrant(randomUser.id, "GrantServiceSpec superuser", this.defaultUser)
+        this.service
+          .createSuperUserGrant(randomUser.id, "GrantServiceSpec superuser", this.defaultUser)
       }
     }
 
