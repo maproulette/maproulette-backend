@@ -2,7 +2,42 @@
 GET     /data/challenge/:challengeId/users          @org.maproulette.controllers.api.DataController.getUserChallengeSummary(challengeId:Long, start:String ?= "", end:String ?= "", priority:Int ?= -1)
 ### NoDocs ###
 POST    /data/challenge/summary                     @org.maproulette.controllers.api.DataController.getChallengeSummaries(projectList:String ?= "", priority:String ?= "", onlyEnabled:Boolean ?= true)
-### NoDocs ###
+###
+# tags: [ User ]
+# operationId: data_get_recent_user_activity
+# summary: Get recent user activity
+# description: Recent task actions by the given users, newest first. Requires authentication.
+# responses:
+#   '200':
+#     description: The recent actions
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             $ref: '#/components/schemas/ActivityItem'
+# parameters:
+#   - name: osmUserIds
+#     in: query
+#     description: Comma-separated OSM user ids. Defaults to the current user; -1 returns activity from all users.
+#     schema:
+#       type: string
+#   - name: limit
+#     in: query
+#     description: The maximum number of actions to return
+#     schema:
+#       type: integer
+#   - name: offset
+#     in: query
+#     description: The number of actions to skip
+#     schema:
+#       type: integer
+#   - name: includeDetails
+#     in: query
+#     description: Include each action's user, task and challenge
+#     schema:
+#       type: boolean
+###
 GET     /data/user/activity                         @org.maproulette.controllers.api.DataController.getRecentUserActivity(osmUserIds:String ?= "", limit:Int ?= -1, offset:Int ?= 0, includeDetails:Boolean ?= false)
 ### NoDocs ###
 GET     /data/user/summary                          @org.maproulette.controllers.api.DataController.getUserSummary(projectList:String ?= "", start:String ?= "", end:String ?= "", priority:Int ?= -1)
