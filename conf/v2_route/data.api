@@ -15,7 +15,81 @@ POST    /data/challenge/summary                     @org.maproulette.controllers
 #         schema:
 #           type: array
 #           items:
-#             $ref: '#/components/schemas/ActivityItem'
+#             type: object
+#             description: A recent task action. user, task and challenge are only included when includeDetails is set.
+#             properties:
+#               id:
+#                 type: integer
+#                 format: int64
+#               created:
+#                 description: Epoch milliseconds, or an ISO 8601 string when includeDetails is set
+#                 oneOf:
+#                   - type: integer
+#                     format: int64
+#                   - type: string
+#                     format: date-time
+#               osmUserId:
+#                 type: integer
+#                 format: int64
+#               typeId:
+#                 type: integer
+#                 description: The type of item acted on, 0 project, 1 challenge, 2 task
+#               parentId:
+#                 type: integer
+#                 format: int64
+#               parentName:
+#                 type: string
+#               itemId:
+#                 type: integer
+#                 format: int64
+#               action:
+#                 type: integer
+#               status:
+#                 type: integer
+#               extra:
+#                 type: string
+#               user:
+#                 type: object
+#                 nullable: true
+#                 properties:
+#                   id:
+#                     type: integer
+#                     format: int64
+#                   osmProfile:
+#                     $ref: '#/components/schemas/PublicOSMUser'
+#               task:
+#                 type: object
+#                 nullable: true
+#                 properties:
+#                   id:
+#                     type: integer
+#                     format: int64
+#                   location:
+#                     type: object
+#                     description: GeoJSON point of the task's location
+#               challenge:
+#                 type: object
+#                 nullable: true
+#                 properties:
+#                   id:
+#                     type: integer
+#                     format: int64
+#                   name:
+#                     type: string
+#                   general:
+#                     type: object
+#                     properties:
+#                       parent:
+#                         type: object
+#                         nullable: true
+#                         properties:
+#                           id:
+#                             type: integer
+#                             format: int64
+#                           name:
+#                             type: string
+#                           displayName:
+#                             type: string
 # parameters:
 #   - name: osmUserIds
 #     in: query
