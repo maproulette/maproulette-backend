@@ -601,14 +601,41 @@ GET     /tasks/tags                                 @org.maproulette.controllers
 # tags: [ Task ]
 # operationId: task_updates_task_tags
 # summary: Updates Task Tags
-# description: Updates the tags on the Task
+# description: Replaces the tags on the Task
 # responses:
-#   '304':
-#     description: A basic 304 with NoContent will be returned on a successful delete
-#   '400':
-#     description: If no tags are supplied a BadRequest response will be returned
+#   '200':
+#     description: The task's tags after the update
 #   '401':
-#     description: The user is not authorized to make this request
+#     description: The user is not authenticated
+#   '403':
+#     description: The user may not change the tags on this task
+#   '404':
+#     description: No task with the given id
+# parameters:
+#   - name: id
+#     in: path
+#     description: The ID of the Task
+#   - name: tags
+#     in: query
+#     description: A complete comma separated list of tags. If empty, then all tags will be removed.
+#     required: true
+###
+PUT     /task/:id/tags/update                       @org.maproulette.controllers.api.TaskController.updateItemTags(id:Long, tags:String ?= "")
+###
+# tags: [ Task ]
+# operationId: task_updates_task_tags_get
+# summary: Updates Task Tags
+# description: Replaces the tags on the Task. Deprecated; use the PUT form, this GET will be removed once the frontends have switched. Requires write access to the task's challenge, or being the mapper or reviewer working on the task.
+# deprecated: true
+# responses:
+#   '200':
+#     description: The task's tags after the update
+#   '401':
+#     description: The user is not authenticated
+#   '403':
+#     description: The user may not change the tags on this task
+#   '404':
+#     description: No task with the given id
 # parameters:
 #   - name: id
 #     in: path

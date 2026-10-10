@@ -1094,6 +1094,27 @@ class TaskController @Inject() (
   }
 
   /**
+    * Replaces the tags on a task.
+    *
+    * @param id      the id for the task
+    * @param tags    comma-separated string of tags (empty string clears tags)
+    * @return        the updated task as JSON
+    */
+  def updateItemTags(id: Long, tags: String): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        this.dal.requireTagAccess(id, user)
+        val tagObjects =
+          tags.split(",").toList.map(tag => new Tag(-1, tag.trim, tagType = this.tagType))
+        val tagIds = this.tagService.updateTagList(tagObjects, user).map(_.id)
+        this.dal.updateItemTags(id, tagIds, user, true)
+        this.actionManager
+          .setAction(Some(user), this.itemType.convertToItem(id), TagAdded(), tagIds.mkString(","))
+        Ok(Json.toJson(this.getTags(id)))
+      }
+  }
+
+  /**
     * Resolve each id to a task and assert the caller has write access on its
     * parent project. Throws `NotFoundException` for any missing task or
     * orphaned challenge, and `IllegalAccessException` from the first denial

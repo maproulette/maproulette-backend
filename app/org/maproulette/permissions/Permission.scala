@@ -129,7 +129,7 @@ class Permission @Inject() (
             role
           )
         case tag: Tag =>
-        //this.hasReadAccess(TagType(), user)(tag.id)
+          throw new IllegalAccessException("Only super users can modify tags")
         case g: Grant =>
           throw new IllegalAccessException(
             s"Only super users can write to grant objects"

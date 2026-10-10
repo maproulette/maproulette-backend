@@ -574,6 +574,27 @@ class TaskDAL @Inject() (
   def manager: DALManager = dalManager.get()
 
   /**
+    * Check that the user is allowed to retag this task
+    */
+  def requireTagAccess(taskId: Long, user: User): Unit = {
+    val task = this
+      .retrieveById(taskId)
+      .getOrElse(throw new NotFoundException(s"Task $taskId not found"))
+    val workers = List(
+      task.completedBy,
+      task.review.reviewRequestedBy,
+      task.review.reviewedBy,
+      task.review.reviewClaimedBy
+    ).flatten
+    if (!workers.contains(user.id) && !this.resolveLockHolder(task).exists(_._1 == user.id)) {
+      val challenge = this.manager.challenge
+        .retrieveById(task.parent)
+        .getOrElse(throw new NotFoundException(s"Parent challenge ${task.parent} not found"))
+      this.permission.hasObjectWriteAccess(challenge, user)
+    }
+  }
+
+  /**
     * Resolves the lock currently covering `referenceTask` (if any) into the concrete list of
     * tasks a release broadcast should cover - just the task itself if unbundled, or the
     * bundle's primary + member tasks if it's covered by a bundle lock. Must be called BEFORE

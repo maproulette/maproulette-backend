@@ -121,30 +121,24 @@ class TagRepository @Inject() (override val db: Database) extends RepositoryMixi
   def updateTagList(tags: List[Tag])(implicit c: Option[Connection] = None): List[Tag] = {
     if (tags.nonEmpty) {
       this.withMRTransaction { implicit c =>
+        // Existing tags are left untouched; only missing (name, tag_type) pairs are created
         val sqlQuery =
-          s"""WITH upsert AS (UPDATE tags SET description = {description}
-                              WHERE id = {id} OR (name = {name} AND tag_type = {tagType}) RETURNING *)
-                              INSERT INTO tags (name, description, tag_type) SELECT {name}, {description}, {tagType}
-                              WHERE NOT EXISTS (SELECT * FROM upsert)"""
-        val parameters = tags.map(tag => {
-          val descriptionString = tag.description match {
-            case Some(d) => d
-            case None    => ""
-          }
+          """INSERT INTO tags (name, description, tag_type) VALUES ({name}, {description}, {tagType})
+             ON CONFLICT DO NOTHING"""
+        val parameters = tags.map(tag =>
           Seq[NamedParameter](
             "name"        -> tag.name.toLowerCase,
-            "description" -> descriptionString,
-            "id"          -> tag.id,
+            "description" -> tag.description.getOrElse(""),
             "tagType"     -> tag.tagType
           )
-        })
+        )
         BatchSql(sqlQuery, parameters.head, parameters.tail: _*).execute()
       }
 
       val tagFilterGroups = tags.map(tag =>
         FilterGroup(
           List(
-            BaseParameter(Tag.FIELD_NAME, tag.name.toLowerCase.replaceAll("'", "")),
+            BaseParameter(Tag.FIELD_NAME, tag.name.toLowerCase),
             BaseParameter(Tag.FIELD_TAG_TYPE, tag.tagType)
           )
         )

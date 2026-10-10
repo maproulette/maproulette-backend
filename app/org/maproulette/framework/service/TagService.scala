@@ -191,22 +191,20 @@ class TagService @Inject() (
   }
 
   /**
-    * This is an "upsert" function that will try and insert tags into the database based on a list,
-    * it will either update the data for the tag if the tag already exists or create a new tag if
-    * the tag does not exist. A tag is considered to exist if the id or the name is found in the
-    * database/
+    * Resolves a list of tags by (name, tag type), creating any that do not
+    * exist yet. Existing tags are never modified, so any user may call this
+    * when tagging an item they can edit. Tags without a name are ignored.
     *
-    * @param tags A list of tag objects to update/create in the database
+    * @param tags A list of tag objects to look up or create
     * @param user The user making the request
-    * @return Returns the list of tags that were inserted, this would include any newly created
-    *         ids of tags.
+    * @return The matching tags, including the ids of any newly created ones
     */
   def updateTagList(tags: List[Tag], user: User): List[Tag] = {
-    if (tags.nonEmpty) {
-      // todo probably should check permissions here
-      implicit val names = tags.filter(_.name.nonEmpty).map(_.name)
+    val named = tags.filter(_.name.nonEmpty)
+    if (named.nonEmpty) {
+      implicit val names = named.map(_.name)
       this.cacheManager.withCacheNameDeletion { () =>
-        this.repository.updateTagList(tags)
+        this.repository.updateTagList(named)
       }
     } else {
       List.empty
