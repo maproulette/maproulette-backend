@@ -4,8 +4,6 @@
  */
 package org.maproulette.data
 
-import java.sql.Connection
-
 import anorm.SqlParser._
 import anorm._
 import javax.inject.{Inject, Singleton}
@@ -59,25 +57,6 @@ case class ActionSummary(
     )
 }
 
-/**
-  * Handles the summary data for the users
-  *
-  * @param distinctAllUsers              This is all the distinct users regardless of the date range
-  * @param distinctTotalUsers            All the distinct users within the supplied date range
-  * @param avgUsersPerChallenge          Average number of users per challenge within the date range
-  * @param activeUsers                   Active users (2 or more edits in last 2 days)
-  * @param avgActionsPerUser             Average number of actions taken by a user
-  * @param avgActionsPerChallengePerUser Average number of actions taken by user per challenge
-  */
-case class UserSummary(
-    distinctAllUsers: Int,
-    distinctTotalUsers: Int,
-    avgUsersPerChallenge: Double,
-    activeUsers: Double,
-    avgActionsPerUser: ActionSummary,
-    avgActionsPerChallengePerUser: ActionSummary
-)
-
 case class ChallengeSummary(id: Long, name: String, actions: ActionSummary)
 
 case class ChallengeActivity(date: DateTime, status: Int, statusName: String, count: Int)
@@ -108,204 +87,6 @@ class DataManager @Inject() (
     implicit application: Application
 ) extends DALHelper
     with SearchParametersMixin {
-  private def getDistinctUsers(
-      projectFilter: String,
-      survey: Boolean = false,
-      onlyEnabled: Boolean = true,
-      start: Option[DateTime] = None,
-      end: Option[DateTime] = None,
-      priority: Option[Int]
-  )(implicit c: Connection): Int = {
-    SQL"""SELECT COUNT(DISTINCT osm_user_id) AS count
-             FROM #${if (survey) {
-      "survey_answers sa"
-    } else {
-      "status_actions sa"
-    }}
-             #${this.getEnabledPriorityClause(onlyEnabled, survey, start, end, priority)}
-             #$projectFilter""".as(get[Option[Int]]("count").single).getOrElse(0)
-  }
-
-  private def getDistinctUsersPerChallenge(
-      projectFilter: String,
-      survey: Boolean = false,
-      onlyEnabled: Boolean = true,
-      start: Option[DateTime] = None,
-      end: Option[DateTime] = None,
-      priority: Option[Int]
-  )(implicit c: Connection): Double = {
-    SQL"""SELECT AVG(count) AS count FROM (
-            SELECT #${if (survey) {
-      "survey_id"
-    } else {
-      "challenge_id"
-    }}, COUNT(DISTINCT osm_user_id) AS count
-            FROM #${if (survey) {
-      "survey_answers sa"
-    } else {
-      "status_actions sa"
-    }}
-            #${this.getEnabledPriorityClause(onlyEnabled, survey, start, end, priority)} #$projectFilter
-            GROUP BY #${if (survey) {
-      "survey_id"
-    } else {
-      "challenge_id"
-    }}
-          ) as t""".as(get[Option[Double]]("count").single).getOrElse(0d)
-  }
-
-  private def getActiveUsers(
-      projectFilter: String,
-      survey: Boolean = false,
-      onlyEnabled: Boolean = true,
-      start: Option[DateTime] = None,
-      end: Option[DateTime] = None,
-      priority: Option[Int]
-  )(implicit c: Connection): Int = {
-    SQL"""SELECT COUNT(DISTINCT osm_user_id) AS count
-          FROM #${if (survey) {
-      "survey_answers sa"
-    } else {
-      "status_actions sa"
-    }}
-          #${this.getEnabledPriorityClause(onlyEnabled, survey, start, end, priority)}  #$projectFilter
-          AND sa.created::date BETWEEN current_date - INTERVAL '2 days' AND current_date"""
-      .as(get[Option[Int]]("count").single)
-      .getOrElse(0)
-  }
-
-  def getUserChallengeSummary(
-      projectList: Option[List[Long]] = None,
-      challengeId: Option[Long] = None,
-      start: Option[DateTime] = None,
-      end: Option[DateTime] = None,
-      priority: Option[Int]
-  ): UserSummary = {
-    this.db.withConnection { implicit c =>
-      val challengeProjectFilter = challengeId match {
-        case Some(id) => s"AND sa.challenge_id = $id"
-        case None     => buildProjectSearch(projectList, "sa.project_id", "sa.challenge_id")
-      }
-      val actionParser = for {
-        available     <- get[Option[Int]]("available")
-        fixed         <- get[Option[Int]]("fixed")
-        falsePositive <- get[Option[Int]]("false_positive")
-        skipped       <- get[Option[Int]]("skipped")
-        deleted       <- get[Option[Int]]("deleted")
-        alreadyFixed  <- get[Option[Int]]("already_fixed")
-        tooHard       <- get[Option[Int]]("too_hard")
-        answered      <- get[Option[Int]]("answered")
-        validated     <- get[Option[Int]]("validated")
-        disabled      <- get[Option[Int]]("disabled")
-      } yield ActionSummary(
-        0,
-        available.getOrElse(0),
-        fixed.getOrElse(0),
-        falsePositive.getOrElse(0),
-        skipped.getOrElse(0),
-        deleted.getOrElse(0),
-        alreadyFixed.getOrElse(0),
-        tooHard.getOrElse(0),
-        answered.getOrElse(0),
-        validated.getOrElse(0),
-        disabled.getOrElse(0),
-        0,
-        0
-      )
-
-      val perUser =
-        SQL"""SELECT AVG(available) AS available, AVG(fixed) AS fixed, AVG(false_positive) AS false_positive,
-                                  AVG(skipped) AS skipped, AVG(deleted) AS deleted, AVG(already_fixed) AS already_fixed,
-                                  AVG(too_hard) AS too_hard, AVG(answered) AS answered, AVG(validated) AS validated,
-                                  AVG(disabled) AS disabled
-                              FROM (
-                                SELECT sa.osm_user_id,
-                                    SUM(CASE sa.status WHEN 0 THEN 1 ELSE 0 END) AS available,
-                                    SUM(CASE sa.status WHEN 1 THEN 1 ELSE 0 END) AS fixed,
-                                    SUM(CASE sa.status WHEN 2 THEN 1 ELSE 0 END) AS false_positive,
-                                    SUM(CASE sa.status WHEN 3 THEN 1 ELSE 0 END) AS skipped,
-                                    SUM(CASE sa.status WHEN 4 THEN 1 ELSE 0 END) AS deleted,
-                                    SUM(CASE sa.status WHEN 5 THEN 1 ELSE 0 END) AS already_fixed,
-                                    SUM(CASE sa.status WHEN 6 THEN 1 ELSE 0 END) AS too_hard,
-                                    SUM(CASE sa.status WHEN 7 THEN 1 ELSE 0 END) AS answered,
-                                    SUM(CASE sa.status WHEN 8 THEN 1 ELSE 0 END) AS validated,
-                                    SUM(CASE sa.status WHEN 9 THEN 1 ELSE 0 END) AS disabled
-                                FROM status_actions sa
-                                #${this.getEnabledPriorityClause(
-          challengeId.isEmpty,
-          false,
-          start,
-          end,
-          priority
-        )}
-                                #$challengeProjectFilter
-                                GROUP BY sa.osm_user_id
-                              ) AS t""".as(actionParser.*).head
-      val perChallenge =
-        SQL"""SELECT AVG(available) AS available, AVG(fixed) AS fixed, AVG(false_positive) AS false_positive,
-                                        AVG(skipped) AS skipped, AVG(deleted) AS deleted, AVG(already_fixed) AS already_fixed,
-                                        AVG(too_hard) AS too_hard, AVG(answered) AS answered, AVG(validated) AS validated,
-                                        AVG(disabled) AS disabled
-                                  FROM (
-                                    SELECT osm_user_id, challenge_id,
-                                        SUM(CASE sa.status WHEN 0 THEN 1 ELSE 0 END) AS available,
-                                        SUM(CASE sa.status WHEN 1 THEN 1 ELSE 0 END) AS fixed,
-                                        SUM(CASE sa.status WHEN 2 THEN 1 ELSE 0 END) AS false_positive,
-                                        SUM(CASE sa.status WHEN 3 THEN 1 ELSE 0 END) AS skipped,
-                                        SUM(CASE sa.status WHEN 4 THEN 1 ELSE 0 END) AS deleted,
-                                        SUM(CASE sa.status WHEN 5 THEN 1 ELSE 0 END) AS already_fixed,
-                                        SUM(CASE sa.status WHEN 6 THEN 1 ELSE 0 END) AS too_hard,
-                                        SUM(CASE sa.status WHEN 7 THEN 1 ELSE 0 END) AS answered,
-                                        SUM(CASE sa.status WHEN 8 THEN 1 ELSE 0 END) AS validated,
-                                        SUM(CASE sa.status WHEN 9 THEN 1 ELSE 0 END) AS disabled
-                                    FROM status_actions sa
-                                    #${this.getEnabledPriorityClause(
-          challengeId.isEmpty,
-          false,
-          start,
-          end,
-          priority
-        )}
-                                    #$challengeProjectFilter
-                                    GROUP BY osm_user_id, challenge_id
-                                  ) AS t""".as(actionParser.*).head
-      val allUsers =
-        SQL"""SELECT count(DISTINCT osm_user_id) FROM status_actions sa
-              #${this.getEnabledPriorityClause(
-          challengeId.isEmpty,
-          false,
-          None,
-          None,
-          priority,
-          true
-        )}
-              #$challengeProjectFilter
-           """.as(int(1).single)
-      UserSummary(
-        allUsers,
-        this.getDistinctUsers(
-          challengeProjectFilter,
-          false,
-          challengeId.isEmpty,
-          start,
-          end,
-          priority
-        ),
-        this.getDistinctUsersPerChallenge(
-          challengeProjectFilter,
-          false,
-          challengeId.isEmpty,
-          start,
-          end,
-          priority
-        ),
-        this
-          .getActiveUsers(challengeProjectFilter, false, challengeId.isEmpty, start, end, priority),
-        perUser,
-        perChallenge
-      )
-    }
-  }
 
   /**
     * Gets the summarized challenge activity
@@ -317,11 +98,6 @@ class DataManager @Inject() (
   def getChallengeSummary(
       projectList: Option[List[Long]] = None,
       challengeId: Option[Long] = None,
-      limit: Int = (-1),
-      offset: Int = 0,
-      orderColumn: Option[String] = None,
-      orderDirection: String = "ASC",
-      searchString: String = "",
       priority: Option[List[Int]] = None,
       onlyEnabled: Boolean = false,
       params: Option[SearchParameters] = None
@@ -381,18 +157,13 @@ class DataManager @Inject() (
         case None => ""
       }
 
-      val searchFilters = new StringBuilder(
-        s"1=1 $challengeFilter $priorityFilter ${if (searchString != "") searchField("c.name")
-        else ""}"
-      )
+      val searchFilters = new StringBuilder(s"1=1 $challengeFilter $priorityFilter")
 
+      // We deliberately ignore user filters here (owner, mapper, reviewer),
+      // since this endpoint can be called by any logged in user.
       this.paramsTaskStatus(searchParams, searchFilters)
       this.paramsTaskReviewStatus(searchParams, searchFilters)
       this.paramsTaskId(searchParams, searchFilters)
-      val searchParameters =
-        this.paramsOwner(searchParams, searchFilters) ++
-          this.paramsReviewer(searchParams, searchFilters) ++
-          this.paramsMapper(searchParams, searchFilters)
 
       // The percentage columns are a bit of a hack simply so that we can order by the percentages.
       // It won't decrease performance as this is simple basic math calculations, but it certainly
@@ -422,51 +193,9 @@ class DataManager @Inject() (
         }}
               ${searchFilters.toString()}
             GROUP BY tasks.parent_id, c.name
-            ${this.order(orderColumn, orderDirection)}
-            LIMIT ${this.sqlLimit(limit)} OFFSET {offset}
         """
 
-      SQL(query)
-        .on(
-          (searchParameters ++ List[NamedParameter](
-            Symbol("ss")     -> this.search(searchString),
-            Symbol("offset") -> offset
-          )): _*
-        )
-        .as(parser.*)
-    }
-  }
-
-  /**
-    * Should be used in conjunction with challenge summary to retrieve the total number of challenges that
-    * are set for the particular summary query
-    *
-    * @param projectList  The projects that are being used to filter the results, optional
-    * @param challengeId  The challenge used to filter the results, optional
-    * @param searchString The search string that was applied to the query
-    * @return A integer value which is the total challenges included in the results
-    * @deprecated("This method does not support virtual projects.", "05-23-2019")
-    */
-  def getTotalSummaryCount(
-      projectList: Option[List[Long]] = None,
-      challengeId: Option[Long] = None,
-      searchString: String = ""
-  ): Int = {
-    this.db.withConnection { implicit c =>
-      val challengeFilter = challengeId match {
-        case Some(id) if id != -1 => s"AND id = $id"
-        case _                    => getLongListFilter(projectList, "c.parent_id")
-      }
-      val query =
-        s"""SELECT COUNT(*) AS total FROM challenges c
-                      INNER JOIN projects p ON p.id = c.parent_id
-                      WHERE ${if (challengeId.isEmpty) {
-          "c.enabled = true AND p.enabled = true AND"
-        } else {
-          ""
-        }}
-                      1=1 $challengeFilter ${this.searchField("c.name")}"""
-      SQL(query).on(Symbol("ss") -> this.search(searchString)).as(int("total").single)
+      SQL(query).as(parser.*)
     }
   }
 
@@ -665,67 +394,6 @@ class DataManager @Inject() (
            ${getLongListFilter(projectList, "vp.project_id")})
          """
       Some(SQL(projectChallengeQuery).as(long("id").*))
-    }
-  }
-
-  /**
-    * Gets the most recent activity entries for each challenge, regardless of date.
-    *
-    * @param projectFilter   restrict to specified projects
-    * @param challengeFilter restrict to specified challenges
-    * @param entries         the number of most recent activity entries per challenge. Defaults to 1.
-    * @return most recent activity entries for each challenge
-    */
-  def getLatestChallengeActivity(
-      projectFilter: Option[List[Long]] = None,
-      challengeFilter: Option[List[Long]] = None,
-      entries: Int = 1
-  ): List[RawActivity] = {
-    db.withConnection { implicit c =>
-      val parser = for {
-        date          <- get[DateTime]("status_actions.created")
-        osmUserId     <- long("status_actions.osm_user_id")
-        osmUsername   <- str("users.name")
-        projectId     <- long("status_actions.project_id")
-        projectName   <- str("projects.name")
-        challengeId   <- long("status_actions.challenge_id")
-        challengeName <- str("challenges.name")
-        taskId        <- long("status_actions.task_id")
-        oldStatus     <- int("status_actions.old_status")
-        status        <- int("status_actions.status")
-      } yield RawActivity(
-        date,
-        osmUserId,
-        osmUsername,
-        projectId,
-        projectName,
-        challengeId,
-        challengeName,
-        taskId,
-        oldStatus,
-        status
-      )
-
-      var challengeList = challengeFilter
-
-      // Let's determine all the challenges that are in these projects
-      // to make our query faster.
-      if (projectFilter != None) {
-        challengeList = findRelevantChallenges(projectFilter)
-      }
-
-      SQL"""SELECT sa.*, challenges.name, projects.name, users.name FROM challenges, projects, users
-            JOIN LATERAL (
-              SELECT * FROM status_actions
-              WHERE challenge_id = challenges.id
-              AND old_status <> status
-              ORDER BY created DESC
-              LIMIT ${entries}
-            ) sa ON true
-            WHERE challenges.parent_id = projects.id
-            AND users.osm_id = sa.osm_user_id
-            #${getLongListFilter(challengeList, "challenges.id")}
-      """.as(parser.*)
     }
   }
 

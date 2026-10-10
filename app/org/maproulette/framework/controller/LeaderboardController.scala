@@ -128,39 +128,6 @@ class LeaderboardController @Inject() (
     }
   }
 
-  // TODO: make this work for projects
-  /**
-    * Gets the leaderboard ranking for a user on a project, based on task completion, over
-    * the given number of months (or start and end dates). Included with the user is their top challenges
-    * (by amount of activity). Also a bracketing number of users above and below
-    * the user in the rankings.
-    *
-    * @param userId        user Id for user
-    * @param bracket       the number of users to return above and below the given user (0 returns just the user)
-    * @return User with score and ranking based on task completion activity
-    */
-  def getProjectLeaderboardForUser(
-      userId: Int,
-      projectId: Int,
-      monthDuration: Int,
-      bracket: Int
-  ): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.userAwareRequest { implicit user =>
-      SearchParameters.withSearch { implicit params =>
-        Ok(
-          Json.toJson(
-            this.service.getChallengeLeaderboardForUser(
-              userId,
-              projectId,
-              monthDuration,
-              bracket
-            )
-          )
-        )
-      }
-    }
-  }
-
   /**
     * Gets the leaderboard ranking for a user, based on task completion, over
     * the given number of months (or start and end dates). Included with the user is their top challenges
