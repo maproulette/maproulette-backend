@@ -338,11 +338,12 @@ class SessionManager @Inject() (
 }
 
 object SessionManager {
-  val KEY_USER_TICK  = "userTick"
-  val KEY_TOKEN_HASH = "tokenHash"
-  val KEY_USER_ID    = "userId"
-  val KEY_OSM_ID     = "osmId"
-  val KEY_STATE      = "state"
+  val KEY_USER_TICK    = "userTick"
+  val KEY_TOKEN_HASH   = "tokenHash"
+  val KEY_USER_ID      = "userId"
+  val KEY_OSM_ID       = "osmId"
+  val KEY_STATE        = "state"
+  val KEY_REDIRECT_URI = "redirectUri"
 
   /**
     * Returns the hex-encoded SHA-256 hash of an OSM access token, so we can store
