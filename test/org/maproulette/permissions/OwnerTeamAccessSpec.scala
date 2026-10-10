@@ -4,6 +4,7 @@ import scala.collection.mutable.ListBuffer
 
 import org.maproulette.exception.InvalidException
 import org.maproulette.framework.model.{
+  Challenge,
   ChallengeExtra,
   Grant,
   Group,
@@ -156,6 +157,89 @@ class OwnerTeamAccessSpec(implicit val application: Application) extends Framewo
         managedTeam.id
       )
     }
+  }
+
+  "Changing a challenge's owning team as an admin" should {
+    "be refused for a team they do not manage" taggedAs TeamTag in {
+      val challenge = writableChallenge("challenge_admin_foreign")
+      an[InvalidException] should be thrownBy this.challengeDAL
+        .update(Json.obj("ownerTeamId" -> writerTeam.id), this.defaultUser)(challenge.id)
+      this.challengeDAL.retrieveById(challenge.id).get.extra.ownerTeamId mustEqual None
+    }
+
+    "be allowed for a team they manage" taggedAs TeamTag in {
+      val challenge = writableChallenge("challenge_admin_assign")
+      this.challengeDAL
+        .update(Json.obj("ownerTeamId" -> adminTeam.id), this.defaultUser)(challenge.id)
+        .get
+        .extra
+        .ownerTeamId mustEqual Some(adminTeam.id)
+    }
+
+    "reject a non-numeric team id" taggedAs TeamTag in {
+      val challenge = writableChallenge("challenge_non_numeric")
+      an[InvalidException] should be thrownBy this.challengeDAL
+        .update(Json.obj("ownerTeamId" -> "abc"), this.defaultUser)(challenge.id)
+    }
+  }
+
+  "Updating a challenge as a write user" should {
+    "not allow moving it to another project" taggedAs TeamTag in {
+      val challenge = writableChallenge("challenge_move")
+      val other     = writableProject("challenge_move_target")
+      an[InvalidException] should be thrownBy this.challengeDAL
+        .update(Json.obj("parentId" -> other.id), fresh(writer))(challenge.id)
+      this.challengeDAL
+        .retrieveById(challenge.id)
+        .get
+        .general
+        .parent mustEqual challenge.general.parent
+    }
+
+    "not allow changing its owner" taggedAs TeamTag in {
+      val challenge = writableChallenge("challenge_owner")
+      an[IllegalAccessException] should be thrownBy this.challengeDAL
+        .update(Json.obj("ownerId" -> writer.osmProfile.id), fresh(writer))(challenge.id)
+      this.challengeDAL
+        .retrieveById(challenge.id)
+        .get
+        .general
+        .owner mustEqual challenge.general.owner
+    }
+
+    "not allow featuring it" taggedAs TeamTag in {
+      val challenge = writableChallenge("challenge_featured")
+      an[IllegalAccessException] should be thrownBy this.challengeDAL
+        .update(Json.obj("featured" -> true), fresh(writer))(challenge.id)
+      this.challengeDAL.retrieveById(challenge.id).get.general.featured mustEqual false
+    }
+
+    "still allow ordinary edits that resend unchanged fields" taggedAs TeamTag in {
+      val challenge = writableChallenge("challenge_edit")
+      this.challengeDAL
+        .update(
+          Json.obj(
+            "description" -> "edited",
+            "featured"    -> false,
+            "parentId"    -> challenge.general.parent,
+            "ownerId"     -> challenge.general.owner
+          ),
+          fresh(writer)
+        )(challenge.id)
+        .get
+        .description mustEqual Some("edited")
+    }
+  }
+
+  /**
+    * A challenge in a fresh writable project (see writableProject), created by the superuser.
+    */
+  private def writableChallenge(label: String): Challenge = {
+    val project = writableProject(label)
+    this.challengeDAL.insert(
+      this.getTestChallenge(s"OwnerTeamAccessSpec_$label", project.id),
+      User.superUser
+    )
   }
 
   /**

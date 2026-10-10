@@ -784,32 +784,6 @@ class ChallengeDAL @Inject() (
     * @param id      The id of the object that you are updating
     * @return An optional object, it will return None if no object found with a matching id that was supplied
     */
-  /**
-    * Taking a challenge away from the team that owns it is that team's call.
-    *
-    * Being able to edit a challenge is not the same as being entitled to move
-    * it: a project admin can edit everything in their project, but the team
-    * whose name and image the challenge carries is the one that gets to decide
-    * it should stop. So a change of owning team -- including handing it back to
-    * nobody -- needs the mover to run the team it is leaving, while a challenge
-    * nobody owns can be given to any team the user runs.
-    *
-    * The team it is going *to* is checked separately, when the request arrives.
-    */
-  private def requireOwningTeamConsent(
-      existing: Challenge,
-      updates: JsValue,
-      user: User
-  ): Unit = {
-    val requested = (updates \ "ownerTeamId").toOption
-
-    for {
-      currentTeamId  <- existing.ownerTeamId
-      requestedValue <- requested
-      if !requestedValue.asOpt[Long].contains(currentTeamId)
-    } this.serviceManager.team.requireTeamManager(currentTeamId, user, "work")
-  }
-
   override def update(
       updates: JsValue,
       user: User
@@ -818,7 +792,46 @@ class ChallengeDAL @Inject() (
     val updatedChallenge = this.cacheManager.withUpdatingCache(Long => retrieveById) {
       implicit cachedItem =>
         this.permission.hasObjectWriteAccess(cachedItem, user)
-        this.requireOwningTeamConsent(cachedItem, updates, user)
+
+        val parentId = (updates \ "parentId").asOpt[Long].getOrElse(cachedItem.general.parent)
+        if (parentId != cachedItem.general.parent) {
+          throw new InvalidException(
+            s"Challenge [${cachedItem.id}] cannot be moved to a different project by an update; use the move endpoint"
+          )
+        }
+
+        val ownerId = (updates \ "ownerId").asOpt[Long].getOrElse(cachedItem.general.owner)
+        if (ownerId != cachedItem.general.owner) {
+          this.permission.hasObjectAdminAccess(cachedItem, user)
+        }
+
+        val featured = (updates \ "featured").asOpt[Boolean].getOrElse(cachedItem.general.featured)
+        if (featured != cachedItem.general.featured && !this.permission.isSuperUser(user)) {
+          throw new IllegalAccessException("Only super users can feature challenges")
+        }
+
+        // Update the owning team, or remove it if an explicit `null` is set in
+        // the JSON. But if it's omitted, leave it alone.
+        val ownerTeamId = (updates \ "ownerTeamId").toOption match {
+          case None         => cachedItem.extra.ownerTeamId
+          case Some(JsNull) => None
+          case Some(value) =>
+            Some(
+              value
+                .asOpt[Long]
+                .getOrElse(throw new InvalidException("ownerTeamId must be a number"))
+            )
+        }
+
+        // Changing the owning team requires challenge admin, and the caller must
+        // also manage both the team it's leaving and the team it's being given to.
+        if (ownerTeamId != cachedItem.extra.ownerTeamId) {
+          this.permission.hasObjectAdminAccess(cachedItem, user)
+          (cachedItem.extra.ownerTeamId ++ ownerTeamId).foreach(
+            this.serviceManager.team.requireTeamManager(_, user, "challenges")
+          )
+        }
+
         val highPriorityRule = (updates \ "highPriorityRule")
           .asOpt[String]
           .getOrElse(cachedItem.priority.highPriorityRule.getOrElse("")) match {
@@ -860,12 +873,9 @@ class ChallengeDAL @Inject() (
         }
 
         this.withMRTransaction { implicit c =>
-          val name     = (updates \ "name").asOpt[String].getOrElse(cachedItem.name)
-          val ownerId  = (updates \ "ownerId").asOpt[Long].getOrElse(cachedItem.general.owner)
-          val parentId = (updates \ "parentId").asOpt[Long].getOrElse(cachedItem.general.parent)
+          val name = (updates \ "name").asOpt[String].getOrElse(cachedItem.name)
 
-          // Check if name or parent changed and if so, validate uniqueness
-          if (name != cachedItem.name || parentId != cachedItem.general.parent) {
+          if (name != cachedItem.name) {
             val existingChallenge = SQL"""
               SELECT id FROM challenges 
               WHERE parent_id = $parentId 
@@ -893,8 +903,6 @@ class ChallengeDAL @Inject() (
           val instruction =
             (updates \ "instruction").asOpt[String].getOrElse(cachedItem.general.instruction)
           val enabled = (updates \ "enabled").asOpt[Boolean].getOrElse(cachedItem.general.enabled)
-          val featured =
-            (updates \ "featured").asOpt[Boolean].getOrElse(cachedItem.general.featured)
           val checkinComment =
             (updates \ "checkinComment").asOpt[String].getOrElse(cachedItem.general.checkinComment)
           val checkinSource =
@@ -998,20 +1006,6 @@ class ChallengeDAL @Inject() (
           val paused = (updates \ "paused")
             .asOpt[Boolean]
             .getOrElse(cachedItem.extra.paused)
-
-          // An explicit null detaches the image; omitting the key leaves the
-          // challenge's current image alone, so a save that never touched the
-          // image picker can't silently clear it.
-          val ownerTeamId = (updates \ "ownerTeamId").toOption match {
-            case Some(JsNull) => Option.empty[Long]
-            case Some(value)  => value.asOpt[Long]
-            case None         => cachedItem.extra.ownerTeamId
-          }
-
-          // To assign or clear the owning team, you need to be a challenge admin
-          if (ownerTeamId != cachedItem.extra.ownerTeamId) {
-            this.permission.hasObjectAdminAccess(cachedItem, user)
-          }
 
           val reviewSetting = (updates \ "reviewSetting")
             .asOpt[Int]

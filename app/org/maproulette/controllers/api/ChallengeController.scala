@@ -1327,12 +1327,6 @@ class ChallengeController @Inject() (
         this.serviceManager.team.requireTeamManager(teamId, user, "challenges")
     }
 
-  override def updateUpdateBody(body: JsValue, user: User): JsValue = {
-    val jsonBody = super.updateUpdateBody(body, user)
-    this.validateTeamAssignment(jsonBody, user)
-    jsonBody
-  }
-
   /**
     * This function allows sub classes to modify the body, primarily this would be used for inserting
     * default elements into the body that shouldn't have to be required to create an object.
@@ -1478,7 +1472,9 @@ class ChallengeController @Inject() (
             val clonedChallenge = c.copy(
               id = -1,
               name = newName,
-              general = c.general.copy(parent = targetProjectId)
+              general = c.general
+                .copy(parent = targetProjectId, owner = user.osmProfile.id, featured = false),
+              extra = c.extra.copy(ownerTeamId = None)
             )
             Ok(Json.toJson(this.dal.insert(clonedChallenge, user)))
           case None =>
