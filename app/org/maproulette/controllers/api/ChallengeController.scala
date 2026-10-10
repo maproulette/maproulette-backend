@@ -1308,26 +1308,6 @@ class ChallengeController @Inject() (
   }
 
   /**
-    * Checks that any team the request wants to hand the challenge to is one
-    * the user is actually entitled to hand it to. Team ids are just numbers on
-    * the wire, so without this anyone could park a challenge under another
-    * team - taking that team's image onto the card and handing its managers a
-    * challenge they never asked for - simply by guessing an id.
-    *
-    * @param body The incoming challenge json
-    * @param user The user making the request
-    */
-  private def validateTeamAssignment(body: JsValue, user: User): Unit =
-    (body \ "ownerTeamId").toOption match {
-      case None | Some(JsNull) => // nothing to check; ownership is left alone
-      case Some(value) =>
-        val teamId = value
-          .asOpt[Long]
-          .getOrElse(throw new InvalidException("ownerTeamId must be a number"))
-        this.serviceManager.team.requireTeamManager(teamId, user, "challenges")
-    }
-
-  /**
     * This function allows sub classes to modify the body, primarily this would be used for inserting
     * default elements into the body that shouldn't have to be required to create an object.
     *
@@ -1336,7 +1316,6 @@ class ChallengeController @Inject() (
     */
   override def updateCreateBody(body: JsValue, user: User): JsValue = {
     var jsonBody = super.updateCreateBody(body, user)
-    this.validateTeamAssignment(jsonBody, user)
     jsonBody = Utils.insertIntoJson(jsonBody, "owner", user.osmProfile.id, true)(LongWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "enabled", true)(BooleanWrites)
     jsonBody = Utils.insertIntoJson(jsonBody, "deleted", false)(BooleanWrites)

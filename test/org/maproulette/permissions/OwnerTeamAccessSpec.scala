@@ -231,6 +231,46 @@ class OwnerTeamAccessSpec(implicit val application: Application) extends Framewo
     }
   }
 
+  "Creating a challenge" should {
+    "be refused in a project the creator cannot write to, even under their own team" taggedAs TeamTag in {
+      val project = writableProject("create_foreign_project")
+      an[IllegalAccessException] should be thrownBy this.challengeDAL.insert(
+        this
+          .getTestChallenge("OwnerTeamAccessSpec_create_foreign_project", project.id)
+          .copy(extra = ChallengeExtra(ownerTeamId = Some(challengeWriterTeam.id))),
+        fresh(challengeWriter)
+      )
+    }
+
+    "be refused under a team the creator does not manage" taggedAs TeamTag in {
+      val project = writableProject("create_foreign_team")
+      an[InvalidException] should be thrownBy this.challengeDAL.insert(
+        this
+          .getTestChallenge("OwnerTeamAccessSpec_create_foreign_team", project.id)
+          .copy(extra = ChallengeExtra(ownerTeamId = Some(writerTeam.id))),
+        this.defaultUser
+      )
+    }
+
+    "not let a write user feature it" taggedAs TeamTag in {
+      val project = writableProject("create_featured")
+      val base    = this.getTestChallenge("OwnerTeamAccessSpec_create_featured", project.id)
+      this.challengeDAL
+        .insert(base.copy(general = base.general.copy(featured = true)), fresh(writer))
+        .general
+        .featured mustEqual false
+    }
+
+    "let a super user feature it" taggedAs TeamTag in {
+      val project = writableProject("create_featured_super")
+      val base    = this.getTestChallenge("OwnerTeamAccessSpec_create_featured_super", project.id)
+      this.challengeDAL
+        .insert(base.copy(general = base.general.copy(featured = true)), User.superUser)
+        .general
+        .featured mustEqual true
+    }
+  }
+
   /**
     * A challenge in a fresh writable project (see writableProject), created by the superuser.
     */

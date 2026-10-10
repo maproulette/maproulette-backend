@@ -671,7 +671,12 @@ class ChallengeDAL @Inject() (
       case _ => throw new InvalidException(s"Cannot create challenge. Project is invalid.")
     }
 
-    this.permission.hasObjectWriteAccess(challenge, user)
+    // Check the parent project to make sure the user has write access to it
+    this.permission.hasWriteAccess(ProjectType(), user)(challenge.general.parent)
+    challenge.extra.ownerTeamId.foreach(
+      this.serviceManager.team.requireTeamManager(_, user, "challenges")
+    )
+    val featured = challenge.general.featured && this.permission.isSuperUser(user)
 
     // Check for existing non-deleted challenge with same name in same project
     this.withMRConnection { implicit c =>
@@ -719,7 +724,7 @@ class ChallengeDAL @Inject() (
               VALUES (${challenge.name}, ${challenge.general.owner}, ${challenge.general.parent},
                       ${challenge.general.difficulty},
                       ${challenge.description}, ${challenge.infoLink}, ${challenge.general.blurb}, ${challenge.general.instruction},
-                      ${challenge.general.enabled}, ${challenge.general.featured},
+                      ${challenge.general.enabled}, ${featured},
                       ${challenge.general.checkinComment}, ${challenge.general.checkinSource}, ${challenge.creation.overpassQL}, ${challenge.creation.remoteGeoJson},
                       ${challenge.creation.overpassTargetType}, ${challenge.status},
                       ${challenge.statusMessage}, ${challenge.priority.defaultPriority}, ${highPriorityRule},
