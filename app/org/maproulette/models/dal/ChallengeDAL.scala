@@ -2073,21 +2073,14 @@ class ChallengeDAL @Inject() (
       implicit c: Option[Connection] = None
   ): List[Long] = {
     this.withMRConnection { implicit c =>
-      try {
-        val ids = challengeIds.mkString(",")
-        val query =
-          s"""UPDATE challenges
-             |	SET is_archived = ${archive}
-             |	WHERE id IN (${ids});""".stripMargin
-        SQL(query).executeUpdate()
+      val ids = challengeIds.mkString(",")
+      val query =
+        s"""UPDATE challenges
+           |	SET is_archived = ${archive}
+           |	WHERE id IN (${ids});""".stripMargin
+      SQL(query).executeUpdate()
 
-        challengeIds
-      } catch {
-        case e: Exception =>
-          logger.error(e.getMessage, e)
-          throw e
-      }
-
+      challengeIds
     }
   }
 

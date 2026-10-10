@@ -499,20 +499,28 @@ class ChallengeController @Inject() (
     */
   def bulkArchive(): Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
-      try {
-        val body         = request.body;
-        val challengeIds = (body \ "ids").as[List[Long]]
-        val archiving    = (body \ "isArchived").asOpt[Boolean].getOrElse(true);
-
-        dalManager.challenge.bulkArchive(challengeIds, archiving);
-
+      val challengeIds = (request.body \ "ids").asOpt[List[Long]].getOrElse(List.empty).distinct
+      val archiving    = (request.body \ "isArchived").asOpt[Boolean].getOrElse(true)
+      if (challengeIds.isEmpty) {
+        BadRequest(Json.toJson(StatusMessage("KO", JsString("ids must be a non-empty array"))))
+      } else {
+        challengeIds.foreach(id => this.retrieveWritable(id, user))
+        dalManager.challenge.bulkArchive(challengeIds, archiving)
         Ok(Json.toJson(archiving))
-      } catch {
-        case e: Exception =>
-          logger.error(e.getMessage, e)
-          BadRequest(Json.toJson(StatusMessage("KO", JsString(e.getMessage))))
       }
     }
+  }
+
+  /**
+    * Retrieves a challenge, throwing NotFoundException if it does not exist and
+    * IllegalAccessException if the user lacks write access to it.
+    */
+  private def retrieveWritable(challengeId: Long, user: User): Challenge = {
+    val challenge = dalManager.challenge
+      .retrieveById(challengeId)
+      .getOrElse(throw new NotFoundException(s"No challenge found with id $challengeId"))
+    permission.hasObjectWriteAccess(challenge, user)
+    challenge
   }
 
   /**
@@ -1692,17 +1700,9 @@ class ChallengeController @Inject() (
   def archiveChallenge(challengeId: Long): Action[JsValue] = Action.async(bodyParsers.json) {
     implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
-        try {
-          val body      = request.body;
-          val archiving = (body \ "isArchived").asOpt[Boolean].getOrElse(true);
-          val result    = serviceManager.challenge.archiveChallenge(challengeId, archiving)
-
-          Ok(Json.toJson(result))
-        } catch {
-          case e: Exception =>
-            logger.error(e.getMessage, e)
-            BadRequest(Json.toJson(StatusMessage("KO", JsString(e.getMessage))))
-        }
+        this.retrieveWritable(challengeId, user)
+        val archiving = (request.body \ "isArchived").asOpt[Boolean].getOrElse(true)
+        Ok(Json.toJson(serviceManager.challenge.archiveChallenge(challengeId, archiving)))
       }
   }
 
