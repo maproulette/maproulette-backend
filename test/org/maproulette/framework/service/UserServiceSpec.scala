@@ -138,30 +138,6 @@ class UserServiceSpec(implicit val application: Application) extends FrameworkHe
       newAPIUser.get.apiKey must not be insertedUser.apiKey
     }
 
-    "add a user's Following group" taggedAs UserTag in {
-      val insertedUser =
-        this.userService.create(this.getTestUser(21, "AddFollowingGroupTest"), User.superUser)
-
-      insertedUser.followingGroupId mustEqual None
-      val followingGroupId = this.userService.addFollowingGroup(insertedUser, User.superUser)
-      followingGroupId.isDefined mustEqual true
-
-      val groupAgain = this.userService.addFollowingGroup(insertedUser, User.superUser)
-      groupAgain.get mustEqual followingGroupId.get
-    }
-
-    "add a user's Followers group" taggedAs UserTag in {
-      val insertedUser =
-        this.userService.create(this.getTestUser(22, "AddFollowersGroupTest"), User.superUser)
-
-      insertedUser.followersGroupId mustEqual None
-      val followersGroupId = this.userService.addFollowersGroup(insertedUser, User.superUser)
-      followersGroupId.isDefined mustEqual true
-
-      val groupAgain = this.userService.addFollowersGroup(insertedUser, User.superUser)
-      groupAgain.get mustEqual followersGroupId.get
-    }
-
     "retrieve list of users" taggedAs UserTag in {
       val user1 =
         this.userService.create(this.getTestUser(12, "ListRetrievalTestUser1"), User.superUser)

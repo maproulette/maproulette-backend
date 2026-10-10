@@ -451,9 +451,6 @@ class UserService @Inject() (
       val isReviewer = (value \ "settings" \ "isReviewer")
         .asOpt[Boolean]
         .getOrElse(cachedItem.settings.isReviewer.getOrElse(false))
-      val allowFollowing = (value \ "settings" \ "allowFollowing")
-        .asOpt[Boolean]
-        .getOrElse(cachedItem.settings.allowFollowing.getOrElse(true))
       val seeTagFixSuggestions = (value \ "settings" \ "seeTagFixSuggestions")
         .asOpt[Boolean]
         .getOrElse(cachedItem.settings.seeTagFixSuggestions.getOrElse(false))
@@ -483,7 +480,7 @@ class UserService @Inject() (
         }
       }
 
-      val updated = Some(
+      Some(
         this.repository.update(
           User(
             id,
@@ -508,7 +505,6 @@ class UserService @Inject() (
               Some(leaderboardOptOut),
               Some(needsReview),
               Some(isReviewer),
-              Some(allowFollowing),
               Some(theme),
               customBasemaps,
               Some(seeTagFixSuggestions),
@@ -521,14 +517,6 @@ class UserService @Inject() (
           ewkt
         )
       )
-
-      // If the user is no longer allowing following, clear out any existing
-      // followers
-      if (!allowFollowing && cachedItem.settings.allowFollowing.getOrElse(true)) {
-        this.serviceManager.follow.clearFollowers(updated.get, User.superUser)
-      }
-
-      updated
     }(id = id)
   }
 
@@ -936,42 +924,6 @@ class UserService @Inject() (
   def unsaveTask(userId: Long, taskId: Long, user: User): Unit = {
     this.permission.hasWriteAccess(UserType(), user)(userId)
     this.savedObjectsRepository.unsaveTask(userId, taskId)
-  }
-
-  /**
-    * Adds a Following group to a User
-    *
-    * @param follower The user whose is to get a following group added
-    * @param user     The user making the request
-    */
-  def addFollowingGroup(follower: User, user: User): Option[Long] = {
-    this.cacheManager
-      .withUpdatingCache(this.retrieve) { implicit cachedItem =>
-        cachedItem.followingGroupId match {
-          case Some(groupId) => Some(cachedItem) // group already exists
-          case None          => Some(this.repository.addFollowingGroup(cachedItem))
-        }
-      }(id = follower.id)
-      .get
-      .followingGroupId
-  }
-
-  /**
-    * Adds a Followers group to a User
-    *
-    * @param followed The user who is to get a followers group added
-    * @param user     The user making the request
-    */
-  def addFollowersGroup(followed: User, user: User): Option[Long] = {
-    this.cacheManager
-      .withUpdatingCache(this.retrieve) { implicit cachedItem =>
-        cachedItem.followersGroupId match {
-          case Some(groupId) => Some(cachedItem) // group already exists
-          case None          => Some(this.repository.addFollowersGroup(cachedItem))
-        }
-      }(id = followed.id)
-      .get
-      .followersGroupId
   }
 
   /**

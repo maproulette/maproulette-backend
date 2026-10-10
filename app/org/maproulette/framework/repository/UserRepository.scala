@@ -108,7 +108,7 @@ class UserRepository @Inject() (
                                           home_location = ST_SetSRID(ST_GeomFromEWKT({wkt}),4326), default_editor = {defaultEditor},
                                           default_basemap = {defaultBasemap}, default_basemap_id = {defaultBasemapId},
                                           locale = {locale}, email = {email}, email_opt_in = {emailOptIn}, leaderboard_opt_out = {leaderboardOptOut},
-                                          needs_review = {needsReview}, is_reviewer = {isReviewer}, theme = {theme}, allow_following = {allowFollowing},
+                                          needs_review = {needsReview}, is_reviewer = {isReviewer}, theme = {theme},
                                           properties = {properties}, see_tag_fix_suggestions = {seeTagFixSuggestions}, disable_task_confirm = {disableTaskConfirm},
                                           show_priority_marker_colors = {showPriorityMarkerColors}
                         WHERE id = {id} RETURNING ${UserRepository.standardColumns},
@@ -133,7 +133,6 @@ class UserRepository @Inject() (
           Symbol("needsReview")              -> user.settings.needsReview,
           Symbol("isReviewer")               -> user.settings.isReviewer,
           Symbol("theme")                    -> user.settings.theme,
-          Symbol("allowFollowing")           -> user.settings.allowFollowing,
           Symbol("properties")               -> user.properties.map(Json.stringify),
           Symbol("seeTagFixSuggestions")     -> user.settings.seeTagFixSuggestions,
           Symbol("disableTaskConfirm")       -> user.settings.disableTaskConfirm,
@@ -164,32 +163,6 @@ class UserRepository @Inject() (
         .on(Symbol("apiKey") -> apiKey, Symbol("id") -> id)
         .as(this.parser().*)
         .head
-    }
-  }
-
-  def addFollowingGroup(follower: User): User = {
-    follower.followingGroupId match {
-      case Some(groupId) => follower // already setup, do nothing
-      case None =>
-        val group = this.serviceManager.group
-          .create(
-            Group(-1, s"User ${follower.id} Following", groupType = Group.GROUP_TYPE_FOLLOWING)
-          )
-          .get
-        this.setupGroup("following_group", group.id, follower.id)
-    }
-  }
-
-  def addFollowersGroup(followed: User): User = {
-    followed.followersGroupId match {
-      case Some(groupId) => followed // already setup, do nothing
-      case None =>
-        val group = this.serviceManager.group
-          .create(
-            Group(-1, s"User ${followed.id} Followers", groupType = Group.GROUP_TYPE_FOLLOWERS)
-          )
-          .get
-        this.setupGroup("followers_group", group.id, followed.id)
     }
   }
 
@@ -340,23 +313,6 @@ class UserRepository @Inject() (
     * @param groupId     The id of the group to set
     * @param userId      The id of the user on which the group is to be set
     */
-  private def setupGroup(groupColumn: String, groupId: Long, userId: Long): User = {
-    this.withMRTransaction { implicit c =>
-      val query =
-        s"""UPDATE users SET ${groupColumn} = {groupId} WHERE id = {userId}
-            RETURNING ${UserRepository.standardColumns},
-            (SELECT score FROM user_metrics um WHERE um.user_id = {userId}) as score,
-            (SELECT achievements FROM user_metrics um WHERE um.user_id = {userId}) as achievements"""
-      SQL(query)
-        .on(
-          Symbol("groupId") -> groupId,
-          Symbol("userId")  -> userId
-        )
-        .as(this.parser().*)
-        .head
-    }
-  }
-
   /**
     * Private method that updates the user's custom basemaps in the database.
     * This will treat what's given as a full and complete list -- so any basemaps
@@ -529,9 +485,6 @@ object UserRepository {
       get[Option[String]]("properties") ~
       get[Option[Int]]("score") ~
       get[List[Int]]("achievements").? ~
-      get[Option[Boolean]]("users.allow_following") ~
-      get[Option[Long]]("users.following_group") ~
-      get[Option[Long]]("users.followers_group") ~
       get[Option[Boolean]]("users.see_tag_fix_suggestions") ~
       get[Option[Boolean]]("users.disable_task_confirm") ~
       get[Option[Boolean]]("users.show_priority_marker_colors") ~
@@ -540,8 +493,8 @@ object UserRepository {
             homeLocation ~ apiKey ~ oauthToken ~ defaultEditor ~ defaultBasemap ~
             defaultBasemapId ~ customBasemapList ~
             email ~ emailOptIn ~ leaderboardOptOut ~ needsReview ~ isReviewer ~ locale ~ theme ~
-            properties ~ score ~ achievements ~ allowFollowing ~ followingGroupId ~ followersGroupId ~
-            seeTagFixSuggestions ~ disableTaskConfirm ~ showPriorityMarkerColors ~ plugins =>
+            properties ~ score ~ achievements ~ seeTagFixSuggestions ~ disableTaskConfirm ~
+            showPriorityMarkerColors ~ plugins =>
         val locationWKT = homeLocation match {
           case Some(wkt) => new WKTReader().read(wkt).asInstanceOf[Point]
           case None      => new GeometryFactory().createPoint(new Coordinate(0, 0))
@@ -584,7 +537,6 @@ object UserRepository {
             leaderboardOptOut,
             setNeedsReview,
             isReviewer,
-            allowFollowing,
             theme,
             customBasemaps,
             seeTagFixSuggestions,
@@ -594,8 +546,6 @@ object UserRepository {
           ),
           properties.map(Json.parse(_).as[JsObject]),
           score,
-          followingGroupId,
-          followersGroupId,
           achievements
         )
     }

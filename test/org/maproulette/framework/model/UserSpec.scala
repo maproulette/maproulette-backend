@@ -66,12 +66,5 @@ class UserSpec extends PlaySpec {
     "round-trips through the private reader/writer (cache relies on this)" in {
       Json.toJson(user)(User.privateWrites).as[User] mustEqual user.copy(apiKey = None)
     }
-
-    "shows only the public profile for a follower" in {
-      val json = Json.toJson(Follower(1, user, Follower.STATUS_FOLLOWING))
-
-      (json \ "status").as[Int] mustEqual Follower.STATUS_FOLLOWING
-      (json \ "user").get mustEqual Json.toJson(user)
-    }
   }
 }

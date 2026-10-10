@@ -80,11 +80,6 @@ object WebSocketMessages {
   case class TeamMessage(messageType: String, data: TeamUpdateData, meta: ServerMeta)
       extends ServerMessage
 
-  case class FollowUpdateData(followerId: Option[Long], followedId: Option[Long])
-
-  case class FollowMessage(messageType: String, data: FollowUpdateData, meta: ServerMeta)
-      extends ServerMessage
-
   case class AchievementData(userId: Long, achievement: List[Int])
 
   case class AchievementMessage(messageType: String, data: AchievementData, meta: ServerMeta)
@@ -160,9 +155,6 @@ object WebSocketMessages {
     createTasksMessage("tasks-update", tasksData, None, None, userData)
 
   def teamUpdate(data: TeamUpdateData): TeamMessage = createTeamMessage("team-update", data)
-
-  def followUpdate(data: FollowUpdateData): FollowMessage =
-    createFollowMessage("follow-update", data)
 
   def achievementAwarded(data: AchievementData): AchievementMessage =
     createAchievementMessage("achievement-awarded", data)
@@ -267,17 +259,6 @@ object WebSocketMessages {
     TeamMessage(messageType, data, ServerMeta(Some(WebSocketMessages.SUBSCRIPTION_TEAMS)))
   }
 
-  private def createFollowMessage(messageType: String, data: FollowUpdateData): FollowMessage = {
-    FollowMessage(messageType, data, ServerMeta(Some(WebSocketMessages.SUBSCRIPTION_FOLLOWING)))
-  }
-
-  private def createAchievementMessage(
-      messageType: String,
-      data: FollowUpdateData
-  ): FollowMessage = {
-    FollowMessage(messageType, data, ServerMeta(Some(WebSocketMessages.SUBSCRIPTION_FOLLOWING)))
-  }
-
   // Reads for client messages
   implicit val clientMessageReads: Reads[ClientMessage]       = Json.reads[ClientMessage]
   implicit val subscriptionDataReads: Reads[SubscriptionData] = Json.reads[SubscriptionData]
@@ -295,16 +276,14 @@ object WebSocketMessages {
   implicit val achievementDataWrites: Writes[AchievementData] = Json.writes[AchievementData]
   implicit val achievementMessageWrites: Writes[AchievementMessage] =
     Json.writes[AchievementMessage]
-  implicit val reviewDataWrites: Writes[ReviewData]             = Json.writes[ReviewData]
-  implicit val reviewMessageWrites: Writes[ReviewMessage]       = Json.writes[ReviewMessage]
-  implicit val taskActionWrites: Writes[TaskAction]             = Json.writes[TaskAction]
-  implicit val taskMessageWrites: Writes[TaskMessage]           = Json.writes[TaskMessage]
-  implicit val tasksActionWrites: Writes[TasksAction]           = Json.writes[TasksAction]
-  implicit val tasksMessageWrites: Writes[TasksMessage]         = Json.writes[TasksMessage]
-  implicit val teamUpdateDataWrites: Writes[TeamUpdateData]     = Json.writes[TeamUpdateData]
-  implicit val teamMessageWrites: Writes[TeamMessage]           = Json.writes[TeamMessage]
-  implicit val followUpdateDataWrites: Writes[FollowUpdateData] = Json.writes[FollowUpdateData]
-  implicit val followMessageWrites: Writes[FollowMessage]       = Json.writes[FollowMessage]
+  implicit val reviewDataWrites: Writes[ReviewData]         = Json.writes[ReviewData]
+  implicit val reviewMessageWrites: Writes[ReviewMessage]   = Json.writes[ReviewMessage]
+  implicit val taskActionWrites: Writes[TaskAction]         = Json.writes[TaskAction]
+  implicit val taskMessageWrites: Writes[TaskMessage]       = Json.writes[TaskMessage]
+  implicit val tasksActionWrites: Writes[TasksAction]       = Json.writes[TasksAction]
+  implicit val tasksMessageWrites: Writes[TasksMessage]     = Json.writes[TasksMessage]
+  implicit val teamUpdateDataWrites: Writes[TeamUpdateData] = Json.writes[TeamUpdateData]
+  implicit val teamMessageWrites: Writes[TeamMessage]       = Json.writes[TeamMessage]
 
   // Available subscription types
   val SUBSCRIPTION_USER            = "user" // expected to be accompanied by user id
@@ -313,5 +292,4 @@ object WebSocketMessages {
   val SUBSCRIPTION_TASKS           = "tasks"
   val SUBSCRIPTION_CHALLENGE_TASKS = "challengeTasks" // expected to be accompanied by challenge id
   val SUBSCRIPTION_TEAMS           = "teams"
-  val SUBSCRIPTION_FOLLOWING       = "following"
 }

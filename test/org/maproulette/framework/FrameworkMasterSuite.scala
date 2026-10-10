@@ -19,7 +19,6 @@ class FrameworkMasterSuite extends Suites with BeforeAndAfterAll with TestDataba
     new NotificationRepositorySpec,
     new NotificationSubscriptionRepositorySpec,
     new NotificationServiceSpec,
-    new FollowServiceSpec,
     new TeamServiceSpec,
     new ChallengeServiceSpec,
     new ChallengeRepositorySpec,

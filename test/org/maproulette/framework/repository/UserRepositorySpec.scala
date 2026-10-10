@@ -49,7 +49,6 @@ class UserRepositorySpec(implicit val application: Application) extends Framewor
           Some(5),
           Some(true),
           None,
-          None,
           None
         )
       )
@@ -83,7 +82,6 @@ class UserRepositorySpec(implicit val application: Application) extends Framewor
           Some(false),
           Some(5),
           Some(true),
-          None,
           None,
           Some(
             List(

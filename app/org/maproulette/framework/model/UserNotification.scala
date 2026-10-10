@@ -64,7 +64,7 @@ object UserNotification extends CommonField {
   val NOTIFICATION_TYPE_CHALLENGE_COMPLETED_NAME        = "Challenge Completed"
   val NOTIFICATION_TYPE_TEAM                            = 6
   val NOTIFICATION_TYPE_TEAM_NAME                       = "Team"
-  val NOTIFICATION_TYPE_FOLLOW                          = 7
+  val NOTIFICATION_TYPE_FOLLOW                          = 7 // no longer created, old rows remain
   val NOTIFICATION_TYPE_FOLLOW_NAME                     = "Follow"
   val NOTIFICATION_TYPE_MAPPER_CHALLENGE_COMPLETED      = 8
   val NOTIFICATION_TYPE_MAPPER_CHALLENGE_COMPLETED_NAME = "Mapper Challenge Completed"
@@ -125,7 +125,6 @@ case class NotificationSubscriptions(
     val reviewAgain: Int,
     val challengeCompleted: Int,
     val team: Int,
-    val follow: Int,
     val metaReview: Int,
     val reviewCount: Int,
     val revisionCount: Int

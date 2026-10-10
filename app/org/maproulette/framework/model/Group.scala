@@ -46,8 +46,8 @@ object Group extends CommonField {
   // Types of groups
   val GROUP_TYPE_STANDARD  = 0
   val GROUP_TYPE_TEAM      = 1
-  val GROUP_TYPE_FOLLOWING = 2
-  val GROUP_TYPE_FOLLOWERS = 3
+  val GROUP_TYPE_FOLLOWING = 2 // unused, but rows may remain in the database
+  val GROUP_TYPE_FOLLOWERS = 3 // unused, but rows may remain in the database
 }
 
 /**

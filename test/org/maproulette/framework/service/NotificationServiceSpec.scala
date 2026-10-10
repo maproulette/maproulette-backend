@@ -567,23 +567,6 @@ class NotificationServiceSpec(implicit val application: Application) extends Fra
       invited.get.extra.get mustEqual team.name
     }
 
-    "add a followed notification" taggedAs NotificationTag in {
-      val freshUser = this.serviceManager.user.create(
-        this.getTestUser(299911129, "Service_addFollowNotificationUser1"),
-        User.superUser
-      )
-
-      this.service.createFollowedNotification(freshUser, this.defaultUser.id)
-      val notifications = this.service.getUserNotifications(this.defaultUser.id, this.defaultUser)
-      val followed = notifications.find(
-        _.notificationType == UserNotification.NOTIFICATION_TYPE_FOLLOW
-      )
-
-      followed.isDefined mustEqual true
-      followed.get.fromUsername.get mustEqual freshUser.osmProfile.displayName
-      followed.get.description.get mustEqual "followed"
-    }
-
     "prepare notifications for immediate email" taggedAs NotificationTag in {
       val freshUser = this.serviceManager.user.create(
         this.getTestUser(299911130, "Service_PrepareNotificationsForImmediateEmailUser"),
@@ -727,7 +710,6 @@ class NotificationServiceSpec(implicit val application: Application) extends Fra
       userId,
       system,
       mention,
-      UserNotification.NOTIFICATION_EMAIL_NONE,
       UserNotification.NOTIFICATION_EMAIL_NONE,
       UserNotification.NOTIFICATION_EMAIL_NONE,
       UserNotification.NOTIFICATION_EMAIL_NONE,

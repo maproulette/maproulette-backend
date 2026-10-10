@@ -225,7 +225,6 @@ val routeFiles: Seq[String] = Seq(
   "bundle.api",
   "team.api",
   "teamimage.api",
-  "follow.api",
   "leaderboard.api",
   "service.api",
   "search.api",
