@@ -16,6 +16,60 @@
 GET     /user/whoami                               @org.maproulette.framework.controller.UserController.whoami()
 ###
 # tags: [ User ]
+# operationId: user_get_contributions
+# summary: Retrieves current user's recent contributions
+# description: The logged-in user's recent task actions, newest first
+# responses:
+#   '200':
+#     description: The user's recent task actions
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             type: object
+#             required: [id, action, status]
+#             properties:
+#               id:
+#                 type: integer
+#                 format: int64
+#               created:
+#                 type: string
+#                 format: date-time
+#               osmUserId:
+#                 type: integer
+#                 format: int64
+#               typeId:
+#                 type: integer
+#                 description: The type of item acted on, 0 project, 1 challenge, 2 task
+#               parentId:
+#                 type: integer
+#                 format: int64
+#                 description: The challenge of the task acted on, absent if it was deleted
+#               parentName:
+#                 type: string
+#                 description: The name of the challenge, absent if it was deleted
+#               itemId:
+#                 type: integer
+#                 format: int64
+#               action:
+#                 type: integer
+#               status:
+#                 type: integer
+#               extra:
+#                 type: string
+#   '401':
+#     description: If user is not logged in.
+# parameters:
+#   - name: limit
+#     in: query
+#     description: The maximum number of actions to return
+#     schema:
+#       type: integer
+###
+GET     /user/contributions                        @org.maproulette.controllers.api.DataController.getUserContributions(limit:Int ?= -1)
+###
+# tags: [ User ]
 # operationId: user_retrieves_users_json_information
 # summary: Retrieves Users Json information
 # description: Retrieves User Json based on the supplied ID
