@@ -165,6 +165,7 @@ case class ChallengeExtra(
 case class ChallengeListing(
     id: Long,
     parent: Long,
+    owner: Long,
     name: String,
     enabled: Boolean,
     virtualParents: Option[Array[Long]] = None,
