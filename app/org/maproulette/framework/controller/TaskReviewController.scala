@@ -469,6 +469,44 @@ class TaskReviewController @Inject() (
   }
 
   /**
+    * Sets the completion status of a task being reviewed, leaving its review status untouched.
+    * Must be authenticated and marked as a reviewer. If the task belongs to a bundle, every task
+    * in the bundle is updated.
+    *
+    * @param id The id of the task
+    * @param status The task status id to set the task's completion status to
+    * @return 404 NotFound if task with supplied id not found, otherwise the updated task
+    */
+  def setTaskCompletionStatus(id: Long, status: Int): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        val task = this.taskRepository.retrieve(id) match {
+          case Some(t) => t
+          case None =>
+            throw new NotFoundException(s"Task with $id not found, cannot set completion status.")
+        }
+
+        val tasks = task.bundleId match {
+          case Some(bundleId) =>
+            this.serviceManager.taskBundle.getTaskBundle(user, bundleId).tasks match {
+              case Some(bundledTasks) if bundledTasks.nonEmpty => bundledTasks
+              case _                                           => List(task)
+            }
+          case None => List(task)
+        }
+
+        this.taskDAL.setCompletionStatusForReview(tasks, status, user)
+
+        for (updated <- tasks) {
+          this.actionManager
+            .setAction(Some(user), new TaskItem(updated.id), TaskStatusSet(status), updated.name)
+        }
+
+        Ok(Json.toJson(this.taskRepository.retrieve(id)))
+      }
+  }
+
+  /**
     * This function sets the task review status.
     * Must be authenticated to perform operation and marked as a reviewer.
     *
