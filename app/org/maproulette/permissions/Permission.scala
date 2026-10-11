@@ -11,11 +11,12 @@ import javax.inject.{Inject, Provider}
 import org.maproulette.Config
 import org.maproulette.cache.CacheObject
 import org.maproulette.data._
-import org.maproulette.exception.NotFoundException
+import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.framework.model._
 import org.maproulette.framework.service.ServiceManager
 import org.maproulette.models._
 import org.maproulette.models.dal.DALManager
+import org.maproulette.session.SearchParameters
 
 /**
   * @author cuthbertm
@@ -314,6 +315,48 @@ class Permission @Inject() (
       user: User
   )(implicit id: Long, c: Option[Connection] = None): Unit =
     this.hasWriteAccess(itemType, user, Grant.ROLE_ADMIN)
+
+  /**
+    * Whether a user may export data identifying who mapped or reviewed the tasks in a challenge.
+    */
+  def canExport(challenge: Challenge, user: User): Boolean =
+    this.effectiveRole(challenge, user).exists(_ <= Grant.ROLE_READ_ONLY)
+
+  /**
+    * Throwing form of [[canExport]], for a challenge or a (non-virtual) project.
+    */
+  def hasExportAccess(obj: Any, user: User): Unit =
+    this.hasObjectWriteAccess(obj, user, Grant.ROLE_READ_ONLY)
+
+  /**
+    * Checks that a user may export per-user data for the given projects and challenges.
+    */
+  def hasExportScopeAccess(params: SearchParameters, user: User): Unit =
+    if (!this.isSuperUser(user)) {
+      val projectIds   = params.getProjectIds.getOrElse(List.empty)
+      val challengeIds = params.getChallengeIds.getOrElse(List.empty)
+      if (projectIds.isEmpty && challengeIds.isEmpty) {
+        throw new InvalidException("A project or challenge id is required")
+      }
+      if (params.invertFields.getOrElse(List.empty).exists(f => f == "pid" || f == "cid")) {
+        throw new InvalidException("Project and challenge filters cannot be inverted")
+      }
+      projectIds.foreach { id =>
+        val project = this.serviceManager.project
+          .retrieve(id)
+          .getOrElse(throw new NotFoundException(s"No project with id $id found"))
+        if (project.isVirtual.contains(true)) {
+          throw new IllegalAccessException("Virtual projects cannot be exported")
+        }
+        this.hasExportAccess(project, user)
+      }
+      challengeIds.foreach { id =>
+        val challenge = this.serviceManager.challenge
+          .retrieve(id)
+          .getOrElse(throw new NotFoundException(s"No challenge with id $id found"))
+        this.hasExportAccess(challenge, user)
+      }
+    }
 
   /**
     * Checks that a user is a super user

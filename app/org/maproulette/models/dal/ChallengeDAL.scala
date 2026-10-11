@@ -1786,7 +1786,8 @@ class ChallengeDAL @Inject() (
       priorityFilter: Option[List[Int]] = None,
       params: Option[SearchParameters] = None,
       timezone: String = Utils.UTC_TIMEZONE,
-      boundingBox: Option[(Double, Double, Double, Double)] = None
+      boundingBox: Option[(Double, Double, Double, Double)] = None,
+      includeUserFields: Boolean = false
   )(implicit c: Option[Connection] = None): String = {
     this.withMRConnection { implicit c =>
       val filters          = new StringBuilder()
@@ -1847,7 +1848,7 @@ class ChallengeDAL @Inject() (
           }
 
           p.reviewer match {
-            case Some(r) =>
+            case Some(r) if includeUserFields =>
               filterParameters += NamedParameter("reviewerName", s"%${r}%")
               filters.append(s""" AND t.id IN (
                   SELECT subTR.task_id FROM task_review subTR
@@ -1859,7 +1860,7 @@ class ChallengeDAL @Inject() (
           }
 
           p.owner match {
-            case Some(o) =>
+            case Some(o) if includeUserFields =>
               filterParameters += NamedParameter("ownerName", s"%${o}%")
               filters.append(s""" AND t.id IN (
                   SELECT subTR.task_id FROM task_review subTR
@@ -1881,8 +1882,27 @@ class ChallengeDAL @Inject() (
         case None => // do nothing
       }
 
+      // Who mapped and reviewed each task, and when, is only available for the challenge
+      // owner (or someone else with permissions on the challenge). Everyone else just
+      // gets the task ids and statuses.
+      val tzName = s"(select name from pg_timezone_names where utc_offset='$tzOffset' limit 1)"
+      val userFields = if (includeUserFields) {
+        s"""hstore('mr_mappedOn',
+              TO_CHAR(t.mapped_on::TIMESTAMPTZ at time zone $tzName,
+                'YYYY-MM-DD"T"HH24:MI:SS$tzOffset')) ||
+            hstore('mr_mapper', (select name from users where id=t.completed_by)::text) ||
+            hstore('mr_reviewer', (select name from users where id=t.reviewed_by)::text) ||
+            hstore('mr_reviewedAt',
+              TO_CHAR(t.reviewed_at::TIMESTAMPTZ at time zone $tzName,
+                'YYYY-MM-DD"T"HH24:MI:SS$tzOffset')) ||
+            hstore('mr_reviewTimeSeconds',
+              FLOOR(EXTRACT(EPOCH FROM (t.reviewed_at - t.review_started_at)))::text) ||"""
+      } else {
+        ""
+      }
+
       val query =
-        SQL"""SELECT row_to_json(fc)::text as geometries
+        SQL(s"""SELECT row_to_json(fc)::text as geometries
             FROM ( SELECT 'FeatureCollection' As type, array_to_json(array_agg(f)) As features
                    FROM ( SELECT 'Feature' As type,
                                   t.geojson_geom::jsonb As geometry,
@@ -1893,48 +1913,35 @@ class ChallengeDAL @Inject() (
                                         hstore('mr_taskName', t.name::text) ||
                                         hstore('mr_taskStatus',
                                           (CASE
-                                            WHEN t.tstatus = #${Task.STATUS_CREATED} THEN ${Task.STATUS_CREATED_NAME}
-                                            WHEN t.tstatus = #${Task.STATUS_FIXED} THEN ${Task.STATUS_FIXED_NAME}
-                                            WHEN t.tstatus = #${Task.STATUS_SKIPPED} THEN ${Task.STATUS_SKIPPED_NAME}
-                                            WHEN t.tstatus = #${Task.STATUS_DELETED} THEN ${Task.STATUS_DELETED_NAME}
-                                            WHEN t.tstatus = #${Task.STATUS_ALREADY_FIXED} THEN ${Task.STATUS_ALREADY_FIXED_NAME}
-                                            WHEN t.tstatus = #${Task.STATUS_FALSE_POSITIVE} THEN ${Task.STATUS_FALSE_POSITIVE_NAME}
-                                            WHEN t.tstatus = #${Task.STATUS_TOO_HARD} THEN ${Task.STATUS_TOO_HARD_NAME}
-                                            WHEN t.tstatus = #${Task.STATUS_ANSWERED} THEN ${Task.STATUS_ANSWERED_NAME}
-                                            WHEN t.tstatus = #${Task.STATUS_VALIDATED} THEN ${Task.STATUS_VALIDATED_NAME}
-                                            WHEN t.tstatus = #${Task.STATUS_DISABLED} THEN ${Task.STATUS_DISABLED_NAME}
+                                            WHEN t.tstatus = ${Task.STATUS_CREATED} THEN '${Task.STATUS_CREATED_NAME}'
+                                            WHEN t.tstatus = ${Task.STATUS_FIXED} THEN '${Task.STATUS_FIXED_NAME}'
+                                            WHEN t.tstatus = ${Task.STATUS_SKIPPED} THEN '${Task.STATUS_SKIPPED_NAME}'
+                                            WHEN t.tstatus = ${Task.STATUS_DELETED} THEN '${Task.STATUS_DELETED_NAME}'
+                                            WHEN t.tstatus = ${Task.STATUS_ALREADY_FIXED} THEN '${Task.STATUS_ALREADY_FIXED_NAME}'
+                                            WHEN t.tstatus = ${Task.STATUS_FALSE_POSITIVE} THEN '${Task.STATUS_FALSE_POSITIVE_NAME}'
+                                            WHEN t.tstatus = ${Task.STATUS_TOO_HARD} THEN '${Task.STATUS_TOO_HARD_NAME}'
+                                            WHEN t.tstatus = ${Task.STATUS_ANSWERED} THEN '${Task.STATUS_ANSWERED_NAME}'
+                                            WHEN t.tstatus = ${Task.STATUS_VALIDATED} THEN '${Task.STATUS_VALIDATED_NAME}'
+                                            WHEN t.tstatus = ${Task.STATUS_DISABLED} THEN '${Task.STATUS_DISABLED_NAME}'
                                            END)) ||
                                         hstore('mr_taskPriority',
                                           (CASE
-                                            WHEN t.priority = #${Challenge.PRIORITY_HIGH} THEN ${Challenge.PRIORITY_HIGH_NAME}
-                                            WHEN t.priority = #${Challenge.PRIORITY_MEDIUM} THEN ${Challenge.PRIORITY_MEDIUM_NAME}
-                                            WHEN t.priority = #${Challenge.PRIORITY_LOW} THEN ${Challenge.PRIORITY_LOW_NAME}
+                                            WHEN t.priority = ${Challenge.PRIORITY_HIGH} THEN '${Challenge.PRIORITY_HIGH_NAME}'
+                                            WHEN t.priority = ${Challenge.PRIORITY_MEDIUM} THEN '${Challenge.PRIORITY_MEDIUM_NAME}'
+                                            WHEN t.priority = ${Challenge.PRIORITY_LOW} THEN '${Challenge.PRIORITY_LOW_NAME}'
                                            END)) ||
-                                        hstore('mr_mappedOn',
-                                                TO_CHAR(t.mapped_on::TIMESTAMPTZ at time zone
-                                                  (select name from pg_timezone_names where utc_offset='#${tzOffset}' limit 1),
-                                                  'YYYY-MM-DD"T"HH24:MI:SS#${tzOffset}'))
-                                        ||
-                                        hstore('mr_mapper',
-                                          (select name from users where id=t.completed_by)::text) ||
+                                        ${userFields}
                                         hstore('mr_reviewStatus',
                                           (CASE
-                                            WHEN t.review_status = #${Task.REVIEW_STATUS_REQUESTED} THEN ${Task.REVIEW_STATUS_REQUESTED_NAME}
-                                            WHEN t.review_status = #${Task.REVIEW_STATUS_APPROVED} THEN ${Task.REVIEW_STATUS_APPROVED_NAME}
-                                            WHEN t.review_status = #${Task.REVIEW_STATUS_APPROVED_WITH_REVISIONS} THEN ${Task.REVIEW_STATUS_APPROVED_NAME}
-                                            WHEN t.review_status = #${Task.REVIEW_STATUS_APPROVED_WITH_FIXES_AFTER_REVISIONS} THEN ${Task.REVIEW_STATUS_APPROVED_NAME}
-                                            WHEN t.review_status = #${Task.REVIEW_STATUS_REJECTED} THEN ${Task.REVIEW_STATUS_REJECTED_NAME}
-                                            WHEN t.review_status = #${Task.REVIEW_STATUS_ASSISTED} THEN ${Task.REVIEW_STATUS_ASSISTED_NAME}
-                                            WHEN t.review_status = #${Task.REVIEW_STATUS_DISPUTED} THEN ${Task.REVIEW_STATUS_DISPUTED_NAME}
-                                            WHEN t.review_status = #${Task.REVIEW_STATUS_UNNECESSARY} THEN ${Task.REVIEW_STATUS_UNNECESSARY_NAME}
+                                            WHEN t.review_status = ${Task.REVIEW_STATUS_REQUESTED} THEN '${Task.REVIEW_STATUS_REQUESTED_NAME}'
+                                            WHEN t.review_status = ${Task.REVIEW_STATUS_APPROVED} THEN '${Task.REVIEW_STATUS_APPROVED_NAME}'
+                                            WHEN t.review_status = ${Task.REVIEW_STATUS_APPROVED_WITH_REVISIONS} THEN '${Task.REVIEW_STATUS_APPROVED_NAME}'
+                                            WHEN t.review_status = ${Task.REVIEW_STATUS_APPROVED_WITH_FIXES_AFTER_REVISIONS} THEN '${Task.REVIEW_STATUS_APPROVED_NAME}'
+                                            WHEN t.review_status = ${Task.REVIEW_STATUS_REJECTED} THEN '${Task.REVIEW_STATUS_REJECTED_NAME}'
+                                            WHEN t.review_status = ${Task.REVIEW_STATUS_ASSISTED} THEN '${Task.REVIEW_STATUS_ASSISTED_NAME}'
+                                            WHEN t.review_status = ${Task.REVIEW_STATUS_DISPUTED} THEN '${Task.REVIEW_STATUS_DISPUTED_NAME}'
+                                            WHEN t.review_status = ${Task.REVIEW_STATUS_UNNECESSARY} THEN '${Task.REVIEW_STATUS_UNNECESSARY_NAME}'
                                            END)) ||
-                                        hstore('mr_reviewer', (select name from users where id=t.reviewed_by)::text) ||
-                                        hstore('mr_reviewedAt',
-                                          TO_CHAR(t.reviewed_at::TIMESTAMPTZ at time zone
-                                            (select name from pg_timezone_names where utc_offset='#${tzOffset}' limit 1),
-                                            'YYYY-MM-DD"T"HH24:MI:SS#${tzOffset}'))
-                                        ||
-                                        hstore('mr_reviewTimeSeconds', FLOOR(EXTRACT(EPOCH FROM (t.reviewed_at - t.review_started_at)))::text) ||
                                         hstore('mr_tags', (SELECT STRING_AGG(tg.name, ',') AS tags
                                                             FROM tags_on_tasks tot, tags tg
                                                             WHERE tot.task_id=t.tid AND tg.id = tot.tag_id)) ||
@@ -1951,11 +1958,13 @@ class ChallengeDAL @Inject() (
                               LEFT OUTER JOIN status_actions sa ON
                                 (sa.task_id = t.id AND extract(epoch from age(sa.created, t.mapped_on)) < 0.1)
                               LEFT OUTER JOIN task_review tr ON t.id = tr.task_id
-                              WHERE parent_id = $challengeId #${filters.toString}
+                              WHERE parent_id = {challengeId} ${filters.toString}
                             ) AS subT ) as t
                     ) As f
-            )  As fc"""
-      val challengeGeometry = query.on(filterParameters.toSeq: _*).as(str("geometries").single)
+            )  As fc""")
+      val challengeGeometry = query
+        .on((NamedParameter("challengeId", challengeId) +: filterParameters.toSeq): _*)
+        .as(str("geometries").single)
       if (StringUtils.isEmpty(challengeGeometry)) {
         this.updateGeometry(challengeId)
       }

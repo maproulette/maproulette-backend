@@ -16,6 +16,7 @@ import org.maproulette.framework.service.{
 import org.maproulette.framework.psql.Paging
 import org.maproulette.framework.model.{Challenge, User, ReviewMetrics, Task}
 import org.maproulette.session.{SessionManager, SearchParameters, SearchTaskParameters}
+import org.maproulette.permissions.Permission
 import org.maproulette.utils.Utils
 import play.api.mvc._
 import play.api.libs.json._
@@ -35,6 +36,7 @@ class TaskReviewMetricsController @Inject() (
     challengeService: ChallengeService,
     projectService: ProjectService,
     userService: UserService,
+    permission: Permission,
     components: ControllerComponents
 ) extends AbstractController(components)
     with MapRouletteController {
@@ -184,8 +186,9 @@ class TaskReviewMetricsController @Inject() (
   def extractMapperMetrics(
       onlySaved: Boolean = false
   ): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.userAwareRequest { implicit user =>
+    this.sessionManager.authenticatedRequest { implicit user =>
       SearchParameters.withSearch { implicit params =>
+        this.permission.hasExportScopeAccess(params, user)
         val allReviewStatuses = List(
           Task.REVIEW_STATUS_REQUESTED,
           Task.REVIEW_STATUS_APPROVED,
@@ -197,7 +200,7 @@ class TaskReviewMetricsController @Inject() (
         )
 
         val metrics = this.service.getMapperMetrics(
-          User.userOrMocked(user),
+          user,
           params.copy(
             taskParams = SearchTaskParameters(
               taskReviewStatus = Some(allReviewStatuses)
@@ -212,7 +215,7 @@ class TaskReviewMetricsController @Inject() (
           allReviewStatuses
             .map(reviewStatus => {
               val reviewStatusMetrics = this.service.getMapperMetrics(
-                User.userOrMocked(user),
+                user,
                 params.copy(
                   taskParams = SearchTaskParameters(
                     taskReviewStatus = Some(List(reviewStatus))
@@ -287,8 +290,9 @@ class TaskReviewMetricsController @Inject() (
   def extractMetaReviewCoverage(
       onlySaved: Boolean = false
   ): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.userAwareRequest { implicit user =>
+    this.sessionManager.authenticatedRequest { implicit user =>
       SearchParameters.withSearch { implicit params =>
+        this.permission.hasExportScopeAccess(params, user)
         val allReviewStatuses = List(
           Task.REVIEW_STATUS_REQUESTED,
           Task.REVIEW_STATUS_APPROVED,
@@ -309,7 +313,7 @@ class TaskReviewMetricsController @Inject() (
         )
 
         val metrics = this.service.getMetaReviewMetrics(
-          User.userOrMocked(user),
+          user,
           params.copy(
             taskParams = SearchTaskParameters(
               taskReviewStatus = Some(allReviewStatuses)

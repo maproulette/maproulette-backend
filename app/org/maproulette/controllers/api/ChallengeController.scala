@@ -248,7 +248,8 @@ class ChallengeController @Inject() (
                       priority,
                       Some(params),
                       timezone,
-                      boundingBox
+                      boundingBox,
+                      includeUserFields = user.exists(this.permission.canExport(c, _))
                     )
                 ),
                 Some("application/json;charset=utf-8;header=present")
@@ -725,6 +726,18 @@ class ChallengeController @Inject() (
     }
 
   /**
+    * Retrieves a challenge for an export that identifies its mappers or reviewers, checking that
+    * the user may export it.
+    */
+  private def retrieveForExport(challengeId: Long, user: User): Challenge = {
+    val challenge = this.dal
+      .retrieveById(challengeId)
+      .getOrElse(throw new NotFoundException(s"Challenge with id $challengeId not found"))
+    this.permission.hasExportAccess(challenge, user)
+    challenge
+  }
+
+  /**
     * Extracts all the comments and returns them in a nice format like csv.
     *
     * @param challengeId The id of the challenge
@@ -735,6 +748,7 @@ class ChallengeController @Inject() (
   def extractComments(challengeId: Long, limit: Int, page: Int): Action[AnyContent] = Action.async {
     implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
+        this.retrieveForExport(challengeId, user)
         Result(
           header = ResponseHeader(
             OK,
@@ -871,6 +885,8 @@ class ChallengeController @Inject() (
               .copy(taskStatus = status, taskReviewStatus = reviewStatus, taskPriorities = priority)
           )
 
+        val challenges = challengeIds.map(this.retrieveForExport(_, user))
+
         val (tasks, allComments) =
           this.dalManager.task.retrieveTaskSummaries(challengeIds, limit, page, allParams)
 
@@ -883,12 +899,7 @@ class ChallengeController @Inject() (
           case None         => s"http://${request.host}/"
         }
 
-        challengeIds.foreach(cId => {
-          val challenge = this.dal.retrieveById(cId) match {
-            case Some(c) => c
-            case None    => throw new NotFoundException(s"Challenge with id $cId not found")
-          }
-
+        challenges.foreach(challenge => {
           // Include any properties requested in the csv
           if (!exportProperties.isEmpty) {
             var propsToExport = exportProperties.replaceAll("\\s", "").split(",")
@@ -1083,6 +1094,7 @@ class ChallengeController @Inject() (
       challengeId: Long
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
+      this.retrieveForExport(challengeId, user)
       SearchParameters.withSearch { implicit params =>
         val challengeTasks    = this.serviceManager.challenge.getTasksByParentId(challengeId);
         val taskReviewHistory = this.serviceManager.taskHistory.getTaskReviewHistory(challengeTasks);
@@ -1362,6 +1374,7 @@ class ChallengeController @Inject() (
     this.sessionManager.authenticatedFutureRequest { implicit user =>
       this.dal.retrieveById(challengeId) match {
         case Some(c) =>
+          this.permission.hasExportAccess(c, user)
           implicit val actionSummaryWrites    = Json.writes[ActionSummary]
           implicit val challengeSummaryWrites = Json.writes[ChallengeSummary]
           val files: Map[String, String] = Map(
@@ -1370,8 +1383,9 @@ class ChallengeController @Inject() (
               .getLineByLineChallengeGeometry(challengeId)
               .values
               .mkString("\n"),
-            "geometry.geojson" -> this.dal.getChallengeGeometry(challengeId),
-            "comments.csv"     -> this.extractComments(challengeId, -1, 0, request.host).mkString("\n"),
+            "geometry.geojson" -> this.dal
+              .getChallengeGeometry(challengeId, includeUserFields = true),
+            "comments.csv" -> this.extractComments(challengeId, -1, 0, request.host).mkString("\n"),
             "metrics.csv" -> Json.prettyPrint(
               Json.toJson(this.dalManager.data.getChallengeSummary(challengeId = Some(challengeId)))
             )

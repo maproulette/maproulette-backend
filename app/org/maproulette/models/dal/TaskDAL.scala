@@ -1535,7 +1535,7 @@ class TaskDAL @Inject() (
       val allComments = commentsQuery.as(commentParser.*).toMap.withDefaultValue("")
 
       val query =
-        SQL"""SELECT tasks.id, tasks.parent_id, tasks.name, tasks.status, tasks.priority, sa_outer.username, tasks.mapped_on,
+        SQL(s"""SELECT tasks.id, tasks.parent_id, tasks.name, tasks.status, tasks.priority, sa_outer.username, tasks.mapped_on,
                    tasks.completed_time_spent,
                    (SELECT name as completedBy FROM users WHERE users.id = tasks.completed_by),
                    task_review.review_status, tasks.is_bundle_primary, tasks.bundle_id, tasks.geojson::TEXT AS geo_json,
@@ -1550,7 +1550,7 @@ class TaskDAL @Inject() (
               FROM users u, status_actions sa INNER JOIN (
                 SELECT task_id, MAX(created) AS latest
                 FROM status_actions
-                WHERE challenge_id IN (#${challengeIds.mkString(",")})
+                WHERE challenge_id IN (${challengeIds.mkString(",")})
                 GROUP BY task_id
               ) AS sa_inner
               ON sa.task_id = sa_inner.task_id AND sa.created = sa_inner.latest
@@ -1558,11 +1558,11 @@ class TaskDAL @Inject() (
             ) AS sa_outer ON tasks.id = sa_outer.task_id AND tasks.status = sa_outer.status
             INNER JOIN challenges c ON c.id = tasks.parent_id
             LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
-            #${joinClause.toString}
-            WHERE tasks.parent_id IN (#${challengeIds.mkString(",")}) AND #${filters.toString}
+            ${joinClause.toString}
+            WHERE tasks.parent_id IN (${challengeIds.mkString(",")}) AND ${filters.toString}
             ORDER BY tasks.id
-            LIMIT #${this.sqlLimit(limit)} OFFSET #${page * limit}
-      """.on(filterParameters.toSeq: _*)
+            LIMIT ${this.sqlLimit(limit)} OFFSET ${page * limit}
+      """).on(filterParameters.toSeq: _*)
       (query.as(parser.*), allComments)
     }
 
