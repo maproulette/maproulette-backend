@@ -10,9 +10,9 @@ import anorm._
 
 import java.sql.PreparedStatement
 import org.joda.time.DateTime
-import org.maproulette.data.ItemType
+import org.maproulette.data.{ItemType, TaskType}
 import org.maproulette.exception.{LockConflictException, LockedException}
-import org.maproulette.framework.model.{Task, User}
+import org.maproulette.framework.model.{SessionHistory, Task, User}
 import org.maproulette.framework.psql.TransactionManager
 import org.maproulette.models.{BaseObject, Lock}
 import org.maproulette.framework.repository.RepositoryMixin
@@ -155,10 +155,22 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
         case None =>
           val query =
             s"""INSERT INTO locked (item_type, item_id, user_id, is_review_claim)
-                VALUES (${item.itemType.typeId}, {itemId}, ${user.id}, $reviewClaim)"""
-          SQL(query)
+                VALUES (${item.itemType.typeId}, {itemId}, ${user.id}, $reviewClaim)
+                RETURNING id"""
+          val lockId = SQL(query)
             .on(Symbol("itemId") -> ParameterValue.toParameterValue(item.id)(p = keyToStatement))
-            .executeUpdate()
+            .as(SqlParser.scalar[Long].single)
+          val (sessionType, subType) =
+            if (reviewClaim) (SessionHistory.TYPE_CUSTOM, Some(SessionHistory.SUB_TYPE_REVIEW))
+            else (SessionHistory.TYPE_MAP, None)
+          this.recordSessionLock(
+            user.id,
+            item.id.asInstanceOf[Long],
+            lockId,
+            item.itemType,
+            sessionType,
+            subType
+          )
           user.id
       }
     }
@@ -257,13 +269,22 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
         case None =>
           val query =
             s"""INSERT INTO locked (item_type, item_id, user_id, bundled_tasks)
-                VALUES (${primaryItem.itemType.typeId}, {itemId}, ${user.id}, $membersLiteral)"""
-          SQL(query)
+                VALUES (${primaryItem.itemType.typeId}, {itemId}, ${user.id}, $membersLiteral)
+                RETURNING id"""
+          val lockId = SQL(query)
             .on(
               Symbol("itemId") -> ParameterValue.toParameterValue(primaryItem.id)(p = keyToStatement
               )
             )
-            .executeUpdate()
+            .as(SqlParser.scalar[Long].single)
+          this.recordSessionLock(
+            user.id,
+            primaryItem.id,
+            lockId,
+            primaryItem.itemType,
+            SessionHistory.TYPE_MAP,
+            None
+          )
           user.id
       }
     }
@@ -323,6 +344,25 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
             .executeUpdate()
       }
     }
+
+  /**
+    * Records a lock event in session_history for task locks only. The matching
+    * unlock is written by the session_history_on_locked_delete trigger whenever
+    * this locked row is removed, using the same lockId and the sessionType and
+    * subType stored on this event.
+    */
+  private def recordSessionLock(
+      userId: Long,
+      taskId: Long,
+      lockId: Long,
+      itemType: ItemType,
+      sessionType: String,
+      subType: Option[String]
+  )(implicit c: Connection): Unit = {
+    if (itemType.typeId == TaskType().typeId) {
+      SessionHistory.recordLock(userId, taskId, lockId, sessionType, subType)
+    }
+  }
 
   /**
     * Our key for our objects are current Long, but can support String if need be. This function
