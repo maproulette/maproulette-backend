@@ -19,6 +19,29 @@
 GET     /task/:id/history                       @org.maproulette.framework.controller.TaskHistoryController.getTaskHistoryLog(id:Long)
 ###
 # tags: [ Task ]
+# operationId: task_retrieves_session_history_for_the_task
+# summary: Retrieves lock and unlock session events for a task
+# description: Retrieves append-only lock/unlock events from session_history,
+#              including the acting user's id and username. Separate from the
+#              comments/status history log so clients can merge the two
+#              feeds in timestamp order.
+# responses:
+#   '200':
+#     description: List of session history events
+#     content:
+#       application/json:
+#         schema:
+#           type: array
+#           items:
+#             type: object
+# parameters:
+#   - name: id
+#     in: path
+#     description: The id of the task
+###
+GET     /task/:id/sessionHistory                @org.maproulette.framework.controller.TaskHistoryController.getSessionHistory(id:Long)
+###
+# tags: [ Task ]
 # operationId: task_create_a_task
 # summary: Create a Task
 # description: Will create a new Task from the supplied JSON in the body. When creating the Task, leave the ID field

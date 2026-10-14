@@ -7,7 +7,8 @@ package org.maproulette.framework.controller
 import javax.inject.Inject
 import org.maproulette.data.ActionManager
 import org.maproulette.framework.service.{ServiceManager, TaskHistoryService}
-import org.maproulette.framework.model.TaskLogEntry
+import org.maproulette.framework.model.{SessionHistory, TaskLogEntry}
+import org.maproulette.framework.repository.SessionHistoryRepository
 import org.maproulette.session.SessionManager
 import org.maproulette.utils.Utils
 import play.api.mvc._
@@ -23,6 +24,7 @@ class TaskHistoryController @Inject() (
     override val actionManager: ActionManager,
     override val bodyParsers: PlayBodyParsers,
     service: TaskHistoryService,
+    sessionHistoryRepository: SessionHistoryRepository,
     serviceManager: ServiceManager,
     components: ControllerComponents
 ) extends AbstractController(components)
@@ -37,6 +39,25 @@ class TaskHistoryController @Inject() (
   def getTaskHistoryLog(taskId: Long): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
       Ok(_insertExtraJSON(service.getTaskHistoryLog(taskId)))
+    }
+  }
+
+  /**
+    * Lock/unlock session events for a task, separate from comments/status/review
+    * history. The frontend merges this feed into the history widget by timestamp.
+    *
+    * @param taskId The id of the task being viewed
+    * @return
+    */
+  def getSessionHistory(taskId: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.userAwareRequest { implicit user =>
+      val entries = sessionHistoryRepository.listForTask(taskId)
+      val usersById =
+        this.serviceManager.user
+          .retrieveListById(entries.map(_.userId).distinct)
+          .map(u => u.id -> Json.obj("id" -> u.id, "username" -> u.name))
+          .toMap
+      Ok(SessionHistory.toJsonWithUsers(entries, usersById))
     }
   }
 
