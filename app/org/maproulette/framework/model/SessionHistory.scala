@@ -10,7 +10,6 @@ import anorm.SqlParser.get
 import anorm._
 import org.joda.time.DateTime
 import org.maproulette.framework.psql.CommonField
-import play.api.libs.json.JodaReads._
 import play.api.libs.json.JodaWrites._
 import play.api.libs.json.{JsNull, JsObject, JsValue, Json, Writes}
 
