@@ -87,22 +87,6 @@ trait TagsControllerMixin[T <: BaseObject[Long]] {
       }
   }
 
-  def updateItemTags(id: Long, tags: String): Action[AnyContent] = Action.async {
-    implicit request =>
-      this.sessionManager.authenticatedRequest { implicit user =>
-        val tagList    = tags.split(",").toList
-        val tagObjects = tagList.map((tag) => new Tag(-1, tag.trim, tagType = this.tagType))
-        val tagIds     = this.tagService.updateTagList(tagObjects, user).map(_.id)
-
-        // now we have the ids for the supplied tags, then lets map them to the item created
-        this.dalWithTags.updateItemTags(id, tagIds, user, true)
-        this.actionManager
-          .setAction(Some(user), this.itemType.convertToItem(id), TagAdded(), tagIds.mkString(","))
-
-        Ok(Json.toJson(this.getTags(id)))
-      }
-  }
-
   /**
     * Gets the tags for either the challenge or the task depending on what controller is using the mixin
     *

@@ -138,30 +138,6 @@ class UserServiceSpec(implicit val application: Application) extends FrameworkHe
       newAPIUser.get.apiKey must not be insertedUser.apiKey
     }
 
-    "add a user's Following group" taggedAs UserTag in {
-      val insertedUser =
-        this.userService.create(this.getTestUser(21, "AddFollowingGroupTest"), User.superUser)
-
-      insertedUser.followingGroupId mustEqual None
-      val followingGroupId = this.userService.addFollowingGroup(insertedUser, User.superUser)
-      followingGroupId.isDefined mustEqual true
-
-      val groupAgain = this.userService.addFollowingGroup(insertedUser, User.superUser)
-      groupAgain.get mustEqual followingGroupId.get
-    }
-
-    "add a user's Followers group" taggedAs UserTag in {
-      val insertedUser =
-        this.userService.create(this.getTestUser(22, "AddFollowersGroupTest"), User.superUser)
-
-      insertedUser.followersGroupId mustEqual None
-      val followersGroupId = this.userService.addFollowersGroup(insertedUser, User.superUser)
-      followersGroupId.isDefined mustEqual true
-
-      val groupAgain = this.userService.addFollowersGroup(insertedUser, User.superUser)
-      groupAgain.get mustEqual followersGroupId.get
-    }
-
     "retrieve list of users" taggedAs UserTag in {
       val user1 =
         this.userService.create(this.getTestUser(12, "ListRetrievalTestUser1"), User.superUser)
@@ -384,6 +360,37 @@ class UserServiceSpec(implicit val application: Application) extends FrameworkHe
         .size mustEqual 2
     }
 
+    "not add a user to a project with an invalid role" taggedAs UserTag in {
+      val owner =
+        this.userService.create(this.getTestUser(54321, "InvalidRoleOwner"), User.superUser)
+      val project = this.serviceManager.project
+        .create(Project(-1, owner.osmProfile.id, "InvalidRoleTestProject"), owner)
+      val user =
+        this.userService.create(this.getTestUser(54322, "InvalidRoleTest"), User.superUser)
+      this.userService.addUserToProject(
+        user.osmProfile.id,
+        project.id,
+        Grant.ROLE_WRITE_ACCESS,
+        owner
+      )
+
+      List(Grant.ROLE_SUPER_USER, Grant.ROLE_OWNER, 4).foreach { role =>
+        intercept[InvalidException] {
+          this.userService.addUserToProject(
+            user.osmProfile.id,
+            project.id,
+            role,
+            owner,
+            clear = true
+          )
+        }
+      }
+
+      // The rejected requests must not have cleared the existing grant first
+      this.userService.retrieve(user.id).get.grantsForProject(project.id).map(_.role) mustEqual
+        List(Grant.ROLE_WRITE_ACCESS)
+    }
+
     "remove a user from a project" taggedAs UserTag in {
       val user =
         this.userService.create(this.getTestUser(20, "RemoveUserFromProjectTest"), User.superUser)
@@ -500,7 +507,7 @@ class UserServiceSpec(implicit val application: Application) extends FrameworkHe
               ),
               BaseParameter("p.owner_id", user.osmProfile.id),
               SubQueryFilter(
-                user.osmProfile.id.toString,
+                "p.id",
                 Query.simple(
                   List(
                     BaseParameter("ug.group_id", "g.id", useValueDirectly = true),

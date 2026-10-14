@@ -32,7 +32,7 @@ object SQLUtils {
   // The set of characters that are allowed for column names, so that we can sanitize in unknown input
   // for protection against SQL injection
   private val ordinary =
-    (('a' to 'z') ++ ('A' to 'Z') ++ ('0' to '9') ++ Seq('_') ++ Seq('.') ++ Seq('-')).toSet
+    (('a' to 'z') ++ ('A' to 'Z') ++ ('0' to '9') ++ Seq('_') ++ Seq('.')).toSet
 
   def testColumnName(columnName: String): Unit = {
     if (!columnName.forall(this.ordinary.contains)) {
@@ -41,25 +41,22 @@ object SQLUtils {
   }
 
   /**
+    * Normalizes a requested sort direction to either ASC or DESC. Anything that is not an explicit
+    * (case-insensitive) ascending request is treated as DESC.
+    */
+  def orderDirection(value: String): String =
+    if (value != null && value.equalsIgnoreCase("ASC")) "ASC" else "DESC"
+
+  /**
     * Corrects the search string by adding % before and after string, so that it doesn't rely
     * on simply an exact match. If value not supplied, then will simply return %
     *
     * @param value The search string that you are using to match with
     * @return
     */
-  def search(
-      value: String,
-      usePrefix: Boolean = false,
-      escapeSingleQuote: Boolean = true
-  ): String = {
+  def search(value: String, usePrefix: Boolean = false): String = {
     val firstChar = if (usePrefix) "" else "%"
-    val searchString = escapeSingleQuote match {
-      case true =>
-        if (value.nonEmpty) value.replace("'", "''")
-        else value
-      case false => value
-    }
-    if (value.nonEmpty) s"$firstChar$searchString%" else "%"
+    if (value.nonEmpty) s"$firstChar$value%" else "%"
   }
 
   def toParameterValue[T](value: T): ParameterValue =

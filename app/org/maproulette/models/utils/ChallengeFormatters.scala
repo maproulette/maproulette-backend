@@ -12,7 +12,8 @@ import org.maproulette.framework.model.{
   ChallengeExtra,
   ChallengeGeneral,
   ChallengePriority,
-  CompletionMetrics
+  CompletionMetrics,
+  TeamImage
 }
 import org.maproulette.utils.Utils
 import org.maproulette.utils.Utils.{jsonReads, jsonWrites}
@@ -20,6 +21,24 @@ import play.api.libs.functional.syntax._
 import play.api.libs.json.JodaReads._
 import play.api.libs.json.JodaWrites._
 import play.api.libs.json._
+
+/**
+  * The fields every challenge projection emits for the team that owns it: the
+  * team's id, and the url clients render the card image from. Derived in one
+  * place so the projections can't drift apart.
+  *
+  * The url is addressed by team rather than by image, so it always serves
+  * whatever image that team currently has approved - no challenge can be left
+  * pointing at an image the team has since replaced. A team with no approved
+  * image serves a 404 there, which is how a client tells there is no picture.
+  */
+private[utils] object OwnerTeamFields {
+  def apply(ownerTeamId: Option[Long]): List[Option[(String, JsValue)]] =
+    List(
+      ownerTeamId.map(v => "ownerTeamId" -> JsNumber(v)),
+      ownerTeamId.map(v => "avatarUrl"   -> JsString(TeamImage.urlForTeam(v)))
+    )
+}
 
 /**
   * @author cuthbertm
@@ -75,7 +94,7 @@ trait ChallengeWrites extends DefaultWrites {
         o.systemArchivedAt.map(dt => "systemArchivedAt"        -> Json.toJson(dt)),
         o.presets.map(v => "presets"                           -> Json.toJson(v)),
         o.mrTagMetrics.map(v => "mrTagMetrics"                 -> v)
-      )
+      ) ++ OwnerTeamFields(o.ownerTeamId)
 
       val json = JsObject(baseFields ++ optionFields.flatten)
 
@@ -177,7 +196,8 @@ trait ChallengeReads extends DefaultReads {
             requireConfirmation =
               (jsonWithExtras \ "requireConfirmation").asOpt[Boolean].getOrElse(false),
             mrTagMetrics = (jsonWithExtras \ "mrTagMetrics").asOpt[JsObject],
-            paused = (jsonWithExtras \ "paused").asOpt[Boolean].getOrElse(false)
+            paused = (jsonWithExtras \ "paused").asOpt[Boolean].getOrElse(false),
+            ownerTeamId = (jsonWithExtras \ "ownerTeamId").asOpt[Long]
           )
         )
       } catch {
@@ -279,7 +299,7 @@ trait BaseChallengeWrites extends DefaultWrites {
         bc.location.map(v => "location"                         -> v),
         bc.bounding.map(v => "bounding"                         -> v),
         bc.completionPercentage.map(v => "completionPercentage" -> JsNumber(v))
-      )
+      ) ++ OwnerTeamFields(bc.ownerTeamId)
 
       JsObject(baseFields ++ optionFields.flatten)
     }

@@ -6,7 +6,7 @@
 package org.maproulette.framework.repository
 
 import org.maproulette.exception.{InvalidException}
-import org.maproulette.framework.model.{Grant, Grantee, GrantTarget, User, Project}
+import org.maproulette.framework.model.{Grant, Grantee, GrantTarget, MemberObject, User, Project}
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.BaseParameter
 import org.maproulette.framework.service.GrantService
@@ -309,6 +309,63 @@ class GrantServiceSpec(implicit val application: Application) extends FrameworkH
           user = User.superUser
         )
         .isEmpty mustEqual true
+    }
+
+    "reject roles that are invalid for the grant target" taggedAs GrantTag in {
+      val invalid = List(
+        (Grant.ROLE_SUPER_USER, GrantTarget.project(this.defaultProject.id)),
+        (Grant.ROLE_SUPER_USER, GrantTarget.project(0)),
+        (Grant.ROLE_OWNER, GrantTarget.project(this.defaultProject.id)),
+        (Grant.ROLE_OWNER, GrantTarget.challenge(this.defaultChallenge.id)),
+        (4, GrantTarget.project(this.defaultProject.id)),
+        (Grant.ROLE_SUPER_USER, GrantTarget.group(1)),
+        (4, GrantTarget.group(1))
+      )
+      invalid.foreach {
+        case (role, target) =>
+          intercept[InvalidException] {
+            this.service
+              .createGrant(Grant(-1, "", Grantee.user(randomUser.id), role, target), User.superUser)
+          }
+      }
+    }
+
+    "allow the owner role on a team" taggedAs GrantTag in {
+      val team = this.serviceManager.team
+        .create(
+          this.getTestTeam("GrantServiceSpec_owner"),
+          MemberObject.user(this.defaultUser.id),
+          this.defaultUser
+        )
+        .get
+      val grant = this.service.createGrant(
+        Grant(-1, "", Grantee.user(randomUser.id), Grant.ROLE_OWNER, GrantTarget.group(team.id)),
+        User.superUser
+      )
+      grant.get.role mustEqual Grant.ROLE_OWNER
+    }
+
+    "reject an invalid role at the database even when bypassing the service" taggedAs GrantTag in {
+      intercept[Exception] {
+        this.repository.create(
+          setupProjectGrant(randomUser, Grant.ROLE_SUPER_USER, this.defaultProject)
+        )
+      }
+    }
+
+    "seed superusers only from the dedicated superuser grant" taggedAs GrantTag in {
+      this.service.getSuperUserIdsFromDatabase must not contain randomUser.id
+      this.service.createSuperUserGrant(randomUser.id, "GrantServiceSpec superuser", User.superUser)
+      this.service.getSuperUserIdsFromDatabase must contain(randomUser.id)
+      this.service.deleteSuperUserFromDatabase(randomUser.id)
+      this.service.getSuperUserIdsFromDatabase must not contain randomUser.id
+    }
+
+    "not allow creating a superuser grant by non-superuser" taggedAs GrantTag in {
+      intercept[IllegalAccessException] {
+        this.service
+          .createSuperUserGrant(randomUser.id, "GrantServiceSpec superuser", this.defaultUser)
+      }
     }
 
     "requires at least a grantee or target to delete grants matching filters" taggedAs GrantTag in {

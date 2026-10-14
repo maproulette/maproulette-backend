@@ -9,8 +9,7 @@ import org.apache.commons.lang3.StringUtils
 import org.joda.time.DateTime
 import org.maproulette.Config
 import org.maproulette.exception._
-import org.maproulette.framework.model.{Grant, GrantTarget, User}
-import org.maproulette.framework.psql.{Order, Query}
+import org.maproulette.framework.model.{Grant, GrantTarget}
 import org.maproulette.framework.service.UserService
 import org.maproulette.models.dal.DALManager
 import org.maproulette.session.SessionManager
@@ -18,11 +17,9 @@ import org.maproulette.permissions.Permission
 import org.maproulette.utils.Crypto
 import play.api.libs.json.{JsString, Json}
 import play.api.mvc._
-import play.shaded.oauth.oauth.signpost.exception.OAuthNotAuthorizedException
 import play.api.libs.ws.WSClient
 import org.slf4j.{Logger, LoggerFactory}
 
-import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.Promise
 import scala.util.{Failure, Success}
 import scala.concurrent.Future
@@ -49,12 +46,12 @@ class AuthController @Inject() (
   import scala.concurrent.ExecutionContext.Implicits.global
 
   /**
-    * Resolves the frontend origin to use as the OAuth2 redirect_uri. Prefers an explicit
-    * redirectUri request parameter, falling back to the request's Origin header and finally the
-    * configured frontend. The same resolution is applied in both authenticate() and callback() so
-    * the redirect_uri matches across the OAuth2 exchange. We don't allowlist the value ourselves:
-    * OSM rejects any redirect_uri not registered on the OAuth application, so an arbitrary value
-    * can't be injected here.
+    * Resolves the frontend origin to use as the OAuth2 redirect_uri. Prefers
+    * an explicit redirectUri request parameter, falling back to the request's
+    * Origin header and finally the configured frontend. authenticate() stores
+    * the result in the session so that callback() uses the same redirect_uri.
+    * OSM rejects any redirect_uri not registered on the OAuth application, so
+    * we don't need to check the URI against an allowlist ourselves here.
     */
   private def resolveRedirectURI(
       requested: String
@@ -62,77 +59,99 @@ class AuthController @Inject() (
     if (StringUtils.isNotEmpty(requested)) requested
     else request.headers.get(ORIGIN).getOrElse(config.getMRFrontend)
 
-  //oauth2 endpoint.  takes the auth code provided by OSM and uses it to retrieve a token.
-  //we also check to see if there is a user associated with the token in the system.
-  //if not, we create a new user
-  def callback(code: String, redirectUri: String): Action[AnyContent] = Action.async {
-    implicit request =>
-      MPExceptionUtil.internalAsyncExceptionCatcher { () =>
-        val tokenEndpoint = s"${config.getOSMServer}/oauth2/token"
-        val clientId      = s"${config.getOSMOauth.consumerKey.key}"
-        val clientSecret  = s"${config.getOSMOauth.consumerKey.secret}"
-
-        val requestBody = Map(
-          "grant_type"    -> "authorization_code",
-          "code"          -> code,
-          "client_id"     -> clientId,
-          "client_secret" -> clientSecret,
-          "redirect_uri"  -> resolveRedirectURI(redirectUri)
+  /**
+    * The OAuth2 callback handler: it exchanges the authorization code from OSM
+    * for an access token, finds or creates the corresponding user, and starts a
+    * session for them.
+    *
+    * The state must match the one that authenticate() stored in the session.
+    * This prevents login CSRF, where an attacker tricks a victim into logging
+    * in with the attacker's own authorization code. The state is removed from
+    * the session whatever the outcome, so it can only be used once.
+    *
+    * @param code  The authorization code issued by OSM
+    * @param state The state that OSM passed back along with the code
+    */
+  def callback(code: String, state: String): Action[AnyContent] = Action.async { implicit request =>
+    val result = (
+      request.session.get(SessionManager.KEY_STATE),
+      request.session.get(SessionManager.KEY_REDIRECT_URI)
+    ) match {
+      case (Some(`state`), Some(redirectUri)) => exchangeCode(code, redirectUri)
+      case _ =>
+        Future.successful(
+          BadRequest(Json.toJson(StatusMessage("KO", JsString("Invalid OAuth state"))))
         )
-
-        val responseFuture = for {
-          response <- wsClient
-            .url(tokenEndpoint)
-            .withHttpHeaders(ACCEPT -> JSON)
-            .withHttpHeaders(CONTENT_TYPE -> FORM)
-            .post(requestBody)
-          result <- response.status match {
-            case OK =>
-              val accessToken = (response.json \ "access_token").as[String]
-              val p           = Promise[Result]()
-
-              //use the accessToken to retrieve the user.  if not found, create a new user
-              sessionManager.retrieveUser(accessToken) onComplete {
-                case Success(user) =>
-                  // We received the authorized token in the OAuth object - store it before we proceed
-                  val json = Json.obj(
-                    "token" -> accessToken
-                  )
-
-                  p success
-                    Ok(json)
-                      .withHeaders(("Cache-Control", "no-cache"))
-                      .withSession(
-                        SessionManager.KEY_TOKEN     -> user.osmProfile.requestToken,
-                        SessionManager.KEY_USER_ID   -> user.id.toString,
-                        SessionManager.KEY_OSM_ID    -> user.osmProfile.id.toString,
-                        SessionManager.KEY_USER_TICK -> DateTime.now().getMillis.toString
-                      )
-
-                  Future(storeAPIKeyInOSM(user))
-                case Failure(e) => p failure e
-              }
-
-              p.future
-            case _ =>
-              val errorMessage = (response.json \ "error_description")
-                .asOpt[String]
-                .getOrElse("Failed to obtain access token")
-              Future.successful(InternalServerError(errorMessage))
-          }
-        } yield result
-
-        responseFuture.recover {
-          case ex: Exception =>
-            // Handle any exceptions that may occur during the POST request
-            // e.g., log the error, return an error response, etc.
-            ex.printStackTrace()
-            val errorMessage = s"Failed to obtain access token: ${ex.getMessage()}"
-            InternalServerError(errorMessage)
-        }
-
-      }
+    }
+    result.map(
+      _.removingFromSession(SessionManager.KEY_STATE, SessionManager.KEY_REDIRECT_URI)
+    )
   }
+
+  private def exchangeCode(code: String, redirectUri: String)(
+      implicit request: Request[AnyContent]
+  ): Future[Result] =
+    MPExceptionUtil.internalAsyncExceptionCatcher { () =>
+      val tokenEndpoint = s"${config.getOSMServer}/oauth2/token"
+      val clientId      = s"${config.getOSMOauth.consumerKey.key}"
+      val clientSecret  = s"${config.getOSMOauth.consumerKey.secret}"
+
+      val requestBody = Map(
+        "grant_type"    -> "authorization_code",
+        "code"          -> code,
+        "client_id"     -> clientId,
+        "client_secret" -> clientSecret,
+        "redirect_uri"  -> redirectUri
+      )
+
+      val responseFuture = for {
+        response <- wsClient
+          .url(tokenEndpoint)
+          .withHttpHeaders(ACCEPT -> JSON)
+          .withHttpHeaders(CONTENT_TYPE -> FORM)
+          .post(requestBody)
+        result <- response.status match {
+          case OK =>
+            val accessToken = (response.json \ "access_token").as[String]
+            val p           = Promise[Result]()
+
+            //use the accessToken to retrieve the user.  if not found, create a new user
+            sessionManager.retrieveUser(accessToken) onComplete {
+              case Success(user) =>
+                // We received the authorized token in the OAuth object - store it before we proceed
+                val json = Json.obj(
+                  "token" -> accessToken
+                )
+
+                p success
+                  Ok(json)
+                    .withHeaders(("Cache-Control", "no-cache"))
+                    .withSession(
+                      SessionManager.KEY_TOKEN_HASH -> SessionManager
+                        .hashToken(user.osmProfile.requestToken),
+                      SessionManager.KEY_USER_ID   -> user.id.toString,
+                      SessionManager.KEY_OSM_ID    -> user.osmProfile.id.toString,
+                      SessionManager.KEY_USER_TICK -> DateTime.now().getMillis.toString
+                    )
+              case Failure(e) => p failure e
+            }
+
+            p.future
+          case _ =>
+            val errorMessage = (response.json \ "error_description")
+              .asOpt[String]
+              .getOrElse("Failed to obtain access token")
+            Future.successful(InternalServerError(errorMessage))
+        }
+      } yield result
+
+      responseFuture.recover {
+        case ex: Exception =>
+          logger.error(ex.getMessage, ex)
+          InternalServerError("Failed to obtain access token")
+      }
+
+    }
 
   def authenticate(redirectUri: String): Action[AnyContent] = Action.async { implicit request =>
     MPExceptionUtil.internalAsyncExceptionCatcher { () =>
@@ -154,13 +173,14 @@ class AuthController @Inject() (
       }
 
       val state             = generateRandomState()
+      val resolvedRedirect  = resolveRedirectURI(redirectUri)
       val clientId          = s"${config.getOSMOauth.consumerKey.key}"
       val authorizeEndpoint = s"${config.getOSMServer}/oauth2/authorize"
 
       val params = Map(
         "client_id"     -> clientId,
         "response_type" -> "code",
-        "redirect_uri"  -> resolveRedirectURI(redirectUri),
+        "redirect_uri"  -> resolvedRedirect,
         "scope"         -> config.getOSMOauth.scope,
         "state"         -> state
       )
@@ -173,28 +193,14 @@ class AuthController @Inject() (
         "redirect" -> url
       )
 
-      Future(Ok(json))
-    }
-  }
-
-  def withOSMSession(user: User, result: Result): Result = {
-    result.withSession(
-      SessionManager.KEY_TOKEN     -> user.osmProfile.requestToken,
-      SessionManager.KEY_USER_ID   -> user.id.toString,
-      SessionManager.KEY_OSM_ID    -> user.osmProfile.id.toString,
-      SessionManager.KEY_USER_TICK -> DateTime.now().getMillis.toString
-    )
-  }
-
-  def getRedirectURL(implicit request: Request[AnyContent], redirect: String): String = {
-    val referer    = request.headers.get(REFERER)
-    val defaultURL = "/"
-    if (StringUtils.isEmpty(redirect) && referer.isDefined) {
-      referer.get
-    } else if (StringUtils.isNotEmpty(redirect)) {
-      redirect
-    } else {
-      defaultURL
+      Future(
+        Ok(json)
+          .withHeaders(CACHE_CONTROL -> "no-store")
+          .addingToSession(
+            SessionManager.KEY_STATE        -> state,
+            SessionManager.KEY_REDIRECT_URI -> resolvedRedirect
+          )
+      )
     }
   }
 
@@ -213,29 +219,8 @@ class AuthController @Inject() (
     }
   }
 
-  def signIn(redirect: String): Action[AnyContent] = Action.async { implicit request =>
-    MPExceptionUtil.internalAsyncExceptionCatcher { () =>
-      val p = Promise[Result]()
-      request.body.asFormUrlEncoded match {
-        case Some(data) =>
-          val username = data.getOrElse("signInUsername", ArrayBuffer("")).mkString
-          val apiKey   = data.getOrElse("signInAPIKey", ArrayBuffer("")).mkString
-          this.sessionManager.retrieveUser(username, apiKey) match {
-            case Some(user) =>
-              p success this.withOSMSession(
-                user,
-                Redirect(getRedirectURL(request, redirect))
-                  .withHeaders(("Cache-Control", "no-cache"))
-              )
-            case None =>
-              p failure new OAuthNotAuthorizedException("Invalid username or apiKey provided")
-          }
-        case None =>
-          p failure new OAuthNotAuthorizedException("Invalid username or apiKey provided")
-      }
-      p.future
-    }
-  }
+  // Signing in with a username and API key is deprecated; sign in through the OSM OAuth flow instead.
+  def signIn(redirect: String): Action[AnyContent] = Action(apiKeysDisabled)
 
   /**
     * Signs out the user, creating essentially a blank new session and responds with a 200 OK
@@ -262,91 +247,12 @@ class AuthController @Inject() (
     }
   }
 
-  private def storeAPIKeyInOSM: User => Unit = (user: User) => {
-    if (config.getOSMServer.nonEmpty && config.getOSMPreferences.nonEmpty) {
-      logger.debug("Attempting to save api key for userId={} to their OSM preferences", user.id)
-      val decryptedAPIKey = User.withDecryptedAPIKey(user)(crypto).apiKey.getOrElse("")
+  // API keys are disabled and can no longer be generated or reset
+  def generateAPIKey(userId: Long = -1): Action[AnyContent] = Action(apiKeysDisabled)
+  def resetAllAPIKeys(): Action[AnyContent]                 = Action(apiKeysDisabled)
 
-      wsClient
-        .url(s"${config.getOSMServer}${config.getOSMPreferences}")
-        .withHttpHeaders(
-          ACCEPT          -> JSON,
-          "Authorization" -> s"Bearer ${user.osmProfile.requestToken}"
-        )
-        .put(decryptedAPIKey) onComplete {
-        case Success(response) =>
-          if (response.status != 200) {
-            logger.info(
-              "API key unsuccessfully stored in OSM preferences for user id {}. Status code {}",
-              user.id,
-              response.status
-            )
-          } else {
-            logger.debug(
-              "API key stored in OSM preferences for user id {}. Status code {}",
-              user.id,
-              response.status
-            )
-          }
-        case Failure(e) =>
-          logger.info("Future failed to store OSM preference for userId={}", user.id, e)
-      }
-    } else {
-      logger.debug("Conf lacks required settings to store maproulette users' API key in OSM")
-    }
-  }
-
-  /**
-    * Generates a new API key for the user. A user can then use the API key to make API calls directly against
-    * the server. Only the current API key for the user will work on any authenticated API calls, any previous
-    * keys are immediately discarded once a new one is created.
-    *
-    * @return Will return NoContent if cannot create the key (which most likely means that no user was
-    *         found, or will return the api key as plain text.
-    */
-  def generateAPIKey(userId: Long = -1): Action[AnyContent] = Action.async { implicit request =>
-    sessionManager.authenticatedRequest { implicit user =>
-      val newAPIUser = if (permission.isSuperUser(user) && userId != -1) {
-        this.userService.retrieve(userId) match {
-          case Some(u) => u
-          case None =>
-            throw new NotFoundException(
-              s"No user found with id [$userId], no API key could be generated."
-            )
-        }
-      } else {
-        user
-      }
-      this.userService.generateAPIKey(newAPIUser, user) match {
-        case Some(updated) =>
-          updated.apiKey match {
-            case Some(api) => {
-              Future(storeAPIKeyInOSM(updated))
-              Ok(api)
-            }
-            case None => NoContent
-          }
-        case None => NoContent
-      }
-    }
-  }
-
-  /**
-    * Super user action that will reset all the api keys.
-    *
-    * @return Simple Ok if succeeded.
-    */
-  def resetAllAPIKeys(): Action[AnyContent] = Action.async { implicit request =>
-    implicit val requireSuperUser: Boolean = true
-    sessionManager.authenticatedRequest { implicit user =>
-      this.userService
-        .query(Query.simple(List.empty, order = Order > User.FIELD_ID), user)
-        .foreach { apiUser =>
-          this.userService.generateAPIKey(apiUser, user)
-        }
-      Ok
-    }
-  }
+  private def apiKeysDisabled: Result =
+    Gone(Json.toJson(StatusMessage("KO", JsString("API keys are disabled"))))
 
   /**
     * Adds an Admin role on the project to the user

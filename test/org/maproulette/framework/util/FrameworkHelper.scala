@@ -35,8 +35,10 @@ trait FrameworkHelper extends PlaySpec with BeforeAndAfterAll with MockitoSugar 
 
   implicit val projectTestName: String
 
-  var defaultChallenge: Challenge = null
-  var defaultTask: Task           = null
+  // The challenges in the default project, created by beforeAll
+  var defaultChallenges: List[Challenge] = Nil
+  var defaultChallenge: Challenge        = null
+  var defaultTask: Task                  = null
 
   def defaultProject: Project = this.serviceManager.project.retrieveByName(projectTestName).get
   def defaultUser: User       = this.serviceManager.user.retrieveByOSMId(134567788).get
@@ -50,19 +52,22 @@ trait FrameworkHelper extends PlaySpec with BeforeAndAfterAll with MockitoSugar 
   protected def createProjectStructure(
       projectName: String,
       challengePrefix: String,
-      numberOfChallenges: Int = 10,
-      numberOfTasksPerChallenge: Int = 50,
+      numberOfChallenges: Int = 3,
+      numberOfTasksPerChallenge: Int = 5,
       ownerId: Long = this.defaultUser.osmProfile.id
   ): Project = {
     val createdProject = this.serviceManager.project
       .create(Project(-1, ownerId, projectName), this.defaultUser)
-    1 to numberOfChallenges foreach { cid =>
-      {
-        val challenge = this.createChallengeStructure(s"${challengePrefix}_$cid", createdProject.id)
-        if (this.defaultChallenge == null) {
-          this.defaultChallenge = challenge
-        }
-      }
+    val challenges = (1 to numberOfChallenges).map { cid =>
+      this.createChallengeStructure(
+        s"${challengePrefix}_$cid",
+        createdProject.id,
+        numberOfTasksPerChallenge
+      )
+    }.toList
+    if (this.defaultChallenge == null) {
+      this.defaultChallenges = challenges
+      this.defaultChallenge = challenges.head
     }
     createdProject
   }
@@ -166,6 +171,10 @@ object ChallengeRepoTag        extends Tag("challengerepo")
 object ChallengeListingTag     extends Tag("challengelisting")
 object ChallengeListingRepoTag extends Tag("challengelistingrepo")
 object ChallengeSnapshotTag    extends Tag("challengesnapshot")
+object TeamImageRepoTag        extends Tag("teamimagerepo")
+object ChallengeReportTag      extends Tag("challengereport")
+object ChallengeReportRepoTag  extends Tag("challengereportrepo")
+object TeamAvatarRepoTag       extends Tag("teamavatarrepo")
 object ProjectTag              extends Tag("project")
 object ProjectRepoTag          extends Tag("projectrepo")
 object CommentTag              extends Tag("comment")

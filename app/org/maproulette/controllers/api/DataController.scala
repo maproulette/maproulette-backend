@@ -10,7 +10,6 @@ import org.maproulette.data._
 import org.maproulette.framework.model.Challenge
 import org.maproulette.models.dal.ChallengeDAL
 import org.maproulette.session.{SearchParameters, SessionManager}
-import org.maproulette.permissions.Permission
 import org.maproulette.utils.Utils
 import play.api.libs.json.Json.JsValueWrapper
 import play.api.libs.json._
@@ -28,15 +27,13 @@ class DataController @Inject() (
     config: Config,
     actionManager: ActionManager,
     components: ControllerComponents,
-    statusActionManager: StatusActionManager,
-    permission: Permission
+    statusActionManager: StatusActionManager
 ) extends AbstractController(components) {
 
   implicit val actionWrites              = actionManager.actionItemWrites
   implicit val dateWrites                = Writes.dateWrites("yyyy-MM-dd")
   implicit val dateTimeWrites            = JodaWrites.jodaDateWrites("yyyy-MM-dd'T'HH:mm:ss")
   implicit val actionSummaryWrites       = Json.writes[ActionSummary]
-  implicit val userSummaryWrites         = Json.writes[UserSummary]
   implicit val challengeSummaryWrites    = Json.writes[ChallengeSummary]
   implicit val challengeActivityWrites   = Json.writes[ChallengeActivity]
   implicit val rawActivityWrites         = Json.writes[RawActivity]
@@ -53,14 +50,12 @@ class DataController @Inject() (
   }
 
   /**
-    * Gets the recent activity for one or more users
+    * Gets the recent contributions of the logged-in user
     *
-    * @param osmUserIds OSM user ids for which activity is desired
-    * @param limit  the limit on the number of activities return
-    * @param offset paging, starting at 0
-    * @return List of action summaries associated with the user
+    * @param limit the limit on the number of contributions returned
+    * @return List of the user's recent task actions, newest first
     */
-  def getRecentUserActivity(osmUserIds: String, limit: Int, offset: Int): Action[AnyContent] =
+  def getUserContributions(limit: Int): Action[AnyContent] =
     Action.async { implicit request =>
       val actualLimit = if (limit == -1) {
         this.config.numberOfActivities
@@ -69,59 +64,11 @@ class DataController @Inject() (
       }
 
       this.sessionManager.authenticatedRequest { user =>
-        // If no users were explicitly specified, use the current user. If -1 is
-        // given, do not limit by user
-        val osmIds = Utils.toLongList(osmUserIds) match {
-          case Some(ids) if ids.contains(-1) => List.empty
-          case Some(ids)                     => ids
-          case None                          => List(user.osmProfile.id)
-        }
-
-        Ok(Json.toJson(this.actionManager.getRecentActivity(osmIds, actualLimit, offset)))
+        Ok(
+          Json.toJson(this.actionManager.getRecentActivity(List(user.osmProfile.id), actualLimit))
+        )
       }
     }
-
-  def getUserChallengeSummary(
-      challengeId: Long,
-      start: String,
-      end: String,
-      priority: Int
-  ): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.authenticatedRequest { implicit user =>
-      Ok(
-        Json.toJson(
-          this.dataManager.getUserChallengeSummary(
-            None,
-            Some(challengeId),
-            Utils.getDate(start),
-            Utils.getDate(end),
-            this.getPriority(priority)
-          )
-        )
-      )
-    }
-  }
-
-  def getUserSummary(
-      projects: String,
-      start: String,
-      end: String,
-      priority: Int
-  ): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.authenticatedRequest { implicit user =>
-      Ok(
-        Json.toJson(
-          this.dataManager.getUserChallengeSummary(
-            Utils.toLongList(projects),
-            None,
-            Utils.getDate(start),
-            Utils.getDate(end),
-            this.getPriority(priority)
-          )
-        )
-      )
-    }
-  }
 
   def getChallengeSummary(
       id: Long,
@@ -248,75 +195,10 @@ class DataController @Inject() (
     }
 
   /**
-    * Special API for handling data table API requests for challenge summary table
-    *
-    * @param projectIds A comma separated list of projects to filter by
-    * @return
-    *
-    * @deprecated("This method does not support virtual projects.", "05-23-2019")
+    * Gets every task status change matching the filters. Each row includes
+    * the name of the user who made the change, so this is restricted to
+    * superusers. userIds are OSM user ids.
     */
-  def getChallengeSummaries(
-      projectIds: String,
-      priority: String,
-      onlyEnabled: Boolean = true
-  ): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.authenticatedRequest { _ =>
-      val postData        = request.body.asInstanceOf[AnyContentAsFormUrlEncoded].data
-      val draw            = postData.get("draw").head.head.toInt
-      val start           = postData.get("start").head.head.toInt
-      val length          = postData.get("length").head.head.toInt
-      val search          = postData.get("search[value]").head.head
-      val orderDirection  = postData.get("order[0][dir]").head.head.toUpperCase
-      val orderColumnID   = postData.get("order[0][column]").head.head.toInt
-      val orderColumnName = postData.get(s"columns[$orderColumnID][name]").head.headOption
-      val projectList     = Utils.toLongList(projectIds)
-      val challengeSummaries =
-        this.dataManager.getChallengeSummary(
-          projectList,
-          None,
-          length,
-          start,
-          orderColumnName,
-          orderDirection,
-          search,
-          Utils.toIntList(priority),
-          onlyEnabled
-        )
-
-      val summaryMap = challengeSummaries.map(summary =>
-        Map(
-          "id"                  -> summary.id.toString,
-          "name"                -> summary.name,
-          "complete_percentage" -> summary.actions.percentComplete.toString,
-          "available"           -> summary.actions.trueAvailable.toString,
-          "available_perc"      -> summary.actions.percentage(summary.actions.available).toString,
-          "fixed"               -> summary.actions.fixed.toString,
-          "fixed_perc"          -> summary.actions.percentage(summary.actions.fixed).toString,
-          "false_positive"      -> summary.actions.falsePositive.toString,
-          "false_positive_perc" -> summary.actions
-            .percentage(summary.actions.falsePositive)
-            .toString,
-          "skipped"            -> summary.actions.skipped.toString,
-          "skipped_perc"       -> summary.actions.percentage(summary.actions.skipped).toString,
-          "already_fixed"      -> summary.actions.alreadyFixed.toString,
-          "already_fixed_perc" -> summary.actions.percentage(summary.actions.alreadyFixed).toString,
-          "too_hard"           -> summary.actions.tooHard.toString,
-          "too_hard_perc"      -> summary.actions.percentage(summary.actions.tooHard).toString
-        )
-      )
-      Ok(
-        Json.obj(
-          "draw"         -> JsNumber(draw),
-          "recordsTotal" -> JsNumber(dataManager.getTotalSummaryCount(projectList, None)),
-          "recordsFiltered" -> JsNumber(
-            dataManager.getTotalSummaryCount(projectList, None, search)
-          ),
-          "data" -> Json.toJson(summaryMap)
-        )
-      )
-    }
-  }
-
   def getRawActivity(
       userIds: String,
       projectIds: String,
@@ -324,6 +206,7 @@ class DataController @Inject() (
       start: String,
       end: String
   ): Action[AnyContent] = Action.async { implicit request =>
+    implicit val requireSuperUser = true
     this.sessionManager.authenticatedRequest { implicit user =>
       Ok(
         Json.toJson(
@@ -339,6 +222,11 @@ class DataController @Inject() (
     }
   }
 
+  /**
+    * Gets a page of task status changes matching the filters. Each row includes
+    * the name of the user who made the change, so this is restricted to
+    * superusers. userIds are OSM user ids.
+    */
   def getStatusActivity(
       userIds: String,
       projectIds: String,
@@ -350,16 +238,12 @@ class DataController @Inject() (
       limit: Int,
       offset: Int
   ): Action[AnyContent] = Action.async { implicit request =>
+    implicit val requireSuperUser = true
     this.sessionManager.authenticatedRequest { implicit user =>
-      val users = if (permission.isSuperUser(user)) {
-        Utils.toLongList(userIds).getOrElse(List.empty)
-      } else {
-        List(user.id)
-      }
       val statusActionLimits = StatusActionLimits(
         Utils.getDate(start),
         Utils.getDate(end),
-        users,
+        Utils.toLongList(userIds).getOrElse(List.empty),
         Utils.toLongList(projectIds).getOrElse(List.empty),
         Utils.toLongList(challengeIds).getOrElse(List.empty),
         List.empty,
@@ -375,31 +259,10 @@ class DataController @Inject() (
   }
 
   /**
-    * Gets the most recent activity entries for each challenge, regardless of date.
-    *
-    * @param projectIds   restrict to specified projects
-    * @param challengeIds restrict to specified challenges
-    * @param entries      the number of most recent activity entries per challenge. Defaults to 1.
-    * @return most recent activity entries for each challenge
+    * Gets daily counts of task status changes for each user. Since this reveals
+    * individual users' activity, it is restricted to superusers. userIds are
+    * OSM user ids.
     */
-  def getLatestChallengeActivity(
-      projectIds: String,
-      challengeIds: String,
-      entries: Int
-  ): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.authenticatedRequest { implicit user =>
-      Ok(
-        Json.toJson(
-          this.dataManager.getLatestChallengeActivity(
-            Utils.toLongList(projectIds),
-            Utils.toLongList(challengeIds),
-            entries
-          )
-        )
-      )
-    }
-  }
-
   def getStatusSummary(
       userIds: String,
       projectIds: String,
@@ -409,16 +272,12 @@ class DataController @Inject() (
       limit: Int,
       offset: Int
   ): Action[AnyContent] = Action.async { implicit request =>
+    implicit val requireSuperUser = true
     this.sessionManager.authenticatedRequest { implicit user =>
-      val users = if (permission.isSuperUser(user)) {
-        Utils.toLongList(userIds).getOrElse(List.empty)
-      } else {
-        List(user.id)
-      }
       val statusActionLimits = StatusActionLimits(
         Utils.getDate(start),
         Utils.getDate(end),
-        users,
+        Utils.toLongList(userIds).getOrElse(List.empty),
         Utils.toLongList(projectIds).getOrElse(List.empty),
         Utils.toLongList(challengeIds).getOrElse(List.empty),
         List.empty,

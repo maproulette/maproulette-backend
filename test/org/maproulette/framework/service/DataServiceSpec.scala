@@ -7,6 +7,7 @@ package org.maproulette.framework.service
 
 import java.util.UUID
 
+import org.maproulette.data.DataManager
 import org.maproulette.session.SearchParameters
 import org.maproulette.framework.model._
 import org.maproulette.framework.util.{DataTag, FrameworkHelper}
@@ -28,6 +29,36 @@ class DataServiceSpec(implicit val application: Application) extends FrameworkHe
       result.head.tagName.get mustEqual "datatesttag"
       result.head.total mustEqual 1
       result.head.fixed mustEqual 1
+    }
+
+    "ignore user filters in Tag Metrics" taggedAs (DataTag) in {
+      // RandomOUser mapped only the untagged task, so honouring the mapper filter would return
+      // no tag metrics at all.
+      val unfiltered = this.service.getTagMetrics(new SearchParameters())
+      List(
+        SearchParameters(mapper = Some("RandomOUser")),
+        SearchParameters(owner = Some("RandomOUser")),
+        SearchParameters(reviewer = Some("RandomOUser")),
+        SearchParameters(metaReviewer = Some("RandomOUser"))
+      ).foreach { params =>
+        this.service.getTagMetrics(params) mustEqual unfiltered
+      }
+    }
+
+    "ignore user filters in the challenge summary" taggedAs (DataTag) in {
+      val dataManager = application.injector.instanceOf(classOf[DataManager])
+      val unfiltered  = dataManager.getChallengeSummary(challengeId = Some(randomChallenge.id))
+      unfiltered.head.actions.fixed mustEqual 1
+      List(
+        SearchParameters(mapper = Some("nobody")),
+        SearchParameters(owner = Some("nobody")),
+        SearchParameters(reviewer = Some("nobody"))
+      ).foreach { params =>
+        dataManager.getChallengeSummary(
+          challengeId = Some(randomChallenge.id),
+          params = Some(params)
+        ) mustEqual unfiltered
+      }
     }
   }
 

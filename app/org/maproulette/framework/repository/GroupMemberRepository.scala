@@ -38,23 +38,6 @@ class GroupMemberRepository @Inject() (
   }
 
   /**
-    * Gets all the members with matching ids
-    *
-    * @param ids The ids of desired group members
-    * @param query query object containing any additional filtering, paging and ordering information
-    * @return A list of members
-    */
-  def list(ids: List[Long], query: Query = Query.empty): List[GroupMember] = {
-    this.query(
-      query.addFilterGroup(
-        FilterGroup(
-          List(BaseParameter(GroupMember.FIELD_ID, ids, Operator.IN))
-        )
-      )
-    )
-  }
-
-  /**
     * Gets all the members that belong to a Group
     *
     * @param group The group for which members are desired
@@ -256,28 +239,6 @@ class GroupMemberRepository @Inject() (
   def delete(query: Query)(implicit c: Option[Connection] = None): Boolean = {
     withMRConnection { implicit c =>
       query.build(s"DELETE FROM group_members").execute()
-    }
-  }
-
-  /**
-    * Delete a member from multiple groups that all share the same group type
-    *
-    * @param member    The member to delete
-    * @param groupType The type of group from which member is to be deleted
-    */
-  def deleteGroupMemberAcrossGroupType(member: MemberObject, groupType: Int): Boolean = {
-    withMRConnection { implicit c =>
-      Query
-        .simple(
-          List(
-            BaseParameter(GroupMember.FIELD_GROUP_ID, "groups.id", useValueDirectly = true),
-            BaseParameter(Group.FIELD_GROUP_TYPE, groupType, table = Some(Group.TABLE)),
-            BaseParameter(GroupMember.FIELD_MEMBER_TYPE, member.objectType),
-            BaseParameter(GroupMember.FIELD_MEMBER_ID, member.objectId)
-          )
-        )
-        .build("DELETE FROM group_members USING groups")
-        .execute()
     }
   }
 }

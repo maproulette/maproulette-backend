@@ -79,14 +79,10 @@ libraryDependencies ++= Seq(
   specs2 % Test,
   filters,
   guice,
-  // NOTE: Be careful upgrading sangria and play-json as binary incompatibilities can break graphql and the entire UI.
-  //       See the compatibility matrix here https://github.com/sangria-graphql/sangria-play-json
-  "org.sangria-graphql"    %% "sangria-play-json-play29" % "2.0.3",
-  "org.sangria-graphql"    %% "sangria"                  % "4.0.2",
-  "com.typesafe.play"      %% "play-json-joda"           % "2.10.5",
-  "com.typesafe.play"      %% "play-json"                % "2.10.5",
-  "org.scalatestplus.play" %% "scalatestplus-play"       % "5.1.0" % Test,
-  "org.scalatestplus"      %% "mockito-4-5"              % "3.2.12.0" % Test,
+  "com.typesafe.play"      %% "play-json-joda"     % "2.10.5",
+  "com.typesafe.play"      %% "play-json"          % "2.10.5",
+  "org.scalatestplus.play" %% "scalatestplus-play" % "5.1.0" % Test,
+  "org.scalatestplus"      %% "mockito-4-5"        % "3.2.12.0" % Test,
   // NOTE: The swagger-ui package is used to obtain the static distribution of swagger-ui, the files included at runtime
   // and are served by the webserver at route '/assets/lib/swagger-ui/'. We have a few customized swagger files in dir
   // 'public/swagger'.
@@ -209,6 +205,10 @@ Compile / javaOptions ++= Seq(
 
 // The apiv2.routes file should always be last as it contains the catch-all routes
 val routeFiles: Seq[String] = Seq(
+  // Ahead of challenge.api on purpose: its literal /challenge/reports and
+  // /challenge/report/:id paths would otherwise be swallowed by that
+  // file's GET /challenge/:id.
+  "challengereport.api",
   "challenge.api",
   "changes.api",
   "comment.api",
@@ -224,7 +224,7 @@ val routeFiles: Seq[String] = Seq(
   "virtualproject.api",
   "bundle.api",
   "team.api",
-  "follow.api",
+  "teamimage.api",
   "leaderboard.api",
   "service.api",
   "search.api",

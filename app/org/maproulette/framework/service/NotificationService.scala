@@ -91,7 +91,6 @@ class NotificationService @Inject() (
           UserNotification.NOTIFICATION_EMAIL_NONE,
           UserNotification.NOTIFICATION_EMAIL_NONE,
           UserNotification.NOTIFICATION_EMAIL_NONE,
-          UserNotification.NOTIFICATION_EMAIL_NONE,
           UserNotification.NOTIFICATION_EMAIL_NONE
         )
     }
@@ -463,25 +462,6 @@ class NotificationService @Inject() (
   }
 
   /**
-    * Create new notification indicating that a user is now being followed
-    *
-    * @param follower   The user who is following
-    * @param followedId The id of the user being followed
-    */
-  def createFollowedNotification(follower: User, followedId: Long): Unit = {
-    this.addNotification(
-      UserNotification(
-        -1,
-        userId = followedId,
-        notificationType = UserNotification.NOTIFICATION_TYPE_FOLLOW,
-        fromUsername = Some(follower.osmProfile.displayName),
-        description = Some("followed")
-      ),
-      User.superUser
-    )
-  }
-
-  /**
     * Add/insert a notification. The email setting of the notification will be automatically
     * set based on the recipient's email settings. If the recipient is not subscribed to
     * the type of notification given then it is simply ignored
@@ -508,8 +488,7 @@ class NotificationService @Inject() (
         subscriptions.challengeCompleted
       case UserNotification.NOTIFICATION_TYPE_MAPPER_CHALLENGE_COMPLETED =>
         subscriptions.challengeCompleted
-      case UserNotification.NOTIFICATION_TYPE_TEAM   => subscriptions.team
-      case UserNotification.NOTIFICATION_TYPE_FOLLOW => subscriptions.follow
+      case UserNotification.NOTIFICATION_TYPE_TEAM => subscriptions.team
       case UserNotification.NOTIFICATION_TYPE_CHALLENGE_COMMENT =>
         UserNotification.NOTIFICATION_EMAIL_IMMEDIATE
       case UserNotification.NOTIFICATION_TYPE_CHALLENGE_UNLOCK_REQUESTED =>

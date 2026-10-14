@@ -15,12 +15,7 @@ import org.joda.time.{DateTime, DateTimeZone}
 import org.maproulette.Config
 import org.maproulette.controllers.ParentController
 import org.maproulette.data._
-import org.maproulette.exception.{
-  InvalidException,
-  MPExceptionUtil,
-  NotFoundException,
-  StatusMessage
-}
+import org.maproulette.exception.{InvalidException, NotFoundException, StatusMessage}
 import org.maproulette.framework.model._
 import org.maproulette.framework.psql.Paging
 import org.maproulette.framework.service.{ServiceManager, TagService}
@@ -37,13 +32,11 @@ import play.api.libs.Files
 import play.api.libs.json._
 import anorm._
 import anorm.SqlParser
-import play.api.libs.ws.WSClient
 import play.api.mvc._
 import play.shaded.oauth.oauth.signpost.exception.OAuthNotAuthorizedException
 
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.Future
 import scala.io.Source
-import scala.util.{Failure, Success}
 
 /**
   * The challenge controller handles all operations for the Challenge objects.
@@ -62,7 +55,6 @@ class ChallengeController @Inject() (
     override val tagService: TagService,
     challengeProvider: ChallengeProvider,
     val serviceManager: ServiceManager,
-    wsClient: WSClient,
     permission: Permission,
     override val config: Config,
     components: ControllerComponents,
@@ -74,6 +66,11 @@ class ChallengeController @Inject() (
     with ParentMixin {
 
   import scala.concurrent.ExecutionContext.Implicits.global
+
+  // Upper bound on the place boundary POSTed to exploreChallenges. Generous
+  // next to the 100k default, since a county boundary alone runs to tens of
+  // kilobytes, but still bounded -- the endpoint takes unauthenticated calls.
+  private val maxPolygonBodyBytes = 2L * 1024 * 1024
 
   // json reads for automatically reading Challenges from a posted json body
   override implicit val tReads: Reads[Challenge] = Challenge.reads.challengeReads
@@ -251,7 +248,8 @@ class ChallengeController @Inject() (
                       priority,
                       Some(params),
                       timezone,
-                      boundingBox
+                      boundingBox,
+                      includeUserFields = user.exists(this.permission.canExport(c, _))
                     )
                 ),
                 Some("application/json;charset=utf-8;header=present")
@@ -502,20 +500,28 @@ class ChallengeController @Inject() (
     */
   def bulkArchive(): Action[JsValue] = Action.async(bodyParsers.json) { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
-      try {
-        val body         = request.body;
-        val challengeIds = (body \ "ids").as[List[Long]]
-        val archiving    = (body \ "isArchived").asOpt[Boolean].getOrElse(true);
-
-        this.dalManager.challenge.bulkArchive(challengeIds, archiving);
-
+      val challengeIds = (request.body \ "ids").asOpt[List[Long]].getOrElse(List.empty).distinct
+      val archiving    = (request.body \ "isArchived").asOpt[Boolean].getOrElse(true)
+      if (challengeIds.isEmpty) {
+        BadRequest(Json.toJson(StatusMessage("KO", JsString("ids must be a non-empty array"))))
+      } else {
+        challengeIds.foreach(id => this.retrieveWritable(id, user))
+        dalManager.challenge.bulkArchive(challengeIds, archiving)
         Ok(Json.toJson(archiving))
-      } catch {
-        case e: Exception =>
-          logger.error(e.getMessage, e)
-          BadRequest(Json.toJson(StatusMessage("KO", JsString(e.getMessage))))
       }
     }
+  }
+
+  /**
+    * Retrieves a challenge, throwing NotFoundException if it does not exist and
+    * IllegalAccessException if the user lacks write access to it.
+    */
+  private def retrieveWritable(challengeId: Long, user: User): Challenge = {
+    val challenge = dalManager.challenge
+      .retrieveById(challengeId)
+      .getOrElse(throw new NotFoundException(s"No challenge found with id $challengeId"))
+    permission.hasObjectWriteAccess(challenge, user)
+    challenge
   }
 
   /**
@@ -720,6 +726,18 @@ class ChallengeController @Inject() (
     }
 
   /**
+    * Retrieves a challenge for an export that identifies its mappers or reviewers, checking that
+    * the user may export it.
+    */
+  private def retrieveForExport(challengeId: Long, user: User): Challenge = {
+    val challenge = this.dal
+      .retrieveById(challengeId)
+      .getOrElse(throw new NotFoundException(s"Challenge with id $challengeId not found"))
+    this.permission.hasExportAccess(challenge, user)
+    challenge
+  }
+
+  /**
     * Extracts all the comments and returns them in a nice format like csv.
     *
     * @param challengeId The id of the challenge
@@ -730,6 +748,7 @@ class ChallengeController @Inject() (
   def extractComments(challengeId: Long, limit: Int, page: Int): Action[AnyContent] = Action.async {
     implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
+        this.retrieveForExport(challengeId, user)
         Result(
           header = ResponseHeader(
             OK,
@@ -866,6 +885,8 @@ class ChallengeController @Inject() (
               .copy(taskStatus = status, taskReviewStatus = reviewStatus, taskPriorities = priority)
           )
 
+        val challenges = challengeIds.map(this.retrieveForExport(_, user))
+
         val (tasks, allComments) =
           this.dalManager.task.retrieveTaskSummaries(challengeIds, limit, page, allParams)
 
@@ -878,12 +899,7 @@ class ChallengeController @Inject() (
           case None         => s"http://${request.host}/"
         }
 
-        challengeIds.foreach(cId => {
-          val challenge = this.dal.retrieveById(cId) match {
-            case Some(c) => c
-            case None    => throw new NotFoundException(s"Challenge with id $cId not found")
-          }
-
+        challenges.foreach(challenge => {
           // Include any properties requested in the csv
           if (!exportProperties.isEmpty) {
             var propsToExport = exportProperties.replaceAll("\\s", "").split(",")
@@ -1078,6 +1094,7 @@ class ChallengeController @Inject() (
       challengeId: Long
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.authenticatedRequest { implicit user =>
+      this.retrieveForExport(challengeId, user)
       SearchParameters.withSearch { implicit params =>
         val challengeTasks    = this.serviceManager.challenge.getTasksByParentId(challengeId);
         val taskReviewHistory = this.serviceManager.taskHistory.getTaskReviewHistory(challengeTasks);
@@ -1133,11 +1150,21 @@ class ChallengeController @Inject() (
 
   /**
     * Efficient endpoint for exploring challenges with specific parameters
-    * Uses an optimized query path specifically designed for the explore challenges feature
+    * Uses an optimized query path specifically designed for the explore challenges feature.
+    * Finished challenges are excluded, since they have no remaining work.
     *
-    * @param global Whether to include global challenges (default: true)
+    * Served on both GET and POST. The POST form additionally accepts a GeoJSON
+    * geometry as `polygon` in the body, which narrows the results the same way
+    * `bounds` does: a challenge matches only when one of its tasks sits inside
+    * both. The geometry cannot ride along in the query string -- a city
+    * boundary from Nominatim is routinely tens of kilobytes, well past the
+    * request line limit -- which is also why the existing `boundingGeometries`
+    * search parameter is read from the body.
+    *
+    * @param global Whether to include global challenges (default: false)
     * @param bounds Bounding box as [left,bottom,right,top] to filter challenges by location
-    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
+    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty,
+    *               featured, tag_fix, cooperative)
     * @param limit Maximum number of results to return
     * @param offset Number of results to skip for pagination
     * @return A list of challenges matching the criteria
@@ -1151,7 +1178,9 @@ class ChallengeController @Inject() (
       keywords: Option[String],
       difficulty: Option[Int]
   ): Action[AnyContent] =
-    Action.async { implicit request =>
+    // Parsed with its own body limit: the default (100k) is smaller than a
+    // real place boundary.
+    Action.async(parse.default(Some(maxPolygonBodyBytes))) { implicit request =>
       this.sessionManager.userAwareRequest { implicit user =>
         val boundingBox = bounds.flatMap { b =>
           b.split(",").map(_.trim).filter(_.nonEmpty).toList match {
@@ -1168,10 +1197,26 @@ class ChallengeController @Inject() (
           limit = limit,
           offset = offset,
           keywords = keywords,
-          difficulty = difficulty
+          difficulty = difficulty,
+          locationPolygon = this.locationPolygon(request)
         )
 
         Ok(insertProjectJSON(challenges))
+      }
+    }
+
+  /**
+    * Reads the optional `polygon` GeoJSON geometry from an exploreChallenges
+    * request body, rejecting anything PostGIS could not use as an area.
+    */
+  private def locationPolygon(request: Request[AnyContent]): Option[String] =
+    request.body.asJson.flatMap(json => (json \ "polygon").asOpt[JsObject]).map { geometry =>
+      (geometry \ "type").asOpt[String] match {
+        case Some("Polygon") | Some("MultiPolygon") => Json.stringify(geometry)
+        case other =>
+          throw new InvalidException(
+            s"polygon must be a GeoJSON Polygon or MultiPolygon, got ${other.getOrElse("no type")}"
+          )
       }
     }
 
@@ -1248,69 +1293,6 @@ class ChallengeController @Inject() (
           case _ => throw new NotFoundException(s"Challenge with id $challengeId not found")
         }
       }
-  }
-
-  /**
-    * Creates or updates a challenge directly from Github. It uses the following files:
-    * ${name}_create.json - The json file containing all the information to generate the file
-    * ${name}_geojson.json - The geojson used to build the challenge tasks, can be used to update later
-    * ${name}_info.md - An information file that will be used to display information about the challenge
-    *
-    * @param projectId The project that you are building the challenge under
-    * @param username  The github username of where the challenge information exists
-    * @param repo      The repo that the challenge information exists in
-    * @param name      The name of the challenge files.
-    * @return A response with the newly created challenge
-    */
-  def createFromGithub(
-      projectId: Long,
-      username: String,
-      repo: String,
-      name: String,
-      rebuild: Boolean
-  ): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.authenticatedFutureRequest { implicit user =>
-      val result  = Promise[Result]()
-      val baseURL = s"https://raw.githubusercontent.com/$username/$repo/master/${name}_";
-      this.wsClient.url(s"${baseURL}create.json").get() onComplete {
-        case Success(response) =>
-          try {
-            // inject the info link into the challenge
-            val challengeJson = Utils.insertIntoJson(
-              Utils.insertIntoJson(response.json, "infoLink", s"${baseURL}info.md", false),
-              "remoteGeoJson",
-              s"${baseURL}geojson_{x}.json",
-              true
-            )
-            val challengeName = (challengeJson \ "name").asOpt[String].getOrElse(name)
-            // look for the challenge, if the name exists we will attempt to update the challenge
-            val challengeID = this.dal.retrieveByName(challengeName, projectId) match {
-              case Some(c) => c.id
-              case None    => -1
-            }
-            val updatedBody =
-              this.updateCreateBody(Utils.insertIntoJson(challengeJson, "parent", projectId), user)
-            if (challengeID > 0) {
-              // if rebuild set to true, remove all the tasks first from the challenge before recreating them
-              this.dal.deleteTasks(user, challengeID)
-              // if you provide the ID in the post method we will send you to the update path
-              this.internalUpdate(updatedBody, user)(challengeID.toString, -1) match {
-                case Some(value) => result success Ok(this.inject(value))
-                case None        => result success NotModified
-              }
-            } else {
-              this.internalCreate(updatedBody, updatedBody.validate[Challenge].get, user) match {
-                case Some(value) => result success Ok(this.inject(value))
-                case None        => result success NotModified
-              }
-            }
-          } catch {
-            case e: Throwable => result success MPExceptionUtil.manageException(e)
-          }
-        case Failure(error) => throw error
-      }
-      result.future
-    }
   }
 
   override def internalCreate(requestBody: JsValue, element: Challenge, user: User)(
@@ -1392,6 +1374,7 @@ class ChallengeController @Inject() (
     this.sessionManager.authenticatedFutureRequest { implicit user =>
       this.dal.retrieveById(challengeId) match {
         case Some(c) =>
+          this.permission.hasExportAccess(c, user)
           implicit val actionSummaryWrites    = Json.writes[ActionSummary]
           implicit val challengeSummaryWrites = Json.writes[ChallengeSummary]
           val files: Map[String, String] = Map(
@@ -1400,8 +1383,9 @@ class ChallengeController @Inject() (
               .getLineByLineChallengeGeometry(challengeId)
               .values
               .mkString("\n"),
-            "geometry.geojson" -> this.dal.getChallengeGeometry(challengeId),
-            "comments.csv"     -> this.extractComments(challengeId, -1, 0, request.host).mkString("\n"),
+            "geometry.geojson" -> this.dal
+              .getChallengeGeometry(challengeId, includeUserFields = true),
+            "comments.csv" -> this.extractComments(challengeId, -1, 0, request.host).mkString("\n"),
             "metrics.csv" -> Json.prettyPrint(
               Json.toJson(this.dalManager.data.getChallengeSummary(challengeId = Some(challengeId)))
             )
@@ -1481,7 +1465,9 @@ class ChallengeController @Inject() (
             val clonedChallenge = c.copy(
               id = -1,
               name = newName,
-              general = c.general.copy(parent = targetProjectId)
+              general = c.general
+                .copy(parent = targetProjectId, owner = user.osmProfile.id, featured = false),
+              extra = c.extra.copy(ownerTeamId = None)
             )
             Ok(Json.toJson(this.dal.insert(clonedChallenge, user)))
           case None =>
@@ -1703,17 +1689,9 @@ class ChallengeController @Inject() (
   def archiveChallenge(challengeId: Long): Action[JsValue] = Action.async(bodyParsers.json) {
     implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
-        try {
-          val body      = request.body;
-          val archiving = (body \ "isArchived").asOpt[Boolean].getOrElse(true);
-          val result    = serviceManager.challenge.archiveChallenge(challengeId, archiving)
-
-          Ok(Json.toJson(result))
-        } catch {
-          case e: Exception =>
-            logger.error(e.getMessage, e)
-            BadRequest(Json.toJson(StatusMessage("KO", JsString(e.getMessage))))
-        }
+        this.retrieveWritable(challengeId, user)
+        val archiving = (request.body \ "isArchived").asOpt[Boolean].getOrElse(true)
+        Ok(Json.toJson(serviceManager.challenge.archiveChallenge(challengeId, archiving)))
       }
   }
 
@@ -2086,4 +2064,48 @@ class ChallengeController @Inject() (
         )
       }
   }
+
+  /**
+    * Gets the users granted a role on this challenge directly, as opposed to
+    * those who reach it through the parent project or an owning team
+    *
+    * @param id The id of the challenge whose managers are desired
+    */
+  def getChallengeManagers(id: Long): Action[AnyContent] = Action.async { implicit request =>
+    this.sessionManager.authenticatedRequest { implicit user =>
+      Ok(Json.toJson(this.serviceManager.challenge.challengeManagers(id, user)))
+    }
+  }
+
+  /**
+    * Grants a user a role on this challenge, reaching where the parent
+    * project's grants do not. Replaces any role they already held on it
+    *
+    * @param id     The id of the challenge to grant the role on
+    * @param userId The id of the user receiving the role
+    * @param role   The role to grant
+    */
+  def addUserToChallenge(id: Long, userId: Long, role: Int): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        this.serviceManager.challenge.addUserToChallenge(id, userId, role, user)
+        Ok(Json.toJson(this.serviceManager.challenge.challengeManagers(id, user)))
+      }
+  }
+
+  /**
+    * Clears any role a user was granted on this challenge directly. Roles they
+    * hold through the parent project or an owning team are untouched
+    *
+    * @param id     The id of the challenge to revoke the role on
+    * @param userId The id of the user losing the role
+    */
+  def removeUserFromChallenge(id: Long, userId: Long): Action[AnyContent] = Action.async {
+    implicit request =>
+      this.sessionManager.authenticatedRequest { implicit user =>
+        this.serviceManager.challenge.removeUserFromChallenge(id, userId, user)
+        Ok(Json.toJson(this.serviceManager.challenge.challengeManagers(id, user)))
+      }
+  }
+
 }

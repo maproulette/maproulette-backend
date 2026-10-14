@@ -153,7 +153,7 @@ class ChallengeProvider @Inject() (
         // lastly try remote
         challenge.creation.remoteGeoJson match {
           case Some(url) if StringUtils.isNotEmpty(url) =>
-            this.buildTasksFromRemoteJson(url, 1, challenge, user, removeUnmatched)
+            this.buildTasksFromRemoteJson(url, challenge, user, removeUnmatched)
             true
           case _ => false
         }
@@ -220,16 +220,14 @@ class ChallengeProvider @Inject() (
   }
 
   /**
-    * Builds all the tasks from the remote json, it will check for multiple files from the geojson.
+    * Builds all the tasks from the remote json
     *
-    * @param filePrefix The url or file prefix of the remote geojson
-    * @param fileNumber The current file number
-    * @param challenge  The challenge to build the tasks in
-    * @param user       The user creating the tasks
+    * @param url       The url of the remote geojson
+    * @param challenge The challenge to build the tasks in
+    * @param user      The user creating the tasks
     */
   def buildTasksFromRemoteJson(
-      filePrefix: String,
-      fileNumber: Int,
+      url: String,
       challenge: Challenge,
       user: User,
       removeUnmatched: Boolean
@@ -241,66 +239,76 @@ class ChallengeProvider @Inject() (
       }
     }
 
-    val url     = filePrefix.replace("{x}", fileNumber.toString)
-    val seqJSON = filePrefix.contains("{x}")
-    this.ws
-      .url(url)
-      .withRequestTimeout(this.config.getOSMQLProvider.requestTimeout)
-      .get() onComplete {
+    def fail(statusMessage: String): Unit =
+      this.challengeDAL.update(
+        Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
+        user
+      )(challenge.id)
+
+    val request =
+      try {
+        this.ws.url(url).withRequestTimeout(this.config.getOSMQLProvider.requestTimeout).get()
+      } catch {
+        case e: IllegalArgumentException =>
+          logger.warn(s"Invalid remote GeoJSON URL for challenge ${challenge.id}: $url", e)
+          fail("Remote GeoJSON URL is not valid")
+          return
+      }
+
+    request onComplete {
+      case Success(resp) if resp.status < 200 || resp.status >= 300 =>
+        logger.warn(s"HTTP ${resp.status} fetching remote GeoJSON for challenge ${challenge.id}")
+        fail(s"Could not fetch remote GeoJSON (HTTP ${resp.status})")
       case Success(resp) =>
         logger.debug("Creating tasks from remote GeoJSON file")
-        try {
-          val splitJson = resp.body.split("\n")
+        val built =
+          try {
+            val splitJson = resp.body.split("\n")
 
-          if (this.isLineByLineGeoJson(splitJson)) {
-            val splitJsonLength = resp.body.split("\n").length;
-            if (splitJsonLength > config.maxTasksPerChallenge) {
-              logger.warn(
-                "Cannot add {} tasks to challengeId='{}' because it would exceed the maximum tasks per challenge (max={})",
-                splitJsonLength,
-                challenge.id,
-                config.maxTasksPerChallenge
-              )
-
-              val statusMessage =
-                s"Tasks were not accepted. Your feature list size must be under ${config.maxTasksPerChallenge}."
-              this.challengeDAL.update(
-                Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
-                user
-              )(challenge.id)
-            } else {
-              splitJson.foreach { line =>
-                val jsonData = Json.parse(normalizeRFC7464Sequence(line))
-                this.createNewTask(
-                  user,
-                  taskNameFromJsValue(jsonData, challenge),
-                  challenge,
-                  jsonData
+            if (this.isLineByLineGeoJson(splitJson)) {
+              if (splitJson.length > config.maxTasksPerChallenge) {
+                logger.warn(
+                  "Cannot add {} tasks to challengeId='{}' because it would exceed the maximum tasks per challenge (max={})",
+                  splitJson.length,
+                  challenge.id,
+                  config.maxTasksPerChallenge
                 )
+
+                val statusMessage =
+                  s"Tasks were not accepted. Your feature list size must be under ${config.maxTasksPerChallenge}."
+                this.challengeDAL.update(
+                  Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
+                  user
+                )(challenge.id)
+                false
+              } else {
+                splitJson.foreach { line =>
+                  val jsonData = Json.parse(normalizeRFC7464Sequence(line))
+                  this.createNewTask(
+                    user,
+                    taskNameFromJsValue(jsonData, challenge),
+                    challenge,
+                    jsonData
+                  )
+                }
+                this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(
+                  challenge.id
+                )
+                this.challengeDAL.markTasksRefreshed()(challenge.id)
+                true
               }
-              this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(
-                challenge.id
-              )
-
-              this.challengeDAL.markTasksRefreshed()(challenge.id)
-              this.challengeDAL.updateBoundingBox()(challenge.id)
+            } else {
+              this.createTasksFromFeatures(user, challenge, Json.parse(resp.body))
+              true
             }
-          } else {
-            this.createTasksFromFeatures(user, challenge, Json.parse(resp.body))
+          } catch {
+            case e: Exception =>
+              logger.warn(s"Failed to read remote GeoJSON for challenge ${challenge.id}", e)
+              fail("Remote GeoJSON could not be read; check that it is valid GeoJSON")
+              false
           }
-        } catch {
-          case e: Exception =>
-            this.challengeDAL.update(
-              Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> e.getMessage),
-              user
-            )(challenge.id)
-        }
-        if (seqJSON) {
-          this.buildTasksFromRemoteJson(filePrefix, fileNumber + 1, challenge, user, false)
-        } else {
-          this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(challenge.id)
-          this.challengeDAL.markTasksRefreshed()(challenge.id)
 
+        if (built) {
           //we need to reapply task priority rules since task locations were updated
           Future {
             this.withBackgroundPool { c =>
@@ -310,16 +318,8 @@ class ChallengeProvider @Inject() (
           }
         }
       case Failure(f) =>
-        if (fileNumber > 1) {
-          // todo need to figure out if actual failure or if not finding the next file
-          this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(challenge.id)
-          this.challengeDAL.updateBoundingBox()(challenge.id)
-        } else {
-          this.challengeDAL.update(
-            Json.obj("status" -> Challenge.STATUS_FAILED, "StatusMessage" -> f.getMessage),
-            user
-          )(challenge.id)
-        }
+        logger.warn(s"Failed to fetch remote GeoJSON for challenge ${challenge.id}", f)
+        fail("Could not fetch remote GeoJSON")
     }
   }
 

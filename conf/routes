@@ -4,7 +4,7 @@
 GET     /ping                                                           @controllers.Application.ping
 # Authentication Routes
 GET     /auth/authenticate                                              @controllers.AuthController.authenticate(redirectUri: String ?= "")
-GET     /auth/callback                                                  @controllers.AuthController.callback(code: String, redirectUri: String ?= "")
+GET     /auth/callback                                                  @controllers.AuthController.callback(code: String, state: String)
 GET     /auth/signout                                                   @controllers.AuthController.signOut
 POST    /auth/signIn                                                    @controllers.AuthController.signIn(redirect:String ?= "")
 GET     /auth/generateAPIKey                                            @controllers.AuthController.generateAPIKey(userId:Long ?= -1)
@@ -15,14 +15,12 @@ GET     /auth/addUser/:userId/toProject/:projectId                      @control
 GET     /clearCaches                                                    @controllers.Application.clearCaches
 PUT     /runJob/:name                                                   @controllers.Application.runJob(name:String, action:String ?= "")
 GET     /ws                                                             @org.maproulette.framework.controller.WebSocketController.socket
-GET     /graphql/ide                                                    @org.maproulette.framework.controller.GraphQLController.graphiql
-POST    /graphql                                                        @org.maproulette.framework.controller.GraphQLController.graphqlBody
 # Routes for /docs redirect and serving the swagger-ui
 GET     /docs                                                           @controllers.Application.redirectDocs()
 GET     /docs/swagger-ui/*file                                          @controllers.Assets.at(path:String="/public/swagger", file:String)
 ### NoDocs ###
 GET     /assets/*file                                                   @controllers.Assets.versioned(path="/public", file: Asset)
 
-->      /api/v2                                                         generated.Routes
+->      /api/v2/                                                        generated.Routes
 
 GET     /*path/                                                         @controllers.Application.untrail(path:String)

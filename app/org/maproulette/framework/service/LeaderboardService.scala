@@ -681,9 +681,13 @@ class LeaderboardService @Inject() (
       monthDuration: Option[Int],
       countryCodeFilter: Option[List[String]]
   ): List[Parameter[_]] = {
-    val countryCode =
-      if (countryCodeFilter == None) null
-      else countryCodeFilter.toList.head.head
+    val countryCode = countryCodeFilter.flatMap(_.headOption).map { code =>
+      val trimmed = code.trim
+      if (!trimmed.matches("[A-Za-z]{2}")) {
+        throw new InvalidException(s"Invalid country code: '$code'")
+      }
+      trimmed
+    }
 
     List(
       BaseParameter(
@@ -695,10 +699,9 @@ class LeaderboardService @Inject() (
       ),
       FilterParameter.conditional(
         "country_code",
-        s"'${countryCode}'",
+        countryCode.getOrElse(""),
         Operator.EQ,
-        useValueDirectly = true,
-        includeOnlyIfTrue = countryCodeFilter != None,
+        includeOnlyIfTrue = countryCode.isDefined,
         table = Some("")
       ),
       FilterParameter.conditional(
@@ -706,7 +709,7 @@ class LeaderboardService @Inject() (
         None,
         Operator.NULL,
         useValueDirectly = true,
-        includeOnlyIfTrue = countryCodeFilter == None,
+        includeOnlyIfTrue = countryCode.isEmpty,
         table = Some("")
       )
     )

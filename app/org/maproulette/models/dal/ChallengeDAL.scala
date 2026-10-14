@@ -30,7 +30,7 @@ import org.maproulette.utils.Utils
 import org.maproulette.framework.psql.SQLUtils
 import play.api.db.Database
 import play.api.libs.json.JodaReads._
-import play.api.libs.json.{JsArray, JsObject, JsValue, Json}
+import play.api.libs.json.{JsArray, JsNull, JsObject, JsValue, Json}
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
@@ -132,7 +132,8 @@ class ChallengeDAL @Inject() (
       get[Boolean]("challenges.require_confirmation") ~
       get[Boolean]("challenges.require_reject_reason") ~
       get[Option[JsValue]]("challenges.completion_metrics") ~
-      get[Boolean]("challenges.paused") map {
+      get[Boolean]("challenges.paused") ~
+      get[Option[Long]]("challenges.owner_team_id") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~ checkin_comment ~
             checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~ status ~ statusMessage ~
@@ -141,7 +142,7 @@ class ChallengeDAL @Inject() (
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ preferredTags ~ preferredReviewTags ~
             limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
             requiresLocal ~ deleted ~ isGlobal ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~
-            requireConfirmation ~ requireRejectReason ~ completionMetricsJson ~ paused =>
+            requireConfirmation ~ requireRejectReason ~ completionMetricsJson ~ paused ~ ownerTeamId =>
         val completionMetrics =
           completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         new Challenge(
@@ -204,7 +205,8 @@ class ChallengeDAL @Inject() (
             None, // presets
             requireConfirmation,
             None, // mrTagMetrics
-            paused
+            paused,
+            ownerTeamId
           ),
           status,
           statusMessage,
@@ -284,7 +286,8 @@ class ChallengeDAL @Inject() (
       get[Boolean]("challenges.require_confirmation") ~
       get[Boolean]("challenges.require_reject_reason") ~
       get[Option[JsValue]]("challenges.completion_metrics") ~
-      get[Boolean]("challenges.paused") map {
+      get[Boolean]("challenges.paused") ~
+      get[Option[Long]]("challenges.owner_team_id") map {
       case id ~ name ~ created ~ modified ~ description ~ infoLink ~ ownerId ~ parentId ~ instruction ~
             difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~ popularity ~
             checkin_comment ~ checkin_source ~ overpassql ~ remoteGeoJson ~ overpassTargetType ~
@@ -294,7 +297,7 @@ class ChallengeDAL @Inject() (
             preferredReviewTags ~ limitTags ~ limitReviewTags ~ taskStyles ~ lastTaskRefresh ~
             dataOriginDate ~ location ~ bounding ~ requiresLocal ~ deleted ~ isGlobal ~ virtualParents ~
             presets ~ isArchived ~ reviewSetting ~ datasetUrl ~ taskWidgetLayout ~ systemArchivedAt ~
-            requireConfirmation ~ requireRejectReason ~ completionMetricsJson ~ paused =>
+            requireConfirmation ~ requireRejectReason ~ completionMetricsJson ~ paused ~ ownerTeamId =>
         val completionMetrics =
           completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         new Challenge(
@@ -357,7 +360,8 @@ class ChallengeDAL @Inject() (
             presets,
             requireConfirmation,
             None, // mrTagMetrics
-            paused
+            paused,
+            ownerTeamId
           ),
           status,
           statusMessage,
@@ -430,7 +434,8 @@ class ChallengeDAL @Inject() (
       get[Option[String]]("locationJSON") ~
       get[Option[String]]("boundingJSON") ~
       get[Option[JsValue]]("challenges.completion_metrics") ~
-      get[Boolean]("challenges.paused") map {
+      get[Boolean]("challenges.paused") ~
+      get[Option[Long]]("challenges.owner_team_id") map {
       case id ~ name ~ created ~ modified ~ description ~ deleted ~ isGlobal ~ requireConfirmation ~ requireRejectReason ~
             infoLink ~ ownerId ~ parentId ~ instruction ~ difficulty ~ blurb ~ enabled ~ featured ~ cooperativeType ~
             popularity ~ checkin_comment ~ checkin_source ~ requiresLocal ~ overpassQL ~ remoteGeoJson ~ overpassTargetType ~
@@ -439,7 +444,7 @@ class ChallengeDAL @Inject() (
             limitReviewTags ~ isArchived ~ reviewSetting ~ defaultBasemap ~ defaultBasemapId ~ customBasemap ~
             exportableProperties ~ osmIdProperty ~ taskBundleIdProperty ~ taskWidgetLayout ~ taskStyles ~ status ~
             statusMessage ~ lastTaskRefresh ~ dataOriginDate ~ location ~ bounding ~
-            completionMetricsJson ~ paused =>
+            completionMetricsJson ~ paused ~ ownerTeamId =>
         val completionMetrics =
           completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
         val hpr = highPriorityRule.map(Json.parse(_).as[JsObject])
@@ -507,7 +512,8 @@ class ChallengeDAL @Inject() (
           bounding.map(Json.parse(_).as[JsObject]),
           Some(CompletionMetrics.completionPercentage(completionMetrics)),
           completionMetrics,
-          paused
+          paused,
+          ownerTeamId
         )
     }
   }
@@ -665,7 +671,12 @@ class ChallengeDAL @Inject() (
       case _ => throw new InvalidException(s"Cannot create challenge. Project is invalid.")
     }
 
-    this.permission.hasObjectWriteAccess(challenge, user)
+    // Check the parent project to make sure the user has write access to it
+    this.permission.hasWriteAccess(ProjectType(), user)(challenge.general.parent)
+    challenge.extra.ownerTeamId.foreach(
+      this.serviceManager.team.requireTeamManager(_, user, "challenges")
+    )
+    val featured = challenge.general.featured && this.permission.isSuperUser(user)
 
     // Check for existing non-deleted challenge with same name in same project
     this.withMRConnection { implicit c =>
@@ -709,11 +720,11 @@ class ChallengeDAL @Inject() (
                                       medium_priority_rule, low_priority_rule, high_priority_bounds, medium_priority_bounds, low_priority_bounds, default_zoom, min_zoom, max_zoom,
                                       default_basemap, default_basemap_id, custom_basemap, updatetasks, exportable_properties,
                                       osm_id_property, task_bundle_id_property, last_task_refresh, data_origin_date, preferred_tags, preferred_review_tags,
-                                      limit_tags, limit_review_tags, task_styles, requires_local, is_archived, review_setting, dataset_url, require_confirmation, require_reject_reason, task_widget_layout, paused)
+                                      limit_tags, limit_review_tags, task_styles, requires_local, is_archived, review_setting, dataset_url, require_confirmation, require_reject_reason, task_widget_layout, paused, owner_team_id)
               VALUES (${challenge.name}, ${challenge.general.owner}, ${challenge.general.parent},
                       ${challenge.general.difficulty},
                       ${challenge.description}, ${challenge.infoLink}, ${challenge.general.blurb}, ${challenge.general.instruction},
-                      ${challenge.general.enabled}, ${challenge.general.featured},
+                      ${challenge.general.enabled}, ${featured},
                       ${challenge.general.checkinComment}, ${challenge.general.checkinSource}, ${challenge.creation.overpassQL}, ${challenge.creation.remoteGeoJson},
                       ${challenge.creation.overpassTargetType}, ${challenge.status},
                       ${challenge.statusMessage}, ${challenge.priority.defaultPriority}, ${highPriorityRule},
@@ -725,7 +736,8 @@ class ChallengeDAL @Inject() (
                       ${challenge.extra.preferredTags}, ${challenge.extra.preferredReviewTags}, ${challenge.extra.limitTags},
                       ${challenge.extra.limitReviewTags}, ${challenge.extra.taskStyles}, ${challenge.general.requiresLocal}, ${challenge.extra.isArchived},
                       ${challenge.extra.reviewSetting}, ${challenge.extra.datasetUrl}, ${challenge.requireConfirmation}, ${challenge.requireRejectReason},
-                      ${asJson(challenge.extra.taskWidgetLayout.getOrElse(Json.obj()))}, ${challenge.extra.paused}
+                      ${asJson(challenge.extra.taskWidgetLayout.getOrElse(Json.obj()))}, ${challenge.extra.paused},
+                      ${challenge.extra.ownerTeamId}
                       ) RETURNING #${this.retrieveColumns}"""
             .as(this.parser.*)
             .headOption
@@ -785,6 +797,46 @@ class ChallengeDAL @Inject() (
     val updatedChallenge = this.cacheManager.withUpdatingCache(Long => retrieveById) {
       implicit cachedItem =>
         this.permission.hasObjectWriteAccess(cachedItem, user)
+
+        val parentId = (updates \ "parentId").asOpt[Long].getOrElse(cachedItem.general.parent)
+        if (parentId != cachedItem.general.parent) {
+          throw new InvalidException(
+            s"Challenge [${cachedItem.id}] cannot be moved to a different project by an update; use the move endpoint"
+          )
+        }
+
+        val ownerId = (updates \ "ownerId").asOpt[Long].getOrElse(cachedItem.general.owner)
+        if (ownerId != cachedItem.general.owner) {
+          this.permission.hasObjectAdminAccess(cachedItem, user)
+        }
+
+        val featured = (updates \ "featured").asOpt[Boolean].getOrElse(cachedItem.general.featured)
+        if (featured != cachedItem.general.featured && !this.permission.isSuperUser(user)) {
+          throw new IllegalAccessException("Only super users can feature challenges")
+        }
+
+        // Update the owning team, or remove it if an explicit `null` is set in
+        // the JSON. But if it's omitted, leave it alone.
+        val ownerTeamId = (updates \ "ownerTeamId").toOption match {
+          case None         => cachedItem.extra.ownerTeamId
+          case Some(JsNull) => None
+          case Some(value) =>
+            Some(
+              value
+                .asOpt[Long]
+                .getOrElse(throw new InvalidException("ownerTeamId must be a number"))
+            )
+        }
+
+        // Changing the owning team requires challenge admin, and the caller must
+        // also manage both the team it's leaving and the team it's being given to.
+        if (ownerTeamId != cachedItem.extra.ownerTeamId) {
+          this.permission.hasObjectAdminAccess(cachedItem, user)
+          (cachedItem.extra.ownerTeamId ++ ownerTeamId).foreach(
+            this.serviceManager.team.requireTeamManager(_, user, "challenges")
+          )
+        }
+
         val highPriorityRule = (updates \ "highPriorityRule")
           .asOpt[String]
           .getOrElse(cachedItem.priority.highPriorityRule.getOrElse("")) match {
@@ -826,12 +878,9 @@ class ChallengeDAL @Inject() (
         }
 
         this.withMRTransaction { implicit c =>
-          val name     = (updates \ "name").asOpt[String].getOrElse(cachedItem.name)
-          val ownerId  = (updates \ "ownerId").asOpt[Long].getOrElse(cachedItem.general.owner)
-          val parentId = (updates \ "parentId").asOpt[Long].getOrElse(cachedItem.general.parent)
+          val name = (updates \ "name").asOpt[String].getOrElse(cachedItem.name)
 
-          // Check if name or parent changed and if so, validate uniqueness
-          if (name != cachedItem.name || parentId != cachedItem.general.parent) {
+          if (name != cachedItem.name) {
             val existingChallenge = SQL"""
               SELECT id FROM challenges 
               WHERE parent_id = $parentId 
@@ -859,8 +908,6 @@ class ChallengeDAL @Inject() (
           val instruction =
             (updates \ "instruction").asOpt[String].getOrElse(cachedItem.general.instruction)
           val enabled = (updates \ "enabled").asOpt[Boolean].getOrElse(cachedItem.general.enabled)
-          val featured =
-            (updates \ "featured").asOpt[Boolean].getOrElse(cachedItem.general.featured)
           val checkinComment =
             (updates \ "checkinComment").asOpt[String].getOrElse(cachedItem.general.checkinComment)
           val checkinSource =
@@ -1030,7 +1077,7 @@ class ChallengeDAL @Inject() (
                   custom_basemap = $customBasemap, updatetasks = $updateTasks, exportable_properties = $exportableProperties,
                   osm_id_property = $osmIdProperty, task_bundle_id_property = $taskBundleIdProperty, preferred_tags = $preferredTags, preferred_review_tags = $preferredReviewTags,
                   limit_tags = $limitTags, limit_review_tags = $limitReviewTags, task_styles = $taskStyles,
-                  requires_local = $requiresLocal, is_archived = $isArchived, paused = $paused, review_setting = $reviewSetting, dataset_url = $datasetUrl, task_widget_layout = ${asJson(
+                  requires_local = $requiresLocal, is_archived = $isArchived, paused = $paused, owner_team_id = $ownerTeamId, review_setting = $reviewSetting, dataset_url = $datasetUrl, task_widget_layout = ${asJson(
               taskWidgetLayout
             )}
                 WHERE id = $id RETURNING #${this.retrieveColumns}""".as(parser.*).headOption
@@ -1739,10 +1786,12 @@ class ChallengeDAL @Inject() (
       priorityFilter: Option[List[Int]] = None,
       params: Option[SearchParameters] = None,
       timezone: String = Utils.UTC_TIMEZONE,
-      boundingBox: Option[(Double, Double, Double, Double)] = None
+      boundingBox: Option[(Double, Double, Double, Double)] = None,
+      includeUserFields: Boolean = false
   )(implicit c: Option[Connection] = None): String = {
     this.withMRConnection { implicit c =>
-      val filters = new StringBuilder()
+      val filters          = new StringBuilder()
+      val filterParameters = ListBuffer.empty[NamedParameter]
 
       // Verify timzone offset is valid (eg. -10:00 or +04:00 or 06:30:00)
       val tzOffset =
@@ -1782,11 +1831,13 @@ class ChallengeDAL @Inject() (
         case Some(p) =>
           p.taskParams.taskPropertySearch match {
             case Some(tps) =>
+              val (tpsSql, tpsParameters) = tps.toSQLWithParameters
+              filterParameters ++= tpsParameters
               filters.append(s""" AND t.id IN (
                   SELECT id FROM tasks,
                                  jsonb_array_elements(geojson->'features') features
                   WHERE parent_id IN ($challengeId)
-                  AND (${tps.toSQL}))
+                  AND (${tpsSql}))
                  """)
             case None => // do nothing
           }
@@ -1797,23 +1848,25 @@ class ChallengeDAL @Inject() (
           }
 
           p.reviewer match {
-            case Some(r) =>
+            case Some(r) if includeUserFields =>
+              filterParameters += NamedParameter("reviewerName", s"%${r}%")
               filters.append(s""" AND t.id IN (
                   SELECT subTR.task_id FROM task_review subTR
                   INNER JOIN users u2 ON u2.id = subTR.reviewed_by
                   WHERE subTR.task_id=t.id AND
-                  LOWER(u2.name) LIKE LOWER('%${r}%')
+                  LOWER(u2.name) LIKE LOWER({reviewerName})
                 )""")
             case _ => // do nothing
           }
 
           p.owner match {
-            case Some(o) =>
+            case Some(o) if includeUserFields =>
+              filterParameters += NamedParameter("ownerName", s"%${o}%")
               filters.append(s""" AND t.id IN (
                   SELECT subTR.task_id FROM task_review subTR
                   INNER JOIN users u3 ON u3.id = subTR.review_requested_by
                   WHERE subTR.task_id=t.id AND
-                  LOWER(u3.name) LIKE LOWER('%${o}%')
+                  LOWER(u3.name) LIKE LOWER({ownerName})
                 )""")
             case _ => // do nothing
           }
@@ -1829,8 +1882,27 @@ class ChallengeDAL @Inject() (
         case None => // do nothing
       }
 
+      // Who mapped and reviewed each task, and when, is only available for the challenge
+      // owner (or someone else with permissions on the challenge). Everyone else just
+      // gets the task ids and statuses.
+      val tzName = s"(select name from pg_timezone_names where utc_offset='$tzOffset' limit 1)"
+      val userFields = if (includeUserFields) {
+        s"""hstore('mr_mappedOn',
+              TO_CHAR(t.mapped_on::TIMESTAMPTZ at time zone $tzName,
+                'YYYY-MM-DD"T"HH24:MI:SS$tzOffset')) ||
+            hstore('mr_mapper', (select name from users where id=t.completed_by)::text) ||
+            hstore('mr_reviewer', (select name from users where id=t.reviewed_by)::text) ||
+            hstore('mr_reviewedAt',
+              TO_CHAR(t.reviewed_at::TIMESTAMPTZ at time zone $tzName,
+                'YYYY-MM-DD"T"HH24:MI:SS$tzOffset')) ||
+            hstore('mr_reviewTimeSeconds',
+              FLOOR(EXTRACT(EPOCH FROM (t.reviewed_at - t.review_started_at)))::text) ||"""
+      } else {
+        ""
+      }
+
       val query =
-        SQL"""SELECT row_to_json(fc)::text as geometries
+        SQL(s"""SELECT row_to_json(fc)::text as geometries
             FROM ( SELECT 'FeatureCollection' As type, array_to_json(array_agg(f)) As features
                    FROM ( SELECT 'Feature' As type,
                                   t.geojson_geom::jsonb As geometry,
@@ -1841,48 +1913,35 @@ class ChallengeDAL @Inject() (
                                         hstore('mr_taskName', t.name::text) ||
                                         hstore('mr_taskStatus',
                                           (CASE
-                                            WHEN t.tstatus = #${Task.STATUS_CREATED} THEN ${Task.STATUS_CREATED_NAME}
-                                            WHEN t.tstatus = #${Task.STATUS_FIXED} THEN ${Task.STATUS_FIXED_NAME}
-                                            WHEN t.tstatus = #${Task.STATUS_SKIPPED} THEN ${Task.STATUS_SKIPPED_NAME}
-                                            WHEN t.tstatus = #${Task.STATUS_DELETED} THEN ${Task.STATUS_DELETED_NAME}
-                                            WHEN t.tstatus = #${Task.STATUS_ALREADY_FIXED} THEN ${Task.STATUS_ALREADY_FIXED_NAME}
-                                            WHEN t.tstatus = #${Task.STATUS_FALSE_POSITIVE} THEN ${Task.STATUS_FALSE_POSITIVE_NAME}
-                                            WHEN t.tstatus = #${Task.STATUS_TOO_HARD} THEN ${Task.STATUS_TOO_HARD_NAME}
-                                            WHEN t.tstatus = #${Task.STATUS_ANSWERED} THEN ${Task.STATUS_ANSWERED_NAME}
-                                            WHEN t.tstatus = #${Task.STATUS_VALIDATED} THEN ${Task.STATUS_VALIDATED_NAME}
-                                            WHEN t.tstatus = #${Task.STATUS_DISABLED} THEN ${Task.STATUS_DISABLED_NAME}
+                                            WHEN t.tstatus = ${Task.STATUS_CREATED} THEN '${Task.STATUS_CREATED_NAME}'
+                                            WHEN t.tstatus = ${Task.STATUS_FIXED} THEN '${Task.STATUS_FIXED_NAME}'
+                                            WHEN t.tstatus = ${Task.STATUS_SKIPPED} THEN '${Task.STATUS_SKIPPED_NAME}'
+                                            WHEN t.tstatus = ${Task.STATUS_DELETED} THEN '${Task.STATUS_DELETED_NAME}'
+                                            WHEN t.tstatus = ${Task.STATUS_ALREADY_FIXED} THEN '${Task.STATUS_ALREADY_FIXED_NAME}'
+                                            WHEN t.tstatus = ${Task.STATUS_FALSE_POSITIVE} THEN '${Task.STATUS_FALSE_POSITIVE_NAME}'
+                                            WHEN t.tstatus = ${Task.STATUS_TOO_HARD} THEN '${Task.STATUS_TOO_HARD_NAME}'
+                                            WHEN t.tstatus = ${Task.STATUS_ANSWERED} THEN '${Task.STATUS_ANSWERED_NAME}'
+                                            WHEN t.tstatus = ${Task.STATUS_VALIDATED} THEN '${Task.STATUS_VALIDATED_NAME}'
+                                            WHEN t.tstatus = ${Task.STATUS_DISABLED} THEN '${Task.STATUS_DISABLED_NAME}'
                                            END)) ||
                                         hstore('mr_taskPriority',
                                           (CASE
-                                            WHEN t.priority = #${Challenge.PRIORITY_HIGH} THEN ${Challenge.PRIORITY_HIGH_NAME}
-                                            WHEN t.priority = #${Challenge.PRIORITY_MEDIUM} THEN ${Challenge.PRIORITY_MEDIUM_NAME}
-                                            WHEN t.priority = #${Challenge.PRIORITY_LOW} THEN ${Challenge.PRIORITY_LOW_NAME}
+                                            WHEN t.priority = ${Challenge.PRIORITY_HIGH} THEN '${Challenge.PRIORITY_HIGH_NAME}'
+                                            WHEN t.priority = ${Challenge.PRIORITY_MEDIUM} THEN '${Challenge.PRIORITY_MEDIUM_NAME}'
+                                            WHEN t.priority = ${Challenge.PRIORITY_LOW} THEN '${Challenge.PRIORITY_LOW_NAME}'
                                            END)) ||
-                                        hstore('mr_mappedOn',
-                                                TO_CHAR(t.mapped_on::TIMESTAMPTZ at time zone
-                                                  (select name from pg_timezone_names where utc_offset='#${tzOffset}' limit 1),
-                                                  'YYYY-MM-DD"T"HH24:MI:SS#${tzOffset}'))
-                                        ||
-                                        hstore('mr_mapper',
-                                          (select name from users where id=t.completed_by)::text) ||
+                                        ${userFields}
                                         hstore('mr_reviewStatus',
                                           (CASE
-                                            WHEN t.review_status = #${Task.REVIEW_STATUS_REQUESTED} THEN ${Task.REVIEW_STATUS_REQUESTED_NAME}
-                                            WHEN t.review_status = #${Task.REVIEW_STATUS_APPROVED} THEN ${Task.REVIEW_STATUS_APPROVED_NAME}
-                                            WHEN t.review_status = #${Task.REVIEW_STATUS_APPROVED_WITH_REVISIONS} THEN ${Task.REVIEW_STATUS_APPROVED_NAME}
-                                            WHEN t.review_status = #${Task.REVIEW_STATUS_APPROVED_WITH_FIXES_AFTER_REVISIONS} THEN ${Task.REVIEW_STATUS_APPROVED_NAME}
-                                            WHEN t.review_status = #${Task.REVIEW_STATUS_REJECTED} THEN ${Task.REVIEW_STATUS_REJECTED_NAME}
-                                            WHEN t.review_status = #${Task.REVIEW_STATUS_ASSISTED} THEN ${Task.REVIEW_STATUS_ASSISTED_NAME}
-                                            WHEN t.review_status = #${Task.REVIEW_STATUS_DISPUTED} THEN ${Task.REVIEW_STATUS_DISPUTED_NAME}
-                                            WHEN t.review_status = #${Task.REVIEW_STATUS_UNNECESSARY} THEN ${Task.REVIEW_STATUS_UNNECESSARY_NAME}
+                                            WHEN t.review_status = ${Task.REVIEW_STATUS_REQUESTED} THEN '${Task.REVIEW_STATUS_REQUESTED_NAME}'
+                                            WHEN t.review_status = ${Task.REVIEW_STATUS_APPROVED} THEN '${Task.REVIEW_STATUS_APPROVED_NAME}'
+                                            WHEN t.review_status = ${Task.REVIEW_STATUS_APPROVED_WITH_REVISIONS} THEN '${Task.REVIEW_STATUS_APPROVED_NAME}'
+                                            WHEN t.review_status = ${Task.REVIEW_STATUS_APPROVED_WITH_FIXES_AFTER_REVISIONS} THEN '${Task.REVIEW_STATUS_APPROVED_NAME}'
+                                            WHEN t.review_status = ${Task.REVIEW_STATUS_REJECTED} THEN '${Task.REVIEW_STATUS_REJECTED_NAME}'
+                                            WHEN t.review_status = ${Task.REVIEW_STATUS_ASSISTED} THEN '${Task.REVIEW_STATUS_ASSISTED_NAME}'
+                                            WHEN t.review_status = ${Task.REVIEW_STATUS_DISPUTED} THEN '${Task.REVIEW_STATUS_DISPUTED_NAME}'
+                                            WHEN t.review_status = ${Task.REVIEW_STATUS_UNNECESSARY} THEN '${Task.REVIEW_STATUS_UNNECESSARY_NAME}'
                                            END)) ||
-                                        hstore('mr_reviewer', (select name from users where id=t.reviewed_by)::text) ||
-                                        hstore('mr_reviewedAt',
-                                          TO_CHAR(t.reviewed_at::TIMESTAMPTZ at time zone
-                                            (select name from pg_timezone_names where utc_offset='#${tzOffset}' limit 1),
-                                            'YYYY-MM-DD"T"HH24:MI:SS#${tzOffset}'))
-                                        ||
-                                        hstore('mr_reviewTimeSeconds', FLOOR(EXTRACT(EPOCH FROM (t.reviewed_at - t.review_started_at)))::text) ||
                                         hstore('mr_tags', (SELECT STRING_AGG(tg.name, ',') AS tags
                                                             FROM tags_on_tasks tot, tags tg
                                                             WHERE tot.task_id=t.tid AND tg.id = tot.tag_id)) ||
@@ -1899,11 +1958,13 @@ class ChallengeDAL @Inject() (
                               LEFT OUTER JOIN status_actions sa ON
                                 (sa.task_id = t.id AND extract(epoch from age(sa.created, t.mapped_on)) < 0.1)
                               LEFT OUTER JOIN task_review tr ON t.id = tr.task_id
-                              WHERE parent_id = $challengeId #${filters.toString}
+                              WHERE parent_id = {challengeId} ${filters.toString}
                             ) AS subT ) as t
                     ) As f
-            )  As fc"""
-      val challengeGeometry = query.as(str("geometries").single)
+            )  As fc""")
+      val challengeGeometry = query
+        .on((NamedParameter("challengeId", challengeId) +: filterParameters.toSeq): _*)
+        .as(str("geometries").single)
       if (StringUtils.isEmpty(challengeGeometry)) {
         this.updateGeometry(challengeId)
       }
@@ -2020,21 +2081,14 @@ class ChallengeDAL @Inject() (
       implicit c: Option[Connection] = None
   ): List[Long] = {
     this.withMRConnection { implicit c =>
-      try {
-        val ids = challengeIds.mkString(",")
-        val query =
-          s"""UPDATE challenges
-             |	SET is_archived = ${archive}
-             |	WHERE id IN (${ids});""".stripMargin
-        SQL(query).executeUpdate()
+      val ids = challengeIds.mkString(",")
+      val query =
+        s"""UPDATE challenges
+           |	SET is_archived = ${archive}
+           |	WHERE id IN (${ids});""".stripMargin
+      SQL(query).executeUpdate()
 
-        challengeIds
-      } catch {
-        case e: Exception =>
-          logger.error(e.getMessage, e)
-          throw e
-      }
-
+      challengeIds
     }
   }
 
@@ -2639,14 +2693,31 @@ class ChallengeDAL @Inject() (
     * Optimized method to explore challenges with specific filtering
     * This is a purpose-built query for the exploreChallenges endpoint
     *
-    * Location filtering is bounding-box based: the client resolves any named place
-    * (e.g. via Nominatim on the frontend) to a bbox and passes it as `boundingBox`.
+    * Location filtering works on two areas, either of which may be omitted:
+    * `boundingBox` (the map viewport) and `locationPolygon` (the boundary of a
+    * named place, resolved by the client e.g. via Nominatim). They intersect
+    * rather than accumulate -- a challenge matches only when a *single* one of
+    * its tasks falls inside every area given. The challenge's own `bounding`
+    * envelope is only a prefilter, never the answer: it spans every task in the
+    * challenge, so one with tasks on two continents overlaps nearly any area.
+    *
+    * Challenges marked STATUS_FINISHED are omitted: there is no work left in
+    * them, so they are not something to discover. Paused challenges are
+    * omitted for the same reason -- their tasks cannot be locked, completed or
+    * reviewed until the challenge is resumed.
+    *
+    * Challenges marked STATUS_FINISHED are omitted: there is no work left in
+    * them, so they are not something to discover. Paused challenges are
+    * omitted for the same reason -- their tasks cannot be locked, completed or
+    * reviewed until the challenge is resumed.
     *
     * @param includeGlobal Whether to include challenges marked as global
     * @param boundingBox Optional bounding box to filter by challenge location (left, bottom, right, top)
-    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty)
+    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty,
+    *               featured, tag_fix, cooperative)
     * @param limit Maximum number of results to return
     * @param offset Number of results to skip for pagination
+    * @param locationPolygon Optional GeoJSON Polygon/MultiPolygon the matching task must fall inside
     * @param c Optional database connection
     * @return List of challenges matching the criteria
     */
@@ -2657,12 +2728,20 @@ class ChallengeDAL @Inject() (
       limit: Int,
       offset: Int = 0,
       keywords: Option[String] = None,
-      difficulty: Option[Int] = None
+      difficulty: Option[Int] = None,
+      locationPolygon: Option[String] = None
   )(implicit c: Option[Connection] = None): List[Challenge] = {
     this.withMRConnection { implicit c =>
       val params = new ListBuffer[NamedParameter]()
+      // No DISTINCT: the only join here is many-to-one on the parent project, so
+      // nothing can duplicate a challenge. The keyword filter below is a
+      // semi-join for the same reason -- joining the tag tables in would return
+      // a challenge once per matching tag, which is what the DISTINCT used to
+      // hide. Dropping it also lets a sort order by an expression; under SELECT
+      // DISTINCT, Postgres requires every ORDER BY expression to appear in the
+      // select list.
       var query =
-        s"""SELECT DISTINCT c.*, ST_AsGeoJSON(c.location) AS locationJSON, ST_AsGeoJSON(c.bounding) AS boundingJSON
+        s"""SELECT c.*, ST_AsGeoJSON(c.location) AS locationJSON, ST_AsGeoJSON(c.bounding) AS boundingJSON
             FROM challenges c
             INNER JOIN projects p ON p.id = c.parent_id"""
 
@@ -2672,14 +2751,13 @@ class ChallengeDAL @Inject() (
         case _ => List.empty[String]
       }
 
-      // Add INNER JOIN for keywords filtering if keywords are provided
-      if (keywordList.nonEmpty) {
-        query += " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id"
-        query += " INNER JOIN tags t ON toc.tag_id = t.id"
-      }
-
       query += " WHERE c.deleted = false AND c.enabled = true AND c.is_archived = false"
+      query += " AND c.paused = false"
       query += " AND p.deleted = false AND p.enabled = true"
+      // A finished challenge has no tasks left to work on, so it is not
+      // something to discover here. NULL status predates the column and is
+      // treated as unfinished.
+      query += s" AND (c.status IS NULL OR c.status <> ${Challenge.STATUS_FINISHED})"
 
       if (!includeGlobal) {
         query += " AND c.is_global = false"
@@ -2692,7 +2770,13 @@ class ChallengeDAL @Inject() (
             params += NamedParameter(s"kw$i", kw)
             s"{kw$i}"
         }
-        query += s" AND LOWER(t.name) IN (${placeholders.mkString(", ")})"
+        query += s""" AND EXISTS (
+                        SELECT 1
+                        FROM tags_on_challenges toc
+                        INNER JOIN tags t ON t.id = toc.tag_id
+                        WHERE toc.challenge_id = c.id
+                          AND LOWER(t.name) IN (${placeholders.mkString(", ")})
+                      )"""
       }
 
       // Filter by difficulty if provided
@@ -2703,23 +2787,57 @@ class ChallengeDAL @Inject() (
         case None =>
       }
 
+      // Each requested area contributes a cheap prefilter against the
+      // challenge's own envelope (GIST-indexed) plus a predicate on the task
+      // itself. The task predicates are ANDed inside one EXISTS, so the same
+      // task has to satisfy all of them -- a challenge in view but outside the
+      // place, or inside the place but out of view, does not match.
+      val taskAreaClauses = new ListBuffer[String]()
+
       boundingBox match {
         case Some((left, bottom, right, top)) =>
           params += NamedParameter("bbLeft", left)
           params += NamedParameter("bbBottom", bottom)
           params += NamedParameter("bbRight", right)
           params += NamedParameter("bbTop", top)
-          query += " AND ST_Intersects(c.bounding, ST_MakeEnvelope({bbLeft}, {bbBottom}, {bbRight}, {bbTop}, 4326))"
+          val envelope = "ST_MakeEnvelope({bbLeft}, {bbBottom}, {bbRight}, {bbTop}, 4326)"
+          query += s" AND ST_Intersects(c.bounding, $envelope)"
+          taskAreaClauses += s"ST_Intersects(t.location, $envelope)"
         case None =>
       }
 
+      locationPolygon match {
+        case Some(geoJson) =>
+          params += NamedParameter("locationPolygon", geoJson)
+          val polygon = "ST_GeomFromGeoJSON({locationPolygon})"
+          query += s" AND ST_Intersects(c.bounding, $polygon)"
+          taskAreaClauses += s"ST_Intersects(t.location, $polygon)"
+        case None =>
+      }
+
+      if (taskAreaClauses.nonEmpty) {
+        query += s""" AND EXISTS (
+                        SELECT 1 FROM tasks t
+                        WHERE t.parent_id = c.id
+                          AND ${taskAreaClauses.mkString("\n                          AND ")}
+                      )"""
+      }
+
+      // Taxonomy sorts group a kind of challenge to the front rather than
+      // ordering by the column itself, so each falls back to name to keep the
+      // ordering inside a group stable across pages.
       val orderByClause = sortBy.toLowerCase match {
         case "name"       => "c.name ASC"
         case "created"    => "c.created DESC"
         case "modified"   => "c.modified DESC"
         case "popularity" => "c.popularity DESC NULLS LAST"
         case "difficulty" => "c.difficulty ASC"
-        case _            => "c.name ASC"
+        case "featured"   => "c.featured DESC, c.name ASC"
+        case "tag_fix" =>
+          s"(c.cooperative_type = ${Challenge.COOPERATIVE_TAGS}) DESC, c.name ASC"
+        case "cooperative" | "cooperative_type" =>
+          s"(c.cooperative_type > ${Challenge.COOPERATIVE_NONE}) DESC, c.cooperative_type DESC, c.name ASC"
+        case _ => "c.name ASC"
       }
 
       query += s" ORDER BY $orderByClause"

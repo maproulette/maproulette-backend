@@ -124,6 +124,7 @@ class GrantService @Inject() (
     */
   def createGrant(grant: Grant, user: User): Option[Grant] = {
     this.hasAccess(user)
+    Grant.validateRole(grant.role, grant.target)
 
     // Generate a copy with a valid name if missing
     this.repository.create(
@@ -198,12 +199,28 @@ class GrantService @Inject() (
     )
   }
 
+  /**
+    * Grant superuser privileges to a user.
+    *
+    * @param userId The MapRoulette id of the target user
+    * @param name   A string describing the grant
+    * @param user   The user making the request
+    */
+  def createSuperUserGrant(userId: Long, name: String, user: User): Option[Grant] = {
+    this.hasAccess(user)
+    this.repository.create(
+      Grant(-1, name, Grantee.user(userId), Grant.ROLE_SUPER_USER, GrantTarget.project(0))
+    )
+  }
+
   def getSuperUserIdsFromDatabase: List[Long] = {
     repository.withMRConnection { implicit c =>
-      // Search the grants table for grantee_id (eg the user's maproulette id) where the role is -1 (superuser)
-      // and the grantee_type is 5 (user).
+      // Superuser grants are role -1 granted to a user (grantee_type 5) on project 0
+      // (object_type 0, object_id 0), as written by createSuperUserGrant above.
       anorm
-        .SQL("SELECT grantee_id AS id FROM grants WHERE role = -1 AND grantee_type = 5")
+        .SQL(
+          "SELECT grantee_id AS id FROM grants WHERE role = -1 AND grantee_type = 5 AND object_type = 0 AND object_id = 0"
+        )
         .as(SqlParser.scalar[Long].*)
     }
   }

@@ -5,8 +5,10 @@
 
 package org.maproulette.framework.mixins
 
+import anorm.NamedParameter
 import org.scalatestplus.play.PlaySpec
 import org.maproulette.framework.mixins.SearchParametersMixin
+import org.maproulette.framework.psql.filter.FilterGroup
 import org.maproulette.session._
 
 /**
@@ -17,15 +19,39 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
 
   def normalized(s: String): String = s.replaceAll("(?s)\\s+", " ").trim
 
+  // Bound parameter names carry a random 5 letter prefix; strip it so we can compare them
+  def unprefixed(filter: FilterGroup): (String, List[NamedParameter]) = {
+    val parameters = filter.parameters()
+    val sql = parameters.foldLeft(filter.sql())((sql, p) =>
+      sql.replace(s"{${p.name}}", s"{${p.name.drop(5)}}")
+    )
+    (sql, parameters.map(p => p.copy(name = p.name.drop(5))))
+  }
+
   "filterChallengeTags" should {
     "match on challenge tags" in {
       val params =
         SearchParameters(challengeParams =
           SearchChallengeParameters(challengeTags = Some(List("my_tag", "tag2")))
         )
-      this.filterChallengeTags(params).sql() mustEqual
+      val filter = this.filterChallengeTags(params)
+      filter.sql() mustEqual
         "c.id IN (SELECT challenge_id from tags_on_challenges tc " +
-          "INNER JOIN tags ON tags.id = tc.tag_id WHERE tags.name IN ('my_tag','tag2'))"
+          "INNER JOIN tags ON tags.id = tc.tag_id WHERE tags.name IN ({challengeTags}))"
+      filter.parameters() mustEqual List(NamedParameter("challengeTags", List("my_tag", "tag2")))
+    }
+
+    "bind tags so they cannot be injected" in {
+      val params = SearchParameters(challengeParams =
+        SearchChallengeParameters(challengeTags = Some(List("missing-name", "x') OR 1=1 --")))
+      )
+      val filter = this.filterChallengeTags(params)
+      filter.sql() mustEqual
+        "c.id IN (SELECT challenge_id from tags_on_challenges tc " +
+          "INNER JOIN tags ON tags.id = tc.tag_id WHERE tags.name IN ({challengeTags}))"
+      filter.parameters() mustEqual List(
+        NamedParameter("challengeTags", List("missing-name", "x') OR 1=1 --"))
+      )
     }
 
     "be empty" in {
@@ -39,19 +65,25 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
       )
       this.filterChallengeTags(params).sql() mustEqual
         "NOT c.id IN (SELECT challenge_id from tags_on_challenges tc " +
-          "INNER JOIN tags ON tags.id = tc.tag_id WHERE tags.name IN ('my_tag','tag2'))"
+          "INNER JOIN tags ON tags.id = tc.tag_id WHERE tags.name IN ({challengeTags}))"
     }
   }
 
   "filterProjectSearch" should {
     "match on project name" in {
       val params = new SearchParameters(projectSearch = Some("my_project"))
-      this.filterProjectSearch(params).sql() mustEqual "p.display_name ILIKE '%my_project%'"
+      unprefixed(this.filterProjectSearch(params)) mustEqual (
+        "p.display_name ILIKE {display_name}",
+        List(NamedParameter("display_name", "%my_project%"))
+      )
     }
 
-    "allow apostrophes in project name" in {
+    "bind the project name so it cannot be injected" in {
       val params = new SearchParameters(projectSearch = Some("my project's"))
-      this.filterProjectSearch(params).sql() mustEqual "p.display_name ILIKE '%my project''s%'"
+      unprefixed(this.filterProjectSearch(params)) mustEqual (
+        "p.display_name ILIKE {display_name}",
+        List(NamedParameter("display_name", "%my project's%"))
+      )
     }
 
     "be empty" in {
@@ -61,7 +93,7 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
     "be inverted" in {
       val params =
         new SearchParameters(projectSearch = Some("my_project"), invertFields = Some(List("ps")))
-      this.filterProjectSearch(params).sql() mustEqual "NOT p.display_name ILIKE '%my_project%'"
+      unprefixed(this.filterProjectSearch(params))._1 mustEqual "NOT p.display_name ILIKE {display_name}"
     }
   }
 
@@ -159,9 +191,18 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
   "filterTaskFeatureId" should {
     "match on task feature id" in {
       val params = SearchParameters(taskParams = SearchTaskParameters(taskFeatureId = Some("123")))
-      this
-        .filterTaskFeatureId(params)
-        .sql() mustEqual s"LOWER(TRIM(tasks.name::TEXT)) LIKE LOWER('%123%')"
+      val filter = this.filterTaskFeatureId(params)
+      filter.sql() mustEqual "LOWER(TRIM(tasks.name::TEXT)) LIKE LOWER({taskFeatureId})"
+      filter.parameters() mustEqual List(NamedParameter("taskFeatureId", "%123%"))
+    }
+
+    "bind the feature id so it cannot be injected" in {
+      val params = SearchParameters(
+        taskParams = SearchTaskParameters(taskFeatureId = Some("x' OR '1'='1"))
+      )
+      val filter = this.filterTaskFeatureId(params)
+      filter.sql() mustEqual "LOWER(TRIM(tasks.name::TEXT)) LIKE LOWER({taskFeatureId})"
+      filter.parameters() mustEqual List(NamedParameter("taskFeatureId", "%x' OR '1'='1%"))
     }
   }
 
@@ -236,9 +277,24 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
     "match on task tags" in {
       val params =
         SearchParameters(taskParams = SearchTaskParameters(taskTags = Some(List("my_tag", "tag2"))))
-      this.filterTaskTags(params).sql() mustEqual
+      val filter = this.filterTaskTags(params)
+      filter.sql() mustEqual
         "tasks.id IN (SELECT task_id from tags_on_tasks tt " +
-          "INNER JOIN tags ON tags.id = tt.tag_id WHERE tags.name IN ('my_tag','tag2'))"
+          "INNER JOIN tags ON tags.id = tt.tag_id WHERE tags.name IN ({taskTags}))"
+      filter.parameters() mustEqual List(NamedParameter("taskTags", List("my_tag", "tag2")))
+    }
+
+    "bind tags so they cannot be injected" in {
+      val params = SearchParameters(taskParams =
+        SearchTaskParameters(taskTags = Some(List(" Missing-Name ", "x') OR 1=1 --")))
+      )
+      val filter = this.filterTaskTags(params)
+      filter.sql() mustEqual
+        "tasks.id IN (SELECT task_id from tags_on_tasks tt " +
+          "INNER JOIN tags ON tags.id = tt.tag_id WHERE tags.name IN ({taskTags}))"
+      filter.parameters() mustEqual List(
+        NamedParameter("taskTags", List("missing-name", "x') or 1=1 --"))
+      )
     }
 
     "be empty" in {
@@ -252,7 +308,7 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
       )
       this.filterTaskTags(params).sql() mustEqual
         "NOT tasks.id IN (SELECT task_id from tags_on_tasks tt " +
-          "INNER JOIN tags ON tags.id = tt.tag_id WHERE tags.name IN ('my_tag','tag2'))"
+          "INNER JOIN tags ON tags.id = tt.tag_id WHERE tags.name IN ({taskTags}))"
     }
   }
 
@@ -480,12 +536,32 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
         )
         )
       )
-      this.filterTaskProps(params).sql() mustEqual
+      val filter = this.filterTaskProps(params)
+      filter.sql() mustEqual
         """tasks.id IN (
              | SELECT id FROM tasks,
              | jsonb_array_elements(geojson->'features') features
              | WHERE parent_id IN (12345)
-             | AND ( CAST(features->'properties'->>'x' AS DOUBLE PRECISION)=1))""".stripMargin
+             | AND ( CAST(features->'properties'->>{taskProp0} AS DOUBLE PRECISION)=1))""".stripMargin
+      filter.parameters() mustEqual List(NamedParameter("taskProp0", "x"))
+    }
+
+    "bind the task property key so it cannot be injected" in {
+      val params = SearchParameters(
+        challengeParams = SearchChallengeParameters(challengeIds = Some(List(12345))),
+        taskParams = SearchTaskParameters(taskPropertySearch = Some(
+          TaskPropertySearch(
+            Some("x' OR '1'='1"),
+            Some("1"),
+            Some(SearchParameters.TASK_PROP_VALUE_TYPE_NUMBER),
+            Some(SearchParameters.TASK_PROP_SEARCH_TYPE_EQUALS)
+          )
+        )
+        )
+      )
+      val filter = this.filterTaskProps(params)
+      filter.sql() must not include ("OR '1'='1")
+      filter.parameters() mustEqual List(NamedParameter("taskProp0", "x' OR '1'='1"))
     }
 
     "match on task props when using params.taskProperties" in {
@@ -493,12 +569,32 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
         challengeParams = SearchChallengeParameters(challengeIds = Some(List(12345))),
         taskParams = SearchTaskParameters(taskProperties = Some(Map("x" -> "1")))
       )
-      this.filterTaskProps(params).sql() mustEqual
+      val filter = this.filterTaskProps(params)
+      filter.sql() mustEqual
         """tasks.id IN (
              | SELECT id FROM tasks,
              | jsonb_array_elements(geojson->'features') features
              | WHERE parent_id IN (12345)
-             | AND (true AND features->'properties'->>'x' = '1' ))""".stripMargin
+             | AND (true AND features->'properties'->>{taskPropKey0} = {taskPropValue0} ))""".stripMargin
+      filter.parameters() mustEqual List(
+        NamedParameter("taskPropKey0", "x"),
+        NamedParameter("taskPropValue0", "1")
+      )
+    }
+
+    "bind task property keys and values so they cannot be injected" in {
+      val params = SearchParameters(
+        challengeParams = SearchChallengeParameters(challengeIds = Some(List(12345))),
+        taskParams = SearchTaskParameters(
+          taskProperties = Some(Map("x' OR '1'='1" -> "y' OR '1'='1"))
+        )
+      )
+      val filter = this.filterTaskProps(params)
+      filter.sql() must not include ("OR '1'='1")
+      filter.parameters() mustEqual List(
+        NamedParameter("taskPropKey0", "x' OR '1'='1"),
+        NamedParameter("taskPropValue0", "y' OR '1'='1")
+      )
     }
   }
 
@@ -509,18 +605,20 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
 
     "match on review_requested_by" in {
       val params = SearchParameters(owner = Some("2223"))
-      this.filterOwner(params).sql() mustEqual
+      unprefixed(this.filterOwner(params)) mustEqual (
         "tasks.id IN (SELECT task_id FROM task_review tr " +
           "INNER JOIN users u ON u.id = tr.review_requested_by " +
-          "WHERE tr.task_id = tasks.id AND u.name ILIKE '%2223%')"
+          "WHERE tr.task_id = tasks.id AND u.name ILIKE {name})",
+        List(NamedParameter("name", "%2223%"))
+      )
     }
 
     "be inverted" in {
       val params = SearchParameters(owner = Some("4123"), invertFields = Some(List("o")))
-      this.filterOwner(params).sql() mustEqual
+      unprefixed(this.filterOwner(params))._1 mustEqual
         "NOT tasks.id IN (SELECT task_id FROM task_review tr " +
           "INNER JOIN users u ON u.id = tr.review_requested_by " +
-          "WHERE tr.task_id = tasks.id AND u.name ILIKE '%4123%')"
+          "WHERE tr.task_id = tasks.id AND u.name ILIKE {name})"
     }
   }
 
@@ -531,18 +629,20 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
 
     "match on reviewer" in {
       val params = SearchParameters(reviewer = Some("1230"))
-      this.filterReviewer(params).sql() mustEqual
+      unprefixed(this.filterReviewer(params)) mustEqual (
         "tasks.id IN (SELECT task_id FROM task_review tr " +
           "INNER JOIN users u ON u.id = tr.reviewed_by " +
-          "WHERE tr.task_id = tasks.id AND u.name ILIKE '%1230%')"
+          "WHERE tr.task_id = tasks.id AND u.name ILIKE {name})",
+        List(NamedParameter("name", "%1230%"))
+      )
     }
 
     "be inverted" in {
       val params = SearchParameters(reviewer = Some("1"), invertFields = Some(List("r")))
-      this.filterReviewer(params).sql() mustEqual
+      unprefixed(this.filterReviewer(params))._1 mustEqual
         "NOT tasks.id IN (SELECT task_id FROM task_review tr " +
           "INNER JOIN users u ON u.id = tr.reviewed_by " +
-          "WHERE tr.task_id = tasks.id AND u.name ILIKE '%1%')"
+          "WHERE tr.task_id = tasks.id AND u.name ILIKE {name})"
     }
   }
 
@@ -553,18 +653,20 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
 
     "match on meta reviewer" in {
       val params = SearchParameters(metaReviewer = Some("9230"))
-      this.filterMetaReviewer(params).sql() mustEqual
+      unprefixed(this.filterMetaReviewer(params)) mustEqual (
         "tasks.id IN (SELECT task_id FROM task_review tr " +
           "INNER JOIN users u ON u.id = tr.meta_reviewed_by " +
-          "WHERE tr.task_id = tasks.id AND u.name ILIKE '%9230%')"
+          "WHERE tr.task_id = tasks.id AND u.name ILIKE {name})",
+        List(NamedParameter("name", "%9230%"))
+      )
     }
 
     "be inverted" in {
       val params = SearchParameters(metaReviewer = Some("1"), invertFields = Some(List("mr")))
-      this.filterMetaReviewer(params).sql() mustEqual
+      unprefixed(this.filterMetaReviewer(params))._1 mustEqual
         "NOT tasks.id IN (SELECT task_id FROM task_review tr " +
           "INNER JOIN users u ON u.id = tr.meta_reviewed_by " +
-          "WHERE tr.task_id = tasks.id AND u.name ILIKE '%1%')"
+          "WHERE tr.task_id = tasks.id AND u.name ILIKE {name})"
     }
   }
 
@@ -575,18 +677,30 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
 
     "match on mapper" in {
       val params = SearchParameters(mapper = Some("900123"))
-      this.filterMapper(params).sql() mustEqual
+      unprefixed(this.filterMapper(params)) mustEqual (
         "tasks.id IN (SELECT t2.id FROM tasks t2 " +
           "INNER JOIN users u ON u.id = t2.completed_by " +
-          "WHERE t2.id = tasks.id AND u.name ILIKE '%900123%')"
+          "WHERE t2.id = tasks.id AND u.name ILIKE {name})",
+        List(NamedParameter("name", "%900123%"))
+      )
+    }
+
+    "bind the mapper name so it cannot be injected" in {
+      val params = SearchParameters(mapper = Some("x') OR 1=1 --"))
+      unprefixed(this.filterMapper(params)) mustEqual (
+        "tasks.id IN (SELECT t2.id FROM tasks t2 " +
+          "INNER JOIN users u ON u.id = t2.completed_by " +
+          "WHERE t2.id = tasks.id AND u.name ILIKE {name})",
+        List(NamedParameter("name", "%x') OR 1=1 --%"))
+      )
     }
 
     "be inverted" in {
       val params = SearchParameters(mapper = Some("123000"), invertFields = Some(List("m")))
-      this.filterMapper(params).sql() mustEqual
+      unprefixed(this.filterMapper(params))._1 mustEqual
         "NOT tasks.id IN (SELECT t2.id FROM tasks t2 " +
           "INNER JOIN users u ON u.id = t2.completed_by " +
-          "WHERE t2.id = tasks.id AND u.name ILIKE '%123000%')"
+          "WHERE t2.id = tasks.id AND u.name ILIKE {name})"
     }
   }
 
@@ -754,6 +868,7 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
       val params     = SearchParameters(projectSearch = Some("abc"), fuzzySearch = Some(2))
       val filter     = this.filterProjects(params)
       val parameters = filter.parameters()
+      parameters.map(_.copy(name = "abc")) mustEqual List(NamedParameter("abc", "abc"))
       normalized(filter.sql().replaceAll(parameters.head.name, "abc")) mustEqual
         "(p.display_name <> '' AND " +
           "(LEVENSHTEIN(LOWER(LEFT(p.display_name, 255)), LOWER({abc})) < 2 OR " +
@@ -762,12 +877,17 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
     }
 
     "does search on display name and virtual project names" in {
-      val params = SearchParameters(projectSearch = Some("abc"))
-      this.filterProjects(params).sql() mustEqual
-        "(p.display_name ILIKE '%abc%' OR " +
-          "(c.id IN (SELECT vp2.challenge_id FROM virtual_project_challenges vp2  " +
-          "INNER JOIN projects p2 ON p2.id = vp2.project_id WHERE  LOWER(p2.display_name) " +
-          "LIKE LOWER('%abc%') AND p2.enabled=true)))"
+      val params            = SearchParameters(projectSearch = Some("abc"))
+      val (sql, parameters) = unprefixed(this.filterProjects(params))
+      sql mustEqual
+        "(p.display_name ILIKE {display_name} OR " +
+          "c.id IN (SELECT vp2.challenge_id FROM virtual_project_challenges vp2 " +
+          "INNER JOIN projects p2 ON p2.id = vp2.project_id " +
+          "WHERE p2.display_name ILIKE {display_name} AND p2.enabled))"
+      parameters mustEqual List(
+        NamedParameter("display_name", "%abc%"),
+        NamedParameter("display_name", "%abc%")
+      )
     }
 
     "can be empty" in {
@@ -808,7 +928,10 @@ class SearchParametersMixinSpec() extends PlaySpec with SearchParametersMixin {
       val params = SearchParameters(challengeParams =
         SearchChallengeParameters(challengeSearch = Some("testC"))
       )
-      this.filterChallenges(params).sql() mustEqual "c.name ILIKE '%testC%'"
+      unprefixed(this.filterChallenges(params)) mustEqual (
+        "c.name ILIKE {name}",
+        List(NamedParameter("name", "%testC%"))
+      )
     }
 
     "can be empty" in {

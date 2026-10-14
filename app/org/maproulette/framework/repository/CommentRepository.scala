@@ -12,7 +12,7 @@ import anorm._
 import javax.inject.Inject
 import org.joda.time.DateTime
 import org.maproulette.framework.model.{Comment, User}
-import org.maproulette.framework.psql.Query
+import org.maproulette.framework.psql.{Query, SQLUtils}
 import org.maproulette.framework.psql.filter.BaseParameter
 import play.api.db.Database
 
@@ -73,11 +73,21 @@ class CommentRepository @Inject() (override val db: Database) extends Repository
       val searchFilter =
         searchTerm.filter(_.nonEmpty).map(_ => " AND c.comment ILIKE {searchTerm}").getOrElse("")
 
-      // Handle special sorting cases
+      // Sort columns are allowlisted, never interpolated from the request.
+      val direction = SQLUtils.orderDirection(order)
       val orderByClause = sort match {
-        case "task_status"   => s"t.status $order NULLS LAST"
-        case "review_status" => s"tr.review_status $order NULLS LAST"
-        case _               => s"c.$sort $order"
+        case "id"            => s"c.id $direction"
+        case "created"       => s"c.created $direction"
+        case "project_id"    => s"c.project_id $direction"
+        case "challenge_id"  => s"c.challenge_id $direction"
+        case "task_id"       => s"c.task_id $direction"
+        case "osm_id"        => s"c.osm_id $direction"
+        case "comment"       => s"c.comment $direction"
+        case "action_id"     => s"c.action_id $direction"
+        case "name"          => s"u.name $direction"
+        case "task_status"   => s"t.status $direction NULLS LAST"
+        case "review_status" => s"tr.review_status $direction NULLS LAST"
+        case _               => s"c.created $direction"
       }
 
       // Final query string with sorting, limit, and pagination
@@ -240,17 +250,19 @@ class CommentRepository @Inject() (override val db: Database) extends Repository
   /**
     * Deletes a comment from the database
     *
+    * @param taskId    The id of the task the comment belongs to
     * @param commentId The id for the comment being deleted
     * @param c         Implicit provided optional connection
+    * @return true if a comment was deleted, false if no comment with that id exists on that task
     */
-  def delete(commentId: Long)(
+  def delete(taskId: Long, commentId: Long)(
       implicit c: Option[Connection] = None
   ): Boolean = {
     withMRConnection { implicit c =>
       Query
-        .simple(List(BaseParameter("id", commentId)))
+        .simple(List(BaseParameter("id", commentId), BaseParameter("task_id", taskId)))
         .build("DELETE FROM task_comments")
-        .execute()
+        .executeUpdate() > 0
     }
   }
 }

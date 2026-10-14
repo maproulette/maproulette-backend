@@ -30,6 +30,7 @@ import org.maproulette.data.{
   TaskType
 }
 import org.maproulette.models.dal.TaskDAL
+import org.maproulette.permissions.Permission
 import org.maproulette.models.dal.mixin.TagDALMixin
 
 import java.io.StringWriter
@@ -49,7 +50,8 @@ class TaskReviewController @Inject() (
     taskRepository: TaskRepository,
     components: ControllerComponents,
     val serviceManager: ServiceManager,
-    val taskDAL: TaskDAL
+    val taskDAL: TaskDAL,
+    permission: Permission
 ) extends AbstractController(components)
     with MapRouletteController
     with ParentMixin
@@ -311,7 +313,7 @@ class TaskReviewController @Inject() (
       invertedFilters: String,
       onlySaved: Boolean = false
   ): Action[AnyContent] = Action.async { implicit request =>
-    this.sessionManager.userAwareRequest { implicit user =>
+    this.sessionManager.authenticatedRequest { implicit user =>
       SearchParameters.withSearch { implicit params =>
         if (projectId.split(",").length != 1) {
           throw new IllegalArgumentException("Exactly one project ID is required.")
@@ -331,34 +333,32 @@ class TaskReviewController @Inject() (
         val reviewByFilter         = parseParameterString(reviewedBy).map(_.head)
         val reviewedAtFilter       = parseParameterString(reviewedAt).map(_.head)
 
-        val metrics = this.service.getReviewTableData(
-          User.userOrMocked(user),
-          params.copy(
-            projectIds = projectIdFilter,
-            challengeParams = params.challengeParams.copy(
-              challengeIds = challengeIdsFilter
-            ),
-            taskParams = params.taskParams.copy(
-              taskId = taskIdFilter,
-              taskFeatureId = taskFeatureIdFilter,
-              taskStatus = statusFilter,
-              taskReviewStatus = reviewStatusFilter,
-              taskPriorities = priorityFilter,
-              taskMappedOn = mappedOnFilter
-            ),
-            reviewParams = params.reviewParams.copy(
-              endDate = reviewedAtFilter,
-              metaReviewStatus = metaReviewStatusFilter
-            ),
-            invertFields = invertFiltering,
-            mapper = mapperFilter,
-            reviewer = reviewByFilter,
-            metaReviewer = metaReviewedByFilter
+        val searchParams = params.copy(
+          projectIds = projectIdFilter,
+          challengeParams = params.challengeParams.copy(
+            challengeIds = challengeIdsFilter
           ),
-          sortBy,
-          direction,
-          onlySaved
+          taskParams = params.taskParams.copy(
+            taskId = taskIdFilter,
+            taskFeatureId = taskFeatureIdFilter,
+            taskStatus = statusFilter,
+            taskReviewStatus = reviewStatusFilter,
+            taskPriorities = priorityFilter,
+            taskMappedOn = mappedOnFilter
+          ),
+          reviewParams = params.reviewParams.copy(
+            endDate = reviewedAtFilter,
+            metaReviewStatus = metaReviewStatusFilter
+          ),
+          invertFields = invertFiltering,
+          mapper = mapperFilter,
+          reviewer = reviewByFilter,
+          metaReviewer = metaReviewedByFilter
         )
+        this.permission.hasExportScopeAccess(searchParams, user)
+
+        val metrics =
+          this.service.getReviewTableData(user, searchParams, sortBy, direction, onlySaved)
 
         val urlPrefix = config.getPublicOrigin.fold(s"https://${request.host}/")(_ + "/")
 

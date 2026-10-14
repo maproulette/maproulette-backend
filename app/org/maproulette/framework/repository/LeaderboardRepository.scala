@@ -8,7 +8,7 @@ package org.maproulette.framework.repository
 import java.sql.Connection
 
 import anorm.SqlParser.get
-import anorm.{RowParser, ~}
+import anorm.{Row, RowParser, SQL, ~}
 import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
 import org.maproulette.framework.psql.Query
@@ -258,9 +258,7 @@ class LeaderboardRepository @Inject() (override val db: Database) extends Reposi
       getTopChallengesBlock: Long => List[LeaderboardChallenge]
   ): List[LeaderboardUser] = {
     withMRConnection { implicit c =>
-      query
-        .build(
-          s"""
+      val baseQuery = s"""
           WITH rankVariable (rankNum) as (
             SELECT user_ranking FROM user_leaderboard ${rankQuery.sql()})
 
@@ -269,8 +267,15 @@ class LeaderboardRepository @Inject() (override val db: Database) extends Reposi
                 COALESCE(user_leaderboard.avg_time_spent, 0) as avg_time_spent
           FROM user_leaderboard, rankVariable
           """
-        )
-        .as(this.userLeaderboardParser(getTopChallengesBlock).*)
+      // The rank subquery is spliced into the SQL, so any parameters it binds have to be supplied
+      // alongside the outer query's parameters.
+      val parameters = query.parameters() ++ rankQuery.parameters()
+      val sql        = query.sqlWithBaseQuery(baseQuery)
+      if (parameters.nonEmpty) {
+        SQL(sql).on(parameters: _*).as(this.userLeaderboardParser(getTopChallengesBlock).*)
+      } else {
+        SQL(sql).asSimple[Row]().as(this.userLeaderboardParser(getTopChallengesBlock).*)
+      }
     }
   }
 

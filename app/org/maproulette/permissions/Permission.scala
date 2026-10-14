@@ -11,11 +11,12 @@ import javax.inject.{Inject, Provider}
 import org.maproulette.Config
 import org.maproulette.cache.CacheObject
 import org.maproulette.data._
-import org.maproulette.exception.NotFoundException
+import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.framework.model._
 import org.maproulette.framework.service.ServiceManager
 import org.maproulette.models._
 import org.maproulette.models.dal.DALManager
+import org.maproulette.session.SearchParameters
 
 /**
   * @author cuthbertm
@@ -111,14 +112,11 @@ class Permission @Inject() (
         case p: Project =>
           this.hasProjectAccess(Some(p), user, role)
         case c: Challenge =>
-          this.hasProjectAccess(
-            dalManager
-              .get()
-              .challenge
-              .retrieveRootObject(Right(c), user),
-            user,
-            role
-          )
+          if (!this.effectiveRole(c, user).exists(_ <= role)) {
+            throw new IllegalAccessException(
+              s"User [${user.id}] does not have required access to this challenge [${c.id}]"
+            )
+          }
         case vc: VirtualChallenge =>
           if (vc.ownerId != user.osmProfile.id) {
             throw new IllegalAccessException(
@@ -132,7 +130,7 @@ class Permission @Inject() (
             role
           )
         case tag: Tag =>
-        //this.hasReadAccess(TagType(), user)(tag.id)
+          throw new IllegalAccessException("Only super users can modify tags")
         case g: Grant =>
           throw new IllegalAccessException(
             s"Only super users can write to grant objects"
@@ -175,6 +173,113 @@ class Permission @Inject() (
     }
   }
 
+  /**
+    * The strongest role a user holds on a project, counting every route by
+    * which access can arrive: a grant made to them, a grant made to a team they
+    * run, and the team that owns the project.
+    *
+    * This is the single answer to "what may this person do here". Every access
+    * check resolves through it, so a new way in is wired up once rather than in
+    * each caller -- which is how a team's grant came to reach projects, through
+    * the grant list, while reaching challenges not at all.
+    *
+    * @param project The project being reached for
+    * @param user    The user reaching for it
+    * @return The most privileged role held, or None for no access at all
+    */
+  def effectiveRole(project: Project, user: User): Option[Int] =
+    if (this.isSuperUser(user)) {
+      Some(Grant.ROLE_SUPER_USER)
+    } else {
+      // Read the user back so a role granted moments ago is not missed.
+      val latest = this.serviceManager.user.retrieve(user.id) match {
+        case Some(u) => u
+        case None    => throw new NotFoundException("No user found to check for access")
+      }
+
+      // A user's grant list is assembled with the project grants of every team
+      // they belong to folded in, which would hand a plain member whatever the
+      // team was granted. Only grants made to the person count as their own;
+      // what a team confers is resolved from their role in it.
+      val ownRoles = latest
+        .grantsForProject(project.id)
+        .filter(_.grantee.granteeType == UserType())
+        .map(_.role)
+      val teamIds = this.teamsAttachedTo(GrantTarget.project(project.id)) ++ project.ownerTeamId
+
+      (ownRoles ++ this.roleThroughTeams(teamIds, user)).reduceOption(_ min _)
+    }
+
+  /**
+    * The strongest role a user holds on a challenge. Beyond the routes a
+    * project has, a challenge can be reached through a grant on the challenge
+    * itself, and failing everything else it inherits whatever the user holds on
+    * the parent project.
+    *
+    * @param challenge The challenge being reached for
+    * @param user      The user reaching for it
+    * @return The most privileged role held, or None for no access at all
+    */
+  def effectiveRole(challenge: Challenge, user: User): Option[Int] =
+    if (this.isSuperUser(user)) {
+      Some(Grant.ROLE_SUPER_USER)
+    } else {
+      val ownRoles = user.grants
+        .filter(g =>
+          g.grantee.granteeType == UserType() &&
+            g.target.objectType == ChallengeType() && g.target.objectId == challenge.id
+        )
+        .map(_.role)
+      val teamIds = this.teamsAttachedTo(GrantTarget.challenge(challenge.id)) ++
+        challenge.ownerTeamId
+
+      val direct = (ownRoles ++ this.roleThroughTeams(teamIds, user)).reduceOption(_ min _)
+
+      // Inheritance from the project is the original model and still the way
+      // most people get in, so it is consulted last and only when needed.
+      direct.orElse(
+        this.dalManager
+          .get()
+          .challenge
+          .retrieveRootObject(Right(challenge), user)
+          .flatMap(parent => this.effectiveRole(parent, user))
+      )
+    }
+
+  /**
+    * The ids of every team granted a role on a target. The role on that grant
+    * is deliberately not read: what a team's members may do follows the role
+    * they hold in the team, which [[roleThroughTeams]] resolves.
+    */
+  def teamsAttachedTo(target: GrantTarget): Set[Long] =
+    this.serviceManager.grant
+      .retrieveGrantsOn(target, User.superUser)
+      .filter(_.grantee.granteeType == GroupType())
+      .map(_.grantee.granteeId)
+      .toSet
+
+  /**
+    * The role a user picks up from a set of teams associated with some work --
+    * whether they own it or are merely attached to it, which the permission
+    * layer treats alike.
+    *
+    * What they get is the role they hold in the team, carried across unchanged:
+    * team roles are the generic grant roles under team-facing names, so an
+    * owner's 0 satisfies a check for admin and a manager's 2 one for write. A
+    * plain member gets nothing -- belonging to a team is not running its work.
+    */
+  def roleThroughTeams(teamIds: Set[Long], user: User): Option[Int] =
+    if (teamIds.isEmpty) {
+      None
+    } else {
+      this.serviceManager.team
+        .teamRolesFor(user)
+        .collect {
+          case (teamId, role) if teamIds.contains(teamId) && TeamRole.managesContent(role) => role
+        }
+        .reduceOption(_ min _)
+    }
+
   def hasProjectTypeAccess(
       user: User,
       role: Int = Grant.ROLE_ADMIN
@@ -186,15 +291,10 @@ class Permission @Inject() (
   ): Unit = if (!this.isSuperUser(user)) {
     project match {
       case Some(p) =>
-        // Make sure we're dealing with the latest user data
-        this.serviceManager.user.retrieve(user.id) match {
-          case Some(u) =>
-            if (!u.grantsForProject(p.id).exists(_.role <= role)) {
-              throw new IllegalAccessException(
-                s"User [${user.id}] does not have required access to this project [${p.id}]"
-              )
-            }
-          case None => throw new NotFoundException("No user found to check for access")
+        if (!this.effectiveRole(p, user).exists(_ <= role)) {
+          throw new IllegalAccessException(
+            s"User [${user.id}] does not have required access to this project [${p.id}]"
+          )
         }
 
       case None =>
@@ -215,6 +315,48 @@ class Permission @Inject() (
       user: User
   )(implicit id: Long, c: Option[Connection] = None): Unit =
     this.hasWriteAccess(itemType, user, Grant.ROLE_ADMIN)
+
+  /**
+    * Whether a user may export data identifying who mapped or reviewed the tasks in a challenge.
+    */
+  def canExport(challenge: Challenge, user: User): Boolean =
+    this.effectiveRole(challenge, user).exists(_ <= Grant.ROLE_READ_ONLY)
+
+  /**
+    * Throwing form of [[canExport]], for a challenge or a (non-virtual) project.
+    */
+  def hasExportAccess(obj: Any, user: User): Unit =
+    this.hasObjectWriteAccess(obj, user, Grant.ROLE_READ_ONLY)
+
+  /**
+    * Checks that a user may export per-user data for the given projects and challenges.
+    */
+  def hasExportScopeAccess(params: SearchParameters, user: User): Unit =
+    if (!this.isSuperUser(user)) {
+      val projectIds   = params.getProjectIds.getOrElse(List.empty)
+      val challengeIds = params.getChallengeIds.getOrElse(List.empty)
+      if (projectIds.isEmpty && challengeIds.isEmpty) {
+        throw new InvalidException("A project or challenge id is required")
+      }
+      if (params.invertFields.getOrElse(List.empty).exists(f => f == "pid" || f == "cid")) {
+        throw new InvalidException("Project and challenge filters cannot be inverted")
+      }
+      projectIds.foreach { id =>
+        val project = this.serviceManager.project
+          .retrieve(id)
+          .getOrElse(throw new NotFoundException(s"No project with id $id found"))
+        if (project.isVirtual.contains(true)) {
+          throw new IllegalAccessException("Virtual projects cannot be exported")
+        }
+        this.hasExportAccess(project, user)
+      }
+      challengeIds.foreach { id =>
+        val challenge = this.serviceManager.challenge
+          .retrieve(id)
+          .getOrElse(throw new NotFoundException(s"No challenge with id $id found"))
+        this.hasExportAccess(challenge, user)
+      }
+    }
 
   /**
     * Checks that a user is a super user

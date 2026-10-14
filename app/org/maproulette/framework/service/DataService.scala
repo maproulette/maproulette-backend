@@ -24,11 +24,14 @@ class DataService @Inject() (
 ) extends SearchParametersMixin {
 
   /**
-    * Returns tag metrics given the search parameters.
+    * Returns tag metrics given the search parameters. User filters (owner, mapper, reviewer,
+    * meta-reviewer) are ignored so that the result is always an aggregate across all users.
     */
   def getTagMetrics(params: SearchParameters): List[ReviewMetrics] = {
-    val searchParams = SearchParameters.withDefaultAllTaskStatuses(params)
-    val query        = this.filterOnSearchParameters(searchParams)
+    val searchParams = SearchParameters.withDefaultAllTaskStatuses(
+      params.copy(owner = None, mapper = None, reviewer = None, metaReviewer = None)
+    )
+    val query = this.filterOnSearchParameters(searchParams)
 
     this.taskReviewMetricsRepository.executeReviewMetricsQuery(query, groupByTags = true)
   }

@@ -38,12 +38,21 @@ class TaskClusterRepository @Inject() (
 
   val pointParser = this.challengeDAL.pointParser
 
-  private val joinClause =
+  // The joins search filters may reference.
+  private val filterJoinClause =
     """
     INNER JOIN challenges c ON c.id = tasks.parent_id
     INNER JOIN projects p ON p.id = c.parent_id
     LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
+  """
+
+  // A task can match more than one lock row (e.g. its own edit lock plus a
+  // bundle lock, or a review claim), so this join can repeat tasks.
+  private val joinClause =
+    s"""
+    $filterJoinClause
     LEFT OUTER JOIN locked l ON (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks))
+      AND l.item_type = 2
   """
 
   // SQL query used to select list of ClusteredPoint data
@@ -63,6 +72,33 @@ class TaskClusterRepository @Inject() (
   """
 
   /**
+    * CTEs that assign each task matching the query to one of `numberOfPoints`
+    * k-means clusters, exposing (taskId, challengeId, taskLocation, kmeans) as
+    * `task_clusters`. The window function materializes every matching row, so
+    * to reduce the amount of memory needed we only include the columns needed
+    * for clustering (callers can join back to the tasks table if they need other
+    * properties).
+    */
+  private def clusterCTEs(query: Query, numberOfPoints: Int): String =
+    s"""
+      WITH filtered_tasks AS (
+        SELECT tasks.id as taskId,
+               tasks.parent_id as challengeId,
+               tasks.location AS taskLocation
+        FROM tasks
+        $filterJoinClause
+        WHERE ${query.filter.sql()}
+        AND tasks.location IS NOT NULL
+      ),
+      task_clusters AS (
+        SELECT *,
+               ST_ClusterKMeans(filtered_tasks.taskLocation,
+                 (SELECT LEAST(COUNT(*), $numberOfPoints) FROM filtered_tasks)::Integer) OVER () AS kmeans
+        FROM filtered_tasks
+      )
+    """
+
+  /**
     * Queries task clusters with the given query filters and number of points
     *
     * @param query - Query with the built-in filters
@@ -77,40 +113,23 @@ class TaskClusterRepository @Inject() (
     this.withMRTransaction { implicit c =>
       val result = SQL(
         s"""
-          WITH filtered_tasks AS (
-            SELECT tasks.*, 
-                   tasks.id as taskId, 
-                   tasks.status as taskStatus,
-                   tasks.priority as taskPriority, 
-                   tasks.geojson::TEXT as taskGeojson,
-                   task_review.*, 
-                   c.name as challengeName,
-                   tasks.location AS taskLocation,
-                   c.id AS challengeId,
-                   c.status AS challengeStatus
-            FROM tasks
-            $joinClause
-            WHERE ${query.filter.sql()}
-            AND tasks.location IS NOT NULL
-          ),
-          task_clusters AS (
-            SELECT *, 
-                   ST_ClusterKMeans(filtered_tasks.taskLocation, 
-                     (SELECT LEAST(COUNT(*), $numberOfPoints) FROM filtered_tasks)::Integer) OVER () AS kmeans
-            FROM filtered_tasks
+          ${this.clusterCTEs(query, numberOfPoints)},
+          clusters AS (
+            SELECT kmeans,
+                   count(*) as numberOfPoints,
+                   CASE WHEN count(*)=1 THEN (array_agg(taskId))[1] END as taskId,
+                   ST_AsGeoJSON(ST_Centroid(ST_Collect(taskLocation))) AS geom,
+                   ST_AsGeoJSON(ST_ConvexHull(ST_Collect(taskLocation))) AS bounding,
+                   array_agg(distinct challengeId) as challengeIds
+            FROM task_clusters
+            GROUP BY kmeans
           )
-        
-          SELECT kmeans, 
-                 count(*) as numberOfPoints,
-                 CASE WHEN count(*)=1 THEN (array_agg(taskId))[1] END as taskId,
-                 CASE WHEN count(*)=1 THEN (array_agg(taskGeojson))[1] END as geojson,
-                 CASE WHEN count(*)=1 THEN (array_agg(taskStatus))[1] END as taskStatus,
-                 CASE WHEN count(*)=1 THEN (array_agg(taskPriority))[1] END as taskPriority,
-                 ST_AsGeoJSON(ST_Centroid(ST_Collect(taskLocation))) AS geom,
-                 ST_AsGeoJSON(ST_ConvexHull(ST_Collect(taskLocation))) AS bounding,
-                 array_agg(distinct challengeId) as challengeIds
-          FROM task_clusters
-          GROUP BY kmeans 
+          SELECT clusters.*,
+                 tasks.status as taskStatus,
+                 tasks.priority as taskPriority,
+                 tasks.geojson::TEXT as geojson
+          FROM clusters
+          LEFT OUTER JOIN tasks ON tasks.id = clusters.taskId
           ORDER BY kmeans
         """
       ).on(query.parameters(): _*).as(this.getTaskClusterParser(params).*)
@@ -135,34 +154,11 @@ class TaskClusterRepository @Inject() (
   )(implicit c: Option[Connection] = None): List[ClusteredPoint] = {
     this.withMRConnection { implicit c =>
       val result = SQL(s"""
-          WITH filtered_tasks AS (
-            SELECT tasks.*, 
-                   tasks.id as taskId, 
-                   tasks.status as taskStatus,
-                   tasks.priority as taskPriority, 
-                   tasks.geojson::TEXT as taskGeojson,
-                   task_review.*, 
-                   c.name as challengeName,
-                   tasks.location AS taskLocation,
-                   c.id AS challengeId,
-                   c.status AS challengeStatus,
-                   l.user_id as locked_by
-            FROM tasks
-            $joinClause
-            WHERE ${query.filter.sql()}
-            AND tasks.location IS NOT NULL
-          ),
-          task_clusters AS (
-            SELECT *, 
-                   ST_ClusterKMeans(filtered_tasks.taskLocation, 
-                     (SELECT LEAST(COUNT(*), $numberOfPoints) FROM filtered_tasks)::Integer) OVER () AS kmeans
-            FROM filtered_tasks
-          )
-          SELECT *, cooperative_work_json::TEXT as cooperative_work,
-                 ST_AsGeoJSON(taskLocation) AS location
-          FROM task_clusters
-          WHERE kmeans = $clusterId
-      """).as(this.pointParser.*)
+          ${this.clusterCTEs(query, numberOfPoints)}
+          $selectTaskMarkersSQL
+          INNER JOIN task_clusters ON task_clusters.taskId = tasks.id
+          WHERE task_clusters.kmeans = $clusterId
+      """).on(query.parameters(): _*).as(this.pointParser.*)
 
       result
     }
@@ -377,26 +373,20 @@ class TaskClusterRepository @Inject() (
       val keywordList   = parseKeywords(keywords)
       val keywordParams = keywordNamedParameters(keywordList)
 
-      // Build joins for keywords filtering if keywords are provided
-      val joins = if (keywordList.nonEmpty) {
-        " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id" +
-          " INNER JOIN tags tags_table ON toc.tag_id = tags_table.id"
-      } else ""
-
       val query = s"""
 WITH eligible_challenges AS MATERIALIZED (
   SELECT c.id
   FROM challenges c
   INNER JOIN projects p ON p.id = c.parent_id
-  ${joins}
   WHERE c.deleted = false
     AND c.enabled = true
     AND c.is_archived = false
+    AND c.paused = false
     AND p.deleted = false
     AND p.enabled = true
     ${if (!global) "AND c.is_global = false" else ""}
     ${difficulty.map(d => s"AND c.difficulty = $d").getOrElse("")}
-    ${keywordInClause("tags_table.name", keywordList)}
+    ${keywordExistsClause("c", keywordList)}
 ),
 filtered_tasks AS MATERIALIZED (
   SELECT DISTINCT
@@ -469,16 +459,11 @@ ORDER BY kmeans;
         LEFT JOIN locked l ON (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks)) AND l.item_type = 2
     """
 
-      // Add joins for keywords filtering if keywords are provided
-      if (keywordList.nonEmpty) {
-        query += " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id"
-        query += " INNER JOIN tags t ON toc.tag_id = t.id"
-      }
-
       query += """
         WHERE c.deleted = false
         AND c.enabled = true
         AND c.is_archived = false
+        AND c.paused = false
         AND p.deleted = false
         AND p.enabled = true
         AND tasks.location IS NOT NULL
@@ -494,7 +479,7 @@ ORDER BY kmeans;
 
       // Filter by keywords if provided (bound as parameters, not interpolated)
       if (keywordList.nonEmpty) {
-        query += " " + keywordInClause("t.name", keywordList)
+        query += " " + keywordExistsClause("c", keywordList)
       }
 
       // Filter by difficulty if provided
@@ -558,13 +543,7 @@ ORDER BY kmeans;
       val keywordList   = parseKeywords(keywords)
       val keywordParams = keywordNamedParameters(keywordList)
 
-      // Build joins for keywords filtering if keywords are provided
-      val keywordJoins = if (keywordList.nonEmpty) {
-        " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id" +
-          " INNER JOIN tags tags_table ON toc.tag_id = tags_table.id"
-      } else ""
-
-      val keywordFilter = keywordInClause("tags_table.name", keywordList)
+      val keywordFilter = keywordExistsClause("c", keywordList)
 
       val difficultyFilter = difficulty.map(d => s"AND c.difficulty = $d").getOrElse("")
 
@@ -588,10 +567,10 @@ ORDER BY kmeans;
         INNER JOIN challenges c ON c.id = tasks.parent_id
         INNER JOIN projects p ON p.id = c.parent_id
         LEFT JOIN locked l ON (l.item_id = tasks.id OR tasks.id = ANY(l.bundled_tasks)) AND l.item_type = 2
-        $keywordJoins
         WHERE c.deleted = false
           AND c.enabled = true
           AND c.is_archived = false
+          AND c.paused = false
           AND p.deleted = false
           AND p.enabled = true
           AND tasks.location IS NOT NULL
@@ -676,16 +655,11 @@ ORDER BY kmeans;
         INNER JOIN projects p ON p.id = c.parent_id
     """
 
-      // Add joins for keywords filtering if keywords are provided
-      if (keywordList.nonEmpty) {
-        query += " INNER JOIN tags_on_challenges toc ON c.id = toc.challenge_id"
-        query += " INNER JOIN tags t ON toc.tag_id = t.id"
-      }
-
       query += """
         WHERE c.deleted = false
         AND c.enabled = true
         AND c.is_archived = false
+        AND c.paused = false
         AND p.deleted = false
         AND p.enabled = true
         AND tasks.location IS NOT NULL
@@ -701,7 +675,7 @@ ORDER BY kmeans;
 
       // Filter by keywords if provided (bound as parameters, not interpolated)
       if (keywordList.nonEmpty) {
-        query += " " + keywordInClause("t.name", keywordList)
+        query += " " + keywordExistsClause("c", keywordList)
       }
 
       // Filter by difficulty if provided
@@ -738,4 +712,25 @@ ORDER BY kmeans;
     if (keywordList.isEmpty) ""
     else
       s"AND LOWER($column) IN (" + keywordList.indices.map(i => s"{kw$i}").mkString(", ") + ")"
+
+  /**
+    * `AND EXISTS (...)` clause restricting `<challengeAlias>` to challenges
+    * carrying at least one of the given keywords, or "" when empty.
+    *
+    * A keyword names a tag on the challenge, not on the task, so joining
+    * `tags_on_challenges` in would repeat every task of a challenge once per
+    * requested tag it carries. Anything that then counts rows (or clusters
+    * them) sees the same task several times. Asking with EXISTS keeps it to one
+    * row per challenge. Values are bound (see keywordNamedParameters).
+    */
+  private def keywordExistsClause(challengeAlias: String, keywordList: List[String]): String =
+    if (keywordList.isEmpty) ""
+    else
+      s"""AND EXISTS (
+            SELECT 1
+            FROM tags_on_challenges toc
+            INNER JOIN tags tg ON tg.id = toc.tag_id
+            WHERE toc.challenge_id = $challengeAlias.id
+              ${keywordInClause("tg.name", keywordList)}
+          )"""
 }

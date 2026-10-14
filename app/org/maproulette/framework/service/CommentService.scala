@@ -87,7 +87,10 @@ class CommentService @Inject() (
     this.taskDAL.retrieveById(taskId) match {
       case Some(task) =>
         this.permission.hasObjectAdminAccess(task, user)
-        this.repository.delete(commentId)
+        if (!this.repository.delete(taskId, commentId)) {
+          throw new NotFoundException("Comment was not found.")
+        }
+        true
       case None => throw new NotFoundException("Task was not found.")
     }
   }

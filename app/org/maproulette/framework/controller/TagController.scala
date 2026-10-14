@@ -159,6 +159,7 @@ class TagController @Inject() (
     */
   def batchUpload(update: Boolean): Action[JsValue] = Action.async(bodyParsers.json) {
     implicit request =>
+      implicit val requireSuperUser: Boolean = true
       this.sessionManager.authenticatedRequest { implicit user =>
         request.body
           .validate[List[JsValue]]
@@ -175,15 +176,7 @@ class TagController @Inject() (
   }
 
   /**
-    * Function is primarily called from CRUDController, which is used to handle the actual creation
-    * of the tags. The function it overrides does it in a very generic way, so this function is
-    * specifically written so that it will update the tags correctly. Specifically tags have to be
-    * matched on ids and names, instead of just ids.
-    *
-    * @param requestBody This is the posted request body in json format.
-    * @param arr         The list of Tag objects supplied in the json array from the request body
-    * @param user        The id of the user that is executing the request
-    * @param update      If an item is found then update it, if parameter set to true, otherwise we skip.
+    * Creates the tags in the list that have no id (and updates the ones that do, if 'update' is set).
     */
   def internalBatchUpload(
       requestBody: JsValue,
@@ -191,26 +184,15 @@ class TagController @Inject() (
       user: User,
       update: Boolean
   ): Unit = {
-    val tagList = arr.flatMap(element =>
+    val newTags = arr.flatMap(element =>
       (element \ "id").asOpt[Long] match {
-        case Some(itemID) if update =>
-          element
-            .validate[Tag]
-            .fold(
-              errors => None,
-              value => Some(value)
-            )
-        case None =>
-          Utils
-            .insertJsonID(element)
-            .validate[Tag]
-            .fold(
-              errors => None,
-              value => Some(value)
-            )
+        case Some(id) if id > 0 =>
+          if (update) this.service.update(id, element, user)
+          None
+        case _ => Utils.insertJsonID(element).validate[Tag].asOpt
       }
     )
-    this.service.updateTagList(tagList, user)
+    this.service.updateTagList(newTags, user)
   }
 
   /**

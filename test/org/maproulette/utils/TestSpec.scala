@@ -126,7 +126,6 @@ trait TestSpec extends PlaySpec with MockitoSugar {
     dataManager,
     statusActionManager
   )
-  val followService            = mock[FollowService]
   val grantService             = mock[GrantService]
   val commentService           = mock[CommentService]
   val challengeService         = mock[ChallengeService]
@@ -148,12 +147,14 @@ trait TestSpec extends PlaySpec with MockitoSugar {
   val leaderboardService       = mock[LeaderboardService]
   val taskHistoryService       = mock[TaskHistoryService]
   val tileAggregateService     = mock[TileAggregateService]
+  val challengeReportService   = mock[ChallengeReportService]
+  val teamImageService         = mock[TeamImageService]
+  val teamAvatarService        = mock[TeamAvatarService]
   // format: off
   val serviceManager = new ServiceManager(
     Providers.of[ProjectService](projectService),
     Providers.of[GrantService](grantService),
     Providers.of[UserService](userService),
-    Providers.of[FollowService](followService),
     Providers.of[GroupService](groupService),
     Providers.of[CommentService](commentService),
     Providers.of[TagService](tagService),
@@ -161,6 +162,7 @@ trait TestSpec extends PlaySpec with MockitoSugar {
     Providers.of[ChallengeService](challengeService),
     Providers.of[ChallengeListingService](challengeListingService),
     Providers.of[ChallengeSnapshotService](challengeSnapshotService),
+    Providers.of[ChallengeReportService](challengeReportService),
     Providers.of[UserMetricService](userMetricService),
     Providers.of[AchievementService](achievementService),
     Providers.of[VirtualProjectService](virtualProjectService),
@@ -170,6 +172,8 @@ trait TestSpec extends PlaySpec with MockitoSugar {
     Providers.of[TaskReviewMetricsService](taskReviewMetricsService),
     Providers.of[TaskService](taskService),
     Providers.of[TeamService](teamService),
+    Providers.of[TeamImageService](teamImageService),
+    Providers.of[TeamAvatarService](teamAvatarService),
     Providers.of[NotificationService](notificationService),
     Providers.of[LeaderboardService](leaderboardService),
     Providers.of[TaskHistoryService](taskHistoryService),
@@ -263,5 +267,14 @@ trait TestSpec extends PlaySpec with MockitoSugar {
 
     // Mocks for Grants
     when(this.grantService.retrieve(1)).thenReturn(Some(this.adminGrant(1, 1).copy(id = 1)))
+
+    // Access is resolved through Permission.effectiveRole, which asks two more
+    // questions of the world: which teams are attached to the thing being
+    // reached for, and what the user does in them. Neither is what these specs
+    // are about -- they cover the grants a person holds directly -- so both
+    // answer "no teams involved" rather than returning a mock's null.
+    when(this.grantService.retrieveGrantsOn(any[GrantTarget](), any[User]()))
+      .thenReturn(List.empty)
+    when(this.teamService.teamRolesFor(any[User]())).thenReturn(Map.empty[Long, Int])
   }
 }

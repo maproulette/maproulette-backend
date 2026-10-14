@@ -9,6 +9,7 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
 import org.maproulette.framework.model._
+import org.maproulette.exception.InvalidException
 import org.maproulette.framework.util.{LeaderboardTag, FrameworkHelper}
 import org.maproulette.framework.repository.UserRepository
 import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}
@@ -118,6 +119,30 @@ class LeaderboardServiceSpec(implicit val application: Application) extends Fram
         SearchLeaderboardParameters(projectFilter = Some(List(challenge.general.parent)))
       val pResults = this.service.getReviewerLeaderboard(pParams)
       pResults.size mustEqual 1
+    }
+
+    "reject a country code that is not two letters" taggedAs (LeaderboardTag) in {
+      val injected = SearchLeaderboardParameters(
+        countryCodeFilter = Some(List("US' OR '1'='1")),
+        monthDuration = Some(3)
+      )
+      an[InvalidException] should be thrownBy this.service.getMapperLeaderboard(injected)
+
+      val tooLong = SearchLeaderboardParameters(
+        countryCodeFilter = Some(List("USA")),
+        monthDuration = Some(3)
+      )
+      an[InvalidException] should be thrownBy this.service.getMapperLeaderboard(tooLong)
+    }
+
+    "accept a valid country code on every leaderboard endpoint" taggedAs (LeaderboardTag) in {
+      val params = SearchLeaderboardParameters(
+        countryCodeFilter = Some(List("AR")),
+        monthDuration = Some(3)
+      )
+      noException should be thrownBy this.service.getMapperLeaderboard(params)
+      noException should be thrownBy this.service.getLeaderboardForUser(randomUser.id, params)
+      noException should be thrownBy this.service.getUserTopChallenges(randomUser.id, params)
     }
   }
 

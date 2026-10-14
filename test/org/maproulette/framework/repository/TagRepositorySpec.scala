@@ -63,7 +63,7 @@ class TagRepositorySpec(implicit val application: Application) extends Framework
       retrievedTags.foreach(tag => tag.name.startsWith("challengetag") mustEqual true)
     }
 
-    "update all the tags from a list" taggedAs KeywordRepoTag in {
+    "create missing tags from a list without modifying existing ones" taggedAs KeywordRepoTag in {
       val tagList     = (0 to 9).map(index => Tag(-1, s"tag$index", Some(s"description$index"))).toList
       val updatedTags = this.repository.updateTagList(tagList)
       val tags = this.repository
@@ -79,26 +79,29 @@ class TagRepositorySpec(implicit val application: Application) extends Framework
           tag.name mustEqual s"tag$index"
           tag.description.get mustEqual s"description$index"
       }
-      val updateTags =
-        List(tags.head, tags(1)).zipWithIndex.map(tag =>
-          tag._1
-            .copy(name = s"tagUpdate${tag._2}", description = Some(s"descriptionUpdate${tag._2}"))
+      val resolved = this.repository.updateTagList(
+        List(
+          tags.head.copy(description = Some("descriptionUpdate0")),
+          tags(1).copy(name = "tagUpdate1", description = Some("descriptionUpdate1"))
         )
-      // up the first 2 in the returned list
-      this.repository.updateTagList(updateTags)
+      )
+      resolved.size mustEqual 2
+      val existing = resolved.find(_.name == "tag0").get
+      (existing.id, existing.description) mustEqual (tags.head.id, tags.head.description)
+      val created = resolved.find(_.name == "tagupdate1").get
+      created.id must not equal tags(1).id
+      created.description mustEqual Some("descriptionUpdate1")
 
-      val newUpdatedTags = this.repository.query(
+      val unchanged = this.repository.query(
         Query.simple(
-          List(BaseParameter(Tag.FIELD_ID, updateTags.map(_.id), Operator.IN)),
+          List(BaseParameter(Tag.FIELD_ID, List(tags.head.id, tags(1).id), Operator.IN)),
           order = Order > (Tag.FIELD_NAME, Order.ASC)
         )
       )
-      newUpdatedTags.size mustEqual 2
-      newUpdatedTags.zipWithIndex.foreach {
-        case (tag, index) =>
-          tag.name mustEqual s"tag$index"
-          tag.description.get mustEqual s"descriptionUpdate$index"
-      }
+      unchanged.map(t => (t.name, t.description)) mustEqual List(
+        ("tag0", Some("description0")),
+        ("tag1", Some("description1"))
+      )
     }
   }
 }

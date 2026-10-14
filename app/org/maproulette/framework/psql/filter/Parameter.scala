@@ -208,6 +208,24 @@ case class CustomParameter(override val key: String) extends Parameter[String] {
   override def parameters(): List[NamedParameter] = List.empty
 }
 
+/**
+  * Filter that uses the given SQL fragment verbatim, together with its own named parameters. Unlike
+  * [[CustomParameter]] the values can be bound, so callers that need an expression not expressible
+  * through the standard key/operator/value form (for example a JSON property lookup) can still avoid
+  * interpolating request input.
+  *
+  * @param key the SQL fragment, with `{name}` placeholders matching `namedParameters`
+  * @param namedParameters the values to bind
+  */
+case class SQLParameter(override val key: String, namedParameters: List[NamedParameter])
+    extends Parameter[String] {
+  override val value: String = ""
+
+  override def sql()(implicit tableKey: String = ""): String = key
+
+  override def parameters(): List[NamedParameter] = namedParameters
+}
+
 case class FuzzySearchParameter(
     override val key: String,
     override val value: String,

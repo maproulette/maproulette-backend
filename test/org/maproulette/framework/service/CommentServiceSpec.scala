@@ -46,6 +46,17 @@ class CommentServiceSpec(implicit val application: Application) extends Framewor
       }
     }
 
+    "Fail on trying to delete a comment through a different task" taggedAs CommentTag in {
+      val otherTask =
+        this.taskDAL.insert(this.getTestTask("CommentServiceSpec_other"), User.superUser)
+      val comment =
+        this.commentService.create(User.superUser, defaultTask.id, "GP delete other", None)
+      intercept[NotFoundException] {
+        this.commentService.delete(otherTask.id, comment.id, User.superUser)
+      }
+      this.commentService.delete(defaultTask.id, comment.id, User.superUser) mustEqual true
+    }
+
     "Fail on trying to update a comment that doesn't exist" taggedAs CommentTag in {
       intercept[NotFoundException] {
         this.commentService.update(894, "UpdateTest", User.superUser)

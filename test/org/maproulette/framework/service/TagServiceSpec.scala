@@ -122,5 +122,67 @@ class TagServiceSpec(implicit val application: Application) extends FrameworkHel
       tagMap(this.defaultTask.id).size mustEqual 4
       tagMap(this.defaultTask.id).foreach(tag => tag.name.startsWith("tasktag") mustEqual true)
     }
+
+    "only let super users create, update or delete tags" taggedAs KeywordTag in {
+      val user = this.defaultUser
+      an[IllegalAccessException] should be thrownBy this.service
+        .create(Tag(-1, "NonSuperCreateTagTest"), user)
+      val tag = this.service.create(Tag(-1, "NonSuperModifyTagTest"), User.superUser)
+      an[IllegalAccessException] should be thrownBy this.service
+        .update(tag.id, Json.obj("name" -> "renamed"), user)
+      an[IllegalAccessException] should be thrownBy this.service.delete(tag.id, user)
+      this.service.retrieve(tag.id).get.name mustEqual "nonsupermodifytagtest"
+    }
+
+    "not modify existing tags when resolving a tag list" taggedAs KeywordTag in {
+      val existing = this.service.create(
+        Tag(-1, "ExistingListTagTest", Some("original description")),
+        User.superUser
+      )
+      val resolved = this.service.updateTagList(
+        List(
+          Tag(-1, "ExistingListTagTest", Some("overwritten")),
+          Tag(existing.id, "", Some("overwritten by id")),
+          Tag(-1, "NewListTagTest")
+        ),
+        this.defaultUser
+      )
+      resolved.map(_.name).toSet mustEqual Set("existinglisttagtest", "newlisttagtest")
+      resolved.find(_.name == "existinglisttagtest").get.id mustEqual existing.id
+      this.service.retrieve(existing.id).get.description mustEqual Some("original description")
+    }
+
+    "resolve tags whose names contain apostrophes" taggedAs KeywordTag in {
+      this.service.create(Tag(-1, "obrien"), User.superUser)
+      val resolved = this.service.updateTagList(List(Tag(-1, "O'Brien")), this.defaultUser)
+      resolved.map(_.name) mustEqual List("o'brien")
+    }
   }
+
+  "Retagging a task" should {
+    "be refused for a user with no involvement in the task" taggedAs KeywordTag in {
+      val task = this.taskDAL.insert(this.getTestTask("TagAccessStranger"), User.superUser)
+      an[IllegalAccessException] should be thrownBy this.taskDAL.requireTagAccess(task.id, stranger)
+    }
+
+    "be allowed for the user holding the task's lock" taggedAs KeywordTag in {
+      val task = this.taskDAL.insert(this.getTestTask("TagAccessLockHolder"), User.superUser)
+      this.taskDAL.lockItem(stranger, task)
+      try {
+        this.taskDAL.requireTagAccess(task.id, stranger)
+      } finally {
+        this.taskDAL.unlockItem(stranger, task)
+      }
+    }
+
+    "be allowed for a user with write access to the challenge" taggedAs KeywordTag in {
+      val task = this.taskDAL.insert(this.getTestTask("TagAccessWriter"), User.superUser)
+      this.taskDAL.requireTagAccess(task.id, this.defaultUser)
+    }
+  }
+
+  private lazy val stranger: User = this.serviceManager.user.create(
+    this.getTestUser(51234580, "TagAccessStranger"),
+    User.superUser
+  )
 }

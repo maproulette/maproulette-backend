@@ -7,7 +7,7 @@ import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}
 import org.maproulette.provider.{ChallengeProvider, TaskBuilderExecutionContext}
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.{any, eq => eqM}
-import org.mockito.Mockito.{doAnswer, never, timeout, verify, when}
+import org.mockito.Mockito.{atLeastOnce, doAnswer, never, timeout, times, verify, when}
 import org.mockito.invocation.InvocationOnMock
 import org.scalatest.BeforeAndAfterAll
 import org.scalatestplus.play.PlaySpec
@@ -523,6 +523,136 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar with BeforeAndAft
       (lastUpdate \ "statusMessage").as[String] must include("too busy or timed out")
 
       verify(taskDAL, never()).mergeUpdate(any(), any())(any(), any())
+    }
+  }
+
+  val remoteUrl = "https://example.com/tasks.geojson"
+
+  val remoteChallenge: Challenge = overpassChallenge.copy(
+    id = 200,
+    name = "RemoteGeoJson",
+    creation = ChallengeCreation(remoteGeoJson = Some(remoteUrl))
+  )
+
+  val remoteGeoJson: JsValue = Json.obj(
+    "type" -> "FeatureCollection",
+    "features" -> Json.arr(
+      Json.obj(
+        "type"       -> "Feature",
+        "geometry"   -> Json.obj("type" -> "Point", "coordinates" -> Json.arr(-111.86, 40.71)),
+        "properties" -> Json.obj("id" -> "a")
+      ),
+      Json.obj(
+        "type"       -> "Feature",
+        "geometry"   -> Json.obj("type" -> "Point", "coordinates" -> Json.arr(-111.87, 40.72)),
+        "properties" -> Json.obj("id" -> "b")
+      )
+    )
+  )
+
+  // Runs callbacks on the calling thread, effectively making buildTasks into
+  // a synchronous function for test purposes
+  private val inlineEc = new TaskBuilderExecutionContext(actorSystem) {
+    override def execute(runnable: Runnable): Unit = runnable.run()
+  }
+
+  private class RemoteFixture(response: => Future[WSResponse]) {
+    val ws: WSClient                             = mock[WSClient]
+    val wsRequest: WSRequest                     = mock[WSRequest]
+    val challengeDAL: ChallengeDAL               = mock[ChallengeDAL]
+    val taskDAL: TaskDAL                         = mock[TaskDAL]
+    val db: Database                             = mock[Database]
+    val backgroundDb: Database                   = mock[Database]
+    implicit val ec: TaskBuilderExecutionContext = inlineEc
+
+    when(ws.url(any[String])).thenReturn(wsRequest)
+    when(wsRequest.withRequestTimeout(any[Duration])).thenReturn(wsRequest)
+    when(wsRequest.get()).thenAnswer(_ => response)
+    when(taskDAL.mergeUpdate(any[Task], any[User])(any[Long], any[Option[Connection]]))
+      .thenReturn(None)
+    doAnswer { (invocation: InvocationOnMock) =>
+      invocation.getArgument(0).asInstanceOf[Connection => Any](mock[Connection])
+    }.when(db).withTransaction(any[Connection => Any])
+    doAnswer { (invocation: InvocationOnMock) =>
+      invocation.getArgument(0).asInstanceOf[Connection => Any](mock[Connection])
+    }.when(backgroundDb).withTransaction(any[Connection => Any])
+
+    val provider = new ChallengeProvider(challengeDAL, taskDAL, config, ws, db, backgroundDb)
+
+    // Returns every status update made to the challenge, in order
+    def statusUpdates(): List[JsValue] = {
+      val captor: ArgumentCaptor[JsValue] = ArgumentCaptor.forClass(classOf[JsValue])
+      verify(challengeDAL, atLeastOnce())
+        .update(captor.capture(), eqM(user))(eqM(remoteChallenge.id), any())
+      captor.getAllValues.asScala.toList
+    }
+
+    def statuses(): List[Int] = statusUpdates().map(u => (u \ "status").as[Int])
+  }
+
+  private def response(status: Int, body: String): Future[WSResponse] = {
+    val resp = mock[WSResponse]
+    when(resp.status).thenReturn(status)
+    when(resp.body).thenReturn(body)
+    Future.successful(resp)
+  }
+
+  "buildTasks with a remote GeoJSON URL" should {
+    "create tasks and mark the challenge ready" in new RemoteFixture(
+      response(200, Json.stringify(remoteGeoJson))
+    ) {
+      provider.buildTasks(user, remoteChallenge) mustEqual true
+
+      verify(ws).url(remoteUrl)
+      verify(taskDAL, times(2))
+        .mergeUpdate(any[Task], eqM(user))(any[Long], any[Option[Connection]])
+      statuses() mustEqual List(
+        Challenge.STATUS_BUILDING,
+        Challenge.STATUS_BUILDING,
+        Challenge.STATUS_READY
+      )
+    }
+
+    "fail the challenge on a non-2xx response" in new RemoteFixture(
+      response(404, "Not Found")
+    ) {
+      provider.buildTasks(user, remoteChallenge)
+
+      statuses() mustEqual List(Challenge.STATUS_BUILDING, Challenge.STATUS_FAILED)
+      (statusUpdates().last \ "statusMessage").as[String] mustEqual
+        "Could not fetch remote GeoJSON (HTTP 404)"
+      verify(taskDAL, never()).mergeUpdate(any(), any())(any(), any())
+    }
+
+    "fail without echoing the response when it is not valid GeoJSON" in new RemoteFixture(
+      response(200, "{\"AccessKeyId\": \"ASIA-SECRET\", \"Token\": \"also-secret\"")
+    ) {
+      provider.buildTasks(user, remoteChallenge)
+
+      // FAILED must be the last update, not overwritten with READY
+      statuses() mustEqual List(Challenge.STATUS_BUILDING, Challenge.STATUS_FAILED)
+      (statusUpdates().last \ "statusMessage").as[String] mustEqual
+        "Remote GeoJSON could not be read; check that it is valid GeoJSON"
+      verify(taskDAL, never()).mergeUpdate(any(), any())(any(), any())
+    }
+
+    "fail without echoing the error when the fetch fails" in new RemoteFixture(
+      Future.failed(new java.net.ConnectException("Connection refused: /10.0.0.5:8080"))
+    ) {
+      provider.buildTasks(user, remoteChallenge)
+
+      statuses() mustEqual List(Challenge.STATUS_BUILDING, Challenge.STATUS_FAILED)
+      (statusUpdates().last \ "statusMessage").as[String] mustEqual "Could not fetch remote GeoJSON"
+    }
+
+    "fail the challenge when the URL is malformed" in new RemoteFixture(response(200, "")) {
+      when(ws.url(any[String])).thenThrow(new IllegalArgumentException("bad url"))
+
+      provider.buildTasks(user, remoteChallenge) mustEqual true
+
+      statuses() mustEqual List(Challenge.STATUS_BUILDING, Challenge.STATUS_FAILED)
+      (statusUpdates().last \ "statusMessage").as[String] mustEqual
+        "Remote GeoJSON URL is not valid"
     }
   }
 }

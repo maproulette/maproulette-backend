@@ -231,16 +231,22 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
     * @param user          The user requesting the lock
     * @param primaryItem   The bundle's primary task
     * @param memberTaskIds The ids of the other tasks in the bundle (primary excluded automatically)
+    * @param reviewClaim   Whether this lock represents a reviewer's review claim rather than an
+    *                      ordinary edit lock. Review-claim locks are exempt from the
+    *                      one-lock-per-user invariant (see lockItem).
     * @param c             A sql connection implicitly passed in from the calling function
     * @return user id of who now holds the lock
     */
   def lockBundle(
       user: User,
       primaryItem: Task,
-      memberTaskIds: List[Long]
+      memberTaskIds: List[Long],
+      reviewClaim: Boolean = false
   )(implicit c: Option[Connection] = None): Long =
     this.withMRTransaction { implicit c =>
-      this.enforceSingleEditLock(user, primaryItem.id)
+      if (!reviewClaim) {
+        this.enforceSingleEditLock(user, primaryItem.id)
+      }
 
       val members = memberTaskIds.filterNot(_ == primaryItem.id).distinct
       // Avoid the curly-brace array literal ('{}') here - anorm's SQL() scans the raw query
@@ -248,43 +254,63 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
       // for one, corrupting the query. ARRAY[]::integer[] is equivalent and brace-free.
       val membersLiteral =
         if (members.isEmpty) "ARRAY[]::integer[]" else s"ARRAY[${members.mkString(",")}]::integer[]"
+      val coveredLiteral = s"ARRAY[${(primaryItem.id :: members).mkString(",")}]::integer[]"
 
-      val checkQuery =
-        s"""SELECT user_id FROM locked WHERE item_id = {itemId} AND item_type = ${primaryItem.itemType.typeId} FOR UPDATE"""
-      SQL(checkQuery)
-        .on(Symbol("itemId") -> ParameterValue.toParameterValue(primaryItem.id)(p = keyToStatement))
-        .as(SqlParser.long("user_id").singleOpt) match {
-        case Some(id) if id != user.id => id
-        case Some(_) =>
-          val query =
-            s"""UPDATE locked SET locked_time = NOW(), bundled_tasks = $membersLiteral
-                WHERE user_id = ${user.id} AND item_id = {itemId} AND item_type = ${primaryItem.itemType.typeId}"""
-          SQL(query)
-            .on(
-              Symbol("itemId") -> ParameterValue.toParameterValue(primaryItem.id)(p = keyToStatement
+      // Every task this lock will cover has to be free or already ours. Leaving another row
+      // covering one of them would mean two rows cover the same task, which breaks the
+      // singleOpt lookups in resolveLockHolder/resolveLockBundle.
+      val existing =
+        SQL(s"""SELECT user_id, item_id FROM locked
+                WHERE item_type = ${primaryItem.itemType.typeId}
+                  AND (item_id = ANY($coveredLiteral) OR bundled_tasks && $coveredLiteral)
+                FOR UPDATE""")
+          .as((SqlParser.long("user_id") ~ SqlParser.long("item_id")).*)
+          .map { case userId ~ itemId => (userId, itemId) }
+
+      existing.find { case (userId, _) => userId != user.id } match {
+        case Some((otherUserId, _)) => otherUserId
+        case None                   =>
+          // Fold any rows of our own that cover a member into the single primary row
+          if (existing.exists { case (_, itemId) => itemId != primaryItem.id }) {
+            SQL(s"""DELETE FROM locked
+                    WHERE user_id = ${user.id} AND item_type = ${primaryItem.itemType.typeId}
+                      AND item_id != {itemId}
+                      AND (item_id = ANY($coveredLiteral) OR bundled_tasks && $coveredLiteral)""")
+              .on(
+                Symbol("itemId") -> ParameterValue.toParameterValue(primaryItem.id)(
+                  p = keyToStatement
+                )
               )
+              .executeUpdate()
+          }
+
+          val itemIdParam =
+            Symbol("itemId") -> ParameterValue.toParameterValue(primaryItem.id)(p = keyToStatement)
+
+          if (existing.exists { case (_, itemId) => itemId == primaryItem.id }) {
+            SQL(s"""UPDATE locked
+                    SET locked_time = NOW(), bundled_tasks = $membersLiteral, is_review_claim = $reviewClaim
+                    WHERE user_id = ${user.id} AND item_id = {itemId} AND item_type = ${primaryItem.itemType.typeId}""")
+              .on(itemIdParam)
+              .executeUpdate()
+          } else {
+            val lockId = SQL(
+              s"""INSERT INTO locked (item_type, item_id, user_id, bundled_tasks, is_review_claim)
+                  VALUES (${primaryItem.itemType.typeId}, {itemId}, ${user.id}, $membersLiteral, $reviewClaim)
+                  RETURNING id"""
+            ).on(itemIdParam).as(SqlParser.scalar[Long].single)
+            val (sessionType, subType) =
+              if (reviewClaim) (SessionHistory.TYPE_CUSTOM, Some(SessionHistory.SUB_TYPE_REVIEW))
+              else (SessionHistory.TYPE_MAP, None)
+            this.recordSessionLock(
+              user.id,
+              primaryItem.id,
+              lockId,
+              primaryItem.itemType,
+              sessionType,
+              subType
             )
-            .executeUpdate()
-          user.id
-        case None =>
-          val query =
-            s"""INSERT INTO locked (item_type, item_id, user_id, bundled_tasks)
-                VALUES (${primaryItem.itemType.typeId}, {itemId}, ${user.id}, $membersLiteral)
-                RETURNING id"""
-          val lockId = SQL(query)
-            .on(
-              Symbol("itemId") -> ParameterValue.toParameterValue(primaryItem.id)(p = keyToStatement
-              )
-            )
-            .as(SqlParser.scalar[Long].single)
-          this.recordSessionLock(
-            user.id,
-            primaryItem.id,
-            lockId,
-            primaryItem.itemType,
-            SessionHistory.TYPE_MAP,
-            None
-          )
+          }
           user.id
       }
     }

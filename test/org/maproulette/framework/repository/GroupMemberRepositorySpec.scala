@@ -190,46 +190,6 @@ class GroupMemberRepositorySpec(implicit val application: Application) extends F
         .getGroupMember(anotherGroup, MemberObject.user(anotherUser.id))
       retrievedGroupMember mustEqual None
     }
-
-    "delete a group member across groups of the same type" taggedAs GroupTag in {
-      val anotherUser = this.serviceManager.user.create(
-        this.getTestUser(99913518, "DeleteAcrossGroupTypeOUser"),
-        User.superUser
-      )
-
-      val firstGroup =
-        this.serviceManager.group
-          .create(
-            this.getTestGroup(
-              "GroupMemberRepositorySpec_DeleteAcrossGroupType Group1",
-              groupType = 123456
-            )
-          )
-          .get
-
-      val secondGroup =
-        this.serviceManager.group
-          .create(
-            this.getTestGroup(
-              "GroupMemberRepositorySpec_DeleteAcrossGroupType Group2",
-              groupType = 123456
-            )
-          )
-          .get
-
-      this.repository.addGroupMember(this.defaultGroup, MemberObject.user(anotherUser.id))
-      this.repository.addGroupMember(firstGroup, MemberObject.user(anotherUser.id))
-      this.repository.addGroupMember(secondGroup, MemberObject.user(anotherUser.id))
-      this.repository.getMemberships(MemberObject.user(anotherUser.id)).size mustEqual 3
-
-      this.repository.deleteGroupMemberAcrossGroupType(MemberObject.user(anotherUser.id), 123456)
-
-      val memberships = this.repository.getMemberships(MemberObject.user(anotherUser.id))
-      memberships.size mustEqual 1
-      memberships.head.memberType mustEqual UserType().typeId
-      memberships.head.memberId mustEqual anotherUser.id
-      this.defaultGroup.id mustEqual memberships.head.groupId
-    }
   }
 
   override implicit val projectTestName: String = "GroupMemberRepositorySpecProject"

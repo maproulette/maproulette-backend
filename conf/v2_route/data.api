@@ -1,12 +1,4 @@
 ### NoDocs ###
-GET     /data/challenge/:challengeId/users          @org.maproulette.controllers.api.DataController.getUserChallengeSummary(challengeId:Long, start:String ?= "", end:String ?= "", priority:Int ?= -1)
-### NoDocs ###
-POST    /data/challenge/summary                     @org.maproulette.controllers.api.DataController.getChallengeSummaries(projectList:String ?= "", priority:String ?= "", onlyEnabled:Boolean ?= true)
-### NoDocs ###
-GET     /data/user/activity                         @org.maproulette.controllers.api.DataController.getRecentUserActivity(osmUserIds:String ?= "", limit:Int ?= -1, offset:Int ?= 0)
-### NoDocs ###
-GET     /data/user/summary                          @org.maproulette.controllers.api.DataController.getUserSummary(projectList:String ?= "", start:String ?= "", end:String ?= "", priority:Int ?= -1)
-### NoDocs ###
 GET     /data/user/:userId/metrics                  @org.maproulette.framework.controller.UserController.getMetricsForUser(userId:Long, monthDuration:Int ?= -1, reviewDuration:Int ?= -1, reviewerDuration:Int ?= -1, start: String ?= null, end: String ?= null, reviewStart: String ?= null, reviewEnd: String ?= null, reviewerStart: String ?= null, reviewerEnd: String ?= null)
 ### NoDocs ###
 GET     /data/project/activity                      @org.maproulette.controllers.api.DataController.getProjectActivity(projectList:String ?= "", start:String ?= "", end:String ?= "")
@@ -18,8 +10,6 @@ GET     /data/challenge/:challengeId/activity       @org.maproulette.controllers
 GET     /data/raw/activity                          @org.maproulette.controllers.api.DataController.getRawActivity(userIds:String ?= "", projectIds:String ?= "", challengeIds:String ?= "", start:String ?= "", end:String ?= "")
 ### NoDocs ###
 GET     /data/status/activity                       @org.maproulette.controllers.api.DataController.getStatusActivity(userIds:String ?= "", projectIds:String ?= "", challengeIds:String ?= "", start:String ?= "", end:String ?= "", newStatus:String ?= "", oldStatus:String ?= "", limit:Int ?= 10, page:Int ?= 0)
-### NoDocs ###
-GET     /data/status/latestActivity                 @org.maproulette.controllers.api.DataController.getLatestChallengeActivity(projectIds:String ?= "", challengeIds:String ?= "", entries:Int ?= 1)
 ### NoDocs ###
 GET     /data/status/summary                        @org.maproulette.controllers.api.DataController.getStatusSummary(userIds:String ?= "", projectIds:String ?= "", challengeIds:String ?= "", start:String ?= "", end:String ?= "", limit:Int ?= 10, page:Int ?= 0)
 ### NoDocs ###

@@ -5,9 +5,9 @@
 
 package org.maproulette.framework.service
 
+import java.sql.Connection
 import javax.inject.{Inject, Singleton}
 import org.maproulette.framework.model.{Group, GroupMember, MemberObject}
-import org.maproulette.data.{ItemType}
 import org.maproulette.framework.psql._
 import org.maproulette.framework.psql.filter._
 import org.maproulette.framework.psql.Query
@@ -94,14 +94,6 @@ class GroupService @Inject() (
   def create(group: Group): Option[Group] = this.repository.create(group)
 
   /**
-    * Retrieve group members with matching ids
-    *
-    * @param ids The ids of desired group members
-    */
-  def listGroupMembers(ids: List[Long]): List[GroupMember] =
-    this.groupMemberRepository.list(ids)
-
-  /**
     * Retrieve members of the given group
     *
     * @param group The group for which members are desired
@@ -109,21 +101,6 @@ class GroupService @Inject() (
     */
   def groupMembers(group: Group, query: Query = Query.empty): List[GroupMember] =
     this.groupMemberRepository.getGroupMembers(group, query)
-
-  /**
-    * Convenience method for retrieving group members matching the given type
-    *
-    * @param groupId The group for which members are desired
-    * @param type:   The type of desired members
-    */
-  def membersOfType(group: Group, memberType: ItemType): List[GroupMember] =
-    this
-      .groupMembers(
-        group,
-        Query.simple(
-          List(BaseParameter(GroupMember.FIELD_MEMBER_TYPE, memberType.typeId))
-        )
-      )
 
   /**
     * Retrieve members of the groups matching the given ids
@@ -185,27 +162,6 @@ class GroupService @Inject() (
     this.groupMemberRepository.deleteGroupMember(group, member)
 
   /**
-    * Remove all members from a group
-    *
-    * @param group The group from which all members are to be removed
-    */
-  def clearGroupMembers(group: Group): Boolean =
-    this.groupMemberRepository.delete(
-      Query.simple(
-        List(BaseParameter(GroupMember.FIELD_GROUP_ID, group.id))
-      )
-    )
-
-  /**
-    * Remove a member from multiple groups that all share the same group type
-    *
-    * @param member    The member to delete
-    * @param groupType The type of group from which member is to be deleted
-    */
-  def removeGroupMemberAcrossGroupType(member: MemberObject, groupType: Int): Boolean =
-    this.groupMemberRepository.deleteGroupMemberAcrossGroupType(member, groupType)
-
-  /**
     * Retrieve a list of all the Groups of which the given member object has
     * membership
     *
@@ -244,7 +200,8 @@ class GroupService @Inject() (
     *
     * @param group The latest group data
     */
-  def updateGroup(group: Group): Option[Group] = this.repository.update(group)
+  def updateGroup(group: Group)(implicit c: Option[Connection] = None): Option[Group] =
+    this.repository.update(group)
 
   /**
     * Delete a group from the database

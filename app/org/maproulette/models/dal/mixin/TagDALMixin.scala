@@ -10,7 +10,7 @@ import java.sql.Connection
 import anorm._
 import org.maproulette.data.{ChallengeType, ItemType, TaskType}
 import org.maproulette.exception.InvalidException
-import org.maproulette.framework.model.{Tag, User}
+import org.maproulette.framework.model.User
 import org.maproulette.framework.service.TagService
 import org.maproulette.models.BaseObject
 import org.maproulette.models.dal.BaseDAL
@@ -76,28 +76,6 @@ trait TagDALMixin[T <: BaseObject[Long]] {
       case "challenges" => ChallengeType()
       case "tasks"      => TaskType()
     }
-  }
-
-  /**
-    * Links tags to a specific item. If the tags in the provided list do not exist then it will
-    * create the new tags.
-    *
-    * @param id   The item id to update with
-    * @param tags The tags to be applied to the item
-    * @param user The user executing the item
-    */
-  def updateItemTagNames(id: Long, tags: List[String], user: User)(
-      implicit c: Option[Connection] = None
-  ): Unit = {
-    val tagIds = tags.filter(_.nonEmpty).flatMap { tag =>
-      {
-        this.tagService.retrieveByName(tag, this.tableName) match {
-          case Some(t) => Some(t.id)
-          case None    => Some(this.tagService.create(Tag(-1, tag), user).id)
-        }
-      }
-    }
-    this.updateItemTags(id, tagIds, user)
   }
 
   /**

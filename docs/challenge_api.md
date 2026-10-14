@@ -163,9 +163,7 @@ Creating tasks for a challenge using GeoJSON can be done in several different wa
 
 The first option is simply to include a URL to the geoJSON in the "remoteGeoJSON" field during Challenge creation. This will then create the Challenge and run through a similar workflow that is used during task and challenge creation for overpass queries. 
 
-The second option is to use the github API Challenge creation method. This allows you to store everything needed in Github that will then be used to creation the Challenge. More information about this including an example can be found in the [**Examples**](#examples) section.
-
-The third option is to provide the GeoJSON directly through the API. This can be done in three different ways:
+The second option is to provide the GeoJSON directly through the API. This can be done in three different ways:
 1. Using the "localGeoJSON" key during the creation of the challenge
     ```
         POST /api/v2/challenge
@@ -233,5 +231,3 @@ This will create a challenge containing tasks match the following criteria:
 1. Within the bounding box 47.148633511301426,-121.90567016601562,47.95774347215711,-120.45684814453124
 2. Has a highway with a tag value of motorway, trunk, primary, secondary, tertiary, motorway_link, trunk_link, primary_link, secondary_link, tertiary_link, residential or unclassified.
 3. The name of the feature is contains "National Forest"
-
-#### [Create Challenge using Github](github_example.md)

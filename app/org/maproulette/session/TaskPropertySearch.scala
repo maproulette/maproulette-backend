@@ -4,6 +4,7 @@
  */
 package org.maproulette.session
 
+import anorm.NamedParameter
 import org.maproulette.exception.InvalidException
 
 /**
@@ -21,39 +22,59 @@ case class TaskPropertySearch(
     left: Option[TaskPropertySearch] = None,
     right: Option[TaskPropertySearch] = None
 ) {
-  def toSQL: String = {
+
+  /**
+    * Builds this search as a SQL fragment plus the parameters that must be bound to it. The
+    * property keys and string values come from the request, so they are bound rather than
+    * interpolated.
+    */
+  def toSQLWithParameters: (String, List[NamedParameter]) = {
     this.validate
 
-    val where = new StringBuilder
-    left match {
-      case Some(l) => where ++= "(" + l.toSQL + ") " + operationType.get
-      case None    => // do nothing
+    val parameters = scala.collection.mutable.ListBuffer.empty[NamedParameter]
+    var counter    = 0
+
+    def bind(value: String): String = {
+      val name = s"taskProp$counter"
+      counter += 1
+      parameters += NamedParameter(name, value)
+      s"{$name}"
     }
 
-    right match {
-      case Some(r) => where ++= " (" + r.toSQL + ")"
-      case None    => // do nothing
-    }
-
-    valueType.getOrElse("") match {
-      case SearchParameters.TASK_PROP_VALUE_TYPE_NUMBER =>
-        where ++= s" CAST(features->'properties'->>'${key.get}' AS DOUBLE PRECISION)" +
-          getSearchTypeSQL + value.getOrElse(0)
-      case SearchParameters.TASK_PROP_VALUE_TYPE_STRING => {
-        where ++= s" features->'properties'->>'${key.get.replaceAll("\'", "\'\'")}' " + getSearchTypeSQL
-        searchType.get match {
-          case SearchParameters.TASK_PROP_SEARCH_TYPE_CONTAINS =>
-            where ++= "'%" + value.getOrElse("").replaceAll("\'", "\'\'") + "%' "
-          case SearchParameters.TASK_PROP_SEARCH_TYPE_EXISTS  => // do nothing
-          case SearchParameters.TASK_PROP_SEARCH_TYPE_MISSING => // do nothing
-          case _ =>
-            where ++= " '" + value.getOrElse("").replaceAll("\'", "\'\'") + "'"
-        }
+    def build(node: TaskPropertySearch): String = {
+      val where = new StringBuilder
+      node.left match {
+        case Some(l) => where ++= "(" + build(l) + ") " + node.operationType.get
+        case None    => // do nothing
       }
-      case _ => // do nothing
+
+      node.right match {
+        case Some(r) => where ++= " (" + build(r) + ")"
+        case None    => // do nothing
+      }
+
+      node.valueType.getOrElse("") match {
+        case SearchParameters.TASK_PROP_VALUE_TYPE_NUMBER =>
+          where ++= s" CAST(features->'properties'->>${bind(node.key.get)} AS DOUBLE PRECISION)" +
+            node.getSearchTypeSQL + node.value.getOrElse(0)
+        case SearchParameters.TASK_PROP_VALUE_TYPE_STRING => {
+          where ++= s" features->'properties'->>${bind(node.key.get)} " + node.getSearchTypeSQL
+          node.searchType.get match {
+            case SearchParameters.TASK_PROP_SEARCH_TYPE_CONTAINS =>
+              where ++= bind("%" + node.value.getOrElse("") + "%") + " "
+            case SearchParameters.TASK_PROP_SEARCH_TYPE_EXISTS  => // do nothing
+            case SearchParameters.TASK_PROP_SEARCH_TYPE_MISSING => // do nothing
+            case _ =>
+              where ++= bind(node.value.getOrElse("")) + " "
+          }
+        }
+        case _ => // do nothing
+      }
+
+      where.toString
     }
 
-    where.toString
+    (build(this), parameters.toList)
   }
 
   def getSearchTypeSQL: String = {

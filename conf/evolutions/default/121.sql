@@ -1,79 +1,30 @@
 # --- MapRoulette Scheme
 
 # --- !Ups
+-- Reconcile challenge status with the work actually left in each challenge.
+--
+-- A challenge is FINISHED (5) once it has tasks and none of them are CREATED
+-- (0) or SKIPPED (3). ChallengeDAL.updateFinishedStatus keeps this in sync as
+-- tasks are worked, but challenges whose tasks were completed through a path
+-- that never ran it (bulk status changes, task deletions, restores) can be
+-- left sitting at READY while showing 100% complete. Explore now hides
+-- finished challenges, so a stale status keeps a done challenge in the list.
 
--- Append-only lock/unlock session events. A session is a lock row plus the
--- later unlock that shares lock_id (locked.id at the time of the event).
--- Duration is derived from the two created timestamps.
--- session_type is Map or Custom. sub_type is an optional label stored on
--- the lock event. Clients do not send a session type.
-CREATE TABLE IF NOT EXISTS session_history
-(
-  id serial NOT NULL PRIMARY KEY,
-  created timestamp without time zone DEFAULT NOW() NOT NULL,
-  user_id integer NOT NULL,
-  task_id integer NOT NULL,
-  lock_id integer NOT NULL,
-  event varchar NOT NULL,
-  session_type varchar NOT NULL,
-  sub_type varchar,
-  CONSTRAINT session_history_user_id_fkey FOREIGN KEY (user_id)
-    REFERENCES users(id) MATCH SIMPLE
-    ON UPDATE CASCADE ON DELETE CASCADE,
-  CONSTRAINT session_history_task_id_fkey FOREIGN KEY (task_id)
-    REFERENCES tasks(id) MATCH SIMPLE
-    ON UPDATE CASCADE ON DELETE CASCADE,
-  CONSTRAINT session_history_event_check CHECK (event IN ('lock', 'unlock')),
-  CONSTRAINT session_history_session_type_check CHECK (session_type IN ('Map', 'Custom'))
-);;
+-- Mark as FINISHED. Restricted to statuses that mean "loaded and workable"
+-- (NA, READY, PARTIALLY_LOADED) so a challenge mid-build, failed, or deleting
+-- its tasks is not misreported as finished.
+UPDATE challenges c SET status = 5
+WHERE c.deleted = false AND
+      (c.status IS NULL OR c.status IN (0, 3, 4)) AND
+      0 < (SELECT COUNT(*) FROM tasks WHERE tasks.parent_id = c.id) AND
+      0 = (SELECT COUNT(*) FROM tasks
+           WHERE tasks.parent_id = c.id AND tasks.status IN (0, 3));;
 
-SELECT create_index_if_not_exists('session_history', 'task_id_created', '(task_id, created)');;
-SELECT create_index_if_not_exists('session_history', 'lock_id_event', '(lock_id, event)', true);;
-
-
--- The lock event is inserted in Scala when the row is created. The unlock
--- is written here instead, because a lock can be deleted without ever
--- calling unlockItem. Unlock-all, the stale-lock job, and the user-delete
--- trigger all delete from locked directly, and so can a plain DELETE.
--- After any of those, this copies session_type and sub_type from the lock
--- event for that locked.id and inserts the matching unlock. If the lock
--- event is missing, the unlock is recorded as Map.
-CREATE OR REPLACE FUNCTION session_history_on_locked_delete() RETURNS TRIGGER AS $$
-DECLARE
-  v_session_type varchar;;
-  v_sub_type varchar;;
-BEGIN
-  -- Task locks only (Actions.ITEM_TYPE_TASK = 2)
-  IF OLD.item_type <> 2 THEN
-    RETURN OLD;;
-  END IF;;
-
-  SELECT sh.session_type, sh.sub_type
-    INTO v_session_type, v_sub_type
-  FROM session_history sh
-  WHERE sh.lock_id = OLD.id AND sh.event = 'lock'
-  ORDER BY sh.id DESC
-  LIMIT 1;;
-
-  IF v_session_type IS NULL THEN
-    v_session_type := 'Map';;
-    v_sub_type := NULL;;
-  END IF;;
-
-  INSERT INTO session_history (user_id, task_id, lock_id, event, session_type, sub_type)
-  VALUES (OLD.user_id, OLD.item_id, OLD.id, 'unlock', v_session_type, v_sub_type);;
-
-  RETURN OLD;;
-END;;
-$$ LANGUAGE plpgsql VOLATILE;;
-
-DROP TRIGGER IF EXISTS session_history_on_locked_delete ON locked;;
-CREATE TRIGGER session_history_on_locked_delete
-  AFTER DELETE ON locked
-  FOR EACH ROW EXECUTE PROCEDURE session_history_on_locked_delete();;
+-- Back to READY for anything marked finished that still has work left, the
+-- same correction updateReadyStatus makes when a task returns to created.
+UPDATE challenges c SET status = 3
+WHERE c.status = 5 AND
+      0 < (SELECT COUNT(*) FROM tasks
+           WHERE tasks.parent_id = c.id AND tasks.status IN (0, 3));;
 
 # --- !Downs
-
-DROP TRIGGER IF EXISTS session_history_on_locked_delete ON locked;;
-DROP FUNCTION IF EXISTS session_history_on_locked_delete();;
-DROP TABLE IF EXISTS session_history CASCADE;;

@@ -9,6 +9,7 @@ import anorm.SqlParser.{get, long}
 import anorm._
 import org.joda.time.DateTime
 import org.maproulette.framework.model.{ChallengeComment, User}
+import org.maproulette.framework.psql.SQLUtils
 import play.api.db.Database
 
 import java.sql.Connection
@@ -56,9 +57,18 @@ class ChallengeCommentRepository @Inject() (override val db: Database) extends R
       searchTerm: Option[String] = None
   )(implicit c: Option[Connection] = None): List[ChallengeComment] = {
     withMRConnection { implicit c =>
-      var internalSort = s"""c.${sort}""";
-      if (sort == "challenge_name") {
-        internalSort = s"""ch.${sort}""";
+      // Sort columns are allowlisted, never interpolated from the request.
+      val direction = SQLUtils.orderDirection(order)
+      val orderByClause = sort match {
+        case "id"             => s"c.id $direction"
+        case "created"        => s"c.created $direction"
+        case "project_id"     => s"c.project_id $direction"
+        case "challenge_id"   => s"c.challenge_id $direction"
+        case "osm_id"         => s"c.osm_id $direction"
+        case "comment"        => s"c.comment $direction"
+        case "name"           => s"u.name $direction"
+        case "challenge_name" => s"ch.name $direction"
+        case _                => s"c.created $direction"
       }
 
       // Base query
@@ -81,7 +91,7 @@ class ChallengeCommentRepository @Inject() (override val db: Database) extends R
         s"""
            $baseQuery
            $searchFilter
-           ORDER BY $sort $order
+           ORDER BY $orderByClause
            LIMIT {limit}
            OFFSET {offset}
          """

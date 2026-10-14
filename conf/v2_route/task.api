@@ -624,14 +624,41 @@ GET     /tasks/tags                                 @org.maproulette.controllers
 # tags: [ Task ]
 # operationId: task_updates_task_tags
 # summary: Updates Task Tags
-# description: Updates the tags on the Task
+# description: Replaces the tags on the Task
 # responses:
-#   '304':
-#     description: A basic 304 with NoContent will be returned on a successful delete
-#   '400':
-#     description: If no tags are supplied a BadRequest response will be returned
+#   '200':
+#     description: The task's tags after the update
 #   '401':
-#     description: The user is not authorized to make this request
+#     description: The user is not authenticated
+#   '403':
+#     description: The user may not change the tags on this task
+#   '404':
+#     description: No task with the given id
+# parameters:
+#   - name: id
+#     in: path
+#     description: The ID of the Task
+#   - name: tags
+#     in: query
+#     description: A complete comma separated list of tags. If empty, then all tags will be removed.
+#     required: true
+###
+PUT     /task/:id/tags/update                       @org.maproulette.controllers.api.TaskController.updateItemTags(id:Long, tags:String ?= "")
+###
+# tags: [ Task ]
+# operationId: task_updates_task_tags_get
+# summary: Updates Task Tags
+# description: Replaces the tags on the Task. Deprecated; use the PUT form, this GET will be removed once the frontends have switched. Requires write access to the task's challenge, or being the mapper or reviewer working on the task.
+# deprecated: true
+# responses:
+#   '200':
+#     description: The task's tags after the update
+#   '401':
+#     description: The user is not authenticated
+#   '403':
+#     description: The user may not change the tags on this task
+#   '404':
+#     description: No task with the given id
 # parameters:
 #   - name: id
 #     in: path
@@ -821,7 +848,7 @@ GET     /taskMarkers                                  @org.maproulette.framework
 # tags: [ Task ]
 # operationId: task_get_task_tiles
 # summary: Get Task Tiles as MVT
-# description: Returns a Mapbox Vector Tile (MVT) for the given tile coordinates. Features include group_type (0=single, 1=overlap, 2=cluster), task_count, and task properties for singles.
+# description: Returns a Mapbox Vector Tile (MVT) for the given tile coordinates. Features include group_type (0=single, 1=overlap, 2=cluster), task_count, and task properties for singles. A tile covers all available work and takes no filters, so it is a pure function of its coordinates and is publicly cacheable.
 # responses:
 #   '200':
 #     description: Binary MVT data
@@ -846,20 +873,8 @@ GET     /taskMarkers                                  @org.maproulette.framework
 #     required: true
 #     schema:
 #       type: integer
-#   - name: global
-#     in: query
-#     required: false
-#     schema:
-#       type: boolean
-#       default: false
-#   - name: difficulty
-#     in: query
-#     required: false
-#     schema:
-#       type: integer
-#       enum: [1, 2, 3]
 ###
-GET     /taskTilesMvt/:z/:x/:y  @org.maproulette.framework.controller.TaskController.getTaskTilesMvt(z: Int, x: Int, y: Int, global: Boolean ?= false, difficulty: Option[Int] ?= None, keywords: Option[String] ?= None)
+GET     /taskTilesMvt/:z/:x/:y  @org.maproulette.framework.controller.TaskController.getTaskTilesMvt(z: Int, x: Int, y: Int)
 ###
 # tags: [ Task ]
 # operationId: task_update_task_changeset

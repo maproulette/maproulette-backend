@@ -22,6 +22,8 @@ import scala.util.{Failure, Success, Try}
 object MPExceptionUtil {
   private val logger = LoggerFactory.getLogger(this.getClass)
 
+  private val internalErrorMessage = "An unexpected error occurred"
+
   /**
     * Used for Actions, wraps the code block and if InvalidException found will send a BadRequest,
     * all other exceptions sent back as InternalServerError
@@ -57,7 +59,7 @@ object MPExceptionUtil {
         Forbidden(Json.toJson(StatusMessage("Forbidden", JsString(e.getMessage))))
       case e: Exception =>
         logger.error(e.getMessage, e)
-        InternalServerError(Json.toJson(StatusMessage("KO", JsString(e.getMessage))))
+        InternalServerError(Json.toJson(StatusMessage("KO", JsString(internalErrorMessage))))
     }
   }
 
@@ -115,7 +117,7 @@ object MPExceptionUtil {
         Conflict(Json.toJson(StatusMessage("Conflict", JsString(e.getMessage))))
       case e: Throwable =>
         logger.error(e.getMessage, e)
-        InternalServerError(Json.toJson(StatusMessage("KO", JsString(e.getMessage))))
+        InternalServerError(Json.toJson(StatusMessage("KO", JsString(internalErrorMessage))))
     }
   }
 }

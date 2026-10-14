@@ -21,8 +21,7 @@ class ProjectServiceSpec(implicit val application: Application) extends Framewor
   "ProjectService" should {
     "get all the children of a project" taggedAs ProjectTag in {
       val challenges = this.service.children(this.defaultProject.id)
-      // by default tests get setup with 10 children challenges in the project
-      challenges.size mustEqual 10
+      challenges.map(_.id) must contain theSameElementsAs this.defaultChallenges.map(_.id)
     }
 
     "create a new project" taggedAs ProjectTag in {

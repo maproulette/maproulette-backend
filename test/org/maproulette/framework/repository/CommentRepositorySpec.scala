@@ -66,7 +66,7 @@ class CommentRepositorySpec(implicit val application: Application) extends Frame
       )
       val retrievedComment = this.repositoryGet(comment.id)
       retrievedComment.isDefined mustEqual true
-      this.commentRepository.delete(retrievedComment.get.id)
+      this.commentRepository.delete(defaultTask.id, retrievedComment.get.id)
       val deletedComment = this.repositoryGet(comment.id)
       deletedComment.isEmpty mustEqual true
     }

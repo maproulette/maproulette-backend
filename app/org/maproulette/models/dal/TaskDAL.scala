@@ -172,8 +172,7 @@ class TaskDAL @Inject() (
       user: User
   )(implicit id: Long, c: Option[Connection] = None): Option[Task] = {
     this.cacheManager.withUpdatingCache(Long => retrieveById) { implicit cachedItem =>
-      val name     = (value \ "name").asOpt[String].getOrElse(cachedItem.name)
-      val parentId = (value \ "parentId").asOpt[Long].getOrElse(cachedItem.parent)
+      val name = (value \ "name").asOpt[String].getOrElse(cachedItem.name)
       val instruction =
         (value \ "instruction").asOpt[String].getOrElse(cachedItem.instruction.getOrElse(""))
       // status should probably not be allowed to be set through the update function, and rather
@@ -222,7 +221,6 @@ class TaskDAL @Inject() (
       val task = this.mergeUpdate(
         cachedItem.copy(
           name = name,
-          parent = parentId,
           instruction = Some(instruction),
           status = Some(status),
           mappedOn = mappedOn,
@@ -252,9 +250,9 @@ class TaskDAL @Inject() (
       }
 
       if (status == Task.STATUS_CREATED || status == Task.STATUS_SKIPPED) {
-        this.manager.challenge.updateReadyStatus()(parentId)
+        this.manager.challenge.updateReadyStatus()(cachedItem.parent)
       } else {
-        this.manager.challenge.updateFinishedStatus(user = user)(parentId)
+        this.manager.challenge.updateFinishedStatus(user = user)(cachedItem.parent)
       }
 
       if (status == Task.STATUS_CREATED) {
@@ -312,6 +310,28 @@ class TaskDAL @Inject() (
       element: Task,
       user: User
   )(implicit id: Long, c: Option[Connection] = None): Option[Task] = {
+    // before clearing the cache grab the cachedItem
+    // by setting the delete implicit to true we clear out the cache for the element
+    // The cachedItem could be
+    // For new tasks (id <= 0, e.g. insert() passes -1) there is nothing to look up, so
+    // skip the guaranteed-miss cache/DB lookup entirely.
+    val cachedItem = if (id > 0) {
+      this.cacheManager.withUpdatingCache(Long => retrieveById) { implicit cachedItem =>
+        Some(cachedItem)
+      }(id, true, true)
+    } else {
+      None
+    }
+    cachedItem.foreach { existing =>
+      if (existing.parent != element.parent) {
+        // the request sent a parentId that does not match the task's; reject it
+        // (otherwise we risk checking access permissions on the wrong challenge,
+        // or moving the task between challenges when applying the update)
+        throw new InvalidException(
+          s"Task [${existing.id}] cannot be moved to a different challenge"
+        )
+      }
+    }
     this.permission.hasObjectWriteAccess(element, user)
     validateGeoJson(element.geometries)
     // Add type: FeatureCollection (some legacy clients omit it, but we want
@@ -324,18 +344,6 @@ class TaskDAL @Inject() (
         throw new NotFoundException(
           s"No parent was found for task with parentId [${element.parent}, this should never happen."
         )
-    }
-    // before clearing the cache grab the cachedItem
-    // by setting the delete implicit to true we clear out the cache for the element
-    // The cachedItem could be
-    // For new tasks (id <= 0, e.g. insert() passes -1) there is nothing to look up, so
-    // skip the guaranteed-miss cache/DB lookup entirely.
-    val cachedItem = if (id > 0) {
-      this.cacheManager.withUpdatingCache(Long => retrieveById) { implicit cachedItem =>
-        Some(cachedItem)
-      }(id, true, true)
-    } else {
-      None
     }
     this.withMRTransaction { implicit c =>
       val result =
@@ -564,6 +572,27 @@ class TaskDAL @Inject() (
   }
 
   def manager: DALManager = dalManager.get()
+
+  /**
+    * Check that the user is allowed to retag this task
+    */
+  def requireTagAccess(taskId: Long, user: User): Unit = {
+    val task = this
+      .retrieveById(taskId)
+      .getOrElse(throw new NotFoundException(s"Task $taskId not found"))
+    val workers = List(
+      task.completedBy,
+      task.review.reviewRequestedBy,
+      task.review.reviewedBy,
+      task.review.reviewClaimedBy
+    ).flatten
+    if (!workers.contains(user.id) && !this.resolveLockHolder(task).exists(_._1 == user.id)) {
+      val challenge = this.manager.challenge
+        .retrieveById(task.parent)
+        .getOrElse(throw new NotFoundException(s"Parent challenge ${task.parent} not found"))
+      this.permission.hasObjectWriteAccess(challenge, user)
+    }
+  }
 
   /**
     * Resolves the lock currently covering `referenceTask` (if any) into the concrete list of
@@ -1488,9 +1517,9 @@ class TaskDAL @Inject() (
         isBundlePrimary
       )
 
-      val filters    = new StringBuilder()
-      val joinClause = new StringBuilder()
-      this.updateWhereClause(params, filters, joinClause)
+      val filters          = new StringBuilder()
+      val joinClause       = new StringBuilder()
+      val filterParameters = this.updateWhereClause(params, filters, joinClause)
 
       val commentParser = for {
         taskId   <- long("task_id")
@@ -1506,7 +1535,7 @@ class TaskDAL @Inject() (
       val allComments = commentsQuery.as(commentParser.*).toMap.withDefaultValue("")
 
       val query =
-        SQL"""SELECT tasks.id, tasks.parent_id, tasks.name, tasks.status, tasks.priority, sa_outer.username, tasks.mapped_on,
+        SQL(s"""SELECT tasks.id, tasks.parent_id, tasks.name, tasks.status, tasks.priority, sa_outer.username, tasks.mapped_on,
                    tasks.completed_time_spent,
                    (SELECT name as completedBy FROM users WHERE users.id = tasks.completed_by),
                    task_review.review_status, tasks.is_bundle_primary, tasks.bundle_id, tasks.geojson::TEXT AS geo_json,
@@ -1521,7 +1550,7 @@ class TaskDAL @Inject() (
               FROM users u, status_actions sa INNER JOIN (
                 SELECT task_id, MAX(created) AS latest
                 FROM status_actions
-                WHERE challenge_id IN (#${challengeIds.mkString(",")})
+                WHERE challenge_id IN (${challengeIds.mkString(",")})
                 GROUP BY task_id
               ) AS sa_inner
               ON sa.task_id = sa_inner.task_id AND sa.created = sa_inner.latest
@@ -1529,11 +1558,11 @@ class TaskDAL @Inject() (
             ) AS sa_outer ON tasks.id = sa_outer.task_id AND tasks.status = sa_outer.status
             INNER JOIN challenges c ON c.id = tasks.parent_id
             LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
-            #${joinClause.toString}
-            WHERE tasks.parent_id IN (#${challengeIds.mkString(",")}) AND #${filters.toString}
+            ${joinClause.toString}
+            WHERE tasks.parent_id IN (${challengeIds.mkString(",")}) AND ${filters.toString}
             ORDER BY tasks.id
-            LIMIT #${this.sqlLimit(limit)} OFFSET #${page * limit}
-      """
+            LIMIT ${this.sqlLimit(limit)} OFFSET ${page * limit}
+      """).on(filterParameters.toSeq: _*)
       (query.as(parser.*), allComments)
     }
 

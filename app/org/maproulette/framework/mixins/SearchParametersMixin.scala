@@ -4,6 +4,7 @@
  */
 package org.maproulette.framework.mixins
 
+import anorm.NamedParameter
 import org.maproulette.session.{SearchParameters, SearchLocation}
 import org.maproulette.framework.psql.SQLUtils
 import org.maproulette.framework.psql.filter._
@@ -59,13 +60,7 @@ trait SearchParametersMixin {
 
   def filterChallengeTags(params: SearchParameters): FilterGroup = {
     if (params.hasChallengeTags) {
-      val tagList = params.challengeParams.challengeTags.get
-        .map(t => {
-          SQLUtils.testColumnName(t)
-          s"'${t}'"
-        })
-        .mkString(",")
-
+      val tags   = params.challengeParams.challengeTags.get
       val invert = params.invertFields.getOrElse(List()).contains("ct")
       FilterGroup(
         List(
@@ -73,12 +68,9 @@ trait SearchParametersMixin {
             Challenge.FIELD_ID,
             Query.simple(
               List(
-                BaseParameter(
-                  Task.FIELD_NAME,
-                  tagList,
-                  Operator.IN,
-                  useValueDirectly = true,
-                  table = Some("tags")
+                SQLParameter(
+                  "tags.name IN ({challengeTags})",
+                  List(NamedParameter("challengeTags", tags))
                 )
               ),
               "SELECT challenge_id from tags_on_challenges tc INNER JOIN tags ON tags.id = tc.tag_id"
@@ -103,12 +95,11 @@ trait SearchParametersMixin {
       List(
         FilterParameter.conditional(
           Project.FIELD_DISPLAY_NAME,
-          s"'${SQLUtils.search(params.projectSearch.getOrElse(""))}'",
+          SQLUtils.search(params.projectSearch.getOrElse("")),
           Operator.ILIKE,
           params.invertFields.getOrElse(List()).contains("ps"),
-          true,
-          params.projectSearch != None,
-          Some("p")
+          includeOnlyIfTrue = params.projectSearch != None,
+          table = Some("p")
         )
       )
     )
@@ -174,7 +165,7 @@ trait SearchParametersMixin {
                   List(
                     FuzzySearchParameter(
                       Project.FIELD_DISPLAY_NAME,
-                      s"'${ps.replace("'", "''")}'",
+                      ps,
                       x,
                       table = Some("p")
                     )
@@ -183,20 +174,34 @@ trait SearchParametersMixin {
               case None =>
                 FilterGroup(
                   List(
-                    FilterParameter.conditional(
+                    BaseParameter(
                       Project.FIELD_DISPLAY_NAME,
-                      s"'${SQLUtils.search(params.projectSearch.getOrElse(""))}'",
+                      SQLUtils.search(ps),
                       Operator.ILIKE,
                       params.invertFields.getOrElse(List()).contains("ps"),
-                      true,
-                      params.projectSearch != None,
-                      Some("p")
+                      table = Some("p")
                     ),
-                    CustomParameter(
-                      s"(c.id IN " +
-                        s"(SELECT vp2.challenge_id FROM virtual_project_challenges vp2 " +
-                        s" INNER JOIN projects p2 ON p2.id = vp2.project_id WHERE " +
-                        s" LOWER(p2.display_name) LIKE LOWER('${SQLUtils.search(ps)}') AND p2.enabled=true))"
+                    SubQueryFilter(
+                      Challenge.FIELD_ID,
+                      Query.simple(
+                        List(
+                          BaseParameter(
+                            Project.FIELD_DISPLAY_NAME,
+                            SQLUtils.search(ps),
+                            Operator.ILIKE,
+                            table = Some("p2")
+                          ),
+                          BaseParameter(
+                            Project.FIELD_ENABLED,
+                            None,
+                            Operator.BOOL,
+                            table = Some("p2")
+                          )
+                        ),
+                        "SELECT vp2.challenge_id FROM virtual_project_challenges vp2 " +
+                          "INNER JOIN projects p2 ON p2.id = vp2.project_id"
+                      ),
+                      table = Some("c")
                     )
                   ),
                   OR()
@@ -317,8 +322,9 @@ trait SearchParametersMixin {
       case Some(fid) =>
         FilterGroup(
           List(
-            CustomParameter(
-              s"LOWER(TRIM(${Task.TABLE}.${Task.FIELD_NAME}::TEXT)) LIKE LOWER('%${fid.trim}%')"
+            SQLParameter(
+              s"LOWER(TRIM(${Task.TABLE}.${Task.FIELD_NAME}::TEXT)) LIKE LOWER({taskFeatureId})",
+              List(NamedParameter("taskFeatureId", s"%${fid.trim}%"))
             )
           )
         )
@@ -390,13 +396,7 @@ trait SearchParametersMixin {
     */
   def filterTaskTags(params: SearchParameters): FilterGroup = {
     if (params.hasTaskTags) {
-      val tagList = params.taskParams.taskTags.get
-        .map(t => {
-          SQLUtils.testColumnName(t)
-          s"'${t.trim.toLowerCase()}'"
-        })
-        .mkString(",")
-
+      val tags   = params.taskParams.taskTags.get.map(_.trim.toLowerCase())
       val invert = params.invertFields.getOrElse(List()).contains("tt")
       FilterGroup(
         List(
@@ -404,12 +404,9 @@ trait SearchParametersMixin {
             Task.FIELD_ID,
             Query.simple(
               List(
-                BaseParameter(
-                  Task.FIELD_NAME,
-                  tagList,
-                  Operator.IN,
-                  useValueDirectly = true,
-                  table = Some("tags")
+                SQLParameter(
+                  "tags.name IN ({taskTags})",
+                  List(NamedParameter("taskTags", tags))
                 )
               ),
               "SELECT task_id from tags_on_tasks tt INNER JOIN tags ON tags.id = tt.tag_id"
@@ -662,9 +659,8 @@ trait SearchParametersMixin {
                   List(
                     BaseParameter(
                       Challenge.FIELD_NAME,
-                      s"'${SQLUtils.search(cs)}'",
+                      SQLUtils.search(cs),
                       Operator.ILIKE,
-                      useValueDirectly = true,
                       negate = params.invertFields.getOrElse(List()).contains("cs"),
                       table = Some("c")
                     )
@@ -844,39 +840,53 @@ trait SearchParametersMixin {
       case Some(l) =>
         params.taskParams.taskPropertySearch match {
           case Some(tps) =>
-            val query = new StringBuilder(s"""${Task.TABLE}.${Task.FIELD_ID} IN (
+            val (tpsSql, tpsParameters) = tps.toSQLWithParameters
+            val query                   = new StringBuilder(s"""${Task.TABLE}.${Task.FIELD_ID} IN (
                 | SELECT id FROM tasks,
                 | jsonb_array_elements(geojson->'features') features
                 | WHERE parent_id IN (${l.mkString(",")})
-                | AND (${tps.toSQL}))""".stripMargin)
-            FilterGroup(List(CustomParameter(query.toString())))
+                | AND (${tpsSql}))""".stripMargin)
+            FilterGroup(List(SQLParameter(query.toString, tpsParameters)))
           case _ =>
             params.taskParams.taskProperties match {
               case Some(tp) =>
                 val searchType = params.taskParams.taskPropertySearchType.getOrElse("equals")
 
-                val query = new StringBuilder(s"""${Task.TABLE}.${Task.FIELD_ID} IN (
+                val clauses    = new StringBuilder
+                val parameters = scala.collection.mutable.ListBuffer.empty[NamedParameter]
+                tp.zipWithIndex.foreach {
+                  case ((k, v), index) =>
+                    val keyParam   = s"taskPropKey$index"
+                    val valueParam = s"taskPropValue$index"
+                    searchType match {
+                      case SearchParameters.TASK_PROP_SEARCH_TYPE_EQUALS =>
+                        clauses ++= s" AND features->'properties'->>{$keyParam} = {$valueParam} "
+                        parameters += NamedParameter(keyParam, k)
+                        parameters += NamedParameter(valueParam, v)
+                      case SearchParameters.TASK_PROP_SEARCH_TYPE_NOT_EQUAL =>
+                        clauses ++= s" AND features->'properties'->>{$keyParam} != {$valueParam} "
+                        parameters += NamedParameter(keyParam, k)
+                        parameters += NamedParameter(valueParam, v)
+                      case SearchParameters.TASK_PROP_SEARCH_TYPE_CONTAINS =>
+                        clauses ++= s" AND features->'properties'->>{$keyParam} LIKE {$valueParam} "
+                        parameters += NamedParameter(keyParam, k)
+                        parameters += NamedParameter(valueParam, s"%$v%")
+                      case SearchParameters.TASK_PROP_SEARCH_TYPE_EXISTS =>
+                        clauses ++= s" AND features->'properties'->>{$keyParam} IS NOT NULL "
+                        parameters += NamedParameter(keyParam, k)
+                      case SearchParameters.TASK_PROP_SEARCH_TYPE_MISSING =>
+                        clauses ++= s" AND features->'properties'->>{$keyParam} IS NULL "
+                        parameters += NamedParameter(keyParam, k)
+                      case _ => // should not happen
+                    }
+                }
+
+                val query = s"""${Task.TABLE}.${Task.FIELD_ID} IN (
                     | SELECT id FROM tasks,
                     | jsonb_array_elements(geojson->'features') features
                     | WHERE parent_id IN (${l.mkString(",")})
-                    | AND (true""".stripMargin)
-                for ((k, v) <- tp) {
-                  searchType match {
-                    case SearchParameters.TASK_PROP_SEARCH_TYPE_EQUALS =>
-                      query ++= s" AND features->'properties'->>'${k}' = '${v}' "
-                    case SearchParameters.TASK_PROP_SEARCH_TYPE_NOT_EQUAL =>
-                      query ++= s" AND features->'properties'->>'${k}' != '${v}' "
-                    case SearchParameters.TASK_PROP_SEARCH_TYPE_CONTAINS =>
-                      query ++= s" AND features->'properties'->>'${k}' LIKE '${SQLUtils.search(v)}' "
-                    case SearchParameters.TASK_PROP_SEARCH_TYPE_EXISTS =>
-                      query ++= s" AND features->'properties'->>'${k}' IS NOT NULL "
-                    case SearchParameters.TASK_PROP_SEARCH_TYPE_MISSING =>
-                      query ++= s" AND features->'properties'->>'${k}' IS NULL "
-                    case _ => // should not happen
-                  }
-                }
-                query ++= "))"
-                FilterGroup(List(CustomParameter(query.toString())))
+                    | AND (true${clauses.toString}))""".stripMargin
+                FilterGroup(List(SQLParameter(query, parameters.toList)))
               case _ => FilterGroup(List())
             }
         }
@@ -939,10 +949,10 @@ trait SearchParametersMixin {
                     useValueDirectly = true
                   ),
                   BaseParameter(
-                    "u.name",
-                    s"'${SQLUtils.search(m)}'",
+                    "name",
+                    SQLUtils.search(m),
                     Operator.ILIKE,
-                    useValueDirectly = true
+                    table = Some("u")
                   )
                 ),
                 "SELECT t2.id FROM tasks t2 INNER JOIN users u ON u.id = t2.completed_by"
@@ -1142,10 +1152,10 @@ trait SearchParametersMixin {
                 useValueDirectly = true
               ),
               BaseParameter(
-                "u.name",
-                s"'${SQLUtils.search(value)}'",
+                "name",
+                SQLUtils.search(value),
                 Operator.ILIKE,
-                useValueDirectly = true
+                table = Some("u")
               )
             ),
             s"SELECT task_id FROM task_review tr INNER JOIN users u ON u.id = tr.${column}"
