@@ -49,7 +49,7 @@ class SessionHistoryRepositorySpec(implicit val application: Application)
     "serialize session events with a nested user object for the read API" taggedAs SessionHistoryRepoTag in {
       val task = this.insertTask()
       this.taskDAL.lockItem(this.defaultUser, task)
-      val events     = this.repository.listForTask(task.id)
+      val events = this.repository.listForTask(task.id)
       val usersById = Map(
         this.defaultUser.id -> play.api.libs.json.Json.obj(
           "id"       -> this.defaultUser.id,

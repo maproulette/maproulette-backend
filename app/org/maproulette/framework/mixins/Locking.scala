@@ -288,10 +288,11 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
             Symbol("itemId") -> ParameterValue.toParameterValue(primaryItem.id)(p = keyToStatement)
 
           if (existing.exists { case (_, itemId) => itemId == primaryItem.id }) {
-            SQL(s"""UPDATE locked
+            SQL(
+              s"""UPDATE locked
                     SET locked_time = NOW(), bundled_tasks = $membersLiteral, is_review_claim = $reviewClaim
-                    WHERE user_id = ${user.id} AND item_id = {itemId} AND item_type = ${primaryItem.itemType.typeId}""")
-              .on(itemIdParam)
+                    WHERE user_id = ${user.id} AND item_id = {itemId} AND item_type = ${primaryItem.itemType.typeId}"""
+            ).on(itemIdParam)
               .executeUpdate()
           } else {
             val lockId = SQL(
