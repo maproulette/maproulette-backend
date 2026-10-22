@@ -7,7 +7,6 @@ package org.maproulette.framework.service
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration.FiniteDuration
-import org.joda.time.DateTime
 
 import org.maproulette.framework.model._
 import org.maproulette.framework.psql.{Query, _}
