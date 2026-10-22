@@ -411,6 +411,80 @@ class TaskDAL @Inject() (
     }
   }
 
+  def upsertChallengeTasks(parent: Challenge, tasks: Seq[Task], user: User)(
+      implicit c: Connection
+  ): List[String] = {
+    this.permission.hasObjectWriteAccess(parent, user)
+
+    val prepared: Seq[Either[String, (JsObject, Option[Int])]] =
+      tasks.reverse.distinctBy(_.name.toLowerCase).reverse.map { task =>
+        Try {
+          validateGeoJson(task.geometries)
+          val geoJson = task.geometries + ("type" -> JsString("FeatureCollection"))
+          val (geometries, cooperativeWorkJson, cooperativeType) =
+            this.parseCooperativeWork(geoJson, task.cooperativeWork)
+          val instruction: String              = task.instruction.getOrElse("")
+          val cooperativeWork: Option[JsValue] = cooperativeWorkJson.map(Json.parse)
+          val row = Json.obj(
+            "name"             -> task.name,
+            "instruction"      -> instruction,
+            "geojson"          -> geometries,
+            "cooperative_work" -> cooperativeWork,
+            "priority"         -> task.getTaskPriority(parent)
+          )
+          (row, cooperativeType)
+        }.toEither.left.map(_ => task.name)
+      }
+
+    val rejected = prepared.collect { case Left(name) => name }
+    val accepted = prepared.collect { case Right(row) => row }
+
+    val notWritten = accepted
+      .grouped(TaskDAL.UPSERT_BATCH_SIZE)
+      .flatMap { batch =>
+        val names = batch.map { case (row, _) => (row \ "name").as[String] }
+        val written = SQL(
+          """WITH input AS (
+             SELECT r.name, r.instruction, r.geojson, r.cooperative_work, r.priority,
+                    task_geometry_from_geojson(r.geojson) AS geom
+             FROM jsonb_to_recordset({rows}::jsonb)
+               AS r(name TEXT, instruction TEXT, geojson JSONB, cooperative_work JSONB, priority INTEGER)
+           ), upserted AS (
+             INSERT INTO tasks AS t (name, parent_id, status, instruction, priority, geojson, location, geom, cooperative_work_json)
+             SELECT name, {parentId}, 0, instruction, priority, geojson, ST_Centroid(geom), geom, cooperative_work
+             FROM input WHERE geom IS NOT NULL
+             ON CONFLICT (parent_id, lower(name)) DO UPDATE SET
+               name = EXCLUDED.name, instruction = EXCLUDED.instruction, priority = EXCLUDED.priority,
+               changeset_id = -1, geojson = EXCLUDED.geojson,
+               cooperative_work_json = EXCLUDED.cooperative_work_json,
+               location = EXCLUDED.location, geom = EXCLUDED.geom,
+               mapped_on = CASE WHEN t.status = 0 THEN NULL ELSE t.mapped_on END
+             RETURNING t.id, t.name, t.status, (t.xmax = 0) AS inserted
+           ), cleared_reviews AS (
+             DELETE FROM task_review
+             WHERE task_id IN (SELECT id FROM upserted WHERE NOT inserted AND status = 0)
+           )
+           SELECT name FROM upserted"""
+        ).on(
+            "rows"     -> Json.stringify(JsArray(batch.map { case (row, _) => row })),
+            "parentId" -> parent.id
+          )
+          .as(str("name").*)
+          .map(_.toLowerCase)
+          .toSet
+        names.filterNot(name => written.contains(name.toLowerCase))
+      }
+      .toList
+
+    accepted.flatMap { case (_, cooperativeType) => cooperativeType }.lastOption.foreach {
+      cooperativeType =>
+        SQL"UPDATE challenges SET cooperative_type = $cooperativeType WHERE id = ${parent.id}"
+          .execute()
+    }
+
+    rejected.toList ++ notWritten
+  }
+
   /**
     * Ensure that the given JSON object is a valid and non-empty GeoJSON
     * FeatureCollection. Raises an error if not, which will be sent as
@@ -463,60 +537,71 @@ class TaskDAL @Inject() (
   )(
       implicit c: Option[Connection] = None
   ): (String, Option[String]) = {
-    this.withMRTransaction { implicit c =>
-      var cooperativeWorkJson: Option[String] = cooperativeWork.map(Json.stringify)
+    val (extractedGeometries, cooperativeWorkJson, cooperativeType) =
+      this.parseCooperativeWork(geometries, cooperativeWork)
 
-      var workMatch = (geometries \\ "cooperativeWork")
-      if (workMatch.isEmpty) {
-        // Check to see if our cooperative work JSON was changed into a string due
-        // to being a feature property (which are always converted to strings)
-        val parentMatch = (geometries \\ "maproulette")
-        if (!parentMatch.isEmpty) {
-          workMatch = (Json.parse(Utils.unescapeStringifiedJSON(parentMatch.head.toString())) \\ "cooperativeWork")
-        }
+    // Set the correct cooperative type on the parent challenge
+    cooperativeType.foreach { cooperativeType =>
+      this.withMRTransaction { implicit c =>
+        SQL(s"UPDATE challenges SET cooperative_type = ${cooperativeType} WHERE id=${parentId}")
+          .execute()
       }
-
-      if (!workMatch.isEmpty) {
-        cooperativeWorkJson = Some(workMatch.head.toString())
-      }
-
-      val attachments         = (geometries \ "attachments").toOption
-      val extractedGeometries = this.pruneMapRouletteProperties(geometries)
-
-      // Set the correct cooperative type on the parent challenge
-      cooperativeWorkJson match {
-        case Some(work) =>
-          val parsed = Json.parse(work)
-          // Version 1 formatted work is always a tags-type challenge
-          // In version 2, the type is explicitly specified
-          val cooperativeType = (parsed \ "meta" \ "version").as[Int] match {
-            case 1 => Challenge.COOPERATIVE_TAGS
-            case 2 => (parsed \ "meta" \ "type").as[Int]
-            case other =>
-              throw new InvalidException(
-                s"Unsupported cooperative challenge format version ${other}"
-              )
-          }
-
-          SQL(s"UPDATE challenges SET cooperative_type = ${cooperativeType} WHERE id=${parentId}")
-            .execute()
-        case None => // do nothing
-      }
-
-      (
-        JsObject(
-          Seq(
-            Some("features" -> extractedGeometries),
-            Some("type"     -> JsString("FeatureCollection")),
-            attachments match {
-              case Some(a) => Some("attachments" -> a)
-              case None    => None
-            }
-          ).flatten
-        ).toString,
-        cooperativeWorkJson
-      )
     }
+
+    (extractedGeometries.toString, cooperativeWorkJson)
+  }
+
+  private def parseCooperativeWork(
+      geometries: JsObject,
+      cooperativeWork: Option[JsObject]
+  ): (JsObject, Option[String], Option[Int]) = {
+    var cooperativeWorkJson: Option[String] = cooperativeWork.map(Json.stringify)
+
+    var workMatch = (geometries \\ "cooperativeWork")
+    if (workMatch.isEmpty) {
+      // Check to see if our cooperative work JSON was changed into a string due
+      // to being a feature property (which are always converted to strings)
+      val parentMatch = (geometries \\ "maproulette")
+      if (!parentMatch.isEmpty) {
+        workMatch = (Json.parse(Utils.unescapeStringifiedJSON(parentMatch.head.toString())) \\ "cooperativeWork")
+      }
+    }
+
+    if (!workMatch.isEmpty) {
+      cooperativeWorkJson = Some(workMatch.head.toString())
+    }
+
+    val attachments         = (geometries \ "attachments").toOption
+    val extractedGeometries = this.pruneMapRouletteProperties(geometries)
+
+    val cooperativeType = cooperativeWorkJson.map { work =>
+      val parsed = Json.parse(work)
+      // Version 1 formatted work is always a tags-type challenge
+      // In version 2, the type is explicitly specified
+      (parsed \ "meta" \ "version").as[Int] match {
+        case 1 => Challenge.COOPERATIVE_TAGS
+        case 2 => (parsed \ "meta" \ "type").as[Int]
+        case other =>
+          throw new InvalidException(
+            s"Unsupported cooperative challenge format version ${other}"
+          )
+      }
+    }
+
+    (
+      JsObject(
+        Seq(
+          Some("features" -> extractedGeometries),
+          Some("type"     -> JsString("FeatureCollection")),
+          attachments match {
+            case Some(a) => Some("attachments" -> a)
+            case None    => None
+          }
+        ).flatten
+      ),
+      cooperativeWorkJson,
+      cooperativeType
+    )
   }
 
   /**
@@ -1619,4 +1704,5 @@ class TaskDAL @Inject() (
 
 object TaskDAL {
   val DEFAULT_NUMBER_OF_POINTS = 100
+  val UPSERT_BATCH_SIZE        = 5000
 }

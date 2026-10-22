@@ -35,7 +35,8 @@ import anorm.SqlParser
 import play.api.mvc._
 import play.shaded.oauth.oauth.signpost.exception.OAuthNotAuthorizedException
 
-import scala.concurrent.Future
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
 import scala.io.Source
 
 /**
@@ -111,8 +112,9 @@ class ChallengeController @Inject() (
       case None        => None
     }
 
-    if (!this.challengeProvider.buildTasks(user, createdObject, localJson)) {
-      super.extractAndCreate(body, createdObject, user)
+    this.challengeProvider.buildTasks(user, createdObject, localJson) match {
+      case Some(build) => Await.ready(build, Duration.Inf)
+      case None        => super.extractAndCreate(body, createdObject, user)
     }
     // we need to elevate the user permissions to super users to extract and create the tags
     this.extractTags(body, createdObject, User.superUser)
@@ -1491,7 +1493,7 @@ class ChallengeController @Inject() (
       removeUnmatched: Boolean,
       skipSnapshot: Boolean
   ): Action[AnyContent] = Action.async { implicit request =>
-    sessionManager.authenticatedRequest { implicit user =>
+    sessionManager.authenticatedFutureRequest { implicit user =>
       dalManager.challenge.retrieveById(challengeId) match {
         case Some(c) =>
           permission.hasWriteAccess(ProjectType(), user)(c.general.parent)
@@ -1510,8 +1512,7 @@ class ChallengeController @Inject() (
             this.snapshotManager.recordChallengeSnapshot(challengeId)
           }
 
-          challengeProvider.rebuildTasks(user, c, removeUnmatched)
-          Ok
+          challengeProvider.rebuildTasks(user, c, removeUnmatched).map(_ => Ok)
         case None => throw new NotFoundException(s"No challenge found with id $challengeId")
       }
     }
@@ -1584,9 +1585,7 @@ class ChallengeController @Inject() (
 
               request.body.file("json") match {
                 case Some(f) if StringUtils.isNotEmpty(f.filename) =>
-                  if (removeUnmatched) {
-                    dalManager.challenge.removeIncompleteTasks(user)(challengeId)
-                  }
+                  val originDate = dataOriginDate.map(d => new DateTime(d))
 
                   // todo this should probably be streamed instead of all pulled into memory
                   val sourceData       = Source.fromFile(f.ref.getAbsoluteFile).getLines()
@@ -1622,22 +1621,23 @@ class ChallengeController @Inject() (
                         )
                       }
                     } else {
-                      sourceData.foreach(challengeProvider.createTaskFromJson(user, c, _))
+                      challengeProvider.createTasksFromLines(
+                        user,
+                        c,
+                        sourceData.toSeq,
+                        removeUnmatched,
+                        originDate
+                      )
                     }
                   } else {
                     challengeProvider.createTasksFromJson(
                       user,
                       c,
                       sourceData.mkString,
-                      currentTaskCount
+                      currentTaskCount,
+                      removeUnmatched,
+                      originDate
                     )
-                  }
-                  dataOriginDate match {
-                    case Some(d) =>
-                      dalManager.challenge.markTasksRefreshed(true, Some(new DateTime(d)))(
-                        challengeId
-                      )
-                    case _ => // do nothing
                   }
                   NoContent
                 case _ =>

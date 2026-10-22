@@ -7,7 +7,7 @@ import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}
 import org.maproulette.provider.{ChallengeProvider, TaskBuilderExecutionContext}
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.{any, eq => eqM}
-import org.mockito.Mockito.{atLeastOnce, doAnswer, never, timeout, times, verify, when}
+import org.mockito.Mockito.{atLeastOnce, doAnswer, never, verify, when}
 import org.mockito.invocation.InvocationOnMock
 import org.scalatest.BeforeAndAfterAll
 import org.scalatestplus.play.PlaySpec
@@ -18,8 +18,8 @@ import play.api.libs.json._
 import play.api.libs.ws.{WSClient, WSRequest, WSResponse}
 import java.sql.Connection
 import java.util.UUID
-import scala.concurrent.Future
-import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
 class ChallengeProviderSpec extends PlaySpec with MockitoSugar with BeforeAndAfterAll {
@@ -405,45 +405,79 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar with BeforeAndAft
 
   val user: User = User.superUser
 
-  // Fresh mocks per test so the async verifications cannot interfere with each other
+  private abstract class BuildFixture(challenge: Challenge)(
+      implicit val ec: TaskBuilderExecutionContext
+  ) {
+    val ws: WSClient               = mock[WSClient]
+    val wsRequest: WSRequest       = mock[WSRequest]
+    val challengeDAL: ChallengeDAL = mock[ChallengeDAL]
+    val taskDAL: TaskDAL           = mock[TaskDAL]
+    val db: Database               = mock[Database]
+    val backgroundDb: Database     = mock[Database]
+    val connection: Connection     = mock[Connection]
+
+    when(ws.url(any[String])).thenReturn(wsRequest)
+    when(wsRequest.withRequestTimeout(any[Duration])).thenReturn(wsRequest)
+    when(challengeDAL.lockForTaskBuild(any[Long], any[Connection])).thenReturn(Some(challenge))
+    when(taskDAL.upsertChallengeTasks(any[Challenge], any[Seq[Task]], any[User])(any[Connection]))
+      .thenReturn(Nil)
+    doAnswer { (invocation: InvocationOnMock) =>
+      invocation.getArgument(0).asInstanceOf[Connection => Any](connection)
+    }.when(backgroundDb).withTransaction(any[Connection => Any])
+
+    val provider = new ChallengeProvider(challengeDAL, taskDAL, config, ws, db, backgroundDb)
+
+    def build(removeUnmatched: Boolean = false): Future[Unit] = {
+      val result = provider.buildTasks(user, challenge, None, removeUnmatched)
+      result mustBe defined
+      Await.ready(result.get, 5.seconds)
+      result.get
+    }
+
+    // Returns every status written to the challenge, in order
+    def statusUpdates(): List[(Int, String)] = {
+      val statusCaptor: ArgumentCaptor[Int]     = ArgumentCaptor.forClass(classOf[Int])
+      val messageCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
+      verify(challengeDAL, atLeastOnce())
+        .updateBuildStatus(statusCaptor.capture(), messageCaptor.capture())(
+          eqM(challenge.id),
+          any()
+        )
+      statusCaptor.getAllValues.asScala.toList.zip(messageCaptor.getAllValues.asScala.toList)
+    }
+
+    def statuses(): List[Int] = statusUpdates().map(_._1)
+
+    def writtenTasks(): Seq[Task] = {
+      val captor: ArgumentCaptor[Seq[Task]] = ArgumentCaptor.forClass(classOf[Seq[Task]])
+      verify(taskDAL).upsertChallengeTasks(eqM(challenge), captor.capture(), eqM(user))(
+        eqM(connection)
+      )
+      captor.getValue
+    }
+  }
+
   private class OverpassFixture(
       status: Int = 200,
       contentType: Option[String] = Some("application/json"),
       responseBody: String = ""
-  ) {
-    val ws: WSClient                             = mock[WSClient]
-    val wsRequest: WSRequest                     = mock[WSRequest]
-    val wsResponse: WSResponse                   = mock[WSResponse]
-    val challengeDAL: ChallengeDAL               = mock[ChallengeDAL]
-    val taskDAL: TaskDAL                         = mock[TaskDAL]
-    val db: Database                             = mock[Database]
-    val backgroundDb: Database                   = mock[Database]
-    implicit val ec: TaskBuilderExecutionContext = testEc
+  ) extends BuildFixture(overpassChallenge)(testEc) {
+    val wsResponse: WSResponse = mock[WSResponse]
 
-    when(ws.url(any[String])).thenReturn(wsRequest)
-    when(wsRequest.withRequestTimeout(any[Duration])).thenReturn(wsRequest)
     when(wsRequest.post(any[String])(any())).thenReturn(Future.successful(wsResponse))
     when(wsResponse.status).thenReturn(status)
     when(wsResponse.statusText).thenReturn("statusText")
     when(wsResponse.header("Content-Type")).thenReturn(contentType)
     when(wsResponse.json).thenReturn(overpassResponse)
     when(wsResponse.body).thenReturn(responseBody)
-    doAnswer { (invocation: InvocationOnMock) =>
-      invocation.getArgument(0).asInstanceOf[Connection => Any](mock[Connection])
-    }.when(db).withTransaction(any[Connection => Any])
-    doAnswer { (invocation: InvocationOnMock) =>
-      invocation.getArgument(0).asInstanceOf[Connection => Any](mock[Connection])
-    }.when(backgroundDb).withTransaction(any[Connection => Any])
-
-    val provider = new ChallengeProvider(challengeDAL, taskDAL, config, ws, db, backgroundDb)
   }
 
   "buildTasks with an overpass query" should {
     "post the query unmodified to the configured overpass provider" in new OverpassFixture {
-      provider.buildTasks(user, overpassChallenge) mustEqual true
+      build()
 
       val queryCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
-      verify(wsRequest, timeout(5000)).post(queryCaptor.capture())(any())
+      verify(wsRequest).post(queryCaptor.capture())(any())
       // this query already contains [out:json], so rewriteQuery must pass it through untouched
       queryCaptor.getValue mustEqual overpassQuery
 
@@ -452,14 +486,10 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar with BeforeAndAft
       verify(wsRequest).withRequestTimeout(Duration(Config.DEFAULT_OSM_QL_TIMEOUT, "seconds"))
     }
 
-    "create a task for each element in the overpass response" in new OverpassFixture {
-      provider.buildTasks(user, overpassChallenge)
+    "write a task for each element in the overpass response in one batch" in new OverpassFixture {
+      build()
 
-      val taskCaptor: ArgumentCaptor[Task] = ArgumentCaptor.forClass(classOf[Task])
-      verify(taskDAL, timeout(5000).times(5))
-        .mergeUpdate(taskCaptor.capture(), eqM(user))(any[Long], any[Option[Connection]])
-
-      val tasks = taskCaptor.getAllValues.asScala
+      val tasks = writtenTasks()
       tasks.map(_.name) must contain theSameElementsAs List(
         "566529047",
         "946351389",
@@ -478,51 +508,76 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar with BeforeAndAft
       (feature \ "properties" \ "osmid").as[String] mustEqual "566529047"
     }
 
-    "mark the challenge as ready once all tasks are built" in new OverpassFixture {
-      provider.buildTasks(user, overpassChallenge)
+    "lock the challenge and finish the build in the same transaction" in new OverpassFixture {
+      build().value.get.isSuccess mustEqual true
 
-      val updateCaptor: ArgumentCaptor[JsValue] = ArgumentCaptor.forClass(classOf[JsValue])
-      verify(challengeDAL, timeout(5000).times(3))
-        .update(updateCaptor.capture(), eqM(user))(eqM(overpassChallenge.id), any())
-      val statuses = updateCaptor.getAllValues.asScala.map(json => (json \ "status").as[Int])
-      statuses.take(2) mustEqual List(Challenge.STATUS_BUILDING, Challenge.STATUS_BUILDING)
-      statuses.last mustEqual Challenge.STATUS_READY
-
-      verify(challengeDAL).markTasksRefreshed(eqM(true), any())(eqM(overpassChallenge.id), any())
-      verify(challengeDAL).updateBoundingBox()(eqM(overpassChallenge.id), any())
+      statuses() mustEqual List(Challenge.STATUS_BUILDING, Challenge.STATUS_READY)
+      verify(challengeDAL).lockForTaskBuild(eqM(overpassChallenge.id), eqM(connection))
+      verify(challengeDAL).markTasksRefreshed(eqM(true), any())(
+        eqM(overpassChallenge.id),
+        eqM(Some(connection))
+      )
+      verify(challengeDAL).updateBoundingBox()(eqM(overpassChallenge.id), eqM(Some(connection)))
+      verify(challengeDAL).updateTaskPriorities(eqM(user), any())(
+        eqM(overpassChallenge.id),
+        eqM(Some(connection))
+      )
       verify(challengeDAL)
-        .updateFinishedStatus(eqM(true), eqM(user))(eqM(overpassChallenge.id), any())
+        .updateFinishedStatus(eqM(true), eqM(user))(
+          eqM(overpassChallenge.id),
+          eqM(Some(connection))
+        )
+      verify(challengeDAL, never()).removeIncompleteTasks(any())(any(), any())
+    }
+
+    "remove unmatched tasks inside the build transaction" in new OverpassFixture {
+      build(removeUnmatched = true)
+
+      verify(challengeDAL).removeIncompleteTasks(eqM(user))(
+        eqM(overpassChallenge.id),
+        eqM(Some(connection))
+      )
+    }
+
+    "mark the challenge partially loaded when some tasks could not be written" in new OverpassFixture {
+      when(
+        taskDAL.upsertChallengeTasks(any[Challenge], any[Seq[Task]], any[User])(any[Connection])
+      ).thenReturn(List("946351389"))
+
+      build()
+
+      statusUpdates().last mustEqual (
+        (
+          Challenge.STATUS_PARTIALLY_LOADED,
+          "1 tasks could not be created: 946351389"
+        )
+      )
+      verify(challengeDAL, never()).markTasksRefreshed(any(), any())(any(), any())
     }
 
     "fail the challenge when overpass returns a non-JSON content type" in new OverpassFixture(
       contentType = Some("text/csv")
     ) {
-      provider.buildTasks(user, overpassChallenge)
+      build().value.get.isFailure mustEqual true
 
-      val updateCaptor: ArgumentCaptor[JsValue] = ArgumentCaptor.forClass(classOf[JsValue])
-      verify(challengeDAL, timeout(5000).times(3))
-        .update(updateCaptor.capture(), eqM(user))(eqM(overpassChallenge.id), any())
-      val lastUpdate = updateCaptor.getAllValues.asScala.last
-      (lastUpdate \ "status").as[Int] mustEqual Challenge.STATUS_FAILED
-      (lastUpdate \ "statusMessage").as[String] must include("Content-Type: text/csv")
+      val (lastStatus, lastMessage) = statusUpdates().last
+      lastStatus mustEqual Challenge.STATUS_FAILED
+      lastMessage must include("Content-Type: text/csv")
 
-      verify(taskDAL, never()).mergeUpdate(any(), any())(any(), any())
+      verify(taskDAL, never()).upsertChallengeTasks(any(), any(), any())(any())
     }
 
     "fail the challenge with a friendly message when overpass is too busy" in new OverpassFixture(
       status = 504,
       responseBody = "<html><strong>Error</strong>runtime error</html>"
     ) {
-      provider.buildTasks(user, overpassChallenge)
+      build().value.get.isFailure mustEqual true
 
-      val updateCaptor: ArgumentCaptor[JsValue] = ArgumentCaptor.forClass(classOf[JsValue])
-      verify(challengeDAL, timeout(5000).times(3))
-        .update(updateCaptor.capture(), eqM(user))(eqM(overpassChallenge.id), any())
-      val lastUpdate = updateCaptor.getAllValues.asScala.last
-      (lastUpdate \ "status").as[Int] mustEqual Challenge.STATUS_FAILED
-      (lastUpdate \ "statusMessage").as[String] must include("too busy or timed out")
+      val (lastStatus, lastMessage) = statusUpdates().last
+      lastStatus mustEqual Challenge.STATUS_FAILED
+      lastMessage must include("too busy or timed out")
 
-      verify(taskDAL, never()).mergeUpdate(any(), any())(any(), any())
+      verify(taskDAL, never()).upsertChallengeTasks(any(), any(), any())(any())
     }
   }
 
@@ -550,44 +605,9 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar with BeforeAndAft
     )
   )
 
-  // Runs callbacks on the calling thread, effectively making buildTasks into
-  // a synchronous function for test purposes
-  private val inlineEc = new TaskBuilderExecutionContext(actorSystem) {
-    override def execute(runnable: Runnable): Unit = runnable.run()
-  }
-
-  private class RemoteFixture(response: => Future[WSResponse]) {
-    val ws: WSClient                             = mock[WSClient]
-    val wsRequest: WSRequest                     = mock[WSRequest]
-    val challengeDAL: ChallengeDAL               = mock[ChallengeDAL]
-    val taskDAL: TaskDAL                         = mock[TaskDAL]
-    val db: Database                             = mock[Database]
-    val backgroundDb: Database                   = mock[Database]
-    implicit val ec: TaskBuilderExecutionContext = inlineEc
-
-    when(ws.url(any[String])).thenReturn(wsRequest)
-    when(wsRequest.withRequestTimeout(any[Duration])).thenReturn(wsRequest)
+  private class RemoteFixture(response: => Future[WSResponse])
+      extends BuildFixture(remoteChallenge)(testEc) {
     when(wsRequest.get()).thenAnswer(_ => response)
-    when(taskDAL.mergeUpdate(any[Task], any[User])(any[Long], any[Option[Connection]]))
-      .thenReturn(None)
-    doAnswer { (invocation: InvocationOnMock) =>
-      invocation.getArgument(0).asInstanceOf[Connection => Any](mock[Connection])
-    }.when(db).withTransaction(any[Connection => Any])
-    doAnswer { (invocation: InvocationOnMock) =>
-      invocation.getArgument(0).asInstanceOf[Connection => Any](mock[Connection])
-    }.when(backgroundDb).withTransaction(any[Connection => Any])
-
-    val provider = new ChallengeProvider(challengeDAL, taskDAL, config, ws, db, backgroundDb)
-
-    // Returns every status update made to the challenge, in order
-    def statusUpdates(): List[JsValue] = {
-      val captor: ArgumentCaptor[JsValue] = ArgumentCaptor.forClass(classOf[JsValue])
-      verify(challengeDAL, atLeastOnce())
-        .update(captor.capture(), eqM(user))(eqM(remoteChallenge.id), any())
-      captor.getAllValues.asScala.toList
-    }
-
-    def statuses(): List[Int] = statusUpdates().map(u => (u \ "status").as[Int])
   }
 
   private def response(status: Int, body: String): Future[WSResponse] = {
@@ -598,61 +618,64 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar with BeforeAndAft
   }
 
   "buildTasks with a remote GeoJSON URL" should {
-    "create tasks and mark the challenge ready" in new RemoteFixture(
+    "write the tasks in one batch and mark the challenge ready" in new RemoteFixture(
       response(200, Json.stringify(remoteGeoJson))
     ) {
-      provider.buildTasks(user, remoteChallenge) mustEqual true
+      build().value.get.isSuccess mustEqual true
 
       verify(ws).url(remoteUrl)
-      verify(taskDAL, times(2))
-        .mergeUpdate(any[Task], eqM(user))(any[Long], any[Option[Connection]])
-      statuses() mustEqual List(
-        Challenge.STATUS_BUILDING,
-        Challenge.STATUS_BUILDING,
-        Challenge.STATUS_READY
-      )
+      writtenTasks().map(_.name) mustEqual List("a", "b")
+      statuses().last mustEqual Challenge.STATUS_READY
     }
 
     "fail the challenge on a non-2xx response" in new RemoteFixture(
       response(404, "Not Found")
     ) {
-      provider.buildTasks(user, remoteChallenge)
+      build()
 
-      statuses() mustEqual List(Challenge.STATUS_BUILDING, Challenge.STATUS_FAILED)
-      (statusUpdates().last \ "statusMessage").as[String] mustEqual
-        "Could not fetch remote GeoJSON (HTTP 404)"
-      verify(taskDAL, never()).mergeUpdate(any(), any())(any(), any())
+      statusUpdates() mustEqual List(
+        (Challenge.STATUS_BUILDING, Challenge.STATUS_MESSAGE_NONE),
+        (Challenge.STATUS_FAILED, "Could not fetch remote GeoJSON (HTTP 404)")
+      )
+      verify(taskDAL, never()).upsertChallengeTasks(any(), any(), any())(any())
     }
 
     "fail without echoing the response when it is not valid GeoJSON" in new RemoteFixture(
       response(200, "{\"AccessKeyId\": \"ASIA-SECRET\", \"Token\": \"also-secret\"")
     ) {
-      provider.buildTasks(user, remoteChallenge)
+      build()
 
       // FAILED must be the last update, not overwritten with READY
-      statuses() mustEqual List(Challenge.STATUS_BUILDING, Challenge.STATUS_FAILED)
-      (statusUpdates().last \ "statusMessage").as[String] mustEqual
-        "Remote GeoJSON could not be read; check that it is valid GeoJSON"
-      verify(taskDAL, never()).mergeUpdate(any(), any())(any(), any())
+      statusUpdates() mustEqual List(
+        (Challenge.STATUS_BUILDING, Challenge.STATUS_MESSAGE_NONE),
+        (
+          Challenge.STATUS_FAILED,
+          "Remote GeoJSON could not be read; check that it is valid GeoJSON"
+        )
+      )
+      verify(taskDAL, never()).upsertChallengeTasks(any(), any(), any())(any())
     }
 
     "fail without echoing the error when the fetch fails" in new RemoteFixture(
       Future.failed(new java.net.ConnectException("Connection refused: /10.0.0.5:8080"))
     ) {
-      provider.buildTasks(user, remoteChallenge)
+      build()
 
-      statuses() mustEqual List(Challenge.STATUS_BUILDING, Challenge.STATUS_FAILED)
-      (statusUpdates().last \ "statusMessage").as[String] mustEqual "Could not fetch remote GeoJSON"
+      statusUpdates() mustEqual List(
+        (Challenge.STATUS_BUILDING, Challenge.STATUS_MESSAGE_NONE),
+        (Challenge.STATUS_FAILED, "Could not fetch remote GeoJSON")
+      )
     }
 
     "fail the challenge when the URL is malformed" in new RemoteFixture(response(200, "")) {
       when(ws.url(any[String])).thenThrow(new IllegalArgumentException("bad url"))
 
-      provider.buildTasks(user, remoteChallenge) mustEqual true
+      build()
 
-      statuses() mustEqual List(Challenge.STATUS_BUILDING, Challenge.STATUS_FAILED)
-      (statusUpdates().last \ "statusMessage").as[String] mustEqual
-        "Remote GeoJSON URL is not valid"
+      statusUpdates() mustEqual List(
+        (Challenge.STATUS_BUILDING, Challenge.STATUS_MESSAGE_NONE),
+        (Challenge.STATUS_FAILED, "Remote GeoJSON URL is not valid")
+      )
     }
   }
 }
