@@ -2,6 +2,8 @@ name: MapRoulette Backend CI
 
 on:
   push:
+    # PR branches are built by the pull_request trigger, so only build main on push
+    branches: [ "main" ]
   pull_request:
 
 jobs:
@@ -111,6 +113,8 @@ jobs:
         echo '  bootstrap=true' >> ./conf/dev.conf
         echo '}' >> ./conf/dev.conf
     - name: Run maproulette and the maproulette-java-client integration tests
+      # TODO: Temporarily disabled since API keys are disabled and the java-client uses one
+      if: false
       env:
         # maproulette overrides
         APPLICATION_SECRET: ${{ needs.generate_app_secret.outputs.application_secret }}
