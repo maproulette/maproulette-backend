@@ -44,20 +44,19 @@ trait ParentDAL[Key, T <: BaseObject[Key], C <: BaseObject[Key]]
       implicit c: Option[Connection] = None
   ): T = {
     implicit val key = id
-    val deletedItem = this.cacheManager.withDeletingCache(Long => retrieveById) {
-      implicit deletedItem =>
-        this.permission.hasObjectAdminAccess(deletedItem.asInstanceOf[BaseObject[Long]], user)
-        this.withMRTransaction { implicit c =>
-          val query = if (immediate) {
-            s"DELETE FROM ${this.tableName} WHERE id = {id}"
-          } else {
-            s"UPDATE ${this.tableName} SET deleted = true WHERE id = {id}"
-          }
-          SQL(query)
-            .on(Symbol("id") -> ToParameterValue.apply[Key](p = keyToStatement).apply(id))
-            .executeUpdate()
-          Some(deletedItem)
+    val deletedItem = this.retrieveById.flatMap { implicit deletedItem =>
+      this.permission.hasObjectAdminAccess(deletedItem.asInstanceOf[BaseObject[Long]], user)
+      this.withMRTransaction { implicit c =>
+        val query = if (immediate) {
+          s"DELETE FROM ${this.tableName} WHERE id = {id}"
+        } else {
+          s"UPDATE ${this.tableName} SET deleted = true WHERE id = {id}"
         }
+        SQL(query)
+          .on(Symbol("id") -> ToParameterValue.apply[Key](p = keyToStatement).apply(id))
+          .executeUpdate()
+        Some(deletedItem)
+      }
     }
 
     deletedItem match {
@@ -77,16 +76,15 @@ trait ParentDAL[Key, T <: BaseObject[Key], C <: BaseObject[Key]]
     */
   def undelete(id: Key, user: User)(implicit c: Option[Connection] = None): T = {
     implicit val key = id
-    val deletedItem = this.cacheManager.withDeletingCache(Long => retrieveById) {
-      implicit deletedItem =>
-        this.permission.hasObjectWriteAccess(deletedItem.asInstanceOf[BaseObject[Long]], user)
-        this.withMRTransaction { implicit c =>
-          val query = s"UPDATE ${this.tableName} SET deleted = false WHERE id = {id}"
-          SQL(query)
-            .on(Symbol("id") -> ToParameterValue.apply[Key](p = keyToStatement).apply(id))
-            .executeUpdate()
-          Some(deletedItem)
-        }
+    val deletedItem = this.retrieveById.flatMap { implicit deletedItem =>
+      this.permission.hasObjectWriteAccess(deletedItem.asInstanceOf[BaseObject[Long]], user)
+      this.withMRTransaction { implicit c =>
+        val query = s"UPDATE ${this.tableName} SET deleted = false WHERE id = {id}"
+        SQL(query)
+          .on(Symbol("id") -> ToParameterValue.apply[Key](p = keyToStatement).apply(id))
+          .executeUpdate()
+        Some(deletedItem)
+      }
     }
     deletedItem match {
       case Some(item) => item

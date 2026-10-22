@@ -164,10 +164,6 @@ class ChallengeService @Inject() (
       ),
       User.superUser
     )
-
-    // A user carries their grants on the cached copy of themselves, so the new
-    // role does not reach them until that copy is thrown away.
-    this.serviceManager.user.clearCache(granted.id)
   }
 
   /**
@@ -187,9 +183,6 @@ class ChallengeService @Inject() (
       target = Some(GrantTarget.challenge(challengeId)),
       user = User.superUser
     )
-
-    // As above: the revoked role lingers on the cached user until it is cleared.
-    this.serviceManager.user.clearCache(userId)
   }
 
   private def requireChallenge(challengeId: Long): Challenge =

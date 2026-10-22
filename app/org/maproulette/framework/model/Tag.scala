@@ -5,7 +5,6 @@
 package org.maproulette.framework.model
 
 import org.joda.time.DateTime
-import org.maproulette.cache.CacheObject
 import org.maproulette.framework.psql.CommonField
 import play.api.libs.json.{Json, Reads, Writes}
 import play.api.libs.json.JodaWrites._
@@ -19,14 +18,14 @@ import play.api.libs.json.JodaReads._
   * @author cuthbertm
   */
 case class Tag(
-    override val id: Long,
-    override val name: String,
+    id: Long,
+    name: String,
     description: Option[String] = None,
     created: DateTime = DateTime.now(),
     modified: DateTime = DateTime.now(),
     tagType: String = "challenges",
     active: Boolean = true
-) extends CacheObject[Long]
+)
 
 /**
   * Mapping between Task and Tag

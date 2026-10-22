@@ -7,7 +7,6 @@ package org.maproulette.framework.service
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration.FiniteDuration
-import org.joda.time.DateTime
 
 import org.maproulette.framework.model._
 import org.maproulette.framework.psql.{Query, _}
@@ -669,23 +668,6 @@ class TaskReviewService @Inject() (
       }
     }
 
-    this.taskRepository.cacheManager.withOptionCaching { () =>
-      Some(
-        task.copy(review = task.review.copy(
-          reviewStatus = Some(reviewStatus),
-          reviewRequestedBy = reviewRequestedBy,
-          reviewedBy = reviewedBy,
-          reviewedAt = Some(new DateTime()),
-          reviewClaimedBy = None,
-          reviewClaimedAt = None,
-          metaReviewStatus =
-            if (needsMetaReviewAgain) Some(Task.REVIEW_STATUS_REQUESTED)
-            else task.review.metaReviewStatus
-        )
-        )
-      )
-    }
-
     if (reviewStatus != Task.REVIEW_STATUS_UNNECESSARY) {
       if (!needsReReview) {
         var reviewStartTime: Option[Long] = None
@@ -879,19 +861,6 @@ class TaskReviewService @Inject() (
           errorTags = errorTags
         )
       }
-    }
-
-    this.taskRepository.cacheManager.withOptionCaching { () =>
-      Some(
-        task.copy(review = task.review.copy(
-          metaReviewStatus = Some(reviewStatus),
-          metaReviewedBy = Some(metaReviewer),
-          reviewedAt = Some(new DateTime()),
-          reviewClaimedAt = None,
-          reviewClaimedBy = None
-        )
-        )
-      )
     }
 
     updatedRows

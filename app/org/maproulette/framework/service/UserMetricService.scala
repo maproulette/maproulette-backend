@@ -223,95 +223,92 @@ class UserMetricService @Inject() (
       reviewStartTime: Option[Long] = None,
       userId: Long
   ): Option[User] = {
-    // We need to invalidate the user in the cache.
-    this.userService.cacheManager.withDeletingCache(id => userService.retrieve(id)) {
-      implicit cachedItem =>
-        val insertBuffer = mutable.ListBuffer[Parameter[_]]()
-        val stateTuple   = setupStateTuple(taskStatus)
+    this.userService.retrieve(userId).foreach { _ =>
+      val insertBuffer = mutable.ListBuffer[Parameter[_]]()
+      val stateTuple   = setupStateTuple(taskStatus)
 
-        if (stateTuple._1 != 0) {
-          insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_SCORE, value = stateTuple._1))
-        }
-        if (stateTuple._2.nonEmpty) {
-          insertBuffer.addOne(this.customFilter(stateTuple._2))
-        }
+      if (stateTuple._1 != 0) {
+        insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_SCORE, value = stateTuple._1))
+      }
+      if (stateTuple._2.nonEmpty) {
+        insertBuffer.addOne(this.customFilter(stateTuple._2))
+      }
 
-        taskReviewStatus match {
-          case Some(Task.REVIEW_STATUS_REJECTED) =>
-            if (!asReviewer) {
-              insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TOTAL_REJECTED))
-              if (!isReviewRevision) {
-                insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_INITIAL_REJECTED))
-              }
+      taskReviewStatus match {
+        case Some(Task.REVIEW_STATUS_REJECTED) =>
+          if (!asReviewer) {
+            insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TOTAL_REJECTED))
+            if (!isReviewRevision) {
+              insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_INITIAL_REJECTED))
             }
-          case Some(Task.REVIEW_STATUS_APPROVED) =>
-            if (!asReviewer) {
-              insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TOTAL_APPROVED))
-              if (!isReviewRevision) {
-                insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_INITIAL_APPROVED))
-              }
+          }
+        case Some(Task.REVIEW_STATUS_APPROVED) =>
+          if (!asReviewer) {
+            insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TOTAL_APPROVED))
+            if (!isReviewRevision) {
+              insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_INITIAL_APPROVED))
             }
-          case Some(Task.REVIEW_STATUS_APPROVED_WITH_REVISIONS) =>
-            if (!asReviewer) {
-              insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TOTAL_APPROVED))
-              if (!isReviewRevision) {
-                insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_INITIAL_APPROVED))
-              }
+          }
+        case Some(Task.REVIEW_STATUS_APPROVED_WITH_REVISIONS) =>
+          if (!asReviewer) {
+            insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TOTAL_APPROVED))
+            if (!isReviewRevision) {
+              insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_INITIAL_APPROVED))
             }
-          case Some(Task.REVIEW_STATUS_APPROVED_WITH_FIXES_AFTER_REVISIONS) =>
-            if (!asReviewer) {
-              insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TOTAL_APPROVED))
-              if (!isReviewRevision) {
-                insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_INITIAL_APPROVED))
-              }
+          }
+        case Some(Task.REVIEW_STATUS_APPROVED_WITH_FIXES_AFTER_REVISIONS) =>
+          if (!asReviewer) {
+            insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TOTAL_APPROVED))
+            if (!isReviewRevision) {
+              insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_INITIAL_APPROVED))
             }
-          case Some(Task.REVIEW_STATUS_ASSISTED) =>
-            if (!asReviewer) {
-              insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TOTAL_ASSISTED))
-              if (!isReviewRevision) {
-                insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_INITIAL_ASSISTED))
-              }
+          }
+        case Some(Task.REVIEW_STATUS_ASSISTED) =>
+          if (!asReviewer) {
+            insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TOTAL_ASSISTED))
+            if (!isReviewRevision) {
+              insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_INITIAL_ASSISTED))
             }
-          case Some(Task.REVIEW_STATUS_DISPUTED) =>
-            if (asReviewer) {
-              insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TOTAL_DISPUTED_AS_REVIEWER))
-            } else {
-              insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TOTAL_DISPUTED_AS_MAPPER))
-              // Let's rollback mapper's rejected score
-              insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TOTAL_REJECTED, "-"))
-            }
-          case _ =>
-        }
+          }
+        case Some(Task.REVIEW_STATUS_DISPUTED) =>
+          if (asReviewer) {
+            insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TOTAL_DISPUTED_AS_REVIEWER))
+          } else {
+            insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TOTAL_DISPUTED_AS_MAPPER))
+            // Let's rollback mapper's rejected score
+            insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TOTAL_REJECTED, "-"))
+          }
+        case _ =>
+      }
 
-        if (asReviewer) {
-          reviewStartTime match {
-            case Some(rTime) =>
-              insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TASKS_WITH_REVIEW_TIME))
-              insertBuffer.addOne(
-                BaseParameter(
-                  UserMetrics.FIELD_TOTAL_REVIEW_TIME,
-                  s"=(${UserMetrics.FIELD_TOTAL_REVIEW_TIME} + (SELECT EXTRACT(EPOCH FROM NOW())) * 1000 - $rTime)",
-                  Operator.CUSTOM
-                )
+      if (asReviewer) {
+        reviewStartTime match {
+          case Some(rTime) =>
+            insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TASKS_WITH_REVIEW_TIME))
+            insertBuffer.addOne(
+              BaseParameter(
+                UserMetrics.FIELD_TOTAL_REVIEW_TIME,
+                s"=(${UserMetrics.FIELD_TOTAL_REVIEW_TIME} + (SELECT EXTRACT(EPOCH FROM NOW())) * 1000 - $rTime)",
+                Operator.CUSTOM
               )
-            case None => // not a review
-          }
-        } else {
-          // Only update time if user isn't "skipping"
-          if (taskStatus.getOrElse(0) != Task.STATUS_SKIPPED) {
-            taskTimeSpent match {
-              case Some(time) =>
-                insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TASKS_WITH_TIME))
-                insertBuffer.addOne(
-                  this.customFilter(UserMetrics.FIELD_TOTAL_TIME_SPENT, value = time)
-                )
-              case _ => // not updating time
-            }
+            )
+          case None => // not a review
+        }
+      } else {
+        // Only update time if user isn't "skipping"
+        if (taskStatus.getOrElse(0) != Task.STATUS_SKIPPED) {
+          taskTimeSpent match {
+            case Some(time) =>
+              insertBuffer.addOne(this.customFilter(UserMetrics.FIELD_TASKS_WITH_TIME))
+              insertBuffer.addOne(
+                this.customFilter(UserMetrics.FIELD_TOTAL_TIME_SPENT, value = time)
+              )
+            case _ => // not updating time
           }
         }
-        this.repository.updateUserScore(userId, insertBuffer.toList)
-        Some(cachedItem)
-    }(id = userId)
+      }
+      this.repository.updateUserScore(userId, insertBuffer.toList)
+    }
     this.userService.retrieve(userId)
   }
 
@@ -326,23 +323,20 @@ class UserMetricService @Inject() (
       taskStatus: Int,
       userId: Long
   ): Option[User] = {
-    // We need to invalidate the user in the cache.
-    this.userService.cacheManager.withDeletingCache(id => userService.retrieve(id)) {
-      implicit cachedItem =>
-        val insertBuffer = mutable.ListBuffer[Parameter[_]]()
-        val stateTuple   = setupStateTuple(Some(taskStatus))
+    this.userService.retrieve(userId).foreach { _ =>
+      val insertBuffer = mutable.ListBuffer[Parameter[_]]()
+      val stateTuple   = setupStateTuple(Some(taskStatus))
 
-        if (stateTuple._1 != 0) {
-          insertBuffer.addOne(
-            this.customFilter(UserMetrics.FIELD_SCORE, "-", value = stateTuple._1)
-          )
-        }
-        if (stateTuple._2.nonEmpty) {
-          insertBuffer.addOne(this.customFilter(stateTuple._2, "-", 1))
-        }
-        this.repository.updateUserScore(userId, insertBuffer.toList)
-        Some(cachedItem)
-    }(id = userId)
+      if (stateTuple._1 != 0) {
+        insertBuffer.addOne(
+          this.customFilter(UserMetrics.FIELD_SCORE, "-", value = stateTuple._1)
+        )
+      }
+      if (stateTuple._2.nonEmpty) {
+        insertBuffer.addOne(this.customFilter(stateTuple._2, "-", 1))
+      }
+      this.repository.updateUserScore(userId, insertBuffer.toList)
+    }
     this.userService.retrieve(userId)
   }
 

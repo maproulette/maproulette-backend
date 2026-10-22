@@ -25,14 +25,14 @@ class TaskServiceSpec(implicit val application: Application) extends FrameworkHe
       val testResponse = "{\"a\":1}"
       this.service.updateCompletionResponses(defaultTask.id, defaultUser, Json.parse(testResponse))
       val task = this.service.retrieve(defaultTask.id)
-      task.get.completionResponses.get.toString mustEqual testResponse
+      Json.parse(task.get.completionResponses.get) mustEqual Json.parse(testResponse)
     }
 
     "update completion responses again ok" taggedAs (TaskTag) in {
       val testResponse = "{\"a\":2,\"b\":\"yes\"}"
       this.service.updateCompletionResponses(defaultTask.id, defaultUser, Json.parse(testResponse))
       val task = this.service.retrieve(defaultTask.id)
-      task.get.completionResponses.get.toString mustEqual testResponse
+      Json.parse(task.get.completionResponses.get) mustEqual Json.parse(testResponse)
     }
 
     "Fail if task not found when update completion responses" taggedAs (TaskTag) in {

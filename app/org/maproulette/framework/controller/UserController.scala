@@ -364,8 +364,6 @@ class UserController @Inject() (
       val addUser = retrieveUser(userId, isOSMUserId, user)
       this.serviceManager.user
         .addUserToProject(addUser.osmProfile.id, projectId, role, user, clear = true)
-      // clear caches
-      this.serviceManager.user.clearCache(userId)
       Ok(
         Json.toJson(
           this.serviceManager.user.getUsersManagingProject(projectId, None, user, false)
@@ -524,7 +522,7 @@ class UserController @Inject() (
   def getSuperUserIds(): Action[AnyContent] = Action.async { implicit request =>
     implicit val requireSuperUser: Boolean = true
     this.sessionManager.authenticatedRequest { implicit grantor =>
-      Ok(Json.toJson(this.serviceManager.user.superUsers))
+      Ok(Json.toJson(this.serviceManager.user.superUserIds))
     }
   }
 

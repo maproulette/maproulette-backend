@@ -9,7 +9,6 @@ import java.util.Locale
 import org.joda.time.DateTime
 import org.joda.time.format.DateTimeFormat
 import org.maproulette.Config
-import org.maproulette.cache.CacheObject
 import org.maproulette.framework.psql.CommonField
 import org.maproulette.data._
 import org.slf4j.LoggerFactory
@@ -194,10 +193,9 @@ case class User(
     properties: Option[JsObject] = None,
     score: Option[Int] = None,
     achievements: Option[List[Int]] = None
-) extends CacheObject[Long]
-    with Identifiable {
+) extends Identifiable {
   // for users the display name is always retrieved from OSM
-  override def name: String = osmProfile.displayName
+  def name: String = osmProfile.displayName
 
   def homeLocation: String = osmProfile.homeLocation.name match {
     case Some(name) => name

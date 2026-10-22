@@ -27,7 +27,6 @@ import org.slf4j.LoggerFactory
 @Singleton
 class TaskReviewRepository @Inject() (
     override val db: Database,
-    taskRepository: TaskRepository,
     userService: UserService
 ) extends RepositoryMixin
     with Locking[Task]
@@ -111,14 +110,6 @@ class TaskReviewRepository @Inject() (
           )
           .on(Symbol("taskId") -> task.id, Symbol("userId") -> user.id)
           .executeUpdate()
-
-        implicit val id = task.id
-        this.taskRepository.cacheManager.withUpdatingCache(this.taskRepository.retrieve) {
-          implicit cachedItem =>
-            val result =
-              Some(task.copy(review = task.review.copy(reviewClaimedBy = Option(user.id.toInt))))
-            result
-        }(task.id, true, true)
       }
     }
   }
@@ -154,11 +145,6 @@ class TaskReviewRepository @Inject() (
         this.unlockItem(user, task)(Some(c))
       } catch {
         case e: Exception => logger.warn(e.getMessage)
-      }
-
-      val updatedTask = task.copy(review = task.review.copy(reviewClaimedBy = None))
-      this.taskRepository.cacheManager.withOptionCaching { () =>
-        Some(updatedTask)
       }
     }
   }
@@ -209,10 +195,8 @@ class TaskReviewRepository @Inject() (
     * @param query
     */
   def queryTasks(query: Query, params: SearchParameters): List[Task] = {
-    this.taskRepository.cacheManager.withIDListCaching { implicit cachedItems =>
-      this.withMRTransaction { implicit c =>
-        this.buildTaskQuery(query, false, Some(params)).as(this.parser.*)
-      }
+    this.withMRTransaction { implicit c =>
+      this.buildTaskQuery(query, false, Some(params)).as(this.parser.*)
     }
   }
 

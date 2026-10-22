@@ -5,8 +5,7 @@
 
 package org.maproulette.framework.service
 
-import javax.inject.{Inject, Provider}
-import org.maproulette.cache.{CacheManager, TagCacheManager}
+import javax.inject.Inject
 import org.maproulette.exception.InvalidException
 import org.maproulette.framework.model.{Tag, User}
 import org.maproulette.framework.psql.filter.{BaseParameter, FilterParameter, Operator}
@@ -21,32 +20,15 @@ import play.api.libs.json.JsValue
   */
 class TagService @Inject() (
     repository: TagRepository,
-    tagCacheProvider: Provider[TagCacheManager],
     permission: Permission
 ) extends ServiceMixin[Tag]
     with Writers {
 
-  val cacheManager: CacheManager[Long, Tag] = tagCacheProvider.get()
-
-  /**
-    * Clears the tag cache
-    *
-    * @param id If id is supplied will only remove the tag with that id
-    */
-  def clearCache(id: Long = -1): Unit = {
-    if (id > -1) {
-      this.cacheManager.cache.remove(id)
-    } else {
-      this.cacheManager.clearCaches
-    }
-  }
-
   def delete(id: Long, user: User): Boolean = {
-    this.cacheManager.withDeletingCache(id => this.retrieve(id)) { implicit deletedItem =>
+    this.retrieve(id).foreach { deletedItem =>
       this.permission.hasObjectAdminAccess(deletedItem, user)
       this.repository.delete(id)
-      Some(deletedItem)
-    }(id)
+    }
     true
   }
 
@@ -63,24 +45,23 @@ class TagService @Inject() (
       throw new InvalidException(s"Tags cannot be empty strings")
     }
     this.permission.hasObjectWriteAccess(tag, user)
-    this.cacheManager.withOptionCaching { () =>
-      Some(this.repository.create(tag))
-    }.get
+    this.repository.create(tag)
   }
 
   def update(id: Long, tag: JsValue, user: User): Option[Tag] = {
-    this.cacheManager
-      .withUpdatingCache(id => retrieve(id)) { implicit cachedItem =>
-        this.permission.hasObjectWriteAccess(cachedItem, user)
-        val name = (tag \ "name").asOpt[String].getOrElse(cachedItem.name)
+    this
+      .retrieve(id)
+      .flatMap { implicit existing =>
+        this.permission.hasObjectWriteAccess(existing, user)
+        val name = (tag \ "name").asOpt[String].getOrElse(existing.name)
         if (name.isEmpty) {
           // do not allow empty tags
           throw new InvalidException(s"Tags cannot be empty strings")
         }
         val description =
-          (tag \ "description").asOpt[String].getOrElse(cachedItem.description.getOrElse(""))
+          (tag \ "description").asOpt[String].getOrElse(existing.description.getOrElse(""))
         this.repository.update(Tag(id, name, Some(description)))
-      }(id = id)
+      }
   }
 
   /**
@@ -89,10 +70,7 @@ class TagService @Inject() (
     * @param id The identifier for the object
     * @return An optional object, None if not found
     */
-  override def retrieve(id: Long): Option[Tag] =
-    this.cacheManager.withCaching { () =>
-      this.repository.retrieve(id)
-    }(id)
+  override def retrieve(id: Long): Option[Tag] = this.repository.retrieve(id)
 
   /**
     * Finds tags based on the provided prefix and if supplied the tag_type's
@@ -156,15 +134,12 @@ class TagService @Inject() (
     * @return List of tags for the task
     */
   def listByTask(id: Long): List[Tag] = {
-    implicit val ids: List[Long] = List()
-    this.cacheManager.withIDListCaching { implicit uncached =>
-      this.query(
-        Query.simple(
-          List(BaseParameter(Tag.FIELD_TASK_ID, id, table = Some(Tag.TABLE_TAGS_ON_TASKS))),
-          "SELECT * FROM tags INNER JOIN tags_on_tasks ON tags.id = tags_on_tasks.tag_id"
-        )
+    this.query(
+      Query.simple(
+        List(BaseParameter(Tag.FIELD_TASK_ID, id, table = Some(Tag.TABLE_TAGS_ON_TASKS))),
+        "SELECT * FROM tags INNER JOIN tags_on_tasks ON tags.id = tags_on_tasks.tag_id"
       )
-    }
+    )
   }
 
   /**
@@ -202,10 +177,7 @@ class TagService @Inject() (
   def updateTagList(tags: List[Tag], user: User): List[Tag] = {
     val named = tags.filter(_.name.nonEmpty)
     if (named.nonEmpty) {
-      implicit val names = named.map(_.name)
-      this.cacheManager.withCacheNameDeletion { () =>
-        this.repository.updateTagList(named)
-      }
+      this.repository.updateTagList(named)
     } else {
       List.empty
     }
@@ -227,17 +199,15 @@ class TagService @Inject() (
     if (names.isEmpty) {
       List.empty
     } else {
-      this.cacheManager.withNameListCaching { implicit uncachedNames =>
-        this.query(
-          Query.simple(
-            List(
-              BaseParameter(Tag.FIELD_NAME, uncachedNames, Operator.IN),
-              FilterParameter
-                .conditional(Tag.FIELD_PARENT_ID, parentId, includeOnlyIfTrue = parentId != -1)
-            )
+      this.query(
+        Query.simple(
+          List(
+            BaseParameter(Tag.FIELD_NAME, names.map(_.toLowerCase), Operator.IN),
+            FilterParameter
+              .conditional(Tag.FIELD_PARENT_ID, parentId, includeOnlyIfTrue = parentId != -1)
           )
         )
-      }(names.map(_.toLowerCase))
+      )
     }
   }
 
@@ -262,11 +232,8 @@ class TagService @Inject() (
     }
 
     this.retrieve(tagId) match {
-      case Some(tag) =>
-        this.cacheManager.withUpdatingCache(id => retrieve(id)) { implicit cachedItem =>
-          this.repository.toggleStatus(tagId, !tag.active)
-        }(id = tagId)
-      case None => None
+      case Some(tag) => this.repository.toggleStatus(tagId, !tag.active)
+      case None      => None
     }
   }
 }

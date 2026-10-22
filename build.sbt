@@ -73,7 +73,6 @@ routesGenerator := InjectedRoutesGenerator
 libraryDependencies ++= Seq(
   jdbc,
   jdbc % Test,
-  ehcache,
   ws,
   evolutions,
   specs2 % Test,
@@ -105,8 +104,6 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka"    %% "akka-cluster-tools" % "2.6.21",
   "com.typesafe.akka"    %% "akka-cluster-typed" % "2.6.21",
   "com.typesafe.akka"    %% "akka-slf4j"         % "2.6.21",
-  "net.debasishg"        %% "redisclient"        % "3.42",
-  "com.github.blemale"   %% "scaffeine"          % "5.2.1",
   "com.github.tototoshi" %% "scala-csv"          % "1.3.10"
 )
 

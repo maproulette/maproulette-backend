@@ -27,7 +27,6 @@ import org.maproulette.models.dal.TaskDAL
 class TaskBundleRepository @Inject() (
     override val db: Database,
     config: Config,
-    taskRepository: TaskRepository,
     taskDAL: TaskDAL
 ) extends RepositoryMixin
     with TaskParserMixin
@@ -190,12 +189,6 @@ class TaskBundleRepository @Inject() (
             .executeUpdate()
         case None =>
       }
-
-      val tasks = this.taskDAL.retrieveListById(-1, 0)(taskIds)
-
-      tasks.foreach { task =>
-        taskRepository.cacheManager.cache.remove(task.id)
-      }
     }
   }
 
@@ -244,8 +237,6 @@ class TaskBundleRepository @Inject() (
                   "status" -> STATUS_CREATED
                 )
                 .executeUpdate()
-
-              taskRepository.cacheManager.cache.remove(task.id)
             case None => // do nothing
           }
         }
@@ -295,7 +286,6 @@ class TaskBundleRepository @Inject() (
         .on("bundleId" -> bundleId)
         .executeUpdate()
 
-      // Update cache for each task
       tasks.foreach { task =>
         if (!task.isBundlePrimary.getOrElse(false)) {
           SQL(
@@ -309,7 +299,6 @@ class TaskBundleRepository @Inject() (
             )
             .executeUpdate()
         }
-        taskRepository.cacheManager.cache.remove(task.id)
       }
     }
   }

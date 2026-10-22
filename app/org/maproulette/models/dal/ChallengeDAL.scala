@@ -13,7 +13,6 @@ import javax.inject.{Inject, Singleton}
 import org.apache.commons.lang3.StringUtils
 import org.joda.time.DateTime
 import org.maproulette.Config
-import org.maproulette.cache.CacheManager
 import org.maproulette.data.{Actions, ChallengeType, ProjectType}
 import org.maproulette.exception.{InvalidException, NotFoundException, UniqueViolationException}
 import org.maproulette.framework.model._
@@ -57,8 +56,6 @@ class ChallengeDAL @Inject() (
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  // The manager for the challenge cache
-  override val cacheManager = new CacheManager[Long, Challenge](config, Config.CACHE_ID_CHALLENGES)
   // The name of the challenge table
   override val tableName: String = "challenges"
   // The name of the table for it's children Tasks
@@ -633,29 +630,24 @@ class ChallengeDAL @Inject() (
     obj match {
       case Left(id) =>
         this.permission.hasReadAccess(ChallengeType(), user)(id)
-        this.serviceManager.project.cacheManager.withOptionCaching { () =>
-          this.withMRConnection { implicit c =>
-            SQL"""SELECT p.* FROM projects p
+        this.withMRConnection { implicit c =>
+          SQL"""SELECT p.* FROM projects p
              INNER JOIN challenges c ON c.parent_id = p.id
              WHERE c.id = $id
            """.as(projectParser.*).headOption
-          }
-        }(Some(id))
+        }
       case Right(challenge) =>
         this.permission.hasObjectReadAccess(challenge, user)
-        this.serviceManager.project.cacheManager.withOptionCaching { () =>
-          this.withMRConnection { implicit c =>
-            SQL"""SELECT * FROM projects WHERE id = ${challenge.general.parent}"""
-              .as(projectParser.*)
-              .headOption
-          }
-        }(Some(challenge.general.parent))
+        this.withMRConnection { implicit c =>
+          SQL"""SELECT * FROM projects WHERE id = ${challenge.general.parent}"""
+            .as(projectParser.*)
+            .headOption
+        }
     }
   }
 
   /**
-    * Inserts a new Challenge object into the database. It will also place it in the cache after
-    * inserting the object.
+    * Inserts a new Challenge object into the database.
     *
     * @param challenge The challenge to insert into the database
     * @return The object that was inserted into the database. This will include the newly created id
@@ -711,10 +703,9 @@ class ChallengeDAL @Inject() (
     val mediumPriorityBounds = normalizeNullValues(challenge.priority.mediumPriorityBounds, "[]")
     val lowPriorityBounds    = normalizeNullValues(challenge.priority.lowPriorityBounds, "[]")
 
-    this.cacheManager.withOptionCaching { () =>
-      val insertedChallenge =
-        this.withMRTransaction { implicit c =>
-          SQL"""INSERT INTO challenges (name, owner_id, parent_id, difficulty, description, info_link, blurb,
+    val insertedChallenge =
+      this.withMRTransaction { implicit c =>
+        SQL"""INSERT INTO challenges (name, owner_id, parent_id, difficulty, description, info_link, blurb,
                                       instruction, enabled, featured, checkin_comment, checkin_source,
                                       overpass_ql, remote_geo_json, overpass_target_type, status, status_message, default_priority, high_priority_rule,
                                       medium_priority_rule, low_priority_rule, high_priority_bounds, medium_priority_bounds, low_priority_bounds, default_zoom, min_zoom, max_zoom,
@@ -739,21 +730,17 @@ class ChallengeDAL @Inject() (
                       ${asJson(challenge.extra.taskWidgetLayout.getOrElse(Json.obj()))}, ${challenge.extra.paused},
                       ${challenge.extra.ownerTeamId}
                       ) RETURNING #${this.retrieveColumns}"""
-            .as(this.parser.*)
-            .headOption
-        }
-
-      // Now insert presets if we have any
-      insertedChallenge match {
-        case Some(newChallenge) =>
-          challenge.extra.presets match {
-            case Some(ps) => Some(this.insertPresets(newChallenge, ps))
-            case None     => insertedChallenge
-          }
-        case None => insertedChallenge
+          .as(this.parser.*)
+          .headOption
       }
-    } match {
-      case Some(value) => value
+
+    // Now insert presets if we have any
+    insertedChallenge match {
+      case Some(newChallenge) =>
+        challenge.extra.presets match {
+          case Some(ps) => this.insertPresets(newChallenge, ps)
+          case None     => newChallenge
+        }
       case None =>
         throw new UniqueViolationException(
           s"Challenge with name ${challenge.name} already exists in the database"
@@ -782,8 +769,8 @@ class ChallengeDAL @Inject() (
   }
 
   /**
-    * Updates a challenge. Uses the updatingCache so will first retrieve the object and make sure
-    * to update only values supplied by the json. After updated will update the cache as well
+    * Updates a challenge. Retrieves the current object first so that only values supplied by the
+    * json are updated.
     *
     * @param updates The updates in json format
     * @param id      The id of the object that you are updating
@@ -794,94 +781,93 @@ class ChallengeDAL @Inject() (
       user: User
   )(implicit id: Long, c: Option[Connection] = None): Option[Challenge] = {
     var updatedPriorityRules = false
-    val updatedChallenge = this.cacheManager.withUpdatingCache(Long => retrieveById) {
-      implicit cachedItem =>
-        this.permission.hasObjectWriteAccess(cachedItem, user)
+    val updatedChallenge = this.retrieveById.flatMap { implicit existing =>
+      this.permission.hasObjectWriteAccess(existing, user)
 
-        val parentId = (updates \ "parentId").asOpt[Long].getOrElse(cachedItem.general.parent)
-        if (parentId != cachedItem.general.parent) {
-          throw new InvalidException(
-            s"Challenge [${cachedItem.id}] cannot be moved to a different project by an update; use the move endpoint"
+      val parentId = (updates \ "parentId").asOpt[Long].getOrElse(existing.general.parent)
+      if (parentId != existing.general.parent) {
+        throw new InvalidException(
+          s"Challenge [${existing.id}] cannot be moved to a different project by an update; use the move endpoint"
+        )
+      }
+
+      val ownerId = (updates \ "ownerId").asOpt[Long].getOrElse(existing.general.owner)
+      if (ownerId != existing.general.owner) {
+        this.permission.hasObjectAdminAccess(existing, user)
+      }
+
+      val featured = (updates \ "featured").asOpt[Boolean].getOrElse(existing.general.featured)
+      if (featured != existing.general.featured && !this.permission.isSuperUser(user)) {
+        throw new IllegalAccessException("Only super users can feature challenges")
+      }
+
+      // Update the owning team, or remove it if an explicit `null` is set in
+      // the JSON. But if it's omitted, leave it alone.
+      val ownerTeamId = (updates \ "ownerTeamId").toOption match {
+        case None         => existing.extra.ownerTeamId
+        case Some(JsNull) => None
+        case Some(value) =>
+          Some(
+            value
+              .asOpt[Long]
+              .getOrElse(throw new InvalidException("ownerTeamId must be a number"))
           )
-        }
+      }
 
-        val ownerId = (updates \ "ownerId").asOpt[Long].getOrElse(cachedItem.general.owner)
-        if (ownerId != cachedItem.general.owner) {
-          this.permission.hasObjectAdminAccess(cachedItem, user)
-        }
+      // Changing the owning team requires challenge admin, and the caller must
+      // also manage both the team it's leaving and the team it's being given to.
+      if (ownerTeamId != existing.extra.ownerTeamId) {
+        this.permission.hasObjectAdminAccess(existing, user)
+        (existing.extra.ownerTeamId ++ ownerTeamId).foreach(
+          this.serviceManager.team.requireTeamManager(_, user, "challenges")
+        )
+      }
 
-        val featured = (updates \ "featured").asOpt[Boolean].getOrElse(cachedItem.general.featured)
-        if (featured != cachedItem.general.featured && !this.permission.isSuperUser(user)) {
-          throw new IllegalAccessException("Only super users can feature challenges")
-        }
+      val highPriorityRule = (updates \ "highPriorityRule")
+        .asOpt[String]
+        .getOrElse(existing.priority.highPriorityRule.getOrElse("")) match {
+        case x if Challenge.isValidRule(Some(x)) => x
+        case _                                   => ""
+      }
+      val mediumPriorityRule = (updates \ "mediumPriorityRule")
+        .asOpt[String]
+        .getOrElse(existing.priority.mediumPriorityRule.getOrElse("")) match {
+        case x if Challenge.isValidRule(Some(x)) => x
+        case _                                   => ""
+      }
+      val lowPriorityRule = (updates \ "lowPriorityRule")
+        .asOpt[String]
+        .getOrElse(existing.priority.lowPriorityRule.getOrElse("")) match {
+        case x if Challenge.isValidRule(Some(x)) => x
+        case _                                   => ""
+      }
+      val highPriorityBounds = (updates \ "highPriorityBounds")
+        .asOpt[String]
+        .orElse((updates \ "highPriorityBounds").asOpt[JsValue].map(_.toString))
+        .getOrElse(existing.priority.highPriorityBounds.getOrElse("")) match {
+        case x if Challenge.isValidBounds(Some(x)) => x
+        case _                                     => ""
+      }
+      val mediumPriorityBounds = (updates \ "mediumPriorityBounds")
+        .asOpt[String]
+        .orElse((updates \ "mediumPriorityBounds").asOpt[JsValue].map(_.toString))
+        .getOrElse(existing.priority.mediumPriorityBounds.getOrElse("")) match {
+        case x if Challenge.isValidBounds(Some(x)) => x
+        case _                                     => ""
+      }
+      val lowPriorityBounds = (updates \ "lowPriorityBounds")
+        .asOpt[String]
+        .orElse((updates \ "lowPriorityBounds").asOpt[JsValue].map(_.toString))
+        .getOrElse(existing.priority.lowPriorityBounds.getOrElse("")) match {
+        case x if Challenge.isValidBounds(Some(x)) => x
+        case _                                     => ""
+      }
 
-        // Update the owning team, or remove it if an explicit `null` is set in
-        // the JSON. But if it's omitted, leave it alone.
-        val ownerTeamId = (updates \ "ownerTeamId").toOption match {
-          case None         => cachedItem.extra.ownerTeamId
-          case Some(JsNull) => None
-          case Some(value) =>
-            Some(
-              value
-                .asOpt[Long]
-                .getOrElse(throw new InvalidException("ownerTeamId must be a number"))
-            )
-        }
+      this.withMRTransaction { implicit c =>
+        val name = (updates \ "name").asOpt[String].getOrElse(existing.name)
 
-        // Changing the owning team requires challenge admin, and the caller must
-        // also manage both the team it's leaving and the team it's being given to.
-        if (ownerTeamId != cachedItem.extra.ownerTeamId) {
-          this.permission.hasObjectAdminAccess(cachedItem, user)
-          (cachedItem.extra.ownerTeamId ++ ownerTeamId).foreach(
-            this.serviceManager.team.requireTeamManager(_, user, "challenges")
-          )
-        }
-
-        val highPriorityRule = (updates \ "highPriorityRule")
-          .asOpt[String]
-          .getOrElse(cachedItem.priority.highPriorityRule.getOrElse("")) match {
-          case x if Challenge.isValidRule(Some(x)) => x
-          case _                                   => ""
-        }
-        val mediumPriorityRule = (updates \ "mediumPriorityRule")
-          .asOpt[String]
-          .getOrElse(cachedItem.priority.mediumPriorityRule.getOrElse("")) match {
-          case x if Challenge.isValidRule(Some(x)) => x
-          case _                                   => ""
-        }
-        val lowPriorityRule = (updates \ "lowPriorityRule")
-          .asOpt[String]
-          .getOrElse(cachedItem.priority.lowPriorityRule.getOrElse("")) match {
-          case x if Challenge.isValidRule(Some(x)) => x
-          case _                                   => ""
-        }
-        val highPriorityBounds = (updates \ "highPriorityBounds")
-          .asOpt[String]
-          .orElse((updates \ "highPriorityBounds").asOpt[JsValue].map(_.toString))
-          .getOrElse(cachedItem.priority.highPriorityBounds.getOrElse("")) match {
-          case x if Challenge.isValidBounds(Some(x)) => x
-          case _                                     => ""
-        }
-        val mediumPriorityBounds = (updates \ "mediumPriorityBounds")
-          .asOpt[String]
-          .orElse((updates \ "mediumPriorityBounds").asOpt[JsValue].map(_.toString))
-          .getOrElse(cachedItem.priority.mediumPriorityBounds.getOrElse("")) match {
-          case x if Challenge.isValidBounds(Some(x)) => x
-          case _                                     => ""
-        }
-        val lowPriorityBounds = (updates \ "lowPriorityBounds")
-          .asOpt[String]
-          .orElse((updates \ "lowPriorityBounds").asOpt[JsValue].map(_.toString))
-          .getOrElse(cachedItem.priority.lowPriorityBounds.getOrElse("")) match {
-          case x if Challenge.isValidBounds(Some(x)) => x
-          case _                                     => ""
-        }
-
-        this.withMRTransaction { implicit c =>
-          val name = (updates \ "name").asOpt[String].getOrElse(cachedItem.name)
-
-          if (name != cachedItem.name) {
-            val existingChallenge = SQL"""
+        if (name != existing.name) {
+          val existingChallenge = SQL"""
               SELECT id FROM challenges 
               WHERE parent_id = $parentId 
               AND LOWER(name) = LOWER($name)
@@ -890,210 +876,210 @@ class ChallengeDAL @Inject() (
               LIMIT 1
             """.as(SqlParser.long("id").singleOpt)
 
-            if (existingChallenge.isDefined) {
-              throw new UniqueViolationException(
-                s"Challenge with name $name already exists in the database"
-              )
-            }
+          if (existingChallenge.isDefined) {
+            throw new UniqueViolationException(
+              s"Challenge with name $name already exists in the database"
+            )
           }
+        }
 
-          val difficulty =
-            (updates \ "difficulty").asOpt[Int].getOrElse(cachedItem.general.difficulty)
-          val description =
-            (updates \ "description").asOpt[String].getOrElse(cachedItem.description.getOrElse(""))
-          val infoLink =
-            (updates \ "infoLink").asOpt[String].getOrElse(cachedItem.infoLink.getOrElse(""))
-          val blurb =
-            (updates \ "blurb").asOpt[String].getOrElse(cachedItem.general.blurb.getOrElse(""))
-          val instruction =
-            (updates \ "instruction").asOpt[String].getOrElse(cachedItem.general.instruction)
-          val enabled = (updates \ "enabled").asOpt[Boolean].getOrElse(cachedItem.general.enabled)
-          val checkinComment =
-            (updates \ "checkinComment").asOpt[String].getOrElse(cachedItem.general.checkinComment)
-          val checkinSource =
-            (updates \ "checkinSource").asOpt[String].getOrElse(cachedItem.general.checkinSource)
-          val overpassQL = (updates \ "overpassQL")
-            .asOpt[String]
-            .getOrElse(cachedItem.creation.overpassQL.getOrElse(""))
-          val remoteGeoJson = (updates \ "remoteGeoJson")
-            .asOpt[String]
-            .getOrElse(cachedItem.creation.remoteGeoJson.getOrElse(""))
-          val overpassTargetType = (updates \ "overpassTargetType")
-            .asOpt[String]
-            .getOrElse(cachedItem.creation.overpassTargetType.getOrElse(""))
-          val dataOriginDate = (updates \ "dataOriginDate")
-            .asOpt[DateTime]
-            .getOrElse(cachedItem.dataOriginDate.getOrElse(DateTime.now()))
-          val status = (updates \ "status")
-            .asOpt[Int]
-            .getOrElse(cachedItem.status.getOrElse(Challenge.STATUS_NA))
-          val statusMessage = (updates \ "statusMessage")
-            .asOpt[String]
-            .getOrElse(cachedItem.statusMessage.getOrElse(""))
-          val defaultPriority =
-            (updates \ "defaultPriority").asOpt[Int].getOrElse(cachedItem.priority.defaultPriority)
-          // if any of the priority rules have changed then we need to run the update priorities task
-          if (!StringUtils.equalsIgnoreCase(
-                highPriorityRule,
-                cachedItem.priority.highPriorityRule.getOrElse("")
-              ) ||
-              !StringUtils.equalsIgnoreCase(
-                mediumPriorityRule,
-                cachedItem.priority.mediumPriorityRule.getOrElse("")
-              ) ||
-              !StringUtils.equalsIgnoreCase(
-                lowPriorityRule,
-                cachedItem.priority.lowPriorityRule.getOrElse("")
-              ) ||
-              !StringUtils.equalsIgnoreCase(
-                highPriorityBounds,
-                cachedItem.priority.highPriorityBounds.getOrElse("")
-              ) ||
-              !StringUtils.equalsIgnoreCase(
-                mediumPriorityBounds,
-                cachedItem.priority.mediumPriorityBounds.getOrElse("")
-              ) ||
-              !StringUtils.equalsIgnoreCase(
-                lowPriorityBounds,
-                cachedItem.priority.lowPriorityBounds.getOrElse("")
-              ) ||
-              defaultPriority != cachedItem.priority.defaultPriority) {
-            updatedPriorityRules = true
-          }
-          val defaultZoom =
-            (updates \ "defaultZoom").asOpt[Int].getOrElse(cachedItem.extra.defaultZoom)
-          val minZoom = (updates \ "minZoom").asOpt[Int].getOrElse(cachedItem.extra.minZoom)
-          val maxZoom = (updates \ "maxZoom").asOpt[Int].getOrElse(cachedItem.extra.maxZoom)
-          val defaultBasemap = (updates \ "defaultBasemap")
-            .asOpt[Int]
-            .getOrElse(cachedItem.extra.defaultBasemap.getOrElse(-1))
-          val defaultBasemapId = (updates \ "defaultBasemapId")
-            .asOpt[String]
-            .getOrElse(cachedItem.extra.defaultBasemapId.getOrElse(""))
-          val customBasemap = (updates \ "customBasemap")
-            .asOpt[String]
-            .getOrElse(cachedItem.extra.customBasemap.getOrElse(""))
-          val updateTasks =
-            (updates \ "updateTasks").asOpt[Boolean].getOrElse(cachedItem.extra.updateTasks)
-          val exportableProperties = (updates \ "exportableProperties")
-            .asOpt[String]
-            .getOrElse(cachedItem.extra.exportableProperties.getOrElse(""))
-          val osmIdProperty = (updates \ "osmIdProperty")
-            .asOpt[String]
-            .getOrElse(cachedItem.extra.osmIdProperty.getOrElse(""))
-          val taskBundleIdProperty = (updates \ "taskBundleIdProperty")
-            .asOpt[String]
-            .getOrElse(cachedItem.extra.taskBundleIdProperty.getOrElse(""))
-          val preferredTags = (updates \ "preferredTags")
-            .asOpt[String]
-            .getOrElse(cachedItem.extra.preferredTags.getOrElse(null))
-          val preferredReviewTags = (updates \ "preferredReviewTags")
-            .asOpt[String]
-            .getOrElse(cachedItem.extra.preferredReviewTags.getOrElse(null))
-          val limitTags = (updates \ "limitTags")
-            .asOpt[Boolean]
-            .getOrElse(cachedItem.extra.limitTags)
-          val limitReviewTags = (updates \ "limitReviewTags")
-            .asOpt[Boolean]
-            .getOrElse(cachedItem.extra.limitReviewTags)
-          val taskStyles = (updates \ "taskStyles").asOpt[JsValue] match {
-            case Some(ts) => ts.toString()
-            case _        => cachedItem.extra.taskStyles.getOrElse(null)
-          }
-          val requiresLocal = (updates \ "requiresLocal")
-            .asOpt[Boolean]
-            .getOrElse(cachedItem.general.requiresLocal)
+        val difficulty =
+          (updates \ "difficulty").asOpt[Int].getOrElse(existing.general.difficulty)
+        val description =
+          (updates \ "description").asOpt[String].getOrElse(existing.description.getOrElse(""))
+        val infoLink =
+          (updates \ "infoLink").asOpt[String].getOrElse(existing.infoLink.getOrElse(""))
+        val blurb =
+          (updates \ "blurb").asOpt[String].getOrElse(existing.general.blurb.getOrElse(""))
+        val instruction =
+          (updates \ "instruction").asOpt[String].getOrElse(existing.general.instruction)
+        val enabled = (updates \ "enabled").asOpt[Boolean].getOrElse(existing.general.enabled)
+        val checkinComment =
+          (updates \ "checkinComment").asOpt[String].getOrElse(existing.general.checkinComment)
+        val checkinSource =
+          (updates \ "checkinSource").asOpt[String].getOrElse(existing.general.checkinSource)
+        val overpassQL = (updates \ "overpassQL")
+          .asOpt[String]
+          .getOrElse(existing.creation.overpassQL.getOrElse(""))
+        val remoteGeoJson = (updates \ "remoteGeoJson")
+          .asOpt[String]
+          .getOrElse(existing.creation.remoteGeoJson.getOrElse(""))
+        val overpassTargetType = (updates \ "overpassTargetType")
+          .asOpt[String]
+          .getOrElse(existing.creation.overpassTargetType.getOrElse(""))
+        val dataOriginDate = (updates \ "dataOriginDate")
+          .asOpt[DateTime]
+          .getOrElse(existing.dataOriginDate.getOrElse(DateTime.now()))
+        val status = (updates \ "status")
+          .asOpt[Int]
+          .getOrElse(existing.status.getOrElse(Challenge.STATUS_NA))
+        val statusMessage = (updates \ "statusMessage")
+          .asOpt[String]
+          .getOrElse(existing.statusMessage.getOrElse(""))
+        val defaultPriority =
+          (updates \ "defaultPriority").asOpt[Int].getOrElse(existing.priority.defaultPriority)
+        // if any of the priority rules have changed then we need to run the update priorities task
+        if (!StringUtils.equalsIgnoreCase(
+              highPriorityRule,
+              existing.priority.highPriorityRule.getOrElse("")
+            ) ||
+            !StringUtils.equalsIgnoreCase(
+              mediumPriorityRule,
+              existing.priority.mediumPriorityRule.getOrElse("")
+            ) ||
+            !StringUtils.equalsIgnoreCase(
+              lowPriorityRule,
+              existing.priority.lowPriorityRule.getOrElse("")
+            ) ||
+            !StringUtils.equalsIgnoreCase(
+              highPriorityBounds,
+              existing.priority.highPriorityBounds.getOrElse("")
+            ) ||
+            !StringUtils.equalsIgnoreCase(
+              mediumPriorityBounds,
+              existing.priority.mediumPriorityBounds.getOrElse("")
+            ) ||
+            !StringUtils.equalsIgnoreCase(
+              lowPriorityBounds,
+              existing.priority.lowPriorityBounds.getOrElse("")
+            ) ||
+            defaultPriority != existing.priority.defaultPriority) {
+          updatedPriorityRules = true
+        }
+        val defaultZoom =
+          (updates \ "defaultZoom").asOpt[Int].getOrElse(existing.extra.defaultZoom)
+        val minZoom = (updates \ "minZoom").asOpt[Int].getOrElse(existing.extra.minZoom)
+        val maxZoom = (updates \ "maxZoom").asOpt[Int].getOrElse(existing.extra.maxZoom)
+        val defaultBasemap = (updates \ "defaultBasemap")
+          .asOpt[Int]
+          .getOrElse(existing.extra.defaultBasemap.getOrElse(-1))
+        val defaultBasemapId = (updates \ "defaultBasemapId")
+          .asOpt[String]
+          .getOrElse(existing.extra.defaultBasemapId.getOrElse(""))
+        val customBasemap = (updates \ "customBasemap")
+          .asOpt[String]
+          .getOrElse(existing.extra.customBasemap.getOrElse(""))
+        val updateTasks =
+          (updates \ "updateTasks").asOpt[Boolean].getOrElse(existing.extra.updateTasks)
+        val exportableProperties = (updates \ "exportableProperties")
+          .asOpt[String]
+          .getOrElse(existing.extra.exportableProperties.getOrElse(""))
+        val osmIdProperty = (updates \ "osmIdProperty")
+          .asOpt[String]
+          .getOrElse(existing.extra.osmIdProperty.getOrElse(""))
+        val taskBundleIdProperty = (updates \ "taskBundleIdProperty")
+          .asOpt[String]
+          .getOrElse(existing.extra.taskBundleIdProperty.getOrElse(""))
+        val preferredTags = (updates \ "preferredTags")
+          .asOpt[String]
+          .getOrElse(existing.extra.preferredTags.getOrElse(null))
+        val preferredReviewTags = (updates \ "preferredReviewTags")
+          .asOpt[String]
+          .getOrElse(existing.extra.preferredReviewTags.getOrElse(null))
+        val limitTags = (updates \ "limitTags")
+          .asOpt[Boolean]
+          .getOrElse(existing.extra.limitTags)
+        val limitReviewTags = (updates \ "limitReviewTags")
+          .asOpt[Boolean]
+          .getOrElse(existing.extra.limitReviewTags)
+        val taskStyles = (updates \ "taskStyles").asOpt[JsValue] match {
+          case Some(ts) => ts.toString()
+          case _        => existing.extra.taskStyles.getOrElse(null)
+        }
+        val requiresLocal = (updates \ "requiresLocal")
+          .asOpt[Boolean]
+          .getOrElse(existing.general.requiresLocal)
 
-          val isArchived = (updates \ "isArchived")
-            .asOpt[Boolean]
-            .getOrElse(cachedItem.extra.isArchived)
+        val isArchived = (updates \ "isArchived")
+          .asOpt[Boolean]
+          .getOrElse(existing.extra.isArchived)
 
-          val paused = (updates \ "paused")
-            .asOpt[Boolean]
-            .getOrElse(cachedItem.extra.paused)
+        val paused = (updates \ "paused")
+          .asOpt[Boolean]
+          .getOrElse(existing.extra.paused)
 
-          val reviewSetting = (updates \ "reviewSetting")
-            .asOpt[Int]
-            .getOrElse(cachedItem.extra.reviewSetting)
+        val reviewSetting = (updates \ "reviewSetting")
+          .asOpt[Int]
+          .getOrElse(existing.extra.reviewSetting)
 
-          val datasetUrl = (updates \ "datasetUrl")
-            .asOpt[String]
-            .orElse(cachedItem.extra.datasetUrl)
+        val datasetUrl = (updates \ "datasetUrl")
+          .asOpt[String]
+          .orElse(existing.extra.datasetUrl)
 
-          val requireConfirmation = (updates \ "requireConfirmation")
-            .asOpt[Boolean]
-            .getOrElse(cachedItem.requireConfirmation)
+        val requireConfirmation = (updates \ "requireConfirmation")
+          .asOpt[Boolean]
+          .getOrElse(existing.requireConfirmation)
 
-          val requireRejectReason = (updates \ "requireRejectReason")
-            .asOpt[Boolean]
-            .getOrElse(cachedItem.requireRejectReason)
+        val requireRejectReason = (updates \ "requireRejectReason")
+          .asOpt[Boolean]
+          .getOrElse(existing.requireRejectReason)
 
-          val taskWidgetLayout = (updates \ "taskWidgetLayout")
-            .asOpt[JsObject]
-            .getOrElse(cachedItem.extra.taskWidgetLayout.getOrElse(Json.obj()))
+        val taskWidgetLayout = (updates \ "taskWidgetLayout")
+          .asOpt[JsObject]
+          .getOrElse(existing.extra.taskWidgetLayout.getOrElse(Json.obj()))
 
-          val presets: List[String] = (updates \ "presets")
-            .asOpt[List[String]]
-            .getOrElse(cachedItem.extra.presets.getOrElse(null))
+        val presets: List[String] = (updates \ "presets")
+          .asOpt[List[String]]
+          .getOrElse(existing.extra.presets.getOrElse(null))
 
-          val updatedChallenge =
-            SQL"""UPDATE challenges SET name = $name, owner_id = $ownerId, parent_id = $parentId, difficulty = $difficulty,
+        val updatedChallenge =
+          SQL"""UPDATE challenges SET name = $name, owner_id = $ownerId, parent_id = $parentId, difficulty = $difficulty,
                   description = $description, info_link = $infoLink, blurb = $blurb, instruction = $instruction,
                   enabled = $enabled, featured = $featured, checkin_comment = $checkinComment, checkin_source = $checkinSource, overpass_ql = $overpassQL,
                   remote_geo_json = $remoteGeoJson, overpass_target_type = $overpassTargetType, status = $status, status_message = $statusMessage, default_priority = $defaultPriority,
                   data_origin_date = ${dataOriginDate
-              .toString()}::timestamptz, require_confirmation = $requireConfirmation, require_reject_reason = $requireRejectReason,
+            .toString()}::timestamptz, require_confirmation = $requireConfirmation, require_reject_reason = $requireRejectReason,
                   high_priority_rule = ${if (StringUtils.isEmpty(highPriorityRule)) {
-              Option.empty[String]
-            } else {
-              Some(highPriorityRule)
-            }},
+            Option.empty[String]
+          } else {
+            Some(highPriorityRule)
+          }},
                   medium_priority_rule = ${if (StringUtils.isEmpty(mediumPriorityRule)) {
-              Option.empty[String]
-            } else {
-              Some(mediumPriorityRule)
-            }},
+            Option.empty[String]
+          } else {
+            Some(mediumPriorityRule)
+          }},
                   low_priority_rule = ${if (StringUtils.isEmpty(lowPriorityRule)) {
-              Option.empty[String]
-            } else {
-              Some(lowPriorityRule)
-            }},
+            Option.empty[String]
+          } else {
+            Some(lowPriorityRule)
+          }},
                   high_priority_bounds = ${if (StringUtils.isEmpty(highPriorityBounds)) {
-              Option.empty[String]
-            } else {
-              Some(highPriorityBounds)
-            }},
+            Option.empty[String]
+          } else {
+            Some(highPriorityBounds)
+          }},
                   medium_priority_bounds = ${if (StringUtils.isEmpty(mediumPriorityBounds)) {
-              Option.empty[String]
-            } else {
-              Some(mediumPriorityBounds)
-            }},
+            Option.empty[String]
+          } else {
+            Some(mediumPriorityBounds)
+          }},
                   low_priority_bounds = ${if (StringUtils.isEmpty(lowPriorityBounds)) {
-              Option.empty[String]
-            } else {
-              Some(lowPriorityBounds)
-            }},
+            Option.empty[String]
+          } else {
+            Some(lowPriorityBounds)
+          }},
                   default_zoom = $defaultZoom, min_zoom = $minZoom, max_zoom = $maxZoom, default_basemap = $defaultBasemap, default_basemap_id = $defaultBasemapId,
                   custom_basemap = $customBasemap, updatetasks = $updateTasks, exportable_properties = $exportableProperties,
                   osm_id_property = $osmIdProperty, task_bundle_id_property = $taskBundleIdProperty, preferred_tags = $preferredTags, preferred_review_tags = $preferredReviewTags,
                   limit_tags = $limitTags, limit_review_tags = $limitReviewTags, task_styles = $taskStyles,
                   requires_local = $requiresLocal, is_archived = $isArchived, paused = $paused, owner_team_id = $ownerTeamId, review_setting = $reviewSetting, dataset_url = $datasetUrl, task_widget_layout = ${asJson(
-              taskWidgetLayout
-            )}
+            taskWidgetLayout
+          )}
                 WHERE id = $id RETURNING #${this.retrieveColumns}""".as(parser.*).headOption
 
-          updatedChallenge match {
-            case Some(uc) =>
-              if (presets != null) {
-                //drop and reinsert presets
-                SQL(s"DELETE FROM challenge_presets WHERE challenge_id=${uc.id}").executeUpdate()
-                Some(this.insertPresets(uc, presets))
-              } else {
-                updatedChallenge
-              }
-            case None => None
-          }
+        updatedChallenge match {
+          case Some(uc) =>
+            if (presets != null) {
+              //drop and reinsert presets
+              SQL(s"DELETE FROM challenge_presets WHERE challenge_id=${uc.id}").executeUpdate()
+              Some(this.insertPresets(uc, presets))
+            } else {
+              updatedChallenge
+            }
+          case None => None
         }
+      }
     }
     // update the task priorities in the background
     if (updatedPriorityRules) {
@@ -1117,9 +1103,8 @@ class ChallengeDAL @Inject() (
   }
 
   /**
-    * Reads the live priority distribution for a challenge directly from the tasks table,
-    * bypassing any DAL caching. Used by callers (priorities endpoint) to verify that a
-    * recompute actually landed in the DB.
+    * Reads the live priority distribution for a challenge directly from the tasks table.
+    * Used by callers (priorities endpoint) to verify that a recompute actually landed in the DB.
     */
   def countTasksByPriority(
       challengeId: Long
@@ -1150,9 +1135,7 @@ class ChallengeDAL @Inject() (
   )(implicit id: Long, c: Option[Connection] = None): Unit = {
     this.permission.hasWriteAccess(ChallengeType(), user)
     this.withMRConnection { implicit c =>
-      // Bypass the challenge cache so freshly-updated priority rules/bounds are
-      // always used when recalculating task priorities.
-      val challenge = this._retrieveById(caching = false)(id, Some(c)) match {
+      val challenge = this.retrieveById(id, Some(c)) match {
         case Some(c) => c
         case None =>
           throw new NotFoundException(
@@ -1170,7 +1153,6 @@ class ChallengeDAL @Inject() (
 
       if (overrideValidation || hasRules || hasBounds) {
         recomputePriorities(challenge)
-        this.taskDAL.clearCaches
       }
     }
   }
@@ -1402,7 +1384,7 @@ class ChallengeDAL @Inject() (
   )(implicit id: Long, c: Option[Connection] = None): Map[Long, Int] = {
     this.permission.hasWriteAccess(ChallengeType(), user)
     this.withMRConnection { implicit c =>
-      val persisted = this._retrieveById(caching = false) match {
+      val persisted = this.retrieveById match {
         case Some(c) => c
         case None =>
           throw new NotFoundException(
@@ -1659,11 +1641,9 @@ class ChallengeDAL @Inject() (
       orderColumn: String = "id",
       orderDirection: String = "ASC"
   )(implicit parentId: Long = -1, c: Option[Connection] = None): List[Challenge] = {
-    implicit val ids = List.empty
-    this.cacheManager.withIDListCaching { implicit uncachedIDs =>
-      this.withMRConnection { implicit c =>
-        val query =
-          s"""SELECT $retrieveColumns FROM challenges c
+    this.withMRConnection { implicit c =>
+      val query =
+        s"""SELECT $retrieveColumns FROM challenges c
                         INNER JOIN projects p ON p.id = c.parent_id
                         WHERE 1=1
                         ${this.searchField("c.name")}
@@ -1671,13 +1651,12 @@ class ChallengeDAL @Inject() (
                         ${this.parentFilter(parentId)}
                         ${this.order(Some(orderColumn), orderDirection, "c", true)}
                         LIMIT ${this.sqlLimit(limit)} OFFSET {offset}"""
-        SQL(query)
-          .on(
-            Symbol("ss")     -> SQLUtils.search(searchString),
-            Symbol("offset") -> ToParameterValue.apply[Int].apply(offset)
-          )
-          .as(this.parser.*)
-      }
+      SQL(query)
+        .on(
+          Symbol("ss")     -> SQLUtils.search(searchString),
+          Symbol("offset") -> ToParameterValue.apply[Int].apply(offset)
+        )
+        .as(this.parser.*)
     }
   }
 
@@ -1702,10 +1681,7 @@ class ChallengeDAL @Inject() (
                       AND (c.status = ${Challenge.STATUS_READY})
                       AND c.requires_local = false
                       LIMIT ${this.sqlLimit(limit)} OFFSET $offset"""
-      val challenges = SQL(query).as(this.parser.*)
-      // Insert the challenges into the cache
-      this.cacheManager.cache.addObjectsAsync(challenges)
-      challenges
+      SQL(query).as(this.parser.*)
     }
   }
 
@@ -1730,10 +1706,7 @@ class ChallengeDAL @Inject() (
                       AND (c.status = ${Challenge.STATUS_READY})
                       AND c.requires_local = false
                       ORDER BY popularity DESC LIMIT ${this.sqlLimit(limit)} OFFSET $offset"""
-      val challenges = SQL(query).as(this.parser.*)
-      // Insert the challenges into the cache
-      this.cacheManager.cache.addObjectsAsync(challenges)
-      challenges
+      SQL(query).as(this.parser.*)
     }
   }
 
@@ -1759,10 +1732,7 @@ class ChallengeDAL @Inject() (
                       AND c.requires_local = false
                       ${this.order(Some("created"), "DESC", "c", true)}
                       LIMIT ${this.sqlLimit(limit)} OFFSET $offset"""
-      val challenges = SQL(query).as(this.parser.*)
-      // Insert the challenges into the cache
-      this.cacheManager.cache.addObjectsAsync(challenges)
-      challenges
+      SQL(query).as(this.parser.*)
     }
   }
 
@@ -2123,8 +2093,6 @@ class ChallengeDAL @Inject() (
     this.withMRConnection { implicit c =>
       SQL"""DELETE from tasks WHERE parent_id = ${id} and status IN (${Task.STATUS_CREATED}, ${Task.STATUS_SKIPPED})"""
         .execute()
-
-      this.taskDAL.clearCaches
     }
   }
 
@@ -2171,19 +2139,17 @@ class ChallengeDAL @Inject() (
       case Some(c) => this.permission.hasObjectAdminAccess(c, user)
       case None    => throw new NotFoundException(s"No challenge with id $challengeId found.")
     }
-    this.cacheManager.withUpdatingCache(Long => retrieveById) { implicit item =>
-      this.withMRTransaction { implicit c =>
-        val movedChallenge =
-          SQL"UPDATE challenges SET parent_id = $newParent WHERE id = $challengeId RETURNING #${this.retrieveColumns}"
-            .as(this.parser.*)
-            .headOption
+    this.withMRTransaction { implicit c =>
+      val movedChallenge =
+        SQL"UPDATE challenges SET parent_id = $newParent WHERE id = $challengeId RETURNING #${this.retrieveColumns}"
+          .as(this.parser.*)
+          .headOption
 
-        // Also update status_actions so we don't lose our history
-        SQL"UPDATE status_actions SET project_id = $newParent WHERE challenge_id = $challengeId"
-          .execute()
+      // Also update status_actions so we don't lose our history
+      SQL"UPDATE status_actions SET project_id = $newParent WHERE challenge_id = $challengeId"
+        .execute()
 
-        movedChallenge
-      }
+      movedChallenge
     }
   }
 
@@ -2216,21 +2182,19 @@ class ChallengeDAL @Inject() (
         case Some(c) => this.permission.hasObjectAdminAccess(c, user)
         case None    => throw new NotFoundException(s"No challenge with id $id found.")
       }
-      this.cacheManager.withUpdatingCache(Long => retrieveById) { implicit item =>
-        this.withMRTransaction { implicit c =>
-          val movedChallenge =
-            SQL"UPDATE challenges SET parent_id = $newParent WHERE id = $id RETURNING #${this.retrieveColumns}"
-              .as(this.parser.*)
-              .headOption
+      this.withMRTransaction { implicit c =>
+        val movedChallenge =
+          SQL"UPDATE challenges SET parent_id = $newParent WHERE id = $id RETURNING #${this.retrieveColumns}"
+            .as(this.parser.*)
+            .headOption
 
-          // Also update status_actions so we don't lose our history
-          SQL"UPDATE status_actions SET project_id = $newParent WHERE challenge_id = $id"
-            .execute()
+        // Also update status_actions so we don't lose our history
+        SQL"UPDATE status_actions SET project_id = $newParent WHERE challenge_id = $id"
+          .execute()
 
-          movedChallengeIds += id
+        movedChallengeIds += id
 
-          movedChallenge
-        }
+        movedChallenge
       }
     }
 
@@ -2248,12 +2212,10 @@ class ChallengeDAL @Inject() (
   def updatePopularity(
       completionTimestamp: Long
   )(implicit id: Long, c: Option[Connection] = None): Option[Challenge] = {
-    this.cacheManager.withUpdatingCache(Long => retrieveById) { implicit item =>
-      this.withMRTransaction { implicit c =>
-        SQL"UPDATE challenges SET popularity=((popularity + $completionTimestamp) / 2) WHERE id = $id RETURNING #${this.retrieveColumns}"
-          .as(this.parser.*)
-          .headOption
-      }
+    this.withMRTransaction { implicit c =>
+      SQL"UPDATE challenges SET popularity=((popularity + $completionTimestamp) / 2) WHERE id = $id RETURNING #${this.retrieveColumns}"
+        .as(this.parser.*)
+        .headOption
     }
   }
 
@@ -2273,55 +2235,53 @@ class ChallengeDAL @Inject() (
       this.retrieveById(id) match {
         case Some(challenge) =>
           if (challenge.status.getOrElse(Challenge.STATUS_NA) != Challenge.STATUS_FINISHED) {
-            this.cacheManager.withUpdatingCache(Long => retrieveById) { implicit item =>
-              val emptyChallengeCheck =
-                finishOnEmpty match {
-                  case true => ""
-                  case false =>
-                    s"0 < (SELECT COUNT(*) FROM tasks where tasks.parent_id = ${id}) AND"
-                }
+            val emptyChallengeCheck =
+              finishOnEmpty match {
+                case true => ""
+                case false =>
+                  s"0 < (SELECT COUNT(*) FROM tasks where tasks.parent_id = ${id}) AND"
+              }
 
-              // If the challenge has no tasks in the created status it need to be marked finished.
-              val updateStatusQuery =
-                s"""UPDATE challenges SET status = ${Challenge.STATUS_FINISHED}
+            // If the challenge has no tasks in the created status it need to be marked finished.
+            val updateStatusQuery =
+              s"""UPDATE challenges SET status = ${Challenge.STATUS_FINISHED}
                             WHERE id = ${id} AND
                             ${emptyChallengeCheck}
                             0 = (SELECT COUNT(*) AS total FROM tasks
                                       WHERE tasks.parent_id = ${id}
                                       AND status IN (${Task.STATUS_CREATED}, ${Task.STATUS_SKIPPED}))
                             RETURNING ${this.retrieveColumns}"""
-              SQL(updateStatusQuery).as(this.parser.*).headOption match {
-                case Some(updatedChallenge) =>
-                  if (updatedChallenge.status.getOrElse(Challenge.STATUS_NA) == Challenge.STATUS_FINISHED) {
-                    val challengeComments =
-                      this.serviceManager.comment.findChallengeComments(updatedChallenge.id)
-                    var challengeAlreadyCompleted = false
+            SQL(updateStatusQuery).as(this.parser.*).headOption match {
+              case Some(updatedChallenge) =>
+                if (updatedChallenge.status.getOrElse(Challenge.STATUS_NA) == Challenge.STATUS_FINISHED) {
+                  val challengeComments =
+                    this.serviceManager.comment.findChallengeComments(updatedChallenge.id)
+                  var challengeAlreadyCompleted = false
 
-                    challengeComments.foreach(c => {
-                      if (c.comment == "Challenge Completed") {
-                        challengeAlreadyCompleted = true
-                      }
-                    })
-
-                    if (!challengeAlreadyCompleted) {
-                      Future {
-                        this.serviceManager.achievement
-                          .awardChallengeCompletionAchievements(updatedChallenge)
-                        this.serviceManager.notification
-                          .createChallengeCompletionNotification(updatedChallenge)
-                      }
-
-                      this.serviceManager.comment.createChallengeComment(
-                        user,
-                        updatedChallenge.id,
-                        "Challenge Completed",
-                        false
-                      )
+                  challengeComments.foreach(c => {
+                    if (c.comment == "Challenge Completed") {
+                      challengeAlreadyCompleted = true
                     }
+                  })
+
+                  if (!challengeAlreadyCompleted) {
+                    Future {
+                      this.serviceManager.achievement
+                        .awardChallengeCompletionAchievements(updatedChallenge)
+                      this.serviceManager.notification
+                        .createChallengeCompletionNotification(updatedChallenge)
+                    }
+
+                    this.serviceManager.comment.createChallengeComment(
+                      user,
+                      updatedChallenge.id,
+                      "Challenge Completed",
+                      false
+                    )
                   }
-                  Some(updatedChallenge)
-                case None => None
-              }
+                }
+                Some(updatedChallenge)
+              case None => None
             }
 
             Option(challenge)
@@ -2333,24 +2293,15 @@ class ChallengeDAL @Inject() (
   }
 
   /**
-    * A basic retrieval of the object based on the id. With caching, so if it finds
-    * the object in the cache it will return that object without checking the database, otherwise
-    * will hit the database directly.
+    * A basic retrieval of the object based on the id.
     *
     * @param id The id of the object to be retrieved
     * @return The object, None if not found
     */
   override def retrieveById(implicit id: Long, c: Option[Connection] = None): Option[Challenge] = {
-    this._retrieveById()
-  }
-
-  def _retrieveById(
-      caching: Boolean = true
-  )(implicit id: Long, c: Option[Connection] = None): Option[Challenge] = {
-    this.cacheManager.withCaching { () =>
-      this.withMRConnection { implicit c =>
-        val query =
-          s"""
+    this.withMRConnection { implicit c =>
+      val query =
+        s"""
             |SELECT c.$retrieveColumns, array_remove(array_agg(vp.project_id), NULL) AS virtual_parent_ids,
             |array_remove(array_agg(cp.preset), NULL) AS presets
             |FROM challenges c
@@ -2360,9 +2311,8 @@ class ChallengeDAL @Inject() (
             |GROUP BY c.id
            """.stripMargin
 
-        SQL(query).on(Symbol("id") -> id).as(this.withVirtualParentParser.singleOpt)
-      }
-    }(id, caching)
+      SQL(query).on(Symbol("id") -> id).as(this.withVirtualParentParser.singleOpt)
+    }
   }
 
   /**
@@ -2375,19 +2325,17 @@ class ChallengeDAL @Inject() (
       this.retrieveById(id) match {
         case Some(challenge) =>
           if (challenge.status.getOrElse(Challenge.STATUS_NA) == Challenge.STATUS_FINISHED) {
-            this.cacheManager.withUpdatingCache(Long => retrieveById) { implicit item =>
-              // If the challenge was finished and any tasks were reset back to created
-              // we need to set the challenge status back to ready
-              val updateStatusQuery2 =
-                s"""UPDATE challenges SET status = ${Challenge.STATUS_READY}
+            // If the challenge was finished and any tasks were reset back to created
+            // we need to set the challenge status back to ready
+            val updateStatusQuery2 =
+              s"""UPDATE challenges SET status = ${Challenge.STATUS_READY}
                             WHERE id = $id AND
                             0 < (SELECT COUNT(*) AS total FROM tasks
                                       WHERE tasks.parent_id = $id
                                       AND status IN (${Task.STATUS_CREATED}, ${Task.STATUS_SKIPPED}))
                             RETURNING ${this.retrieveColumns}"""
 
-              SQL(updateStatusQuery2).as(this.parser.*).headOption
-            }
+            SQL(updateStatusQuery2).as(this.parser.*).headOption
           }
           Option(challenge)
         case None =>
@@ -2409,22 +2357,20 @@ class ChallengeDAL @Inject() (
       overwrite: Boolean = false,
       dataOriginDate: Option[DateTime] = None
   )(implicit id: Long, c: Option[Connection] = None): Option[Challenge] = {
-    this.cacheManager.withUpdatingCache(Long => retrieveById) { implicit item =>
-      if (overwrite) {
-        val originDate = dataOriginDate match {
-          case Some(d) => s"""'${d.toString()}'"""
-          case _       => "NOW()"
-        }
+    if (overwrite) {
+      val originDate = dataOriginDate match {
+        case Some(d) => s"""'${d.toString()}'"""
+        case _       => "NOW()"
+      }
 
-        this.withMRTransaction { implicit c =>
-          SQL"""UPDATE challenges SET last_task_refresh = NOW(), data_origin_date = #$originDate
+      this.withMRTransaction { implicit c =>
+        SQL"""UPDATE challenges SET last_task_refresh = NOW(), data_origin_date = #$originDate
                 WHERE id = $id RETURNING #${this.retrieveColumns}""".as(this.parser.*).headOption
-        }
-      } else {
-        this.withMRTransaction { implicit c =>
-          SQL"""UPDATE challenges SET last_task_refresh = NOW()
+      }
+    } else {
+      this.withMRTransaction { implicit c =>
+        SQL"""UPDATE challenges SET last_task_refresh = NOW()
                 WHERE id = $id RETURNING #${this.retrieveColumns}""".as(this.parser.*).headOption
-        }
       }
     }
   }

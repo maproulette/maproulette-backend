@@ -12,7 +12,6 @@ import org.joda.time.DateTime
 import org.locationtech.jts.geom.{Coordinate, GeometryFactory}
 import org.locationtech.jts.io.WKTWriter
 import org.maproulette.Config
-import org.maproulette.cache.CacheManager
 import org.maproulette.data.{GroupType, UserType}
 import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.framework.model._
@@ -44,22 +43,15 @@ class UserService @Inject() (
     with Writers {
   private val logger = LoggerFactory.getLogger(this.getClass)
 
-  // The cache manager for the users
-  val cacheManager =
-    new CacheManager[Long, User](config, Config.CACHE_ID_USERS)(User.userReads, User.privateWrites)
-  val superUsers = scala.collection.mutable.Set[Long]()
-
-  // On class initialization (called when Play initializes), seed the super user from the existing database entries
-  seedSuperUserIds()
-
   /**
     * Check if a given maproulette user id is a superuser
     * @param maprouletteUserId the id of the user to check
     * @return true if the user is a superuser, false otherwise
     */
-  def isSuperUser(maprouletteUserId: Long): Boolean = {
-    superUsers.contains(maprouletteUserId)
-  }
+  def isSuperUser(maprouletteUserId: Long): Boolean =
+    grantService.isSuperUserInDatabase(maprouletteUserId)
+
+  def superUserIds: List[Long] = grantService.getSuperUserIdsFromDatabase
 
   def promoteUserToSuperUser(user: User, grantor: User): Boolean = {
     if (isSuperUser(user.id)) {
@@ -73,9 +65,7 @@ class UserService @Inject() (
     val grantName =
       s"Grant superuser role on uid=${user.id} (osm_id=${user.osmProfile.id}), requested by uid=${grantor.id}"
     serviceManager.grant.createSuperUserGrant(user.id, grantName, grantor) match {
-      case Some(grant) =>
-        superUsers += grant.grantee.granteeId
-        clearCache(user.id)
+      case Some(_) =>
         true
       case _ =>
         // The grant.createGrant function will throw an exception if it fails, so we should never get here. But just in case...
@@ -96,8 +86,6 @@ class UserService @Inject() (
 
     logger.warn(s"Removing superuser role for uid=${user.id} (osm_id=${user.osmProfile.id})")
     if (serviceManager.grant.deleteSuperUserFromDatabase(user.id)) {
-      superUsers -= user.id
-      clearCache(user.id)
       true
     } else {
       logger.warn(
@@ -127,10 +115,6 @@ class UserService @Inject() (
       }
   }
 
-  private def seedSuperUserIds(): Unit = {
-    superUsers ++= grantService.getSuperUserIdsFromDatabase
-  }
-
   /**
     * Find the User based on an API key, the API key is unique in the database.
     *
@@ -138,36 +122,33 @@ class UserService @Inject() (
     * @param id     The id of the user
     * @return The matched user, None if User not found
     */
-  def retrieveByAPIKey(id: Long, apiKey: String, user: User): Option[User] =
-    this.cacheManager.withOptionCaching { () =>
-      val idFilterGroup = FilterGroup(
-        List(BaseParameter(User.FIELD_ID, id), BaseParameter(User.FIELD_OSM_ID, id)),
-        OR()
-      )
-      val apiFilterGroup = FilterGroup(List(BaseParameter(User.FIELD_API_KEY, apiKey)))
-      val query          = Query(Filter(List(idFilterGroup, apiFilterGroup)))
+  def retrieveByAPIKey(id: Long, apiKey: String, user: User): Option[User] = {
+    val idFilterGroup = FilterGroup(
+      List(BaseParameter(User.FIELD_ID, id), BaseParameter(User.FIELD_OSM_ID, id)),
+      OR()
+    )
+    val apiFilterGroup = FilterGroup(List(BaseParameter(User.FIELD_API_KEY, apiKey)))
+    val query          = Query(Filter(List(idFilterGroup, apiFilterGroup)))
 
-      this.repository.query(query).headOption match {
-        case Some(u) =>
-          this.permission.hasObjectReadAccess(u, user)
-          Some(u)
-        case None => None
-      }
+    this.repository.query(query).headOption match {
+      case Some(u) =>
+        this.permission.hasObjectReadAccess(u, user)
+        Some(u)
+      case None => None
     }
+  }
 
   def retrieveByUsernameAndAPIKey(username: String, apiKey: String): Option[User] =
-    this.cacheManager.withOptionCaching { () =>
-      this.repository
-        .query(
-          Query.simple(
-            List(
-              BaseParameter(User.FIELD_NAME, username),
-              BaseParameter(User.FIELD_API_KEY, apiKey)
-            )
+    this.repository
+      .query(
+        Query.simple(
+          List(
+            BaseParameter(User.FIELD_NAME, username),
+            BaseParameter(User.FIELD_API_KEY, apiKey)
           )
         )
-        .headOption
-    }
+      )
+      .headOption
 
   /**
     * Helper function to allow users to be retrieve by just the OSM username, for security we only
@@ -177,25 +158,24 @@ class UserService @Inject() (
     * @param user     The user making the request
     * @return An optional user object, if none then not found
     */
-  def retrieveByOSMUsername(username: String, user: User): Option[User] =
-    this.cacheManager.withOptionCaching { () =>
-      // only execute this kind of request if the user is a super user
-      if (permission.isSuperUser(user)) {
-        this
-          .query(
-            Query
-              .simple(
-                List(BaseParameter(User.FIELD_NAME, username, Operator.ILIKE))
-              ),
-            user
-          )
-          .headOption
-      } else {
-        throw new IllegalAccessException(
-          "Only Superuser allowed to look up users by just OSM username"
+  def retrieveByOSMUsername(username: String, user: User): Option[User] = {
+    // only execute this kind of request if the user is a super user
+    if (permission.isSuperUser(user)) {
+      this
+        .query(
+          Query
+            .simple(
+              List(BaseParameter(User.FIELD_NAME, username, Operator.ILIKE))
+            ),
+          user
         )
-      }
+        .headOption
+    } else {
+      throw new IllegalAccessException(
+        "Only Superuser allowed to look up users by just OSM username"
+      )
     }
+  }
 
   /**
     * Fetches a list of users, for security we only
@@ -286,22 +266,19 @@ class UserService @Inject() (
     * @return The matched user, None if User not found
     */
   def matchByRequestToken(id: Long, requestToken: String, user: User): Option[User] = {
-    val requestedUser = this.cacheManager.withCaching { () =>
-      this
-        .query(
-          Query.simple(
-            List(
-              FilterParameter.conditional(User.FIELD_ID, id, includeOnlyIfTrue = id > 0),
-              BaseParameter(User.FIELD_OAUTH_TOKEN, requestToken)
-            )
-          ),
-          user
-        )
-        .headOption
-    }(id = id)
+    val requestedUser = this
+      .query(
+        Query.simple(
+          List(
+            FilterParameter.conditional(User.FIELD_ID, id, includeOnlyIfTrue = id > 0),
+            BaseParameter(User.FIELD_OAUTH_TOKEN, requestToken)
+          )
+        ),
+        user
+      )
+      .headOption
     requestedUser match {
       case Some(u) =>
-        // double check that the token still matches, in case it came from the cache
         if (StringUtils.equals(u.osmProfile.requestToken, requestToken)) {
           this.permission.hasObjectReadAccess(u, user)
           Some(u)
@@ -324,19 +301,17 @@ class UserService @Inject() (
     * @return None if failed to update or create.
     */
   def create(item: User, user: User): User = {
-    this.cacheManager.withOptionCaching { () =>
-      this.permission.hasObjectAdminAccess(item, user)
-      val newAPIKey = crypto.encrypt(this.generateAPIKey)
-      val ewkt = new WKTWriter().write(
-        new GeometryFactory().createPoint(
-          new Coordinate(
-            item.osmProfile.homeLocation.latitude,
-            item.osmProfile.homeLocation.longitude
-          )
+    this.permission.hasObjectAdminAccess(item, user)
+    val newAPIKey = crypto.encrypt(this.generateAPIKey)
+    val ewkt = new WKTWriter().write(
+      new GeometryFactory().createPoint(
+        new Coordinate(
+          item.osmProfile.homeLocation.latitude,
+          item.osmProfile.homeLocation.longitude
         )
       )
-      Some(this.repository.upsert(item, newAPIKey, ewkt))
-    }.get
+    )
+    this.repository.upsert(item, newAPIKey, ewkt)
   }
 
   /**
@@ -347,11 +322,10 @@ class UserService @Inject() (
     */
   def generateAPIKey(apiKeyUser: User, user: User): Option[User] = {
     this.permission.hasAdminAccess(UserType(), user)(apiKeyUser.id)
-    this.cacheManager
-      .withUpdatingCache(this.retrieve) { implicit cachedItem =>
-        val newAPIKey = crypto.encrypt(this.generateAPIKey)
-        Some(this.repository.updateAPIKey(apiKeyUser.id, newAPIKey))
-      }(id = apiKeyUser.id)
+    this.retrieve(apiKeyUser.id).map { _ =>
+      val newAPIKey = crypto.encrypt(this.generateAPIKey)
+      this.repository.updateAPIKey(apiKeyUser.id, newAPIKey)
+    }
   }
 
   private def generateAPIKey: String = UUID.randomUUID().toString
@@ -400,78 +374,78 @@ class UserService @Inject() (
     * @return The user that was updated, None if no user was found with the id
     */
   def update(id: Long, value: JsValue, user: User): Option[User] = {
-    this.cacheManager.withUpdatingCache(this.retrieve) { implicit cachedItem =>
-      this.permission.hasObjectAdminAccess(cachedItem, user)
+    this.retrieve(id).flatMap { implicit existing =>
+      this.permission.hasObjectAdminAccess(existing, user)
 
       val displayName = (value \ "osmProfile" \ "displayName")
         .asOpt[String]
-        .getOrElse(cachedItem.osmProfile.displayName)
+        .getOrElse(existing.osmProfile.displayName)
       val description = (value \ "osmProfile" \ "description")
         .asOpt[String]
-        .getOrElse(cachedItem.osmProfile.description)
+        .getOrElse(existing.osmProfile.description)
       val avatarURL = (value \ "osmProfile" \ "avatarURL")
         .asOpt[String]
-        .getOrElse(cachedItem.osmProfile.avatarURL)
+        .getOrElse(existing.osmProfile.avatarURL)
       val token = (value \ "osmProfile" \ "token")
         .asOpt[String]
-        .getOrElse(cachedItem.osmProfile.requestToken)
+        .getOrElse(existing.osmProfile.requestToken)
       // todo: allow to insert in WKT, WKB or latitude/longitude
       val latitude = (value \ "osmProfile" \ "homeLocation" \ "latitude")
         .asOpt[Double]
-        .getOrElse(cachedItem.osmProfile.homeLocation.latitude)
+        .getOrElse(existing.osmProfile.homeLocation.latitude)
       val longitude = (value \ "osmProfile" \ "homeLocation" \ "longitude")
         .asOpt[Double]
-        .getOrElse(cachedItem.osmProfile.homeLocation.longitude)
+        .getOrElse(existing.osmProfile.homeLocation.longitude)
       val ewkt = new WKTWriter()
         .write(new GeometryFactory().createPoint(new Coordinate(latitude, longitude)))
       val defaultEditor = (value \ "settings" \ "defaultEditor")
         .asOpt[Int]
-        .getOrElse(cachedItem.settings.defaultEditor.getOrElse(-1))
+        .getOrElse(existing.settings.defaultEditor.getOrElse(-1))
       val defaultBasemap = (value \ "settings" \ "defaultBasemap")
         .asOpt[Int]
-        .getOrElse(cachedItem.settings.defaultBasemap.getOrElse(-1))
+        .getOrElse(existing.settings.defaultBasemap.getOrElse(-1))
       val defaultBasemapId = (value \ "settings" \ "defaultBasemapId")
         .asOpt[String]
-        .getOrElse(cachedItem.settings.defaultBasemapId.getOrElse(""))
+        .getOrElse(existing.settings.defaultBasemapId.getOrElse(""))
       val locale = (value \ "settings" \ "locale")
         .asOpt[String]
-        .getOrElse(cachedItem.settings.locale.getOrElse("en"))
+        .getOrElse(existing.settings.locale.getOrElse("en"))
       val email = (value \ "settings" \ "email")
         .asOpt[String]
-        .getOrElse(cachedItem.settings.email.getOrElse(""))
+        .getOrElse(existing.settings.email.getOrElse(""))
       val emailOptIn = (value \ "settings" \ "emailOptIn")
         .asOpt[Boolean]
-        .getOrElse(cachedItem.settings.emailOptIn.getOrElse(false))
+        .getOrElse(existing.settings.emailOptIn.getOrElse(false))
       val leaderboardOptOut = (value \ "settings" \ "leaderboardOptOut")
         .asOpt[Boolean]
-        .getOrElse(cachedItem.settings.leaderboardOptOut.getOrElse(false))
+        .getOrElse(existing.settings.leaderboardOptOut.getOrElse(false))
       var needsReview = (value \ "settings" \ "needsReview")
         .asOpt[Int]
-        .getOrElse(cachedItem.settings.needsReview.getOrElse(config.defaultNeedsReview))
+        .getOrElse(existing.settings.needsReview.getOrElse(config.defaultNeedsReview))
       val isReviewer = (value \ "settings" \ "isReviewer")
         .asOpt[Boolean]
-        .getOrElse(cachedItem.settings.isReviewer.getOrElse(false))
+        .getOrElse(existing.settings.isReviewer.getOrElse(false))
       val seeTagFixSuggestions = (value \ "settings" \ "seeTagFixSuggestions")
         .asOpt[Boolean]
-        .getOrElse(cachedItem.settings.seeTagFixSuggestions.getOrElse(false))
+        .getOrElse(existing.settings.seeTagFixSuggestions.getOrElse(false))
       val disableTaskConfirm = (value \ "settings" \ "disableTaskConfirm")
         .asOpt[Boolean]
-        .getOrElse(cachedItem.settings.disableTaskConfirm.getOrElse(false))
+        .getOrElse(existing.settings.disableTaskConfirm.getOrElse(false))
       val showPriorityMarkerColors = (value \ "settings" \ "showPriorityMarkerColors")
         .asOpt[Boolean]
-        .getOrElse(cachedItem.settings.showPriorityMarkerColors.getOrElse(false))
+        .getOrElse(existing.settings.showPriorityMarkerColors.getOrElse(false))
       val theme = (value \ "settings" \ "theme")
         .asOpt[Int]
-        .getOrElse(cachedItem.settings.theme.getOrElse(-1))
+        .getOrElse(existing.settings.theme.getOrElse(-1))
       val properties: JsObject =
         (value \ "properties")
           .asOpt[JsObject]
-          .getOrElse(cachedItem.properties.getOrElse(Json.obj()))
+          .getOrElse(existing.properties.getOrElse(Json.obj()))
 
       val customBasemaps = (value \ "settings" \ "customBasemaps").asOpt[List[CustomBasemap]]
       val plugins = (value \ "settings" \ "plugins")
         .asOpt[String]
-        .orElse(cachedItem.settings.plugins)
+        .orElse(existing.settings.plugins)
 
       // If this user always requires a review, then they are not allowed to change it (except super users)
       if (user.settings.needsReview.getOrElse(0) == User.REVIEW_MANDATORY) {
@@ -517,7 +491,7 @@ class UserService @Inject() (
           ewkt
         )
       )
-    }(id = id)
+    }
   }
 
   /**
@@ -532,9 +506,7 @@ class UserService @Inject() (
       case Some(u) => this.grantService.deleteGrantsTo(Grantee.user(u.id), user)
       case None    => //no user, so can just ignore
     }
-    this.cacheManager.withCacheIDDeletion { () =>
-      this.repository.delete(id)
-    }(ids = List(id))
+    this.repository.delete(id)
   }
 
   /**
@@ -546,8 +518,7 @@ class UserService @Inject() (
   override def retrieve(id: Long): Option[User] = this.retrieveListById(List(id)).headOption
 
   /**
-    * Retrieves a list of objects from the supplied list of ids. Will check for any objects currently
-    * in the cache and those that aren't will be retrieved from the database
+    * Retrieves a list of objects from the supplied list of ids
     *
     * @param ids The list of ids to be retrieved
     * @param paging paging object to handle paging in response
@@ -557,15 +528,13 @@ class UserService @Inject() (
     if (ids.isEmpty) {
       List.empty
     } else {
-      this.cacheManager.withIDListCaching { implicit uncachedIDs =>
-        this.query(
-          Query.simple(
-            List(BaseParameter(User.FIELD_ID, uncachedIDs, Operator.IN)),
-            paging = paging
-          ),
-          User.superUser
-        )
-      }(ids = ids)
+      this.query(
+        Query.simple(
+          List(BaseParameter(User.FIELD_ID, ids, Operator.IN)),
+          paging = paging
+        ),
+        User.superUser
+      )
     }
   }
 
@@ -585,9 +554,7 @@ class UserService @Inject() (
         i
       case None => throw new NotFoundException(s"No user with OSM ID $osmId found")
     }
-    this.cacheManager.withCacheIDDeletion { () =>
-      this.repository.deleteByOSMID(osmId)
-    }(ids = List(item.id))
+    this.repository.deleteByOSMID(osmId)
     true
   }
 
@@ -613,8 +580,9 @@ class UserService @Inject() (
   def removeUserFromProject(osmId: Long, projectId: Long, role: Option[Int], user: User): Unit = {
     this.permission.hasProjectAccess(this.projectService.retrieve(projectId), user)
 
-    this.cacheManager
-      .withUpdatingCache(this.retrieveByOSMId) { cachedUser =>
+    this
+      .retrieveByOSMId(osmId)
+      .flatMap { targetUser =>
         // Don't remove the last administrator from the project
         if (!this.grantService
               .retrieveMatchingGrants(
@@ -623,7 +591,7 @@ class UserService @Inject() (
                 user = User.superUser
               )
               .exists { g =>
-                g.grantee.granteeType == UserType() && g.grantee != Grantee.user(cachedUser.id)
+                g.grantee.granteeType == UserType() && g.grantee != Grantee.user(targetUser.id)
               }) {
           throw new InvalidException(
             "Cannot remove user from project: projects must have at least one administrator"
@@ -631,20 +599,18 @@ class UserService @Inject() (
         }
 
         this.grantService.deleteMatchingGrants(
-          grantee = Some(Grantee.user(cachedUser.id)),
+          grantee = Some(Grantee.user(targetUser.id)),
           role = role,
           target = Some(GrantTarget.project(projectId)),
           user = User.superUser
         )
         Some(
-          cachedUser.copy(
-            grants = this.grantService.retrieveGrantsTo(Grantee.user(cachedUser.id), User.superUser)
+          targetUser.copy(
+            grants = this.grantService.retrieveGrantsTo(Grantee.user(targetUser.id), User.superUser)
           )
         )
-      }(id = osmId)
+      }
       .get
-
-    this.projectService.clearCache(projectId)
   }
 
   /**
@@ -675,15 +641,9 @@ class UserService @Inject() (
     }
 
     // Return user refreshed with new grants
-    this.cacheManager
-      .withUpdatingCache(osmId => Some(user)) { cachedUser =>
-        Some(
-          cachedUser.copy(
-            grants = this.grantService.retrieveGrantsTo(Grantee.user(cachedUser.id), User.superUser)
-          )
-        )
-      }(id = user.osmProfile.id)
-      .get
+    user.copy(
+      grants = this.grantService.retrieveGrantsTo(Grantee.user(user.id), User.superUser)
+    )
   }
 
   /**
@@ -703,44 +663,39 @@ class UserService @Inject() (
   ): User = {
     this.permission.hasProjectAccess(this.projectService.retrieve(projectId), user)
     Grant.validateRole(role, GrantTarget.project(projectId))
-    val addedUser = this.cacheManager
-      .withUpdatingCache(this.retrieveByOSMId) { cachedUser =>
+    this
+      .retrieveByOSMId(osmId)
+      .flatMap { targetUser =>
         if (clear) {
           this.grantService.deleteMatchingGrants(
-            grantee = Some(Grantee.user(cachedUser.id)),
+            grantee = Some(Grantee.user(targetUser.id)),
             target = Some(GrantTarget.project(projectId)),
             user = User.superUser
           )
         }
         this.grantService.createGrant(
-          Grant(-1, "", Grantee.user(cachedUser.id), role, GrantTarget.project(projectId)),
+          Grant(-1, "", Grantee.user(targetUser.id), role, GrantTarget.project(projectId)),
           User.superUser
         )
         Some(
-          cachedUser.copy(
-            grants = this.grantService.retrieveGrantsTo(Grantee.user(cachedUser.id), User.superUser)
+          targetUser.copy(
+            grants = this.grantService.retrieveGrantsTo(Grantee.user(targetUser.id), User.superUser)
           )
         )
-      }(id = osmId)
+      }
       .get
-
-    this.projectService.clearCache(projectId)
-    addedUser
   }
 
   /**
-    * Find the user based on the user's osm ID. If found on cache, will return cached object
-    * instead of hitting the database
+    * Find the user based on the user's osm ID
     *
     * @param id   The user's osm ID
     * @return The matched user, None if User not found
     */
   def retrieveByOSMId(id: Long): Option[User] =
-    this.cacheManager.withOptionCaching { () =>
-      this
-        .query(Query.simple(List(BaseParameter(User.FIELD_OSM_ID, id))), User.superUser)
-        .headOption
-    }
+    this
+      .query(Query.simple(List(BaseParameter(User.FIELD_OSM_ID, id))), User.superUser)
+      .headOption
 
   def query(query: Query, user: User): List[User] = this.repository.query(query)
 
@@ -1033,18 +988,5 @@ class UserService @Inject() (
         )
       )
       .map(u => { u.toSearchResult })
-  }
-
-  /**
-    * Clears the users cache
-    *
-    * @param id If id is supplied will only remove the user with that id
-    */
-  def clearCache(id: Long = -1): Unit = {
-    if (id > -1) {
-      this.cacheManager.cache.remove(id)
-    } else {
-      this.cacheManager.clearCaches
-    }
   }
 }

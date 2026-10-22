@@ -11,7 +11,6 @@ import anorm._
 import javax.inject.Inject
 import org.joda.time.DateTime
 import org.maproulette.Config
-import org.maproulette.cache.CacheManager
 import org.maproulette.data.{Actions, VirtualChallengeType}
 import org.maproulette.exception.InvalidException
 import org.maproulette.framework.model.{User, ClusteredPoint, Point, PointReview, Task}
@@ -42,8 +41,6 @@ class VirtualChallengeDAL @Inject() (
     with BaseDAL[Long, VirtualChallenge]
     with Locking[Task] {
 
-  override val cacheManager =
-    new CacheManager[Long, VirtualChallenge](config, Config.CACHE_ID_VIRTUAL_CHALLENGES)
   override val tableName: String = "virtual_challenges"
   implicit val baseTable: String = tableName
 
@@ -84,59 +81,57 @@ class VirtualChallengeDAL @Inject() (
   override def insert(element: VirtualChallenge, user: User)(
       implicit c: Option[Connection] = None
   ): VirtualChallenge = {
-    this.cacheManager.withOptionCaching { () =>
-      withMRTransaction { implicit c =>
-        // check if any virtual challenges with the same name need to expire
-        // calling the retrieve function will also remove any expired virtual challenges
-        this.retrieveListByName(List(element.name))
-        val validParameters = element.taskIdList match {
-          case Some(ids) => ids.nonEmpty
-          case None =>
-            element.searchParameters.location.nonEmpty ||
-              element.searchParameters.boundingGeometries.nonEmpty
-        }
+    withMRTransaction { implicit c =>
+      // check if any virtual challenges with the same name need to expire
+      // calling the retrieve function will also remove any expired virtual challenges
+      this.retrieveListByName(List(element.name))
+      val validParameters = element.taskIdList match {
+        case Some(ids) => ids.nonEmpty
+        case None =>
+          element.searchParameters.location.nonEmpty ||
+            element.searchParameters.boundingGeometries.nonEmpty
+      }
 
-        if (validParameters) {
-          val query =
-            """INSERT INTO virtual_challenges (owner_id, name, description, search_parameters, expiry)
+      if (validParameters) {
+        val query =
+          """INSERT INTO virtual_challenges (owner_id, name, description, search_parameters, expiry)
                              VALUES ({owner}, {name}, {description}, {parameters}, {expiry}::timestamp)
                              RETURNING *"""
-          val newChallenge = SQL(query)
-            .on(
-              Symbol("owner")       -> user.osmProfile.id,
-              Symbol("name")        -> element.name,
-              Symbol("description") -> element.description,
-              Symbol("parameters")  -> Json.toJson(element.searchParameters).toString(),
-              Symbol("expiry") -> ToParameterValue
-                .apply[String]
-                .apply(String.valueOf(element.expiry))
-            )
-            .as(this.parser.single)
-          c.commit()
-          try {
-            element.taskIdList match {
-              case Some(ids) => this.createVirtualChallengeFromIds(newChallenge.id, ids)
-              case None =>
-                this.rebuildVirtualChallenge(newChallenge.id, element.searchParameters, user)
-            }
-          } catch {
-            case e: Exception =>
-              logger.error(
-                s"Failed to populate tasks for virtual challenge ${newChallenge.id}: ${e.getClass.getName}: ${e.getMessage}",
-                e
-              )
-              throw new InvalidException(
-                s"Failed to populate tasks for virtual challenge: ${e.getClass.getName}: ${e.getMessage}"
-              )
-          }
-          Some(newChallenge)
-        } else {
-          throw new InvalidException(
-            s"Bounding Box that has an area smaller than ${config.virtualChallengeLimit} required to create virtual challenge."
+        val newChallenge = SQL(query)
+          .on(
+            Symbol("owner")       -> user.osmProfile.id,
+            Symbol("name")        -> element.name,
+            Symbol("description") -> element.description,
+            Symbol("parameters")  -> Json.toJson(element.searchParameters).toString(),
+            Symbol("expiry") -> ToParameterValue
+              .apply[String]
+              .apply(String.valueOf(element.expiry))
           )
+          .as(this.parser.single)
+        c.commit()
+        try {
+          element.taskIdList match {
+            case Some(ids) => this.createVirtualChallengeFromIds(newChallenge.id, ids)
+            case None =>
+              this.rebuildVirtualChallenge(newChallenge.id, element.searchParameters, user)
+          }
+        } catch {
+          case e: Exception =>
+            logger.error(
+              s"Failed to populate tasks for virtual challenge ${newChallenge.id}: ${e.getClass.getName}: ${e.getMessage}",
+              e
+            )
+            throw new InvalidException(
+              s"Failed to populate tasks for virtual challenge: ${e.getClass.getName}: ${e.getMessage}"
+            )
         }
+        newChallenge
+      } else {
+        throw new InvalidException(
+          s"Bounding Box that has an area smaller than ${config.virtualChallengeLimit} required to create virtual challenge."
+        )
       }
-    }.get
+    }
   }
 
   /**
@@ -201,17 +196,17 @@ class VirtualChallengeDAL @Inject() (
       user: User
   )(implicit id: Long, c: Option[Connection] = None): Option[VirtualChallenge] = {
     permission.hasWriteAccess(VirtualChallengeType(), user)
-    this.cacheManager.withUpdatingCache(Long => retrieveById) { implicit cachedItem =>
+    this.retrieveById.flatMap { implicit existing =>
       withMRTransaction { implicit c =>
         // first if the virtual challenge has expired then just delete it
-        val expiry = (updates \ "expiry").asOpt[DateTime].getOrElse(cachedItem.expiry)
+        val expiry = (updates \ "expiry").asOpt[DateTime].getOrElse(existing.expiry)
         if (DateTime.now().isAfter(expiry)) {
-          this.delete(cachedItem.id, user)
+          this.delete(existing.id, user)
           throw new InvalidException("Could not update virtual challenge as it has already expired")
         } else {
-          val name = (updates \ "name").asOpt[String].getOrElse(cachedItem.name)
+          val name = (updates \ "name").asOpt[String].getOrElse(existing.name)
           val description =
-            (updates \ "description").asOpt[String].getOrElse(cachedItem.description.getOrElse(""))
+            (updates \ "description").asOpt[String].getOrElse(existing.description.getOrElse(""))
           val query =
             """UPDATE virtual_challenges
                SET name = {name}, description = {description}, expiry = {expiry}::timestamp

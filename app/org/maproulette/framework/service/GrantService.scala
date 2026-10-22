@@ -225,6 +225,17 @@ class GrantService @Inject() (
     }
   }
 
+  def isSuperUserInDatabase(maprouletteUserId: Long): Boolean = {
+    repository.withMRConnection { implicit c =>
+      anorm
+        .SQL(
+          "SELECT EXISTS(SELECT 1 FROM grants WHERE grantee_id = {maprouletteUserId} AND role = -1 AND grantee_type = 5 AND object_type = 0 AND object_id = 0)"
+        )
+        .on("maprouletteUserId" -> maprouletteUserId)
+        .as(SqlParser.scalar[Boolean].single)
+    }
+  }
+
   def deleteSuperUserFromDatabase(maprouletteUserId: Long): Boolean = {
     if (maprouletteUserId == User.DEFAULT_SUPER_USER_ID) {
       throw new IllegalAccessException("The system super user is not allowed to be removed")

@@ -12,6 +12,7 @@ import org.maproulette.framework.util.{FrameworkHelper, UserTag}
 import org.maproulette.exception.{InvalidException}
 import org.maproulette.session.{SearchParameters, SearchTaskParameters}
 import org.maproulette.data.{ProjectType}
+import org.maproulette.framework.repository.GrantRepository
 import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}
 import org.scalatest.matchers.should.Matchers._
 import play.api.Application
@@ -147,6 +148,23 @@ class UserServiceSpec(implicit val application: Application) extends FrameworkHe
       userList.size mustEqual 2
       List(user1, user2).contains(userList.head) mustEqual true
       List(user1, user2).contains(userList(1)) mustEqual true
+    }
+
+    "see superuser grants written outside of the user service" taggedAs UserTag in {
+      val user = this.userService
+        .create(this.getTestUser(98765433, "SuperUserGrantVisibility"), User.superUser)
+      this.userService.isSuperUser(user.id) mustEqual false
+
+      this.application.injector
+        .instanceOf(classOf[GrantRepository])
+        .create(
+          Grant(-1, "", Grantee.user(user.id), Grant.ROLE_SUPER_USER, GrantTarget.project(0))
+        )
+      this.userService.isSuperUser(user.id) mustEqual true
+      this.userService.superUserIds must contain(user.id)
+
+      this.serviceManager.grant.deleteSuperUserFromDatabase(user.id) mustEqual true
+      this.userService.isSuperUser(user.id) mustEqual false
     }
 
     "delete user" taggedAs UserTag in {
@@ -442,7 +460,7 @@ class UserServiceSpec(implicit val application: Application) extends FrameworkHe
         )
 
       an[InvalidException] should be thrownBy this.userService.removeUserFromProject(
-        user.id,
+        user.osmProfile.id,
         project.id,
         Some(Grant.ROLE_ADMIN),
         User.superUser

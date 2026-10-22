@@ -9,7 +9,6 @@ import java.sql.Connection
 import com.google.inject.Singleton
 import javax.inject.{Inject, Provider}
 import org.maproulette.Config
-import org.maproulette.cache.CacheObject
 import org.maproulette.data._
 import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.framework.model._
@@ -66,7 +65,7 @@ class Permission @Inject() (
         case _ =>
           this.getItem(itemType)(id, c) match {
             case Some(obj) =>
-              this.hasObjectWriteAccess(obj.asInstanceOf[CacheObject[Long]], user, role)
+              this.hasObjectWriteAccess(obj, user, role)
             case _ =>
               throw new NotFoundException(
                 s"No ${Actions.getTypeName(itemType.typeId).getOrElse("Unknown")} found using id [$id] to check write access"
