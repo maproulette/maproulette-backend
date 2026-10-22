@@ -2393,13 +2393,27 @@ class ChallengeDAL @Inject() (
         )
         WHERE id = $id
         AND EXISTS (
-          SELECT 1 FROM tasks 
-          WHERE parent_id = $id 
+          SELECT 1 FROM tasks
+          WHERE parent_id = $id
           AND location IS NOT NULL
         )
       """.executeUpdate()
     }
   }
+
+  def lockForTaskBuild(implicit id: Long, c: Connection): Option[Challenge] =
+    SQL"""SELECT id FROM challenges WHERE id = $id FOR UPDATE"""
+      .as(long("id").singleOpt)
+      .flatMap(_ => this.retrieveById(id, Some(c)))
+
+  def updateBuildStatus(status: Int, statusMessage: String)(
+      implicit id: Long,
+      c: Option[Connection] = None
+  ): Unit =
+    this.withMRConnection { implicit c =>
+      SQL"""UPDATE challenges SET status = $status, status_message = $statusMessage WHERE id = $id"""
+        .executeUpdate()
+    }
 
   /**
     * Resets all the Task instructions for the children of the challenge
