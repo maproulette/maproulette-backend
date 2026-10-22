@@ -167,19 +167,28 @@ class ChallengeProvider @Inject() (
     * Create a single task from some provided GeoJSON. Unlike when creating multiple tasks, this
     * will not create the tasks in a future
     *
-    * @param user      The user executing the task
-    * @param challenge The challenge to create the task under
-    * @param json      The geojson for the task
+    * @param user                  The user executing the task
+    * @param challenge             The challenge to create the task under
+    * @param json                  The geojson for the task
+    * @param deferChallengeUpdates Set to true when creating many tasks one at a time, so the caller
+    *                              can update the challenge status, refresh time and bounding box
+    *                              once for all of them
     * @return
     */
-  def createTaskFromJson(user: User, challenge: Challenge, json: String): Option[Task] = {
+  def createTaskFromJson(
+      user: User,
+      challenge: Challenge,
+      json: String,
+      deferChallengeUpdates: Boolean = false
+  ): Option[Task] = {
     try {
       this
         .createTasksFromFeatures(
           user,
           challenge,
           Json.parse(this.normalizeRFC7464Sequence(json)),
-          true
+          true,
+          deferChallengeUpdates = deferChallengeUpdates
         )
         .headOption
     } catch {
@@ -415,15 +424,20 @@ class ChallengeProvider @Inject() (
     * @param parent   The challenge where the task should be created
     * @param jsonData The json data for the task
     * @param single   if true, then will use the json provided and create a single task
+    * @param deferChallengeUpdates if true, the challenge status, refresh time and bounding box are
+    *                              left for the caller to update
     */
   private def createTasksFromFeatures(
       user: User,
       parent: Challenge,
       jsonData: JsValue,
       single: Boolean = false,
-      currentTaskCount: Int = 0
+      currentTaskCount: Int = 0,
+      deferChallengeUpdates: Boolean = false
   ): List[Task] = {
-    this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_BUILDING), user)(parent.id)
+    if (!deferChallengeUpdates) {
+      this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_BUILDING), user)(parent.id)
+    }
     val featureList       = (jsonData \ "features").as[List[JsValue]]
     val featureListLength = (jsonData \ "features").as[List[JsValue]].length
     try {
@@ -464,9 +478,11 @@ class ChallengeProvider @Inject() (
           }
         }
 
-        this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(parent.id)
-        this.challengeDAL.markTasksRefreshed()(parent.id)
-        this.challengeDAL.updateBoundingBox()(parent.id)
+        if (!deferChallengeUpdates) {
+          this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(parent.id)
+          this.challengeDAL.markTasksRefreshed()(parent.id)
+          this.challengeDAL.updateBoundingBox()(parent.id)
+        }
         if (single) {
           this.createNewTask(user, taskNameFromJsValue(jsonData, parent), parent, jsonData) match {
             case Some(t) => List(t)

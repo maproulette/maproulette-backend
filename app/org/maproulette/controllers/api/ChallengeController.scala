@@ -1622,7 +1622,30 @@ class ChallengeController @Inject() (
                         )
                       }
                     } else {
-                      sourceData.foreach(challengeProvider.createTaskFromJson(user, c, _))
+                      // Update the challenge once for the whole file instead of for every line. The
+                      // refresh time and bounding box are also updated when a bad line stops the
+                      // upload part way through, since the tasks before it were still created.
+                      dalManager.challenge.update(
+                        Json.obj("status" -> Challenge.STATUS_BUILDING),
+                        user
+                      )(challengeId)
+                      try {
+                        sourceData.foreach(
+                          challengeProvider.createTaskFromJson(
+                            user,
+                            c,
+                            _,
+                            deferChallengeUpdates = true
+                          )
+                        )
+                        dalManager.challenge.update(
+                          Json.obj("status" -> Challenge.STATUS_READY),
+                          user
+                        )(challengeId)
+                      } finally {
+                        dalManager.challenge.markTasksRefreshed()(challengeId)
+                        dalManager.challenge.updateBoundingBox()(challengeId)
+                      }
                     }
                   } else {
                     challengeProvider.createTasksFromJson(
