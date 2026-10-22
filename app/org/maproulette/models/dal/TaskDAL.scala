@@ -71,9 +71,6 @@ class TaskDAL @Inject() (
 
   val parser = this.getTaskParser()
 
-  // The cache manager for that tasks
-  override val cacheManager = this.taskRepository.cacheManager
-
   // The database table name for the tasks
   override val tableName: String = "tasks"
   implicit val baseTable: String = tableName
@@ -88,9 +85,7 @@ class TaskDAL @Inject() (
   /**
     * Retrieves the object based on the name, this function is somewhat weak as there could be
     * multiple objects with the same name. The database only restricts the same name in combination
-    * with a parent. So this will just return the first one it finds. With caching, so if it finds
-    * the object in the cache it will return that object without checking the database, otherwise
-    * will hit the database directly.
+    * with a parent. So this will just return the first one it finds.
     *
     * @param name The name you are looking up by
     * @return The object that you are looking up, None if not found
@@ -100,13 +95,11 @@ class TaskDAL @Inject() (
       parentId: Long = (-1),
       c: Option[Connection] = None
   ): Option[Task] = {
-    this.cacheManager.withOptionCaching { () =>
-      this.withMRConnection { implicit c =>
-        val query = s"SELECT $retrieveColumnsWithReview FROM ${this.tableName} " +
-          s"LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id " +
-          s"WHERE name = {name} ${this.parentFilter(parentId)}"
-        SQL(query).on(Symbol("name") -> name).as(this.parser.*).headOption
-      }
+    this.withMRConnection { implicit c =>
+      val query = s"SELECT $retrieveColumnsWithReview FROM ${this.tableName} " +
+        s"LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id " +
+        s"WHERE name = {name} ${this.parentFilter(parentId)}"
+      SQL(query).on(Symbol("name") -> name).as(this.parser.*).headOption
     }
   }
 
@@ -127,14 +120,12 @@ class TaskDAL @Inject() (
     obj match {
       case Left(id) =>
         this.permission.hasReadAccess(TaskType(), user)(id)
-        this.serviceManager.project.cacheManager.withOptionCaching { () =>
-          this.withMRConnection { implicit c =>
-            SQL"""SELECT p.* FROM projects p
+        this.withMRConnection { implicit c =>
+          SQL"""SELECT p.* FROM projects p
              INNER JOIN challenges c ON c.parent_id = p.id
              INNER JOIN task t ON t.parent_id = c.id
              WHERE t.id = $id
            """.as(projectParser.*).headOption
-          }
         }
       case Right(task) =>
         this.permission.hasObjectReadAccess(task, user)
@@ -171,60 +162,60 @@ class TaskDAL @Inject() (
       value: JsValue,
       user: User
   )(implicit id: Long, c: Option[Connection] = None): Option[Task] = {
-    this.cacheManager.withUpdatingCache(Long => retrieveById) { implicit cachedItem =>
-      val name = (value \ "name").asOpt[String].getOrElse(cachedItem.name)
+    this.retrieveById.flatMap { implicit existing =>
+      val name = (value \ "name").asOpt[String].getOrElse(existing.name)
       val instruction =
-        (value \ "instruction").asOpt[String].getOrElse(cachedItem.instruction.getOrElse(""))
+        (value \ "instruction").asOpt[String].getOrElse(existing.instruction.getOrElse(""))
       // status should probably not be allowed to be set through the update function, and rather
       // it should be forced to use the setTaskStatus function
-      val status = (value \ "status").asOpt[Int].getOrElse(cachedItem.status.getOrElse(0))
-      if (!Task.isValidStatusProgression(cachedItem.status.getOrElse(0), status) &&
+      val status = (value \ "status").asOpt[Int].getOrElse(existing.status.getOrElse(0))
+      if (!Task.isValidStatusProgression(existing.status.getOrElse(0), status) &&
           allCatch.opt(this.permission.hasWriteAccess(TaskType(), user)) == None) {
         throw new InvalidException(
           s"Could not set status for task [$id], " +
-            s"progression from ${cachedItem.status.getOrElse(0)} to $status not valid."
+            s"progression from ${existing.status.getOrElse(0)} to $status not valid."
         )
       }
-      val priority = (value \ "priority").asOpt[Int].getOrElse(cachedItem.priority)
+      val priority = (value \ "priority").asOpt[Int].getOrElse(existing.priority)
       val geometries: JsObject =
-        (value \ "geometries").asOpt[JsObject].getOrElse(cachedItem.geometries)
+        (value \ "geometries").asOpt[JsObject].getOrElse(existing.geometries)
       val cooperativeWork: Option[JsObject] =
         (value \ "cooperativeWork").asOpt[JsObject]
       val changesetId =
-        (value \ "changesetId").asOpt[Long].getOrElse(cachedItem.changesetId.getOrElse(-1L))
+        (value \ "changesetId").asOpt[Long].getOrElse(existing.changesetId.getOrElse(-1L))
 
       val mappedOn: Option[DateTime] = (value \ "mappedOn") match {
-        case m: JsUndefined => cachedItem.mappedOn
+        case m: JsUndefined => existing.mappedOn
         case m              => m.asOpt[DateTime]
       }
 
       val reviewStatus: Option[Int] = (value \ "reviewStatus") match {
-        case r: JsUndefined => cachedItem.review.reviewStatus
+        case r: JsUndefined => existing.review.reviewStatus
         case r              => r.asOpt[Int]
       }
 
       val reviewRequestedBy = (value \ "reviewRequestedBy") match {
-        case r: JsUndefined => cachedItem.review.reviewRequestedBy
+        case r: JsUndefined => existing.review.reviewRequestedBy
         case r              => r.asOpt[Long]
       }
 
       val reviewedBy = (value \ "reviewedBy") match {
-        case r: JsUndefined => cachedItem.review.reviewedBy
+        case r: JsUndefined => existing.review.reviewedBy
         case r              => r.asOpt[Long]
       }
 
       val reviewedAt = (value \ "reviewedAt") match {
-        case r: JsUndefined => cachedItem.review.reviewedAt
+        case r: JsUndefined => existing.review.reviewedAt
         case r              => r.asOpt[DateTime]
       }
 
       val task = this.mergeUpdate(
-        cachedItem.copy(
+        existing.copy(
           name = name,
           instruction = Some(instruction),
           status = Some(status),
           mappedOn = mappedOn,
-          review = cachedItem.review.copy(
+          review = existing.review.copy(
             reviewStatus = reviewStatus,
             reviewRequestedBy = reviewRequestedBy,
             reviewedBy = reviewedBy,
@@ -250,9 +241,9 @@ class TaskDAL @Inject() (
       }
 
       if (status == Task.STATUS_CREATED || status == Task.STATUS_SKIPPED) {
-        this.manager.challenge.updateReadyStatus()(cachedItem.parent)
+        this.manager.challenge.updateReadyStatus()(existing.parent)
       } else {
-        this.manager.challenge.updateFinishedStatus(user = user)(cachedItem.parent)
+        this.manager.challenge.updateFinishedStatus(user = user)(existing.parent)
       }
 
       if (status == Task.STATUS_CREATED) {
@@ -276,7 +267,7 @@ class TaskDAL @Inject() (
           // bundle id -- essentially breaking up the bundle. Otherwise this
           // task could end up with a different status than other tasks
           // in that bundle.
-          if (cachedItem.status != t.status && t.bundleId != None) {
+          if (existing.status != t.status && t.bundleId != None) {
             this.serviceManager.taskBundle.deleteTaskBundle(user, t.bundleId.get)
           }
 
@@ -292,7 +283,7 @@ class TaskDAL @Inject() (
       }
 
       task
-    } // NOTE: do not look for a cached item since this is expected to update the database
+    }
   }
 
   /**
@@ -310,19 +301,10 @@ class TaskDAL @Inject() (
       element: Task,
       user: User
   )(implicit id: Long, c: Option[Connection] = None): Option[Task] = {
-    // before clearing the cache grab the cachedItem
-    // by setting the delete implicit to true we clear out the cache for the element
-    // The cachedItem could be
     // For new tasks (id <= 0, e.g. insert() passes -1) there is nothing to look up, so
-    // skip the guaranteed-miss cache/DB lookup entirely.
-    val cachedItem = if (id > 0) {
-      this.cacheManager.withUpdatingCache(Long => retrieveById) { implicit cachedItem =>
-        Some(cachedItem)
-      }(id, true, true)
-    } else {
-      None
-    }
-    cachedItem.foreach { existing =>
+    // skip the guaranteed-miss DB lookup entirely.
+    val existingTask = if (id > 0) this.retrieveById else None
+    existingTask.foreach { existing =>
       if (existing.parent != element.parent) {
         // the request sent a parentId that does not match the task's; reject it
         // (otherwise we risk checking access permissions on the wrong challenge,
@@ -414,7 +396,7 @@ class TaskDAL @Inject() (
       // its entry in the task_review table.
       // We also need to always delete a task_review if we are resetting the task
       // back to created.
-      cachedItem match {
+      existingTask match {
         case Some(item) =>
           if ((item.review.reviewRequestedBy != None &&
               element.review.reviewRequestedBy == None) ||
@@ -425,9 +407,7 @@ class TaskDAL @Inject() (
         case None => // ignore
       }
 
-      val updatedElement = element.copy(id = updatedTaskId)
-      this.cacheManager.cache.remove(updatedTaskId)
-      Some(updatedElement)
+      Some(element.copy(id = updatedTaskId))
     }
   }
 
@@ -560,9 +540,7 @@ class TaskDAL @Inject() (
   }
 
   /**
-    * A basic retrieval of the object based on the id. With caching, so if it finds
-    * the object in the cache it will return that object without checking the database, otherwise
-    * will hit the database directly.
+    * A basic retrieval of the object based on the id.
     *
     * @param id The id of the object to be retrieved
     * @return The object, None if not found
@@ -714,9 +692,10 @@ class TaskDAL @Inject() (
       case None    => null
     }
 
-    val oldStatus    = primaryTask.status
-    var updatedRows  = 0
-    val updatedTasks = scala.collection.mutable.ListBuffer[Task]()
+    val oldStatus      = primaryTask.status
+    var updatedRows    = 0
+    val updatedTasks   = scala.collection.mutable.ListBuffer[Task]()
+    val updatedTaskIds = scala.collection.mutable.ListBuffer[Long]()
 
     this.withMRTransaction { implicit c =>
       val startedLock =
@@ -853,44 +832,6 @@ class TaskDAL @Inject() (
             SQL"""INSERT INTO task_review_history (task_id, requested_by, review_status, reviewed_at)
                   VALUES (${task.id}, ${user.id}, ${Task.REVIEW_STATUS_REQUESTED}, NOW())"""
               .executeUpdate()
-
-            this.cacheManager.withOptionCaching { () =>
-              Some(
-                task.copy(
-                  status = Some(status),
-                  review = task.review.copy(
-                    reviewStatus = Some(Task.REVIEW_STATUS_REQUESTED),
-                    reviewRequestedBy = Some(user.id)
-                  ),
-                  modified = new DateTime(),
-                  completionResponses = completionResponses match {
-                    case Some(r) => Some(r.toString())
-                    case None    => None
-                  },
-                  bundleId = bundleId,
-                  isBundlePrimary =
-                    if (bundleId.isDefined) Some(task.id == primaryTask.id)
-                    else None
-                )
-              )
-            }
-          } else {
-            this.cacheManager.withOptionCaching { () =>
-              Some(
-                task.copy(
-                  status = Some(status),
-                  modified = new DateTime(),
-                  completionResponses = completionResponses match {
-                    case Some(r) => Some(r.toString())
-                    case None    => None
-                  },
-                  bundleId = bundleId,
-                  isBundlePrimary =
-                    if (bundleId.isDefined) Some(task.id == primaryTask.id)
-                    else None
-                )
-              )
-            }
           }
 
           // let's give the user credit for doing this task.
@@ -906,11 +847,7 @@ class TaskDAL @Inject() (
             )
           }
 
-          // Collect updated task data for WebSocket notifications
-          this.retrieveById(task.id) match {
-            case Some(latestTask) => updatedTasks += latestTask
-            case None             =>
-          }
+          updatedTaskIds += task.id
         }
       }
 
@@ -920,6 +857,11 @@ class TaskDAL @Inject() (
           SQL("UPDATE tasks SET is_bundle_primary = true WHERE id = " + primaryTask.id)
             .executeUpdate()
         case None => // not part of a bundle
+      }
+
+      // Collect updated task data for WebSocket notifications
+      updatedTaskIds.foreach { id =>
+        this.retrieveById(id, Some(c)).foreach(updatedTasks += _)
       }
     }
 
@@ -1330,17 +1272,14 @@ class TaskDAL @Inject() (
         val query = s"$select ${queryBuilder.toString} ${whereClause.toString} " +
           s"ORDER BY $proximityOrdering tasks.status, RANDOM() LIMIT ${this.sqlLimit(limit)}"
 
-        implicit val ids = List[Long]()
-        this.cacheManager.withIDListCaching { implicit cachedItems =>
-          // Read-only candidate lookup - the caller locks whichever task it actually
-          // navigates to via the explicit /start endpoint (TaskController#startOnTask),
-          // which is the sole place the one-lock-per-user conflict is enforced. This used
-          // to go through withListLocking, which unlocked ALL of the user's other task
-          // locks as a side effect before returning candidates - silently discarding a
-          // lock held in another tab/session with no conflict check at all.
-          this.withMRTransaction { implicit c =>
-            sqlWithParameters(query, parameters).as(this.parser.*)
-          }
+        // Read-only candidate lookup - the caller locks whichever task it actually
+        // navigates to via the explicit /start endpoint (TaskController#startOnTask),
+        // which is the sole place the one-lock-per-user conflict is enforced. This used
+        // to go through withListLocking, which unlocked ALL of the user's other task
+        // locks as a side effect before returning candidates - silently discarding a
+        // lock held in another tab/session with no conflict check at all.
+        this.withMRTransaction { implicit c =>
+          sqlWithParameters(query, parameters).as(this.parser.*)
         }
       case None => List.empty
     }
@@ -1567,8 +1506,7 @@ class TaskDAL @Inject() (
     }
 
   /**
-    * Retrieves a list of objects from the supplied list of ids. Will check for any objects currently
-    * in the cache and those that aren't will be retrieved from the database
+    * Retrieves a list of objects from the supplied list of ids
     *
     * @param limit  The limit on the number of objects returned. This is not entirely useful as a limit
     *               could be set simply by how many ids you supplied in the list, but possibly useful
@@ -1584,22 +1522,20 @@ class TaskDAL @Inject() (
     if (ids.isEmpty) {
       List.empty
     } else {
-      this.cacheManager.withIDListCaching { implicit uncachedIDs =>
-        this.withMRConnection { implicit c =>
-          val query =
-            s"""SELECT ${retrieveColumnsWithReview} FROM ${this.tableName}
+      this.withMRConnection { implicit c =>
+        val query =
+          s"""SELECT ${retrieveColumnsWithReview} FROM ${this.tableName}
                 LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id
                 WHERE tasks.id IN ({inString})
                 LIMIT ${this.sqlLimit(limit)} OFFSET {offset}"""
-          SQL(query)
-            .on(
-              Symbol("inString") -> ToParameterValue
-                .apply[List[Long]](s = keyToSQL, p = keyToStatement)
-                .apply(uncachedIDs),
-              Symbol("offset") -> offset
-            )
-            .as(this.parser.*)
-        }
+        SQL(query)
+          .on(
+            Symbol("inString") -> ToParameterValue
+              .apply[List[Long]](s = keyToSQL, p = keyToStatement)
+              .apply(ids),
+            Symbol("offset") -> offset
+          )
+          .as(this.parser.*)
       }
     }
   }

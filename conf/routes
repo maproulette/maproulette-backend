@@ -12,7 +12,6 @@ POST    /auth/resetAllAPIKeys                                           @control
 DELETE  /auth/deleteUser/userId                                         @controllers.AuthController.deleteUser(userId:Long)
 GET     /auth/addUser/:userId/toProject/:projectId                      @controllers.AuthController.addUserToProject(userId:Long, projectId:Long)
 # Random functionality routes
-GET     /clearCaches                                                    @controllers.Application.clearCaches
 PUT     /runJob/:name                                                   @controllers.Application.runJob(name:String, action:String ?= "")
 GET     /ws                                                             @org.maproulette.framework.controller.WebSocketController.socket
 # Routes for /docs redirect and serving the swagger-ui

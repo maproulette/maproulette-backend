@@ -10,7 +10,6 @@ import anorm.SqlParser._
 import anorm._
 import org.joda.time.DateTime
 import org.maproulette.Config
-import org.maproulette.cache.CacheManager
 import org.maproulette.exception.NotFoundException
 import org.maproulette.framework.model.User
 import org.maproulette.framework.psql.TransactionManager
@@ -35,21 +34,15 @@ trait BaseDAL[Key, T <: BaseObject[Key]]
     with Writers {
   // Service that handles all the permissions for the objects
   val permission: Permission
-  // Manager to handle all the caching for this particular layer
-  val cacheManager: CacheManager[Key, T]
   // The name of the table in the database
   val tableName: String
   // The object parser specific for this data access layer
   val parser: RowParser[T]
-  // where caching is turned on or off by default.
-  implicit val caching: Boolean = true
   // this allows for columns used in the retrieve functions to be optionally built
   val retrieveColumns: String = "*"
   // Database that should be injected in any implementing classes
   val db: Database
   protected val logger = LoggerFactory.getLogger(this.getClass)
-
-  def clearCaches: Unit = cacheManager.clearCaches
 
   implicit val lockedParser: RowParser[Lock] = {
     get[Option[DateTime]]("locked.locked_time") ~
@@ -121,7 +114,7 @@ trait BaseDAL[Key, T <: BaseObject[Key]]
   /**
     * Update function that must be implemented by the class that mixes in this trait. This update
     * function updates based on the name instead of the id. This is the default update function,
-    * the downside of this function is that it will first retrieve the item from cache and then
+    * the downside of this function is that it will first retrieve the item and then
     * attempt to update it. For a more efficient method, the implementing class would need to
     * override this and then execute the update function filtering on the name and parentId.
     *
@@ -134,17 +127,15 @@ trait BaseDAL[Key, T <: BaseObject[Key]]
       updates: JsValue,
       user: User
   )(implicit name: String, parentId: Long = (-1), c: Option[Connection] = None): Option[T] =
-    this.cacheManager.updateNameCache(String => retrieveByName) match {
-      case Some(objID) => this.update(updates, user)(objID)
-      case None        => None
+    this.retrieveByName match {
+      case Some(obj) => this.update(updates, user)(obj.id)
+      case None      => None
     }
 
   /**
     * Retrieves the object based on the name, this function is somewhat weak as there could be
     * multiple objects with the same name. The database only restricts the same name in combination
-    * with a parent. So this will just return the first one it finds. With caching, so if it finds
-    * the object in the cache it will return that object without checking the database, otherwise
-    * will hit the database directly.
+    * with a parent. So this will just return the first one it finds.
     *
     * @param name The name you are looking up by
     * @return The object that you are looking up, None if not found
@@ -154,12 +145,10 @@ trait BaseDAL[Key, T <: BaseObject[Key]]
       parentId: Long = (-1),
       c: Option[Connection] = None
   ): Option[T] = {
-    this.cacheManager.withOptionCaching { () =>
-      this.withMRConnection { implicit c =>
-        val query =
-          s"SELECT ${this.retrieveColumns} FROM ${this.tableName} WHERE name = {name} ${this.parentFilter(parentId)}"
-        SQL(query).on(Symbol("name") -> name).as(this.parser.*).headOption
-      }
+    this.withMRConnection { implicit c =>
+      val query =
+        s"SELECT ${this.retrieveColumns} FROM ${this.tableName} WHERE name = {name} ${this.parentFilter(parentId)}"
+      SQL(query).on(Symbol("name") -> name).as(this.parser.*).headOption
     }
   }
 
@@ -175,16 +164,15 @@ trait BaseDAL[Key, T <: BaseObject[Key]]
       implicit c: Option[Connection] = None
   ): T = {
     implicit val key = id
-    val deletedItem = this.cacheManager.withDeletingCache(Long => retrieveById) {
-      implicit deletedItem =>
-        this.permission.hasObjectAdminAccess(deletedItem.asInstanceOf[BaseObject[Long]], user)
-        this.withMRTransaction { implicit c =>
-          val query = s"DELETE FROM ${this.tableName} WHERE id = {id}"
-          SQL(query)
-            .on(Symbol("id") -> ToParameterValue.apply[Key](p = keyToStatement).apply(id))
-            .executeUpdate()
-          Some(deletedItem)
-        }
+    val deletedItem = this.retrieveById.flatMap { implicit deletedItem =>
+      this.permission.hasObjectAdminAccess(deletedItem.asInstanceOf[BaseObject[Long]], user)
+      this.withMRTransaction { implicit c =>
+        val query = s"DELETE FROM ${this.tableName} WHERE id = {id}"
+        SQL(query)
+          .on(Symbol("id") -> ToParameterValue.apply[Key](p = keyToStatement).apply(id))
+          .executeUpdate()
+        Some(deletedItem)
+      }
     }
 
     deletedItem match {
@@ -194,27 +182,22 @@ trait BaseDAL[Key, T <: BaseObject[Key]]
   }
 
   /**
-    * A basic retrieval of the object based on the id. With caching, so if it finds
-    * the object in the cache it will return that object without checking the database, otherwise
-    * will hit the database directly.
+    * A basic retrieval of the object based on the id.
     *
     * @param id The id of the object to be retrieved
     * @return The object, None if not found
     */
   def retrieveById(implicit id: Key, c: Option[Connection] = None): Option[T] = {
-    this.cacheManager.withCaching { () =>
-      this.withMRConnection { implicit c =>
-        val query = s"SELECT $retrieveColumns FROM ${this.tableName} WHERE id = {id}"
-        SQL(query)
-          .on(Symbol("id") -> ToParameterValue.apply[Key](p = keyToStatement).apply(id))
-          .as(this.parser.singleOpt)
-      }
+    this.withMRConnection { implicit c =>
+      val query = s"SELECT $retrieveColumns FROM ${this.tableName} WHERE id = {id}"
+      SQL(query)
+        .on(Symbol("id") -> ToParameterValue.apply[Key](p = keyToStatement).apply(id))
+        .as(this.parser.singleOpt)
     }
   }
 
   /**
-    * Retrieves a list of objects from the supplied list of ids. Will check for any objects currently
-    * in the cache and those that aren't will be retrieved from the database
+    * Retrieves a list of objects from the supplied list of ids
     *
     * @param limit  The limit on the number of objects returned. This is not entirely useful as a limit
     *               could be set simply by how many ids you supplied in the list, but possibly useful
@@ -230,21 +213,19 @@ trait BaseDAL[Key, T <: BaseObject[Key]]
     if (ids.isEmpty) {
       List.empty
     } else {
-      this.cacheManager.withIDListCaching { implicit uncachedIDs =>
-        this.withMRConnection { implicit c =>
-          val query =
-            s"""SELECT ${this.retrieveColumns} FROM ${this.tableName}
+      this.withMRConnection { implicit c =>
+        val query =
+          s"""SELECT ${this.retrieveColumns} FROM ${this.tableName}
                           WHERE id IN ({inString})
                           LIMIT ${this.sqlLimit(limit)} OFFSET {offset}"""
-          SQL(query)
-            .on(
-              Symbol("inString") -> ToParameterValue
-                .apply[List[Key]](s = keyToSQL, p = keyToStatement)
-                .apply(uncachedIDs),
-              Symbol("offset") -> offset
-            )
-            .as(this.parser.*)
-        }
+        SQL(query)
+          .on(
+            Symbol("inString") -> ToParameterValue
+              .apply[List[Key]](s = keyToSQL, p = keyToStatement)
+              .apply(ids),
+            Symbol("offset") -> offset
+          )
+          .as(this.parser.*)
       }
     }
   }
@@ -263,8 +244,7 @@ trait BaseDAL[Key, T <: BaseObject[Key]]
   }
 
   /**
-    * Same as retrieveListById except no paging built in. Will check for any objects currently in the
-    * cache and those that aren't will be retrieved from the database.
+    * Same as retrieveListById except no paging built in.
     *
     * @param names The names to be retrieved
     * @return List of objects, empty list if none found
@@ -277,15 +257,13 @@ trait BaseDAL[Key, T <: BaseObject[Key]]
     if (names.isEmpty) {
       List.empty
     } else {
-      this.cacheManager.withNameListCaching { implicit uncachedNames =>
-        this.withMRConnection { implicit c =>
-          val query =
-            s"SELECT ${this.retrieveColumns} FROM ${this.tableName} WHERE name IN ({inString}) ${this
-              .parentFilter(parentId)}"
-          SQL(query)
-            .on(Symbol("inString") -> ToParameterValue.apply[List[String]].apply(uncachedNames))
-            .as(this.parser.*)
-        }
+      this.withMRConnection { implicit c =>
+        val query =
+          s"SELECT ${this.retrieveColumns} FROM ${this.tableName} WHERE name IN ({inString}) ${this
+            .parentFilter(parentId)}"
+        SQL(query)
+          .on(Symbol("inString") -> ToParameterValue.apply[List[String]].apply(names))
+          .as(this.parser.*)
       }
     }
   }
@@ -363,27 +341,24 @@ trait BaseDAL[Key, T <: BaseObject[Key]]
       orderColumn: String = "id",
       orderDirection: String = "ASC"
   )(implicit parentId: Long = -1, c: Option[Connection] = None): List[T] = {
-    implicit val ids = List.empty
-    this.cacheManager.withIDListCaching { implicit uncachedIDs =>
-      this.withMRConnection { implicit c =>
-        val query =
-          s"""SELECT ${this.retrieveColumns} FROM ${this.tableName}
+    this.withMRConnection { implicit c =>
+      val query =
+        s"""SELECT ${this.retrieveColumns} FROM ${this.tableName}
                         WHERE ${this.searchField("name")(None)}
                         ${this.enabled(onlyEnabled)} ${this.parentFilter(parentId)}
                         ${this.order(
-            orderColumn = Some(orderColumn),
-            orderDirection = orderDirection,
-            nameFix = true,
-            ignoreCase = (orderColumn == "name" || orderColumn == "display_name")
-          )}
+          orderColumn = Some(orderColumn),
+          orderDirection = orderDirection,
+          nameFix = true,
+          ignoreCase = (orderColumn == "name" || orderColumn == "display_name")
+        )}
                         LIMIT ${this.sqlLimit(limit)} OFFSET {offset}"""
-        SQL(query)
-          .on(
-            Symbol("ss")     -> this.search(searchString),
-            Symbol("offset") -> ToParameterValue.apply[Int].apply(offset)
-          )
-          .as(this.parser.*)
-      }
+      SQL(query)
+        .on(
+          Symbol("ss")     -> this.search(searchString),
+          Symbol("offset") -> ToParameterValue.apply[Int].apply(offset)
+        )
+        .as(this.parser.*)
     }
   }
 

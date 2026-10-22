@@ -121,12 +121,9 @@ class AchievementService @Inject() (
     // addAchievements, so it does not depend on the possibly-stale achievements
     // list carried by the in-memory user object.
     var justAwarded: List[Int] = List.empty
-    this.serviceManager.user.cacheManager.withDeletingCache(id =>
-      this.serviceManager.user.retrieve(id)
-    ) { implicit cachedItem =>
+    this.serviceManager.user.retrieve(user.id).foreach { _ =>
       justAwarded = this.repository.addAchievements(user.id, achievements)
-      Some(cachedItem)
-    }(id = user.id)
+    }
 
     // Notify websocket clients of any new awards
     if (!justAwarded.isEmpty) {

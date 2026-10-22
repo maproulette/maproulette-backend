@@ -1300,9 +1300,9 @@ class ChallengeController @Inject() (
   ): Option[Challenge] = {
     var created = super.internalCreate(requestBody, element, user)
     // Fetch challenge fresh from database. There are some fields that are set after creating
-    // children (ie. cooperativeType) and our cached copy does not reflect those changes
+    // children (ie. cooperativeType) that the created copy does not reflect
     created match {
-      case Some(value) => this.dal._retrieveById(false)(value.id)
+      case Some(value) => this.dal.retrieveById(value.id)
       case None        => created
     }
   }
@@ -1961,8 +1961,6 @@ class ChallengeController @Inject() (
           this.dal.update(filtered, user)(id) match {
             case Some(updated) =>
               this.dal.updateTaskPriorities(user, overrideValidation = true)(id)
-              this.dalManager.task.clearCaches
-              this.dal.clearCaches
               // Surface the post-recompute priority distribution so the editor
               // can confirm what landed in the DB. All zeros means either no
               // tasks matched any tier (default priority covers everything) or

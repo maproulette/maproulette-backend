@@ -8,25 +8,20 @@ package org.maproulette.framework.repository
 import anorm.SqlParser.scalar
 import anorm.ToParameterValue
 import anorm._, postgresql._
+import java.sql.Connection
 import javax.inject.{Inject, Singleton}
-import org.maproulette.Config
 import org.maproulette.framework.mixins.TaskParserMixin
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.{BaseParameter, SQLParameter}
 import org.maproulette.framework.model.{User, Task}
-import org.maproulette.cache.CacheManager
 import play.api.db.Database
 import play.api.libs.json._
 
 @Singleton
-class TaskRepository @Inject() (override val db: Database, config: Config)
+class TaskRepository @Inject() (override val db: Database)
     extends RepositoryMixin
     with TaskParserMixin {
   implicit val baseTable: String = "tasks"
-
-  // The cache manager for tasks
-  val cacheManager =
-    new CacheManager[Long, Task](config, Config.CACHE_ID_TASKS)(taskReads, taskReads)
 
   /**
     * For a given id returns the task
@@ -35,17 +30,15 @@ class TaskRepository @Inject() (override val db: Database, config: Config)
     * @param c An implicit connection, defaults to none and one will be created automatically
     * @return None if not found, otherwise the Task
     */
-  def retrieve(id: Long): Option[Task] = {
-    this.cacheManager.withCaching { () =>
-      this.withMRConnection { implicit c =>
-        val query = s"SELECT $retrieveColumnsWithReview FROM ${this.baseTable} " +
-          "LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id " +
-          "WHERE tasks.id = {id}"
-        SQL(query)
-          .on(Symbol("id") -> id)
-          .as(this.getTaskParser().singleOpt)
-      }
-    }(id)
+  def retrieve(id: Long)(implicit c: Option[Connection] = None): Option[Task] = {
+    this.withMRConnection { implicit c =>
+      val query = s"SELECT $retrieveColumnsWithReview FROM ${this.baseTable} " +
+        "LEFT OUTER JOIN task_review ON task_review.task_id = tasks.id " +
+        "WHERE tasks.id = {id}"
+      SQL(query)
+        .on(Symbol("id") -> id)
+        .as(this.getTaskParser().singleOpt)
+    }
   }
 
   /**

@@ -293,7 +293,6 @@ class TeamService @Inject() (
         WebSocketMessages.TeamUpdateData(team.id, Some(member.objectId))
       )
     )
-    this.serviceManager.user.clearCache(member.objectId)
 
     if (status == TeamMember.STATUS_INVITED) {
       this.serviceManager.notification.createTeamInviteNotification(
@@ -444,7 +443,6 @@ class TeamService @Inject() (
         WebSocketMessages.TeamUpdateData(team.id, Some(member.objectId))
       )
     )
-    this.serviceManager.user.clearCache(member.objectId)
     true
   }
 
@@ -750,8 +748,7 @@ class TeamService @Inject() (
     * nothing until taken up.
     *
     * Grants are read straight from the grant service rather than off the user
-    * object, so a role change takes effect here without waiting on the user
-    * cache.
+    * object.
     *
     * @param user The user whose team roles are wanted
     */
@@ -921,8 +918,6 @@ class TeamService @Inject() (
       User.superUser
     )
 
-    this.serviceManager.project.clearCache(projectId)
-    this.serviceManager.user.clearCache()
     true
   }
 
@@ -945,8 +940,6 @@ class TeamService @Inject() (
       user = User.superUser
     )
 
-    this.serviceManager.project.clearCache(projectId)
-    this.serviceManager.user.clearCache()
     true
   }
 
@@ -991,7 +984,6 @@ class TeamService @Inject() (
       User.superUser
     )
 
-    this.serviceManager.user.clearCache()
     true
   }
 
@@ -1014,7 +1006,6 @@ class TeamService @Inject() (
       user = User.superUser
     )
 
-    this.serviceManager.user.clearCache()
     true
   }
 
@@ -1175,7 +1166,6 @@ class TeamService @Inject() (
       target = Some(GrantTarget.group(team.id)),
       user = User.superUser
     )
-    this.clearCachedMember(member)
   }
 
   /**
@@ -1192,7 +1182,6 @@ class TeamService @Inject() (
       ),
       User.superUser
     )
-    this.clearCachedMember(member)
   }
 
   /**
@@ -1201,17 +1190,6 @@ class TeamService @Inject() (
   private def setTeamRole(team: Group, role: Int, member: MemberObject) = {
     this.clearTeamRoles(team, member)
     this.grantTeamRole(team, role, member)
-  }
-
-  /**
-    * Clear member object from its cache so it gets refreshed from the database
-    */
-  private def clearCachedMember(member: MemberObject) = {
-    member.objectType match {
-      case Actions.ITEM_TYPE_USER =>
-        this.serviceManager.user.clearCache(member.objectId)
-      case _ => // Nothing to do
-    }
   }
 
   /**

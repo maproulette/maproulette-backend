@@ -5,7 +5,6 @@
 package org.maproulette
 
 import javax.inject.{Inject, Singleton}
-import org.maproulette.cache.CacheManager
 import org.maproulette.data.Actions
 import org.maproulette.framework.model.MapillaryServerInfo
 import play.api.Configuration
@@ -199,19 +198,12 @@ class Config @Inject() (implicit val configuration: Configuration) {
     .getOrElse(Config.DEFAULT_SYSTEM_NOTICES_URL)
 
   //caching properties
-  lazy val cacheType: String =
-    this.config.getOptional[String](Config.KEY_CACHING_TYPE).getOrElse(CacheManager.CAFFEINE_CACHE)
   lazy val cacheLimit: Int = this.config
     .getOptional[Int](Config.KEY_CACHING_CACHE_LIMIT)
-    .getOrElse(CacheManager.DEFAULT_CACHE_LIMIT)
+    .getOrElse(Config.DEFAULT_CACHE_LIMIT)
   lazy val cacheExpiry: Int = this.config
     .getOptional[Int](Config.KEY_CACHING_CACHE_EXPIRY)
-    .getOrElse(CacheManager.DEFAULT_CACHE_EXPIRY)
-  lazy val redisHost: Option[String] =
-    this.config.getOptional[String](Config.KEY_CACHING_REDIS_HOST)
-  lazy val redisPort: Option[Int] = this.config.getOptional[Int](Config.KEY_CACHING_REDIS_PORT)
-  lazy val redisResetOnStart: Boolean =
-    this.config.getOptional[Boolean](Config.KEY_CACHING_REDIS_RESET).getOrElse(false);
+    .getOrElse(Config.DEFAULT_CACHE_EXPIRY)
 
   val config = configuration
 
@@ -245,12 +237,8 @@ class Config @Inject() (implicit val configuration: Configuration) {
 object Config {
   val GROUP_MAPROULETTE                  = "maproulette"
   val GROUP_MAPROULETTE_CACHING          = s"$GROUP_MAPROULETTE.caching"
-  val KEY_CACHING_TYPE                   = s"$GROUP_MAPROULETTE_CACHING.type"
   val KEY_CACHING_CACHE_LIMIT            = s"$GROUP_MAPROULETTE_CACHING.cacheLimit"
   val KEY_CACHING_CACHE_EXPIRY           = s"$GROUP_MAPROULETTE_CACHING.cacheExpiry"
-  val KEY_CACHING_REDIS_HOST             = s"$GROUP_MAPROULETTE_CACHING.redis.host"
-  val KEY_CACHING_REDIS_PORT             = s"$GROUP_MAPROULETTE_CACHING.redis.port"
-  val KEY_CACHING_REDIS_RESET            = s"$GROUP_MAPROULETTE_CACHING.redis.resetOnStart"
   val KEY_BOOTSTRAP                      = s"$GROUP_MAPROULETTE.bootstrap"
   val KEY_PROXY_PORT                     = s"$GROUP_MAPROULETTE.proxy.port"
   val KEY_PROXY_SSL                      = s"$GROUP_MAPROULETTE.proxy.ssl"
@@ -401,14 +389,6 @@ object Config {
   val DEFAULT_ARCHIVE_STALE_TIME_IN_MONTHS            = 6
   val DEFAULT_TASK_BASE_COMPLETED_TIME_SPENT          = 14000
   val DEFAULT_SYSTEM_NOTICES_URL                      = ""
-
-  // Redis Cache id's for different caches
-  val CACHE_ID_TAGS               = "1";
-  val CACHE_ID_USERS              = "2";
-  val CACHE_ID_PROJECTS           = "3";
-  val CACHE_ID_CHALLENGES         = "4";
-  val CACHE_ID_TASKS              = "5";
-  val CACHE_ID_USERGROUPS         = "6"
-  val CACHE_ID_VIRTUAL_CHALLENGES = "7"
-  val CACHE_ID_GRANTS             = "8"
+  val DEFAULT_CACHE_LIMIT                             = 10000
+  val DEFAULT_CACHE_EXPIRY                            = 900
 }

@@ -9,7 +9,6 @@ import java.sql.Connection
 
 import javax.inject.{Inject, Singleton}
 import org.maproulette.Config
-import org.maproulette.cache.CacheManager
 import org.maproulette.data.{GroupType, ProjectType, UserType}
 import org.maproulette.exception.InvalidException
 import org.maproulette.framework.model._
@@ -34,8 +33,6 @@ class ProjectService @Inject() (
     serviceManager: ServiceManager,
     permission: Permission
 ) extends ServiceMixin[Project] {
-  // manager for the cache of the projects
-  val cacheManager     = new CacheManager[Long, Project](config, Config.CACHE_ID_PROJECTS)
   protected val logger = LoggerFactory.getLogger(this.getClass)
 
   def children(
@@ -118,17 +115,11 @@ class ProjectService @Inject() (
       this.serviceManager.user
         .addUserToProject(project.owner, newProject.id, Grant.ROLE_ADMIN, User.superUser)
 
-    // Refresh the project in cache with latest grants
-    this.cacheManager
-      .withUpdatingCache(id => Some(newProject)) { cachedProject =>
-        Some(
-          cachedProject.copy(
-            grants = this.serviceManager.grant
-              .retrieveGrantsOn(GrantTarget.project(cachedProject.id), User.superUser)
-          )
-        )
-      }(id = newProject.id)
-      .get
+    // Refresh the project with latest grants
+    newProject.copy(
+      grants = this.serviceManager.grant
+        .retrieveGrantsOn(GrantTarget.project(newProject.id), User.superUser)
+    )
   }
 
   /**
@@ -378,42 +369,43 @@ class ProjectService @Inject() (
     * @return The newly updated project object
     */
   def update(id: Long, updates: JsValue, user: User): Option[Project] = {
-    this.cacheManager
-      .withUpdatingCache(id => retrieve(id)) { implicit cachedItem =>
-        this.permission.hasObjectWriteAccess(cachedItem, user)
-        val name = (updates \ "name").asOpt[String].getOrElse(cachedItem.name)
+    this
+      .retrieve(id)
+      .flatMap { implicit existing =>
+        this.permission.hasObjectWriteAccess(existing, user)
+        val name = (updates \ "name").asOpt[String].getOrElse(existing.name)
         val displayName =
-          (updates \ "displayName").asOpt[String].getOrElse(cachedItem.displayName.getOrElse(""))
-        val owner = (updates \ "ownerId").asOpt[Long].getOrElse(cachedItem.owner)
+          (updates \ "displayName").asOpt[String].getOrElse(existing.displayName.getOrElse(""))
+        val owner = (updates \ "ownerId").asOpt[Long].getOrElse(existing.owner)
         val description =
-          (updates \ "description").asOpt[String].getOrElse(cachedItem.description.getOrElse(""))
+          (updates \ "description").asOpt[String].getOrElse(existing.description.getOrElse(""))
         val enabled = (updates \ "enabled").asOpt[Boolean] match {
           case Some(_) if !permission.isSuperUser(user) && !user.adminForProject(id) =>
             logger.warn(
               s"User [${user.name} - ${user.id}] is not a super user and cannot enable or disable projects"
             )
-            cachedItem.enabled
+            existing.enabled
           case Some(e) => e
-          case None    => cachedItem.enabled
+          case None    => existing.enabled
         }
         val featured = (updates \ "featured").asOpt[Boolean] match {
           case Some(_) if !permission.isSuperUser(user) =>
             logger.warn(
               s"User [${user.name} - ${user.id}] is not a super user and cannot feature projects"
             )
-            cachedItem.featured
+            existing.featured
           case Some(f) => f
-          case None    => cachedItem.featured
+          case None    => existing.featured
         }
-        val isVirtual  = cachedItem.isVirtual // Don't allow updates to virtual status
-        val isArchived = (updates \ "isArchived").asOpt[Boolean].getOrElse(cachedItem.isArchived)
+        val isVirtual  = existing.isVirtual // Don't allow updates to virtual status
+        val isArchived = (updates \ "isArchived").asOpt[Boolean].getOrElse(existing.isArchived)
         val requireConfirmation =
-          (updates \ "requireConfirmation").asOpt[Boolean].getOrElse(cachedItem.requireConfirmation)
+          (updates \ "requireConfirmation").asOpt[Boolean].getOrElse(existing.requireConfirmation)
 
         // Absent leaves ownership alone and an explicit null gives the project
         // back, matching how a challenge's owning team is updated.
         val ownerTeamId = (updates \ "ownerTeamId").toOption match {
-          case None         => cachedItem.ownerTeamId
+          case None         => existing.ownerTeamId
           case Some(JsNull) => None
           case Some(teamId) =>
             teamId.asOpt[Long] match {
@@ -424,11 +416,11 @@ class ProjectService @Inject() (
 
         // Only a project admin can change which team owns the project,
         // and that admin must also be a manager of both the old and new team.
-        if (owner != cachedItem.owner || ownerTeamId != cachedItem.ownerTeamId) {
-          this.permission.hasObjectAdminAccess(cachedItem, user)
+        if (owner != existing.owner || ownerTeamId != existing.ownerTeamId) {
+          this.permission.hasObjectAdminAccess(existing, user)
         }
-        if (ownerTeamId != cachedItem.ownerTeamId) {
-          (cachedItem.ownerTeamId ++ ownerTeamId).foreach(
+        if (ownerTeamId != existing.ownerTeamId) {
+          (existing.ownerTeamId ++ ownerTeamId).foreach(
             this.serviceManager.team.requireTeamManager(_, user, "projects")
           )
         }
@@ -448,7 +440,7 @@ class ProjectService @Inject() (
             ownerTeamId = ownerTeamId
           )
         )
-      }(id = id)
+      }
   }
 
   /**
@@ -458,11 +450,9 @@ class ProjectService @Inject() (
     * @return An optional Project, None if not found.
     */
   def retrieve(id: Long): Option[Project] = {
-    this.cacheManager.withCaching { () =>
-      this.repository
-        .query(Query.simple(List(BaseParameter(Project.FIELD_ID, id))))
-        .headOption
-    }(id = id)
+    this.repository
+      .query(Query.simple(List(BaseParameter(Project.FIELD_ID, id))))
+      .headOption
   }
 
   /**
@@ -474,11 +464,10 @@ class ProjectService @Inject() (
     * @return
     */
   def delete(id: Long, user: User, immediate: Boolean = false): Boolean = {
-    this.cacheManager.withDeletingCache(id => retrieve(id)) { implicit deletedItem =>
+    this.retrieve(id).foreach { deletedItem =>
       this.permission.hasObjectAdminAccess(deletedItem, user)
       this.repository.delete(id, immediate)
-      Some(deletedItem)
-    }(id = id)
+    }
     true
   }
 
@@ -517,19 +506,6 @@ class ProjectService @Inject() (
         paging = paging
       )
     )
-  }
-
-  /**
-    * Clears the project cache
-    *
-    * @param id If id is supplied will only remove the project with that id
-    */
-  def clearCache(id: Long = -1): Unit = {
-    if (id > -1) {
-      this.cacheManager.cache.remove(id)
-    } else {
-      this.cacheManager.clearCaches
-    }
   }
 
   /**

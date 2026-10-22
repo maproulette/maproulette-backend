@@ -59,9 +59,6 @@ class TaskService @Inject() (repository: TaskRepository, taskDAL: TaskDAL) {
     }
 
     this.repository.updateCompletionResponses(task, user, completionResponses)
-    this.taskDAL.cacheManager.withOptionCaching { () =>
-      Some(task.copy(completionResponses = Some(completionResponses.toString())))
-    }
   }
 
   /**

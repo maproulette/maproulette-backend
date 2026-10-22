@@ -253,10 +253,6 @@ class SchedulerActor @Inject() (
 
             SQL(query).executeUpdate()
         }
-
-        // The above query will not update the cache, so remove the id from the cache in case it is there
-        logger.debug(s"Flushing challenge cache of challenge with id $id")
-        this.dALManager.challenge.cacheManager.cache.remove(id)
       } catch {
         case e: Exception => {
           logger.error("Unable to update location on challenge " + id, e)
@@ -296,11 +292,6 @@ class SchedulerActor @Inject() (
                 Symbol("statuses") -> ToParameterValue.apply[Seq[Int]].apply(oldTasksStatusFilter)
               )
               .executeUpdate()
-
-          // Clear the task cache if any were deleted
-          if (tasksDeleted > 0) {
-            this.dALManager.task.cacheManager.clearCaches
-          }
 
           val totalTime = System.currentTimeMillis - start
           logger.info(
@@ -345,11 +336,6 @@ class SchedulerActor @Inject() (
     db.withConnection { implicit c =>
       val numberOfDeleted =
         SQL"""DELETE FROM virtual_challenges WHERE expired < NOW()""".executeUpdate()
-
-      // Clear the task cache if any were deleted
-      if (numberOfDeleted > 0) {
-        this.dALManager.virtualChallenge.cacheManager.clearCaches
-      }
 
       val totalTime = System.currentTimeMillis - start
       logger.info(

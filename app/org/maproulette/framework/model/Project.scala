@@ -5,7 +5,6 @@
 package org.maproulette.framework.model
 
 import org.joda.time.DateTime
-import org.maproulette.cache.CacheObject
 import org.maproulette.data.{ItemType}
 import org.maproulette.framework.psql.CommonField
 import org.maproulette.framework.model.Identifiable
@@ -23,7 +22,7 @@ import play.api.libs.json.JodaReads._
 case class Project(
     override val id: Long,
     owner: Long,
-    override val name: String,
+    name: String,
     created: DateTime = DateTime.now(),
     modified: DateTime = DateTime.now(),
     description: Option[String] = None,
@@ -41,8 +40,7 @@ case class Project(
     // project's card. Distinct from granting a team a role here, which is one
     // of several teams helping out rather than the one behind the project.
     ownerTeamId: Option[Long] = None
-) extends CacheObject[Long]
-    with Identifiable {
+) extends Identifiable {
   def grantsToType(granteeType: ItemType) =
     this.grants.filter(_.grantee.granteeType == granteeType)
 }
