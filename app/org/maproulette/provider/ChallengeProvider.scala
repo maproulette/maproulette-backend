@@ -10,7 +10,7 @@ import javax.inject.{Inject, Singleton}
 import org.apache.commons.lang3.StringUtils
 import org.joda.time.DateTime
 import org.maproulette.Config
-import org.maproulette.exception.InvalidException
+import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.framework.model.{Challenge, Task, User}
 import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}
 import org.maproulette.utils.Utils
@@ -22,7 +22,8 @@ import play.api.libs.ws.WSClient
 
 import scala.concurrent.Future
 import scala.concurrent.duration.Duration
-import scala.util.{Failure, Success}
+import scala.util.control.NonFatal
+import scala.util.{Failure, Success, Try}
 
 /**
   * @author cuthbertm
@@ -53,276 +54,185 @@ class ChallengeProvider @Inject() (
       block(Some(c))
     }
 
-  def rebuildTasks(user: User, challenge: Challenge, removeUnmatched: Boolean = false): Boolean =
-    this.buildTasks(user, challenge, None, removeUnmatched)
+  def rebuildTasks(
+      user: User,
+      challenge: Challenge,
+      removeUnmatched: Boolean = false
+  ): Future[Unit] =
+    this.buildTasks(user, challenge, None, removeUnmatched).getOrElse(Future.unit)
 
   def buildTasks(
       user: User,
       challenge: Challenge,
       json: Option[String] = None,
       removeUnmatched: Boolean = false
-  ): Boolean = {
-    if (!challenge.creation.overpassQL.getOrElse("").isEmpty) {
-      this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_BUILDING), user)(challenge.id)
-      Future {
-        logger.debug("Creating tasks for overpass query: " + challenge.creation.overpassQL.get)
-        if (removeUnmatched) {
-          this.withBackgroundPool { c =>
-            this.challengeDAL.removeIncompleteTasks(user)(challenge.id, c)
-          }
-        }
-
-        this.buildOverpassQLTasks(challenge, user)
-      }.recover {
-        case e: Exception =>
-          logger.error(s"Failed to build overpass tasks for challenge ${challenge.id}", e)
-          this.challengeDAL.update(
-            Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> e.getMessage),
-            user
-          )(challenge.id)
-      }
-      true
+  ): Option[Future[Unit]] = {
+    if (challenge.creation.overpassQL.exists(StringUtils.isNotEmpty)) {
+      Some(this.buildOverpassQLTasks(challenge, user, removeUnmatched))
     } else {
-      val usingLocalJson = json match {
-        case Some(value) if StringUtils.isNotEmpty(value) =>
-          val splitJson = value.split("\n")
-          this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_BUILDING), user)(
-            challenge.id
+      json.filter(StringUtils.isNotEmpty) match {
+        case Some(value) =>
+          Some(
+            Future.fromTry(
+              Try(this.buildTasksFromLocalJson(user, challenge, value, removeUnmatched))
+            )
           )
-          Future {
-            if (removeUnmatched) {
-              this.withBackgroundPool { c =>
-                this.challengeDAL.removeIncompleteTasks(user)(challenge.id, c)
-              }
-            }
-
-            if (isLineByLineGeoJson(splitJson)) {
-              val failedLines = splitJson.zipWithIndex.flatMap(line => {
-                try {
-                  val jsonData = Json.parse(normalizeRFC7464Sequence(line._1))
-                  this.createNewTask(
-                    user,
-                    taskNameFromJsValue(jsonData, challenge),
-                    challenge,
-                    jsonData
-                  )
-                  None
-                } catch {
-                  case e: Exception =>
-                    Some(line._2)
-                }
-              })
-              if (failedLines.nonEmpty) {
-                this.challengeDAL.update(
-                  Json.obj(
-                    "status"        -> Challenge.STATUS_PARTIALLY_LOADED,
-                    "statusMessage" -> s"GeoJSON lines [${failedLines.mkString(",")}] failed to parse"
-                  ),
-                  user
-                )(challenge.id)
-              } else {
-                this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(
-                  challenge.id
-                )
-                this.challengeDAL.markTasksRefreshed()(challenge.id)
-                this.challengeDAL.updateBoundingBox()(challenge.id)
-              }
-            } else {
-              this.createTasksFromJson(user, challenge, value)
-            }
-
-            //we need to reapply task priority rules since task locations were updated
-            Future {
-              this.withBackgroundPool { c =>
-                this.challengeDAL.updateTaskPriorities(user)(challenge.id, c)
-                this.challengeDAL.updateBoundingBox()(challenge.id, c)
-              }
-            }
-          }.recover {
-            case e: Exception =>
-              logger.error(s"Failed to build tasks from JSON for challenge ${challenge.id}", e)
-              this.challengeDAL.update(
-                Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> e.getMessage),
-                user
-              )(challenge.id)
-          }
-          true
-        case _ => false
-      }
-      if (!usingLocalJson) {
-        // lastly try remote
-        challenge.creation.remoteGeoJson match {
-          case Some(url) if StringUtils.isNotEmpty(url) =>
+        case None =>
+          challenge.creation.remoteGeoJson.filter(StringUtils.isNotEmpty).map { url =>
             this.buildTasksFromRemoteJson(url, challenge, user, removeUnmatched)
-            true
-          case _ => false
-        }
-      } else {
-        false
+          }
       }
     }
   }
 
-  /**
-    * Create a single task from some provided GeoJSON. Unlike when creating multiple tasks, this
-    * will not create the tasks in a future
-    *
-    * @param user      The user executing the task
-    * @param challenge The challenge to create the task under
-    * @param json      The geojson for the task
-    * @return
-    */
-  def createTaskFromJson(user: User, challenge: Challenge, json: String): Option[Task] = {
-    try {
-      this
-        .createTasksFromFeatures(
+  private def buildTasksFromLocalJson(
+      user: User,
+      challenge: Challenge,
+      json: String,
+      removeUnmatched: Boolean
+  ): Unit = {
+    val splitJson = json.split("\n")
+    if (this.isLineByLineGeoJson(splitJson)) {
+      this.failBuildOnError(challenge.id) {
+        this.markBuilding(challenge.id)
+        val parsed = splitJson.toIndexedSeq.zipWithIndex.map {
+          case (line, index) =>
+            Try {
+              val jsonData = Json.parse(this.normalizeRFC7464Sequence(line))
+              this.newTask(this.taskNameFromJsValue(jsonData, challenge), challenge, jsonData)
+            }.toEither.left.map(_ => index)
+        }
+        val failedLines = parsed.collect { case Left(index) => index }
+        this.writeTasks(
           user,
-          challenge,
-          Json.parse(this.normalizeRFC7464Sequence(json)),
-          true
+          challenge.id,
+          parsed.collect { case Right(task) => task },
+          removeUnmatched,
+          partialMessage = Option.when(failedLines.nonEmpty)(
+            s"GeoJSON lines [${failedLines.mkString(",")}] failed to parse"
+          )
         )
-        .headOption
-    } catch {
-      case e: Exception =>
-        this.challengeDAL.update(
-          Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> e.getMessage),
-          user
-        )(challenge.id)
-        throw e
+      }
+    } else {
+      this.createTasksFromJson(user, challenge, json, removeUnmatched = removeUnmatched)
     }
-
   }
 
-  /**
-    * Create multiple tasks from some provided GeoJSON. It will execute the creation in a future
-    *
-    * @param user      The user executing the task
-    * @param challenge The challenge to create the task under
-    * @param json      The geojson for the task
-    * @return
-    */
   def createTasksFromJson(
       user: User,
       challenge: Challenge,
       json: String,
-      currentTaskCount: Int = 0
-  ): List[Task] = {
-    try {
-      this.createTasksFromFeatures(user, challenge, Json.parse(json), false, currentTaskCount)
-    } catch {
-      case e: Exception =>
-        this.challengeDAL.update(
-          Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> e.getMessage),
-          user
-        )(challenge.id)
-        throw e
+      currentTaskCount: Int = 0,
+      removeUnmatched: Boolean = false,
+      dataOriginDate: Option[DateTime] = None
+  ): Unit =
+    this.failBuildOnError(challenge.id) {
+      this.createTasksFromFeatures(
+        user,
+        challenge,
+        (Json.parse(json) \ "features").as[List[JsValue]],
+        currentTaskCount,
+        removeUnmatched,
+        dataOriginDate
+      )
     }
-  }
 
-  /**
-    * Builds all the tasks from the remote json
-    *
-    * @param url       The url of the remote geojson
-    * @param challenge The challenge to build the tasks in
-    * @param user      The user creating the tasks
-    */
+  def createTasksFromLines(
+      user: User,
+      challenge: Challenge,
+      lines: Seq[String],
+      removeUnmatched: Boolean = false,
+      dataOriginDate: Option[DateTime] = None
+  ): Unit =
+    this.failBuildOnError(challenge.id) {
+      this.markBuilding(challenge.id)
+      val tasks = lines.zipWithIndex.map {
+        case (line, index) =>
+          val jsonData = Try(Json.parse(this.normalizeRFC7464Sequence(line))).getOrElse(
+            throw new InvalidException(s"GeoJSON line $index failed to parse")
+          )
+          this.newTask(this.taskNameFromJsValue(jsonData, challenge), challenge, jsonData)
+      }
+      this.writeTasks(
+        user,
+        challenge.id,
+        tasks,
+        removeUnmatched,
+        overwriteRefresh = dataOriginDate.isDefined,
+        dataOriginDate = dataOriginDate
+      )
+    }
+
   def buildTasksFromRemoteJson(
       url: String,
       challenge: Challenge,
       user: User,
       removeUnmatched: Boolean
-  ): Unit = {
-    this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_BUILDING), user)(challenge.id)
-    if (removeUnmatched) {
-      this.withBackgroundPool { c =>
-        this.challengeDAL.removeIncompleteTasks(user)(challenge.id, c)
-      }
-    }
-
-    def fail(statusMessage: String): Unit =
-      this.challengeDAL.update(
-        Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
-        user
-      )(challenge.id)
-
-    val request =
-      try {
-        this.ws.url(url).withRequestTimeout(this.config.getOSMQLProvider.requestTimeout).get()
-      } catch {
-        case e: IllegalArgumentException =>
+  ): Future[Unit] = {
+    this.markBuilding(challenge.id)
+    val build = Future(
+      this.ws.url(url).withRequestTimeout(this.config.getOSMQLProvider.requestTimeout).get()
+    ).flatten
+      .transform {
+        case Failure(e: IllegalArgumentException) =>
           logger.warn(s"Invalid remote GeoJSON URL for challenge ${challenge.id}: $url", e)
-          fail("Remote GeoJSON URL is not valid")
-          return
+          Failure(new InvalidException("Remote GeoJSON URL is not valid"))
+        case Failure(e) =>
+          logger.warn(s"Failed to fetch remote GeoJSON for challenge ${challenge.id}", e)
+          Failure(new InvalidException("Could not fetch remote GeoJSON"))
+        case Success(resp) if resp.status < 200 || resp.status >= 300 =>
+          logger.warn(s"HTTP ${resp.status} fetching remote GeoJSON for challenge ${challenge.id}")
+          Failure(new InvalidException(s"Could not fetch remote GeoJSON (HTTP ${resp.status})"))
+        case Success(resp) => Success(resp.body)
       }
+      .map(body => this.buildTasksFromRemoteBody(user, challenge, body, removeUnmatched))
+    this.failBuildOnFutureError(challenge.id, build)
+  }
 
-    request onComplete {
-      case Success(resp) if resp.status < 200 || resp.status >= 300 =>
-        logger.warn(s"HTTP ${resp.status} fetching remote GeoJSON for challenge ${challenge.id}")
-        fail(s"Could not fetch remote GeoJSON (HTTP ${resp.status})")
-      case Success(resp) =>
-        logger.debug("Creating tasks from remote GeoJSON file")
-        val built =
-          try {
-            val splitJson = resp.body.split("\n")
-
-            if (this.isLineByLineGeoJson(splitJson)) {
-              if (splitJson.length > config.maxTasksPerChallenge) {
-                logger.warn(
-                  "Cannot add {} tasks to challengeId='{}' because it would exceed the maximum tasks per challenge (max={})",
-                  splitJson.length,
-                  challenge.id,
-                  config.maxTasksPerChallenge
-                )
-
-                val statusMessage =
-                  s"Tasks were not accepted. Your feature list size must be under ${config.maxTasksPerChallenge}."
-                this.challengeDAL.update(
-                  Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
-                  user
-                )(challenge.id)
-                false
-              } else {
-                splitJson.foreach { line =>
-                  val jsonData = Json.parse(normalizeRFC7464Sequence(line))
-                  this.createNewTask(
-                    user,
-                    taskNameFromJsValue(jsonData, challenge),
-                    challenge,
-                    jsonData
-                  )
-                }
-                this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(
-                  challenge.id
-                )
-                this.challengeDAL.markTasksRefreshed()(challenge.id)
-                true
-              }
-            } else {
-              this.createTasksFromFeatures(user, challenge, Json.parse(resp.body))
-              true
-            }
-          } catch {
-            case e: Exception =>
-              logger.warn(s"Failed to read remote GeoJSON for challenge ${challenge.id}", e)
-              fail("Remote GeoJSON could not be read; check that it is valid GeoJSON")
-              false
-          }
-
-        if (built) {
-          //we need to reapply task priority rules since task locations were updated
-          Future {
-            this.withBackgroundPool { c =>
-              this.challengeDAL.updateTaskPriorities(user)(challenge.id, c)
-              this.challengeDAL.updateBoundingBox()(challenge.id, c)
-            }
-          }
+  private def buildTasksFromRemoteBody(
+      user: User,
+      challenge: Challenge,
+      body: String,
+      removeUnmatched: Boolean
+  ): Unit = {
+    logger.debug("Creating tasks from remote GeoJSON file")
+    val splitJson = body.split("\n")
+    if (this.isLineByLineGeoJson(splitJson)) {
+      if (splitJson.length > config.maxTasksPerChallenge) {
+        logger.warn(
+          "Cannot add {} tasks to challengeId='{}' because it would exceed the maximum tasks per challenge (max={})",
+          splitJson.length,
+          challenge.id,
+          config.maxTasksPerChallenge
+        )
+        throw new InvalidException(
+          s"Tasks were not accepted. Your feature list size must be under ${config.maxTasksPerChallenge}."
+        )
+      }
+      val tasks = this.readRemoteGeoJson(challenge.id) {
+        splitJson.toIndexedSeq.map { line =>
+          val jsonData = Json.parse(this.normalizeRFC7464Sequence(line))
+          this.newTask(this.taskNameFromJsValue(jsonData, challenge), challenge, jsonData)
         }
-      case Failure(f) =>
-        logger.warn(s"Failed to fetch remote GeoJSON for challenge ${challenge.id}", f)
-        fail("Could not fetch remote GeoJSON")
+      }
+      this.writeTasks(user, challenge.id, tasks, removeUnmatched)
+    } else {
+      val features = this.readRemoteGeoJson(challenge.id) {
+        (Json.parse(body) \ "features").as[List[JsValue]]
+      }
+      this.createTasksFromFeatures(user, challenge, features, removeUnmatched = removeUnmatched)
     }
   }
 
+  private def readRemoteGeoJson[T](challengeId: Long)(parse: => T): T =
+    try parse
+    catch {
+      case NonFatal(e) =>
+        logger.warn(s"Failed to read remote GeoJSON for challenge $challengeId", e)
+        throw new InvalidException(
+          "Remote GeoJSON could not be read; check that it is valid GeoJSON"
+        )
+    }
   // Helper function to retrieve a non-null, non-empty string from a field
   // Supports both string and numeric IDs.
   def getNonNullString(value: JsValue, fieldName: String): Option[String] = {
@@ -408,84 +318,126 @@ class ChallengeProvider @Inject() (
       }
   }
 
-  /**
-    * Creates task(s) from a geojson file
-    *
-    * @param user     The user executing the request
-    * @param parent   The challenge where the task should be created
-    * @param jsonData The json data for the task
-    * @param single   if true, then will use the json provided and create a single task
-    */
   private def createTasksFromFeatures(
       user: User,
       parent: Challenge,
-      jsonData: JsValue,
-      single: Boolean = false,
-      currentTaskCount: Int = 0
-  ): List[Task] = {
-    this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_BUILDING), user)(parent.id)
-    val featureList       = (jsonData \ "features").as[List[JsValue]]
-    val featureListLength = (jsonData \ "features").as[List[JsValue]].length
-    try {
-      if (featureListLength + currentTaskCount > config.maxTasksPerChallenge) {
-        logger.warn(
-          "Cannot add {} tasks to challengeId='{}' because it would exceed the maximum tasks per challenge (count={} max={})",
-          featureListLength,
-          parent.id,
-          currentTaskCount,
-          config.maxTasksPerChallenge
-        )
+      featureList: List[JsValue],
+      currentTaskCount: Int = 0,
+      removeUnmatched: Boolean = false,
+      dataOriginDate: Option[DateTime] = None
+  ): Unit = {
+    this.markBuilding(parent.id)
+    if (featureList.length + currentTaskCount > config.maxTasksPerChallenge) {
+      logger.warn(
+        "Cannot add {} tasks to challengeId='{}' because it would exceed the maximum tasks per challenge (count={} max={})",
+        featureList.length,
+        parent.id,
+        currentTaskCount,
+        config.maxTasksPerChallenge
+      )
 
-        if (currentTaskCount == 0) {
-          val statusMessage =
-            s"Tasks were not accepted. Your feature list size must be under ${config.maxTasksPerChallenge}."
-          this.challengeDAL.update(
-            Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> statusMessage),
-            user
-          )(parent.id)
-          List.empty
-        } else {
-          throw new InvalidException(
-            s"Total challenge tasks would exceed cap of ${config.maxTasksPerChallenge}"
-          )
-        }
+      if (currentTaskCount == 0) {
+        val statusMessage =
+          s"Tasks were not accepted. Your feature list size must be under ${config.maxTasksPerChallenge}."
+        this.challengeDAL.updateBuildStatus(Challenge.STATUS_FAILED, statusMessage)(parent.id)
       } else {
-        val createdTasks = featureList.flatMap { value =>
-          if (!single) {
-            this.createNewTask(
-              user,
-              taskNameFromJsValue(value, parent),
-              parent,
-              (value \ "geometry").as[JsObject],
-              Utils.getProperties(value, "properties")
-            )
-          } else {
-            None
-          }
-        }
-
-        this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(parent.id)
-        this.challengeDAL.markTasksRefreshed()(parent.id)
-        this.challengeDAL.updateBoundingBox()(parent.id)
-        if (single) {
-          this.createNewTask(user, taskNameFromJsValue(jsonData, parent), parent, jsonData) match {
-            case Some(t) => List(t)
-            case None    => List.empty
-          }
-        } else {
-          logger.debug(s"${featureList.size} tasks created from json file.")
-          createdTasks
-        }
+        throw new InvalidException(
+          s"Total challenge tasks would exceed cap of ${config.maxTasksPerChallenge}"
+        )
       }
-    } catch {
-      case e: Exception =>
-        this.challengeDAL.update(
-          Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> e.getMessage),
-          user
-        )(parent.id)
-        logger.error(s"${featureList.size} tasks failed to be created from json file.", e)
-        List.empty
+    } else {
+      val tasks = featureList.map { value =>
+        this.newTask(
+          this.taskNameFromJsValue(value, parent),
+          parent,
+          (value \ "geometry").as[JsObject],
+          Utils.getProperties(value, "properties")
+        )
+      }
+      this.writeTasks(
+        user,
+        parent.id,
+        tasks,
+        removeUnmatched,
+        overwriteRefresh = dataOriginDate.isDefined,
+        dataOriginDate = dataOriginDate
+      )
+      logger.debug(s"${featureList.size} tasks created from json file.")
     }
+  }
+
+  private def writeTasks(
+      user: User,
+      challengeId: Long,
+      tasks: Seq[Task],
+      removeUnmatched: Boolean,
+      partialMessage: Option[String] = None,
+      overwriteRefresh: Boolean = false,
+      dataOriginDate: Option[DateTime] = None,
+      finishIfComplete: Boolean = false
+  ): Unit =
+    this.withBackgroundPool { c =>
+      implicit val id: Long = challengeId
+      val challenge = this.challengeDAL
+        .lockForTaskBuild(id, c.get)
+        .getOrElse(throw new NotFoundException(s"No challenge found with id $id"))
+
+      if (removeUnmatched) {
+        this.challengeDAL.removeIncompleteTasks(user)(id, c)
+      }
+
+      val notWritten = this.taskDAL.upsertChallengeTasks(challenge, tasks, user)(c.get)
+      if (notWritten.nonEmpty) {
+        logger.warn(
+          s"${notWritten.size} tasks could not be created in challenge $id: ${notWritten.mkString(", ")}"
+        )
+      }
+
+      val messages = partialMessage.toList ++ Option.when(notWritten.nonEmpty)(
+        s"${notWritten.size} tasks could not be created: ${notWritten.take(20).mkString(", ")}"
+      )
+      if (messages.isEmpty) {
+        this.challengeDAL
+          .updateBuildStatus(Challenge.STATUS_READY, Challenge.STATUS_MESSAGE_NONE)(id, c)
+        this.challengeDAL.markTasksRefreshed(overwriteRefresh, dataOriginDate)(id, c)
+      } else {
+        this.challengeDAL
+          .updateBuildStatus(Challenge.STATUS_PARTIALLY_LOADED, messages.mkString(". "))(id, c)
+      }
+
+      this.challengeDAL.updateTaskPriorities(user)(id, c)
+      this.challengeDAL.updateBoundingBox()(id, c)
+      if (finishIfComplete && messages.isEmpty) {
+        this.challengeDAL.updateFinishedStatus(true, user = user)(id, c)
+      }
+    }
+
+  private def markBuilding(challengeId: Long): Unit =
+    this.challengeDAL.updateBuildStatus(Challenge.STATUS_BUILDING, Challenge.STATUS_MESSAGE_NONE)(
+      challengeId
+    )
+
+  private def failBuildOnError[T](challengeId: Long)(block: => T): T =
+    try block
+    catch {
+      case NonFatal(e) =>
+        this.recordBuildFailure(challengeId, e)
+        throw e
+    }
+
+  private def failBuildOnFutureError(challengeId: Long, build: Future[Unit]): Future[Unit] =
+    build.recoverWith {
+      case NonFatal(e) =>
+        this.recordBuildFailure(challengeId, e)
+        Future.failed(e)
+    }
+
+  private def recordBuildFailure(challengeId: Long, e: Throwable): Unit = {
+    logger.error(s"Failed to build tasks for challenge $challengeId", e)
+    this.challengeDAL.updateBuildStatus(
+      Challenge.STATUS_FAILED,
+      Option(e.getMessage).getOrElse(e.getClass.getSimpleName)
+    )(challengeId)
   }
 
   /**
@@ -494,301 +446,253 @@ class ChallengeProvider @Inject() (
     * @param challenge The challenge to create the tasks under
     * @param user      The user executing the query
     */
-  private def buildOverpassQLTasks(challenge: Challenge, user: User) = {
-    this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_BUILDING), user)(challenge.id)
-    challenge.creation.overpassQL match {
-      case Some(ql) if StringUtils.isNotEmpty(ql) =>
-        // run the query and then create the tasks
-        val osmQLProvider  = config.getOSMQLProvider
-        val timeoutPattern = "\\[timeout:([\\d]*)\\]".r
-        val timeout = timeoutPattern.findAllIn(ql).matchData.toList.headOption match {
-          case Some(m) => Duration(m.group(1).toInt, "seconds")
-          case None    => osmQLProvider.requestTimeout
+  private def buildOverpassQLTasks(
+      challenge: Challenge,
+      user: User,
+      removeUnmatched: Boolean
+  ): Future[Unit] = {
+    this.markBuilding(challenge.id)
+    val ql = challenge.creation.overpassQL.getOrElse("")
+    // run the query and then create the tasks
+    val osmQLProvider  = config.getOSMQLProvider
+    val timeoutPattern = "\\[timeout:([\\d]*)\\]".r
+    val timeout = timeoutPattern.findAllIn(ql).matchData.toList.headOption match {
+      case Some(m) => Duration(m.group(1).toInt, "seconds")
+      case None    => osmQLProvider.requestTimeout
+    }
+
+    val modifiedQuery = rewriteQuery(ql)
+    logger.info(modifiedQuery)
+
+    val build = Future(
+      this.ws.url(osmQLProvider.providerURL).withRequestTimeout(timeout).post(modifiedQuery)
+    ).flatten
+      .transform {
+        case Failure(f) =>
+          logger.warn(s"Overpass request failed for challenge ${challenge.id}", f)
+          Failure(new InvalidException(this.overpassFailureMessage(f)))
+        case success => success
+      }
+      .map { result =>
+        if (result.status != Status.OK) {
+          // Handle non-OK responses (timeouts, errors, etc.)
+          val errorMessage = extractOverpassErrorMessage(result.body, result.status)
+          val statusMessage = result.status match {
+            case 504 | 502 => // Gateway Timeout or Bad Gateway
+              "The Overpass API server is too busy or timed out. Please try again later or reduce the scope of your query."
+            case 429 => // Too Many Requests
+              "Too many requests to the Overpass API. Please wait a moment and try again."
+            case _ =>
+              errorMessage
+          }
+          throw new InvalidException(statusMessage)
         }
 
-        val modifiedQuery = rewriteQuery(ql)
-        logger.info(modifiedQuery)
+        val contentType = result.header("Content-Type")
 
-        val jsonFuture =
-          this.ws.url(osmQLProvider.providerURL).withRequestTimeout(timeout).post(modifiedQuery)
-        jsonFuture onComplete {
-          case Success(result) =>
-            if (result.status == Status.OK) {
-              val contentType = result.header("Content-Type")
+        // check that the Overpass API returned JSON
+        if (contentType.isDefined && contentType != Some("application/json")) {
+          throw new InvalidException(s"""
+            |Overpass API returned response with Content-Type: ${contentType.get}
+            |
+            |MapRoulette requires OverpassQL queries to return JSON.
+            |
+            |If your query contained [out:xml] or [out:csv], replace it with [out:json] and try again.
+            """.stripMargin)
+        }
 
-              // check that the Overpass API returned JSON
-              if (contentType.isDefined && contentType != Some("application/json")) {
-                this.challengeDAL.update(
-                  Json.obj(
-                    "status"        -> Challenge.STATUS_FAILED,
-                    "statusMessage" -> s"""
-                    |Overpass API returned response with Content-Type: ${contentType.get}
-                    |
-                    |MapRoulette requires OverpassQL queries to return JSON.
-                    |
-                    |If your query contained [out:xml] or [out:csv], replace it with [out:json] and try again.
-                    """.stripMargin
-                  ),
-                  user
-                )(challenge.id)
+        // parse the results. Overpass has its own format and is not geojson
+        val elements         = (result.json \ "elements").as[List[JsValue]]
+        val (tasks, partial) = this.overpassElementsToTasks(challenge, elements)
+        this.writeTasks(
+          user,
+          challenge.id,
+          tasks,
+          removeUnmatched,
+          partialMessage =
+            Option.when(partial)("Some Overpass results could not be converted to tasks"),
+          overwriteRefresh = true,
+          // If no tasks were created by this overpass query or all tasks are
+          // fixed, then we need to update the status to finished.
+          finishIfComplete = true
+        )
+      }
+    this.failBuildOnFutureError(challenge.id, build)
+  }
+
+  private def overpassFailureMessage(f: Throwable): String =
+    f match {
+      case e: java.util.concurrent.TimeoutException =>
+        "The Overpass API request timed out. The server may be too busy. Please try again later or reduce the scope of your query."
+      case e: java.net.SocketTimeoutException =>
+        "The Overpass API request timed out. The server may be too busy. Please try again later or reduce the scope of your query."
+      case e: java.net.ConnectException =>
+        "Failed to connect to the Overpass API. Please check your network connection and try again."
+      case e: Exception =>
+        val msg = e.getMessage
+        if (msg != null && (msg.contains("timeout") || msg.contains("Timeout"))) {
+          "The Overpass API request timed out. The server may be too busy. Please try again later or reduce the scope of your query."
+        } else {
+          s"Overpass API error: ${msg}"
+        }
+      case _ =>
+        if (f.getMessage != null) f.getMessage
+        else "Unknown error occurred while contacting the Overpass API"
+    }
+
+  private def overpassElementsToTasks(
+      challenge: Challenge,
+      elements: List[JsValue]
+  ): (List[Task], Boolean) = {
+    var partial = false
+    val tasks = elements.flatMap { element =>
+      // Verify target type if we are given one.
+      challenge.creation.overpassTargetType match {
+        case Some(targetType) if StringUtils.isNotEmpty(targetType) =>
+          (element \ "type").asOpt[String] match {
+            case Some("way") =>
+              if (targetType != "way") {
                 throw new InvalidException(
-                  s"Overpass API returned unexpected Content-Type: ${contentType.get}"
+                  "Element type 'way' does not match target type of '" + targetType + "'"
                 )
               }
+            case Some("relation") =>
+              if (targetType != "relation") {
+                throw new InvalidException(
+                  "Element type 'relation' does not match target type of '" + targetType + "'"
+                )
+              }
+            case Some("node") =>
+              if (targetType != "node") {
+                throw new InvalidException(
+                  "Element type 'node' does not match target type of '" + targetType + "'"
+                )
+              }
+            case x =>
+              throw new InvalidException(
+                "Element type " + x + " does not match target type of '" + targetType + "'"
+              )
+          }
+        case _ => // do not validate
+      }
 
-              var partial          = false
-              val payload          = result.json
-              var targetTypeFailed = false
-
-              // parse the results. Overpass has its own format and is not geojson
-              val elements = (payload \ "elements").as[List[JsValue]]
-              try {
-                elements.foreach { element =>
-                  // Verify target type if we are given one.
-                  challenge.creation.overpassTargetType match {
-                    case Some(targetType) if StringUtils.isNotEmpty(targetType) =>
-                      (element \ "type").asOpt[String] match {
-                        case Some("way") =>
-                          if (targetType != "way") {
-                            targetTypeFailed = true
-                            throw new InvalidException(
-                              "Element type 'way' does not match target type of '" + targetType + "'"
-                            )
-                          }
-                        case Some("relation") =>
-                          if (targetType != "relation") {
-                            targetTypeFailed = true
-                            throw new InvalidException(
-                              "Element type 'relation' does not match target type of '" + targetType + "'"
-                            )
-                          }
-                        case Some("node") =>
-                          if (targetType != "node") {
-                            targetTypeFailed = true
-                            throw new InvalidException(
-                              "Element type 'node' does not match target type of '" + targetType + "'"
-                            )
-                          }
-                        case x =>
-                          targetTypeFailed = true
-                          throw new InvalidException(
-                            "Element type " + x + " does not match target type of '" + targetType + "'"
-                          )
+      try {
+        val geometry = (element \ "center").asOpt[JsObject] match {
+          case Some(center) =>
+            Some(
+              Json.obj(
+                "type" -> "Point",
+                "coordinates" -> List(
+                  (center \ "lon").as[Double],
+                  (center \ "lat").as[Double]
+                )
+              )
+            )
+          case None =>
+            (element \ "type").asOpt[String] match {
+              case Some("way") =>
+                // TODO: ways do not have a "geometry" property, instead they have a list of "nodes"
+                // referencing other elements in the array. So this code does not do the job.
+                val points = (element \ "geometry").as[List[JsValue]].map { geom =>
+                  List((geom \ "lon").as[Double], (geom \ "lat").as[Double])
+                }
+                Some(Json.obj("type" -> "LineString", "coordinates" -> points))
+              case Some("relation") =>
+                // Function to recursively extract geometries from relations
+                def extractGeometries(member: JsValue): Option[JsObject] = {
+                  (member \ "type").asOpt[String] match {
+                    case Some("way") =>
+                      val points = (member \ "geometry").as[List[JsValue]].map { geom =>
+                        List((geom \ "lon").as[Double], (geom \ "lat").as[Double])
                       }
-                    case _ => // do not validate
-                  }
+                      Some(Json.obj("type" -> "LineString", "coordinates" -> points))
 
-                  try {
-                    val geometry = (element \ "center").asOpt[JsObject] match {
-                      case Some(center) =>
-                        Some(
-                          Json.obj(
-                            "type" -> "Point",
-                            "coordinates" -> List(
-                              (center \ "lon").as[Double],
-                              (center \ "lat").as[Double]
-                            )
+                    case Some("node") =>
+                      Some(
+                        Json.obj(
+                          "type" -> "Point",
+                          "coordinates" -> List(
+                            (member \ "lon").as[Double],
+                            (member \ "lat").as[Double]
                           )
                         )
-                      case None =>
-                        (element \ "type").asOpt[String] match {
-                          case Some("way") =>
-                            // TODO: ways do not have a "geometry" property, instead they have a list of "nodes"
-                            // referencing other elements in the array. So this code does not do the job.
-                            val points = (element \ "geometry").as[List[JsValue]].map { geom =>
-                              List((geom \ "lon").as[Double], (geom \ "lat").as[Double])
-                            }
-                            Some(Json.obj("type" -> "LineString", "coordinates" -> points))
-                          case Some("relation") =>
-                            // Function to recursively extract geometries from relations
-                            def extractGeometries(member: JsValue): Option[JsObject] = {
-                              (member \ "type").asOpt[String] match {
-                                case Some("way") =>
-                                  val points = (member \ "geometry").as[List[JsValue]].map { geom =>
-                                    List((geom \ "lon").as[Double], (geom \ "lat").as[Double])
-                                  }
-                                  Some(Json.obj("type" -> "LineString", "coordinates" -> points))
-
-                                case Some("node") =>
-                                  Some(
-                                    Json.obj(
-                                      "type" -> "Point",
-                                      "coordinates" -> List(
-                                        (member \ "lon").as[Double],
-                                        (member \ "lat").as[Double]
-                                      )
-                                    )
-                                  )
-
-                                case Some("relation") =>
-                                  // If it's another relation, recursively extract geometries from it
-                                  val geometries = (member \ "members").as[List[JsValue]].map {
-                                    member =>
-                                      extractGeometries(member)
-                                  }
-                                  val geometryCollection = Json.obj(
-                                    "type"       -> "GeometryCollection",
-                                    "geometries" -> geometries
-                                  )
-
-                                  Some(geometryCollection)
-
-                                case _ =>
-                                  None
-                              }
-                            }
-
-                            // Extract geometries from each member of the relation
-                            val geometries = (element \ "members").as[List[JsValue]].map { member =>
-                              extractGeometries(member)
-                            }
-
-                            // Create a GeometryCollection
-                            val geometryCollection = Json.obj(
-                              "type"       -> "GeometryCollection",
-                              "geometries" -> geometries
-                            )
-
-                            Some(geometryCollection)
-
-                          case Some("node") =>
-                            Some(
-                              Json.obj(
-                                "type" -> "Point",
-                                "coordinates" -> List(
-                                  (element \ "lon").as[Double],
-                                  (element \ "lat").as[Double]
-                                )
-                              )
-                            )
-                          case _ => None
-                        }
-                    }
-
-                    geometry match {
-                      case Some(geom) =>
-                        this.createNewTask(
-                          user,
-                          s"${(element \ "id").as[Long]}",
-                          challenge,
-                          geom,
-                          Utils.getProperties(element, "tags")
-                        )
-                      case None => None
-                    }
-                  } catch {
-                    case e: Exception =>
-                      partial = true
-                      logger.error(
-                        s"Failed to build overpass task for challenge ${challenge.id}: ${e.getMessage}",
-                        e
                       )
+
+                    case Some("relation") =>
+                      // If it's another relation, recursively extract geometries from it
+                      val geometries = (member \ "members").as[List[JsValue]].map { member =>
+                        extractGeometries(member)
+                      }
+                      val geometryCollection = Json.obj(
+                        "type"       -> "GeometryCollection",
+                        "geometries" -> geometries
+                      )
+
+                      Some(geometryCollection)
+
+                    case _ =>
+                      None
                   }
                 }
-                partial match {
-                  case true =>
-                    this.challengeDAL.update(
-                      Json.obj("status" -> Challenge.STATUS_PARTIALLY_LOADED),
-                      user
-                    )(challenge.id)
-                  case false =>
-                    this.challengeDAL.update(Json.obj("status" -> Challenge.STATUS_READY), user)(
-                      challenge.id
+
+                // Extract geometries from each member of the relation
+                val geometries = (element \ "members").as[List[JsValue]].map { member =>
+                  extractGeometries(member)
+                }
+
+                // Create a GeometryCollection
+                val geometryCollection = Json.obj(
+                  "type"       -> "GeometryCollection",
+                  "geometries" -> geometries
+                )
+
+                Some(geometryCollection)
+
+              case Some("node") =>
+                Some(
+                  Json.obj(
+                    "type" -> "Point",
+                    "coordinates" -> List(
+                      (element \ "lon").as[Double],
+                      (element \ "lat").as[Double]
                     )
-                    this.challengeDAL.markTasksRefreshed(true)(challenge.id)
-                    this.challengeDAL.updateBoundingBox()(challenge.id)
-                    // If no tasks were created by this overpass query or all tasks are
-                    // fixed, then we need to update the status to finished.
-                    this.challengeDAL.updateFinishedStatus(true, user = user)(challenge.id)
-                }
-              } catch {
-                case e: Exception =>
-                  this.challengeDAL.update(
-                    Json.obj(
-                      "status"        -> Challenge.STATUS_FAILED,
-                      "statusMessage" -> s"${e.getMessage}"
-                    ),
-                    user
-                  )(challenge.id)
-                  throw e
-              }
-            } else {
-              // Handle non-OK responses (timeouts, errors, etc.)
-              val errorMessage = extractOverpassErrorMessage(result.body, result.status)
-              val statusMessage = result.status match {
-                case 504 | 502 => // Gateway Timeout or Bad Gateway
-                  "The Overpass API server is too busy or timed out. Please try again later or reduce the scope of your query."
-                case 429 => // Too Many Requests
-                  "Too many requests to the Overpass API. Please wait a moment and try again."
-                case _ =>
-                  errorMessage
-              }
-
-              this.challengeDAL.update(
-                Json.obj(
-                  "status"        -> Challenge.STATUS_FAILED,
-                  "statusMessage" -> statusMessage
-                ),
-                user
-              )(challenge.id)
-              throw new InvalidException(s"${result.statusText}: $statusMessage")
+                  )
+                )
+              case _ => None
             }
-          case Failure(f) =>
-            val errorMessage = f match {
-              case e: java.util.concurrent.TimeoutException =>
-                "The Overpass API request timed out. The server may be too busy. Please try again later or reduce the scope of your query."
-              case e: java.net.SocketTimeoutException =>
-                "The Overpass API request timed out. The server may be too busy. Please try again later or reduce the scope of your query."
-              case e: java.net.ConnectException =>
-                "Failed to connect to the Overpass API. Please check your network connection and try again."
-              case e: Exception =>
-                val msg = e.getMessage
-                if (msg != null && (msg.contains("timeout") || msg.contains("Timeout"))) {
-                  "The Overpass API request timed out. The server may be too busy. Please try again later or reduce the scope of your query."
-                } else {
-                  s"Overpass API error: ${msg}"
-                }
-              case _ =>
-                if (f.getMessage != null) f.getMessage
-                else "Unknown error occurred while contacting the Overpass API"
-            }
-            this.challengeDAL.update(
-              Json.obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> errorMessage),
-              user
-            )(challenge.id)
-            throw f
         }
-      case None =>
-        this.challengeDAL.update(
-          Json
-            .obj("status" -> Challenge.STATUS_FAILED, "statusMessage" -> "overpass query not set"),
-          user
-        )(challenge.id)
+
+        geometry.map { geom =>
+          this.newTask(
+            s"${(element \ "id").as[Long]}",
+            challenge,
+            geom,
+            Utils.getProperties(element, "tags")
+          )
+        }
+      } catch {
+        case e: Exception =>
+          partial = true
+          logger.error(
+            s"Failed to build overpass task for challenge ${challenge.id}: ${e.getMessage}",
+            e
+          )
+          None
+      }
     }
+    (tasks, partial)
   }
 
-  private def createNewTask(
-      user: User,
-      name: String,
-      parent: Challenge,
-      json: JsValue
-  ): Option[Task] = {
-    this._createNewTask(
-      user,
-      name,
-      parent,
-      Task(-1, name, DateTime.now(), DateTime.now(), parent.id, Some(""), None, json.as[JsObject])
-    )
-  }
+  private def newTask(name: String, parent: Challenge, json: JsValue): Task =
+    Task(-1, name, DateTime.now(), DateTime.now(), parent.id, Some(""), None, json.as[JsObject])
 
-  private def createNewTask(
-      user: User,
+  private def newTask(
       name: String,
       parent: Challenge,
       geometry: JsObject,
       properties: JsValue
-  ): Option[Task] = {
-    val newTask = Task(
+  ): Task =
+    Task(
       -1,
       name,
       DateTime.now(),
@@ -808,26 +712,6 @@ class ChallengeProvider @Inject() (
         )
       )
     )
-    this._createNewTask(user, name, parent, newTask)
-  }
-
-  private def _createNewTask(
-      user: User,
-      name: String,
-      parent: Challenge,
-      newTask: Task
-  ): Option[Task] = {
-    try {
-      this.withBackgroundPool { c =>
-        this.taskDAL.mergeUpdate(newTask, user)(newTask.id, c)
-      }
-    } catch {
-      // this task could fail on unique key violation, we need to ignore them
-      case e: Exception =>
-        logger.error(s"Failed to create task '$name' in challenge ${parent.id}: ${e.getMessage}", e)
-        None
-    }
-  }
 
   /**
     * rewrite the user-provided OverpassQL query, adding output format and timeout settings if they are missing.
