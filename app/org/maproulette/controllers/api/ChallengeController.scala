@@ -85,12 +85,11 @@ class ChallengeController @Inject() (
   override implicit val tagType: String    = Challenge.TABLE
 
   // implicit writes used for various JSON responses
-  implicit val commentWrites                                    = Comment.writes
-  implicit val pointWrites                                      = ClusteredPoint.pointWrites
-  implicit val clusteredPointWrites                             = ClusteredPoint.clusteredPointWrites
-  implicit val taskClusterWrites                                = TaskCluster.taskClusterWrites
-  implicit val searchLocationWrites                             = SearchParameters.locationWrites
-  implicit val challengeListingWrites: Writes[ChallengeListing] = Json.writes[ChallengeListing]
+  implicit val commentWrites        = Comment.writes
+  implicit val pointWrites          = ClusteredPoint.pointWrites
+  implicit val clusteredPointWrites = ClusteredPoint.clusteredPointWrites
+  implicit val taskClusterWrites    = TaskCluster.taskClusterWrites
+  implicit val searchLocationWrites = SearchParameters.locationWrites
 
   override def dalWithTags: TagDALMixin[Challenge] = dal
 
@@ -1246,6 +1245,8 @@ class ChallengeController @Inject() (
       Ok(Json.toJson(StatusMessage("OK", JsString("We good"))))
     }
 
+  // TODO: in future we should deprecate the listing endpoint in favour of a dedicated count endpoint,
+  // and anywhere that currently uses the listing endpoint should get the full challenge details
   /**
     * Retrieves a lightweight listing of the challenges in the given project(s).
     *

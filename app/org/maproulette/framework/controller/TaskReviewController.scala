@@ -13,7 +13,7 @@ import org.apache.commons.lang3.StringUtils
 import org.maproulette.exception.{InvalidException, NotFoundException}
 import org.maproulette.framework.service.{ServiceManager, TagService, TaskReviewService}
 import org.maproulette.framework.psql.Paging
-import org.maproulette.framework.model.{Challenge, ChallengeListing, Project, Tag, Task, User}
+import org.maproulette.framework.model.{Challenge, Project, Tag, Task, User}
 import org.maproulette.framework.mixins.{ParentMixin, TagsControllerMixin}
 import org.maproulette.framework.repository.TaskRepository
 import org.maproulette.session.{SearchLocation, SearchParameters, SessionManager}
@@ -56,8 +56,6 @@ class TaskReviewController @Inject() (
     with MapRouletteController
     with ParentMixin
     with TagsControllerMixin[Task] {
-
-  implicit val challengeListingWrites: Writes[ChallengeListing] = Json.writes[ChallengeListing]
 
   // For TagsMixin
   override def dalWithTags: TagDALMixin[Task] = this.taskDAL

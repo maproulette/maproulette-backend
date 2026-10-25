@@ -13,6 +13,9 @@ import javax.inject.{Inject, Singleton}
 import org.maproulette.framework.model._
 import org.maproulette.framework.psql.Query
 import play.api.db.Database
+import play.api.libs.json.JsValue
+import anorm.postgresql.jsValueColumn
+import org.joda.time.DateTime
 
 /**
   * The challenge repository handles all the querying with the databases related to
@@ -56,7 +59,11 @@ object ChallengeListingRepository {
       |array_remove(array_agg(virtual_project_challenges.project_id), NULL) AS virtual_parent_ids,
       |challenges.status,
       |challenges.is_archived,
-      |challenges.paused""".stripMargin
+      |challenges.paused,
+      |challenges.owner_id,
+      |challenges.completion_metrics,
+      |challenges.difficulty,
+      |challenges.modified""".stripMargin
 
   /**
     * The row parser for Anorm to enable the object to be read from the retrieved row directly
@@ -70,9 +77,28 @@ object ChallengeListingRepository {
       get[Option[Array[Long]]]("virtual_parent_ids") ~
       get[Option[Int]]("challenges.status") ~
       get[Boolean]("challenges.is_archived") ~
-      get[Boolean]("challenges.paused") map {
-      case id ~ parent ~ name ~ enabled ~ virtualParents ~ status ~ isArchived ~ paused =>
-        ChallengeListing(id, parent, name, enabled, virtualParents, status, isArchived, paused)
+      get[Boolean]("challenges.paused") ~
+      get[Long]("challenges.owner_id") ~
+      get[Option[JsValue]]("challenges.completion_metrics") ~
+      get[Int]("challenges.difficulty") ~
+      get[DateTime]("challenges.modified") map {
+      case id ~ parent ~ name ~ enabled ~ virtualParents ~ status ~ isArchived ~ paused ~ ownerId ~ completionMetricsJson ~ difficulty ~ modified =>
+        val completionMetrics =
+          completionMetricsJson.flatMap(_.asOpt[CompletionMetrics]).getOrElse(CompletionMetrics())
+        ChallengeListing(
+          id,
+          parent,
+          name,
+          enabled,
+          virtualParents,
+          status,
+          isArchived,
+          paused,
+          ownerId,
+          completionMetrics,
+          difficulty,
+          modified
+        )
     }
   }
 }
