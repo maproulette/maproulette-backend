@@ -42,7 +42,7 @@ class CacheManager[Key, A <: CacheObject[Key]](config: Config, prefix: String = 
   def updateNameCache(
       block: String => Option[A]
   )(implicit name: String, caching: Boolean = true): Option[Key] = {
-    if (caching) {
+    if (caching && !this.cache.isInstanceOf[NoOpCache[_, _]]) {
       if (this.nameCache.contains(name)) {
         this.nameCache.get(name)
       } else {
@@ -324,6 +324,7 @@ object CacheManager {
   val BASIC_CACHE          = "basic"
   val REDIS_CACHE          = "redis"
   val CAFFEINE_CACHE       = "caffeine"
+  val NOOP_CACHE           = "noop"
   val logger: Logger       = LoggerFactory.getLogger(this.getClass)
 
   def apply[Key, Value <: CacheObject[Key]](
@@ -334,6 +335,7 @@ object CacheManager {
     config.cacheType.toLowerCase match {
       case BASIC_CACHE    => new BasicCache(config)
       case CAFFEINE_CACHE => new CaffeineCache(config)
+      case NOOP_CACHE     => new NoOpCache(config)
       case REDIS_CACHE =>
         val cache: Cache[Key, Value] = new RedisCache(config, prefix)
         if (config.redisResetOnStart) {
