@@ -14,6 +14,7 @@ import org.maproulette.models.BaseObject
 import org.maproulette.models.utils.{ChallengeReads, ChallengeWrites}
 import play.api.libs.json._
 import org.maproulette.utils.Utils
+import play.api.libs.json.JodaWrites._
 
 case class PriorityRule(operator: String, key: String, value: String, valueType: String) {
   def doesMatch(properties: Map[String, String], task: Task): Boolean = {
@@ -170,8 +171,16 @@ case class ChallengeListing(
     virtualParents: Option[Array[Long]] = None,
     status: Option[Int],
     isArchived: Boolean,
-    paused: Boolean = false
+    paused: Boolean = false,
+    ownerId: Long,
+    completionMetrics: CompletionMetrics = CompletionMetrics(),
+    difficulty: Int,
+    modified: DateTime
 )
+
+object ChallengeListing {
+  implicit val writes: Writes[ChallengeListing] = Json.writes[ChallengeListing]
+}
 
 /**
   * BaseChallenge is a flattened representation of the Challenge model for API responses.
