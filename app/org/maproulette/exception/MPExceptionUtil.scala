@@ -57,6 +57,9 @@ object MPExceptionUtil {
       case e: LockedException =>
         logger.error(e.getMessage)
         Forbidden(Json.toJson(StatusMessage("Forbidden", JsString(e.getMessage))))
+      case e: UniqueViolationException =>
+        logger.warn(e.getMessage)
+        Conflict(Json.toJson(StatusMessage("Conflict", JsString(e.getMessage))))
       case e: Exception =>
         logger.error(e.getMessage, e)
         InternalServerError(Json.toJson(StatusMessage("KO", JsString(internalErrorMessage))))
@@ -114,6 +117,9 @@ object MPExceptionUtil {
         Forbidden(Json.toJson(StatusMessage("Forbidden", JsString(e.getMessage))))
       case e: ChangeConflictException =>
         logger.error(e.getMessage, e)
+        Conflict(Json.toJson(StatusMessage("Conflict", JsString(e.getMessage))))
+      case e: UniqueViolationException =>
+        logger.warn(e.getMessage)
         Conflict(Json.toJson(StatusMessage("Conflict", JsString(e.getMessage))))
       case e: Throwable =>
         logger.error(e.getMessage, e)
