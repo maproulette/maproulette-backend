@@ -1624,9 +1624,13 @@ class ChallengeDAL @Inject() (
   def listing(
       projectList: Option[List[Long]] = None,
       limit: Int = Config.DEFAULT_LIST_SIZE,
-      offset: Int = 0,
+      page: Int = 0,
       onlyEnabled: Boolean = false,
-      challengeType: Int = Actions.ITEM_TYPE_CHALLENGE
+      challengeType: Int = Actions.ITEM_TYPE_CHALLENGE,
+      searchString: String = "",
+      ownerId: Option[Long] = None,
+      onlyArchived: Boolean = false,
+      challengeIds: Option[List[Long]] = None
   ): List[ChallengeListing] = {
     this.withMRConnection { implicit c =>
       var projectFilter = ""
@@ -1638,16 +1642,28 @@ class ChallengeDAL @Inject() (
       }
 
       val query =
-        s"""SELECT c.id, c.parent_id, c.name, c.enabled, array_remove(array_agg(vp.project_id), NULL) AS virtual_parent_ids, c.status, c.is_archived, c.paused, c.owner_id, c.completion_metrics, c.difficulty, c.modified FROM challenges c
+        s"""SELECT c.id, c.parent_id, c.name, c.enabled, array_remove(array_agg(vp.project_id), NULL) AS virtual_parent_ids, c.status, c.is_archived, c.paused, c.owner_id, c.completion_metrics, c.difficulty, c.modified,
+                      COALESCE(NULLIF(p.display_name, ''), p.name) AS parent_name
+                      FROM challenges c
                       INNER JOIN projects p ON p.id = c.parent_id
                       LEFT OUTER JOIN virtual_project_challenges vp ON c.id = vp.challenge_id
                       WHERE c.deleted = false AND p.deleted = false
                       ${this.enabled(onlyEnabled, "p")} ${this.enabled(onlyEnabled, "c")}
                       ${projectFilter}
-                      GROUP BY c.id
+                      ${this.getLongListFilter(challengeIds, "c.id")}
+                      ${ownerId.map(id => s"AND c.owner_id = $id").getOrElse("")}
+                      ${if (onlyArchived) "AND c.is_archived = true" else ""}
+                      ${if (searchString.nonEmpty) this.searchField("c.name") else ""}
+                      GROUP BY c.id, p.id
+                      ORDER BY LOWER(c.name), c.id
                       LIMIT ${this.sqlLimit(limit)} OFFSET {offset}"""
 
-      SQL(query).on(Symbol("offset") -> offset).as(ChallengeListingRepository.parser.*)
+      SQL(query)
+        .on(
+          Symbol("ss")     -> SQLUtils.search(searchString),
+          Symbol("offset") -> (if (limit > 0) page * limit else 0)
+        )
+        .as(ChallengeListingRepository.withParentNameParser.*)
     }
   }
 

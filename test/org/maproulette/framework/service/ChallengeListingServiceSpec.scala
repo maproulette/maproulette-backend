@@ -35,6 +35,36 @@ class ChallengeListingServiceSpec(implicit val application: Application) extends
       val challenges = this.service.withReviewList(1, User.superUser)
       challenges.size mustEqual 1
     }
+
+    "page the listing in name order with the project name" taggedAs (ChallengeListingTag) in {
+      val ids        = Some(this.defaultChallenges.map(_.id))
+      val firstPage  = this.challengeDAL.listing(limit = 2, page = 0, challengeIds = ids)
+      val secondPage = this.challengeDAL.listing(limit = 2, page = 1, challengeIds = ids)
+      firstPage.map(_.name) mustEqual List("default_1", "default_2")
+      secondPage.map(_.name) mustEqual List("default_3")
+      (firstPage ++ secondPage).flatMap(_.parentName).distinct mustEqual List(projectTestName)
+    }
+
+    "include challenges without tasks in the listing" taggedAs (ChallengeListingTag) in {
+      val emptyChallenge = this.challengeDAL
+        .insert(this.getTestChallenge("listingEmptyChallenge"), User.superUser)
+      this.challengeDAL
+        .listing(Some(List(this.defaultProject.id)), limit = -1)
+        .map(_.id) must contain(emptyChallenge.id)
+    }
+
+    "filter the listing by name, owner and archived" taggedAs (ChallengeListingTag) in {
+      val ids = Some(this.defaultChallenges.map(_.id))
+      this.challengeDAL
+        .listing(searchString = "AULT_2", challengeIds = ids)
+        .map(_.name) mustEqual List("default_2")
+      this.challengeDAL
+        .listing(ownerId = Some(User.superUser.osmProfile.id), challengeIds = ids)
+        .size mustEqual 3
+      this.challengeDAL
+        .listing(ownerId = Some(this.defaultUser.osmProfile.id), challengeIds = ids) mustEqual List()
+      this.challengeDAL.listing(onlyArchived = true, challengeIds = ids) mustEqual List()
+    }
   }
 
   override implicit val projectTestName: String = "ChallengeListingSpecProject"
