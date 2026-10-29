@@ -38,8 +38,8 @@ class ChallengeListingServiceSpec(implicit val application: Application) extends
 
     "page the listing in name order with the project name" taggedAs (ChallengeListingTag) in {
       val ids        = Some(this.defaultChallenges.map(_.id))
-      val firstPage  = this.challengeDAL.listing(limit = 2, page = 0, challengeIds = ids)
-      val secondPage = this.challengeDAL.listing(limit = 2, page = 1, challengeIds = ids)
+      val firstPage  = this.challengeDAL.listing(limit = 2, offset = 0, challengeIds = ids)
+      val secondPage = this.challengeDAL.listing(limit = 2, offset = 2, challengeIds = ids)
       firstPage.map(_.name) mustEqual List("default_1", "default_2")
       secondPage.map(_.name) mustEqual List("default_3")
       (firstPage ++ secondPage).flatMap(_.parentName).distinct mustEqual List(projectTestName)

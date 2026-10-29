@@ -1624,7 +1624,7 @@ class ChallengeDAL @Inject() (
   def listing(
       projectList: Option[List[Long]] = None,
       limit: Int = Config.DEFAULT_LIST_SIZE,
-      page: Int = 0,
+      offset: Int = 0,
       onlyEnabled: Boolean = false,
       challengeType: Int = Actions.ITEM_TYPE_CHALLENGE,
       searchString: String = "",
@@ -1661,7 +1661,7 @@ class ChallengeDAL @Inject() (
       SQL(query)
         .on(
           Symbol("ss")     -> SQLUtils.search(searchString),
-          Symbol("offset") -> (if (limit > 0) page * limit else 0)
+          Symbol("offset") -> offset
         )
         .as(ChallengeListingRepository.withParentNameParser.*)
     }
