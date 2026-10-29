@@ -30,7 +30,10 @@ struct ApiDoc;
 
 /// Every documented route. Paths are relative to `/api/v3`.
 fn api() -> OpenApiRouter<AppState> {
-    OpenApiRouter::with_openapi(ApiDoc::openapi()).routes(routes!(health::health))
+    OpenApiRouter::with_openapi(ApiDoc::openapi())
+        .routes(routes!(health::live))
+        .routes(routes!(health::ready))
+        .routes(routes!(health::health))
 }
 
 /// The OpenAPI document for the routes in `api()`.
