@@ -200,5 +200,28 @@ class ProjectServiceSpec(implicit val application: Application) extends Framewor
     projects3.size mustEqual 0
   }
 
+  "filter managed projects by archived state and id" taggedAs ProjectTag in {
+    val archived = this.service.create(
+      Project(-1, this.defaultUser.osmProfile.id, "ManagedArchivedProject"),
+      this.defaultUser
+    )
+    this.service.update(archived.id, Json.obj("isArchived" -> true), User.superUser)
+    val active = this.service.create(
+      Project(-1, this.defaultUser.osmProfile.id, "ManagedActiveProject"),
+      this.defaultUser
+    )
+    val ids = Some(List(archived.id, active.id))
+
+    this.service
+      .getManagedProjects(this.defaultUser, projectIds = ids)
+      .map(_.id) must contain theSameElementsAs List(archived.id, active.id)
+    this.service
+      .getManagedProjects(this.defaultUser, projectIds = ids, isArchived = Some(true))
+      .map(_.id) mustEqual List(archived.id)
+    this.service
+      .getManagedProjects(this.defaultUser, projectIds = ids, isArchived = Some(false))
+      .map(_.id) mustEqual List(active.id)
+  }
+
   override implicit val projectTestName: String = "ProjectServiceSpecProject"
 }

@@ -262,8 +262,14 @@ GET     /projects/search                            @org.maproulette.framework.c
 #   - name: sort
 #     in: query
 #     description: The column to sort by. Default column is "display_name"
+#   - name: isArchived
+#     in: query
+#     description: Only return projects with this archived state. By default archived and unarchived projects are both returned.
+#   - name: projectIds
+#     in: query
+#     description: Comma-separated list of project ids to restrict the listing to. Default value is empty string, ie. no restriction.
 ###
-GET     /projects/managed                           @org.maproulette.framework.controller.ProjectController.listManagedProjects(limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= false, onlyOwned:Boolean ?= false, searchString:String ?= "", sort:String ?= "display_name")
+GET     /projects/managed                           @org.maproulette.framework.controller.ProjectController.listManagedProjects(limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= false, onlyOwned:Boolean ?= false, searchString:String ?= "", sort:String ?= "display_name", isArchived:Option[Boolean] ?= None, projectIds:String ?= "")
 ###
 # tags: [ Project ]
 # operationId: project_retrieves_clustered_challenge_points

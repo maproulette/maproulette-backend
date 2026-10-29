@@ -176,10 +176,12 @@ class ProjectService @Inject() (
       onlyEnabled: Boolean = false,
       onlyOwned: Boolean = false,
       searchString: String = "",
-      order: Order = Order > ("display_name", Order.ASC)
+      order: Order = Order > ("display_name", Order.ASC),
+      isArchived: Option[Boolean] = None,
+      projectIds: Option[List[Long]] = None
   )(implicit c: Option[Connection] = None): List[Project] = {
     if (permission.isSuperUser(user) && !onlyOwned) {
-      this.find(searchString, paging, onlyEnabled, order)
+      this.find(searchString, paging, onlyEnabled, order, isArchived, projectIds)
     } else {
       // managedProjectIds() counts the project grants of every team the user
       // belongs to, which would list work a plain member cannot actually touch.
@@ -209,6 +211,17 @@ class ProjectService @Inject() (
               Project.FIELD_OWNER,
               user.osmProfile.id,
               includeOnlyIfTrue = onlyOwned
+            ),
+            FilterParameter.conditional(
+              Project.FIELD_IS_ARCHIVED,
+              isArchived.getOrElse(false),
+              includeOnlyIfTrue = isArchived.isDefined
+            ),
+            FilterParameter.conditional(
+              Project.FIELD_ID,
+              projectIds.getOrElse(List.empty),
+              Operator.IN,
+              includeOnlyIfTrue = projectIds.isDefined
             )
           )
         )
@@ -236,7 +249,9 @@ class ProjectService @Inject() (
       search: String,
       paging: Paging = Paging(),
       onlyEnabled: Boolean = true,
-      order: Order = Order()
+      order: Order = Order(),
+      isArchived: Option[Boolean] = None,
+      projectIds: Option[List[Long]] = None
   ): List[Project] = {
     val query = Query(
       Filter(
@@ -267,6 +282,17 @@ class ProjectService @Inject() (
                 true,
                 Operator.BOOL,
                 includeOnlyIfTrue = onlyEnabled
+              ),
+              FilterParameter.conditional(
+                Project.FIELD_IS_ARCHIVED,
+                isArchived.getOrElse(false),
+                includeOnlyIfTrue = isArchived.isDefined
+              ),
+              FilterParameter.conditional(
+                Project.FIELD_ID,
+                projectIds.getOrElse(List.empty),
+                Operator.IN,
+                includeOnlyIfTrue = projectIds.isDefined
               )
             )
           )

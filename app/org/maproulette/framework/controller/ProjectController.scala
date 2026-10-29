@@ -249,7 +249,9 @@ class ProjectController @Inject() (
       onlyEnabled: Boolean,
       onlyOwned: Boolean,
       searchString: String,
-      sort: String = "display_name"
+      sort: String = "display_name",
+      isArchived: Option[Boolean] = None,
+      projectIds: String = ""
   ): Action[AnyContent] = Action.async { implicit response =>
     this.sessionManager.authenticatedRequest { implicit user =>
       Ok(
@@ -261,7 +263,9 @@ class ProjectController @Inject() (
               onlyEnabled,
               onlyOwned,
               searchString,
-              Order > sort
+              Order(List(OrderField(sort, Order.DESC), OrderField(Project.FIELD_ID, Order.ASC))),
+              isArchived,
+              Utils.toLongList(projectIds)
             )
         )
       )
