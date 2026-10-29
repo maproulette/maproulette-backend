@@ -2,12 +2,13 @@ import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
 import org.joda.time.DateTime
 import org.maproulette.Config
+import org.maproulette.cache.CacheManager
 import org.maproulette.framework.model._
 import org.maproulette.models.dal.{ChallengeDAL, TaskDAL}
 import org.maproulette.provider.{ChallengeProvider, TaskBuilderExecutionContext}
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.{any, eq => eqM}
-import org.mockito.Mockito.{atLeastOnce, doAnswer, never, timeout, times, verify, when}
+import org.mockito.Mockito.{RETURNS_DEEP_STUBS, atLeastOnce, doAnswer, never, timeout, verify, when}
 import org.mockito.invocation.InvocationOnMock
 import org.scalatest.BeforeAndAfterAll
 import org.scalatestplus.play.PlaySpec
@@ -422,6 +423,8 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar with BeforeAndAft
 
     when(ws.url(any[String])).thenReturn(wsRequest)
     when(wsRequest.withRequestTimeout(any[Duration])).thenReturn(wsRequest)
+    when(challengeDAL.cacheManager)
+      .thenReturn(mock[CacheManager[Long, Challenge]](RETURNS_DEEP_STUBS))
     when(wsRequest.post(any[String])(any())).thenReturn(Future.successful(wsResponse))
     when(wsResponse.status).thenReturn(status)
     when(wsResponse.statusText).thenReturn("statusText")
@@ -455,11 +458,11 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar with BeforeAndAft
     "create a task for each element in the overpass response" in new OverpassFixture {
       provider.buildTasks(user, overpassChallenge)
 
-      val taskCaptor: ArgumentCaptor[Task] = ArgumentCaptor.forClass(classOf[Task])
-      verify(taskDAL, timeout(5000).times(5))
-        .mergeUpdate(taskCaptor.capture(), eqM(user))(any[Long], any[Option[Connection]])
+      val taskCaptor: ArgumentCaptor[Seq[Task]] = ArgumentCaptor.forClass(classOf[Seq[Task]])
+      verify(taskDAL, timeout(5000))
+        .upsertChallengeTasks(eqM(overpassChallenge), taskCaptor.capture(), eqM(user))(any())
 
-      val tasks = taskCaptor.getAllValues.asScala
+      val tasks = taskCaptor.getValue
       tasks.map(_.name) must contain theSameElementsAs List(
         "566529047",
         "946351389",
@@ -506,7 +509,7 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar with BeforeAndAft
       (lastUpdate \ "status").as[Int] mustEqual Challenge.STATUS_FAILED
       (lastUpdate \ "statusMessage").as[String] must include("Content-Type: text/csv")
 
-      verify(taskDAL, never()).mergeUpdate(any(), any())(any(), any())
+      verify(taskDAL, never()).upsertChallengeTasks(any(), any(), any())(any())
     }
 
     "fail the challenge with a friendly message when overpass is too busy" in new OverpassFixture(
@@ -522,7 +525,7 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar with BeforeAndAft
       (lastUpdate \ "status").as[Int] mustEqual Challenge.STATUS_FAILED
       (lastUpdate \ "statusMessage").as[String] must include("too busy or timed out")
 
-      verify(taskDAL, never()).mergeUpdate(any(), any())(any(), any())
+      verify(taskDAL, never()).upsertChallengeTasks(any(), any(), any())(any())
     }
   }
 
@@ -567,9 +570,9 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar with BeforeAndAft
 
     when(ws.url(any[String])).thenReturn(wsRequest)
     when(wsRequest.withRequestTimeout(any[Duration])).thenReturn(wsRequest)
+    when(challengeDAL.cacheManager)
+      .thenReturn(mock[CacheManager[Long, Challenge]](RETURNS_DEEP_STUBS))
     when(wsRequest.get()).thenAnswer(_ => response)
-    when(taskDAL.mergeUpdate(any[Task], any[User])(any[Long], any[Option[Connection]]))
-      .thenReturn(None)
     doAnswer { (invocation: InvocationOnMock) =>
       invocation.getArgument(0).asInstanceOf[Connection => Any](mock[Connection])
     }.when(db).withTransaction(any[Connection => Any])
@@ -604,8 +607,11 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar with BeforeAndAft
       provider.buildTasks(user, remoteChallenge) mustEqual true
 
       verify(ws).url(remoteUrl)
-      verify(taskDAL, times(2))
-        .mergeUpdate(any[Task], eqM(user))(any[Long], any[Option[Connection]])
+      val taskCaptor: ArgumentCaptor[Seq[Task]] = ArgumentCaptor.forClass(classOf[Seq[Task]])
+      verify(taskDAL).upsertChallengeTasks(eqM(remoteChallenge), taskCaptor.capture(), eqM(user))(
+        any()
+      )
+      taskCaptor.getValue.map(_.name) mustEqual List("a", "b")
       statuses() mustEqual List(
         Challenge.STATUS_BUILDING,
         Challenge.STATUS_BUILDING,
@@ -621,7 +627,64 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar with BeforeAndAft
       statuses() mustEqual List(Challenge.STATUS_BUILDING, Challenge.STATUS_FAILED)
       (statusUpdates().last \ "statusMessage").as[String] mustEqual
         "Could not fetch remote GeoJSON (HTTP 404)"
-      verify(taskDAL, never()).mergeUpdate(any(), any())(any(), any())
+      verify(taskDAL, never()).upsertChallengeTasks(any(), any(), any())(any())
+    }
+
+    "skip blank lines in a line-by-line upload" in new RemoteFixture(response(200, "")) {
+      val lines = (remoteGeoJson \ "features").as[Seq[JsValue]].map(Json.stringify)
+      provider.createTasksFromLines(user, remoteChallenge, Seq(lines(0), "", "  ", lines(1)))
+
+      val taskCaptor: ArgumentCaptor[Seq[Task]] = ArgumentCaptor.forClass(classOf[Seq[Task]])
+      verify(taskDAL).upsertChallengeTasks(eqM(remoteChallenge), taskCaptor.capture(), eqM(user))(
+        any()
+      )
+      taskCaptor.getValue.map(_.name) mustEqual List("a", "b")
+    }
+
+    "build an uploaded file in the background" in new RemoteFixture(response(200, "")) {
+      val lines      = (remoteGeoJson \ "features").as[Seq[JsValue]].map(Json.stringify)
+      val originDate = new DateTime(2026, 1, 1, 0, 0)
+      provider.buildTasksFromUpload(
+        user,
+        remoteChallenge,
+        lines,
+        lineByLine = true,
+        currentTaskCount = 0,
+        removeUnmatched = true,
+        dataOriginDate = Some(originDate)
+      )
+
+      verify(challengeDAL).removeIncompleteTasks(eqM(user))(eqM(remoteChallenge.id), any())
+      verify(taskDAL).upsertChallengeTasks(eqM(remoteChallenge), any(), eqM(user))(any())
+      verify(challengeDAL).markTasksRefreshed(eqM(true), eqM(Some(originDate)))(
+        eqM(remoteChallenge.id),
+        any()
+      )
+      statuses() mustEqual List(Challenge.STATUS_BUILDING, Challenge.STATUS_READY)
+    }
+
+    "keep the lines before an unparseable one and fail the upload" in new RemoteFixture(
+      response(200, "")
+    ) {
+      val lines = (remoteGeoJson \ "features").as[Seq[JsValue]].map(Json.stringify)
+      provider.buildTasksFromUpload(
+        user,
+        remoteChallenge,
+        Seq(lines(0), "{not json", lines(1)),
+        lineByLine = true,
+        currentTaskCount = 0,
+        removeUnmatched = true,
+        dataOriginDate = None
+      )
+
+      val taskCaptor: ArgumentCaptor[Seq[Task]] = ArgumentCaptor.forClass(classOf[Seq[Task]])
+      verify(taskDAL).upsertChallengeTasks(eqM(remoteChallenge), taskCaptor.capture(), eqM(user))(
+        any()
+      )
+      taskCaptor.getValue.map(_.name) mustEqual List("a")
+      verify(challengeDAL).removeIncompleteTasks(eqM(user))(eqM(remoteChallenge.id), any())
+      verify(challengeDAL).updateBoundingBox()(eqM(remoteChallenge.id), any())
+      statuses() mustEqual List(Challenge.STATUS_BUILDING, Challenge.STATUS_FAILED)
     }
 
     "fail without echoing the response when it is not valid GeoJSON" in new RemoteFixture(
@@ -633,7 +696,7 @@ class ChallengeProviderSpec extends PlaySpec with MockitoSugar with BeforeAndAft
       statuses() mustEqual List(Challenge.STATUS_BUILDING, Challenge.STATUS_FAILED)
       (statusUpdates().last \ "statusMessage").as[String] mustEqual
         "Remote GeoJSON could not be read; check that it is valid GeoJSON"
-      verify(taskDAL, never()).mergeUpdate(any(), any())(any(), any())
+      verify(taskDAL, never()).upsertChallengeTasks(any(), any(), any())(any())
     }
 
     "fail without echoing the error when the fetch fails" in new RemoteFixture(
