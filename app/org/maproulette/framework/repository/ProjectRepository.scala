@@ -89,6 +89,36 @@ class ProjectRepository @Inject() (override val db: Database, grantService: Gran
     }
   }
 
+  def challengeCounts(projectIds: List[Long])(
+      implicit c: Option[Connection] = None
+  ): Map[Long, (Int, Int)] = {
+    if (projectIds.isEmpty) {
+      Map.empty
+    } else {
+      this.withMRConnection { implicit c =>
+        SQL(s"""SELECT parent_id, COUNT(*) AS total,
+                  COUNT(*) FILTER (
+                    WHERE status = ${Challenge.STATUS_FINISHED} OR (
+                      metrics_get(completion_metrics, 'total') > 0 AND
+                      ROUND(
+                        (metrics_get(completion_metrics, 'fixed')
+                         + metrics_get(completion_metrics, 'falsePositive')
+                         + metrics_get(completion_metrics, 'alreadyFixed'))::numeric
+                        * 100 / metrics_get(completion_metrics, 'total')
+                      ) >= 100
+                    )
+                  ) AS completed
+                FROM challenges
+                WHERE parent_id IN ({projectIds}) AND deleted = false
+                GROUP BY parent_id""")
+          .on(Symbol("projectIds") -> projectIds)
+          .as((long("parent_id") ~ int("total") ~ int("completed")).*)
+          .map { case projectId ~ total ~ completed => projectId -> (total, completed) }
+          .toMap
+      }
+    }
+  }
+
   /**
     * Inserts a project into the database
     *

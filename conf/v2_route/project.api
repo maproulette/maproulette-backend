@@ -230,7 +230,7 @@ GET     /projects/search                            @org.maproulette.framework.c
 # tags: [ Project ]
 # operationId: project_list_all_the_managed_projects
 # summary: List all the managed projects.
-# description: Lists all the managed projects in the system for the authenticated user
+# description: Lists all the managed projects in the system for the authenticated user, each with the number of challenges it contains and how many of them are complete
 # responses:
 #   '200':
 #     description: A list of all the projects
@@ -239,7 +239,18 @@ GET     /projects/search                            @org.maproulette.framework.c
 #         schema:
 #           type: array
 #           items:
-#             $ref: '#/components/schemas/Project'
+#             allOf:
+#               - $ref: '#/components/schemas/Project'
+#               - type: object
+#                 properties:
+#                   challengeCounts:
+#                     type: object
+#                     description: The number of challenges in the project, and how many of them are finished or have every task done.
+#                     properties:
+#                       total:
+#                         type: integer
+#                       completed:
+#                         type: integer
 # parameters:
 #   - name: limit
 #     in: query

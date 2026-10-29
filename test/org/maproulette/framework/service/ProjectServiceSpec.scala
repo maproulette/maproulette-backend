@@ -5,11 +5,13 @@
 
 package org.maproulette.framework.service
 
-import org.maproulette.framework.model.{Project, User, Grant}
+import anorm._
+import org.maproulette.framework.model.{Challenge, Project, User, Grant}
 import org.maproulette.framework.psql.Query
 import org.maproulette.framework.psql.filter.{BaseParameter, Operator}
 import org.maproulette.framework.util.{FrameworkHelper, ProjectTag}
 import play.api.Application
+import play.api.db.Database
 import play.api.libs.json.Json
 
 /**
@@ -221,6 +223,30 @@ class ProjectServiceSpec(implicit val application: Application) extends Framewor
     this.service
       .getManagedProjects(this.defaultUser, projectIds = ids, isArchived = Some(false))
       .map(_.id) mustEqual List(active.id)
+  }
+
+  "count the challenges in each project and how many are complete" taggedAs ProjectTag in {
+    val db = this.application.injector.instanceOf(classOf[Database])
+    val project = this.service.create(
+      Project(-1, this.defaultUser.osmProfile.id, "ChallengeCountsProject"),
+      this.defaultUser
+    )
+    val empty = this.service.create(
+      Project(-1, this.defaultUser.osmProfile.id, "ChallengeCountsEmptyProject"),
+      this.defaultUser
+    )
+    val done     = this.createChallengeStructure("CountsDone", project.id, 2)
+    val finished = this.createChallengeStructure("CountsFinished", project.id, 2)
+    this.createChallengeStructure("CountsOpen", project.id, 2)
+    val deleted = this.createChallengeStructure("CountsDeleted", project.id, 2)
+    db.withConnection { implicit c =>
+      SQL"UPDATE tasks SET status = 1 WHERE parent_id = ${done.id}".executeUpdate()
+      SQL"UPDATE challenges SET status = ${Challenge.STATUS_FINISHED} WHERE id = ${finished.id}"
+        .executeUpdate()
+      SQL"UPDATE challenges SET deleted = true WHERE id = ${deleted.id}".executeUpdate()
+    }
+
+    this.service.challengeCounts(List(project.id, empty.id)) mustEqual Map(project.id -> (3, 2))
   }
 
   override implicit val projectTestName: String = "ProjectServiceSpecProject"

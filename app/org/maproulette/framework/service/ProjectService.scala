@@ -395,6 +395,9 @@ class ProjectService @Inject() (
 
   def query(query: Query): List[Project] = this.repository.query(query)
 
+  def challengeCounts(projectIds: List[Long]): Map[Long, (Int, Int)] =
+    this.repository.challengeCounts(projectIds)
+
   /**
     * Updates a project with the given input JSON
     *
