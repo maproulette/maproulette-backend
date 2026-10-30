@@ -1,17 +1,9 @@
-use std::sync::Arc;
-use std::time::Duration;
-
 use tokio::net::TcpListener;
 use tokio::signal::unix::{SignalKind, signal};
-use tokio::sync::Notify;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::filter::LevelFilter;
 
 use maproulette::config::Config;
-use maproulette::{AppState, db, router};
-
-/// How long in-flight requests get to finish after a shutdown signal.
-const DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -25,28 +17,10 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let config = Config::from_env()?;
-    let db = db::connect(&config.database_url, config.database_max_connections).await?;
-    let app = router(AppState { db });
-
+    let app = maproulette::app(&config)?;
     let listener = TcpListener::bind(config.listen_addr).await?;
     tracing::info!(addr = %config.listen_addr, "listening");
-
-    let stopping = Arc::new(Notify::new());
-    let server = axum::serve(listener, app).with_graceful_shutdown({
-        let stopping = stopping.clone();
-        async move {
-            shutdown_signal().await;
-            stopping.notify_one();
-        }
-    });
-    tokio::select! {
-        res = server.into_future() => res?,
-        _ = async {
-            stopping.notified().await;
-            tokio::time::sleep(DRAIN_TIMEOUT).await;
-        } => anyhow::bail!("requests still in flight {DRAIN_TIMEOUT:?} after shutdown signal"),
-    }
-    Ok(())
+    maproulette::serve(listener, app, shutdown_signal()).await
 }
 
 async fn shutdown_signal() {
