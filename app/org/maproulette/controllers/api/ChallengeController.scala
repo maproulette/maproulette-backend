@@ -1256,10 +1256,32 @@ class ChallengeController @Inject() (
     * @param onlyEnabled determines if results are restricted to enabled challenges projects
     * @return A list of challenges
     */
-  def listing(projectIds: String, limit: Int, page: Int, onlyEnabled: Boolean): Action[AnyContent] =
+  def listing(
+      projectIds: String,
+      limit: Int,
+      page: Int,
+      onlyEnabled: Boolean,
+      searchString: String,
+      onlyOwned: Boolean,
+      onlyArchived: Boolean,
+      challengeIds: String
+  ): Action[AnyContent] =
     Action.async { implicit request =>
       this.sessionManager.authenticatedRequest { implicit user =>
-        Ok(Json.toJson(this.dal.listing(Utils.toLongList(projectIds), limit, page, onlyEnabled)))
+        Ok(
+          Json.toJson(
+            this.dal.listing(
+              Utils.toLongList(projectIds),
+              limit,
+              page,
+              onlyEnabled,
+              searchString = searchString,
+              ownerId = Option.when(onlyOwned)(user.osmProfile.id),
+              onlyArchived = onlyArchived,
+              challengeIds = Utils.toLongList(challengeIds)
+            )
+          )
+        )
       }
     }
 

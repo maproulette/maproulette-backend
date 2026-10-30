@@ -249,22 +249,28 @@ class ProjectController @Inject() (
       onlyEnabled: Boolean,
       onlyOwned: Boolean,
       searchString: String,
-      sort: String = "display_name"
+      sort: String = "display_name",
+      isArchived: Option[Boolean] = None,
+      projectIds: String = ""
   ): Action[AnyContent] = Action.async { implicit response =>
     this.sessionManager.authenticatedRequest { implicit user =>
-      Ok(
-        Json.toJson(
-          this.projectService
-            .getManagedProjects(
-              user,
-              Paging(limit, offset),
-              onlyEnabled,
-              onlyOwned,
-              searchString,
-              Order > sort
-            )
+      val projects = this.projectService
+        .getManagedProjects(
+          user,
+          Paging(limit, offset),
+          onlyEnabled,
+          onlyOwned,
+          searchString,
+          Order(List(OrderField(sort, Order.DESC), OrderField(Project.FIELD_ID, Order.ASC))),
+          isArchived,
+          Utils.toLongList(projectIds)
         )
-      )
+      val challengeCounts = this.projectService.challengeCounts(projects.map(_.id))
+      Ok(Json.toJson(projects.map { project =>
+        val (total, completed) = challengeCounts.getOrElse(project.id, (0, 0))
+        Json.toJson(project).as[JsObject] +
+          ("challengeCounts" -> Json.obj("total" -> total, "completed" -> completed))
+      }))
     }
   }
 

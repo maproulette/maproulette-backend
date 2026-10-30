@@ -230,7 +230,7 @@ GET     /projects/search                            @org.maproulette.framework.c
 # tags: [ Project ]
 # operationId: project_list_all_the_managed_projects
 # summary: List all the managed projects.
-# description: Lists all the managed projects in the system for the authenticated user
+# description: Lists all the managed projects in the system for the authenticated user, each with the number of challenges it contains and how many of them are complete
 # responses:
 #   '200':
 #     description: A list of all the projects
@@ -239,7 +239,18 @@ GET     /projects/search                            @org.maproulette.framework.c
 #         schema:
 #           type: array
 #           items:
-#             $ref: '#/components/schemas/Project'
+#             allOf:
+#               - $ref: '#/components/schemas/Project'
+#               - type: object
+#                 properties:
+#                   challengeCounts:
+#                     type: object
+#                     description: The number of challenges in the project, and how many of them are finished or have every task done.
+#                     properties:
+#                       total:
+#                         type: integer
+#                       completed:
+#                         type: integer
 # parameters:
 #   - name: limit
 #     in: query
@@ -262,8 +273,14 @@ GET     /projects/search                            @org.maproulette.framework.c
 #   - name: sort
 #     in: query
 #     description: The column to sort by. Default column is "display_name"
+#   - name: isArchived
+#     in: query
+#     description: Only return projects with this archived state. By default archived and unarchived projects are both returned.
+#   - name: projectIds
+#     in: query
+#     description: Comma-separated list of project ids to restrict the listing to. Default value is empty string, ie. no restriction.
 ###
-GET     /projects/managed                           @org.maproulette.framework.controller.ProjectController.listManagedProjects(limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= false, onlyOwned:Boolean ?= false, searchString:String ?= "", sort:String ?= "display_name")
+GET     /projects/managed                           @org.maproulette.framework.controller.ProjectController.listManagedProjects(limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= false, onlyOwned:Boolean ?= false, searchString:String ?= "", sort:String ?= "display_name", isArchived:Option[Boolean] ?= None, projectIds:String ?= "")
 ###
 # tags: [ Project ]
 # operationId: project_retrieves_clustered_challenge_points

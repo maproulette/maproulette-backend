@@ -101,4 +101,9 @@ object ChallengeListingRepository {
         )
     }
   }
+
+  val withParentNameParser: RowParser[ChallengeListing] =
+    parser ~ get[Option[String]]("parent_name") map {
+      case listing ~ parentName => listing.copy(parentName = parentName)
+    }
 }

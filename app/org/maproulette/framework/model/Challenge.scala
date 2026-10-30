@@ -175,7 +175,8 @@ case class ChallengeListing(
     ownerId: Long,
     completionMetrics: CompletionMetrics = CompletionMetrics(),
     difficulty: Int,
-    modified: DateTime
+    modified: DateTime,
+    parentName: Option[String] = None
 )
 
 object ChallengeListing {

@@ -531,7 +531,7 @@ POST    /challenges/exploreChallenges                    @org.maproulette.contro
 # tags: [ Challenge ]
 # operationId: challenge_list_challenges_in_specified_projects
 # summary: List challenges in specified projects
-# description: Retrieves a lightweight listing of challenges, with just a few basic fields for each, that belong to the specified project(s).
+# description: Retrieves a lightweight listing of challenges, with just a few basic fields for each, that belong to the specified project(s), ordered by name.
 # responses:
 #   '200':
 #     description: A listing of challenges containing a few basic fields for each.
@@ -559,8 +559,20 @@ POST    /challenges/exploreChallenges                    @org.maproulette.contro
 #   - name: onlyEnabled
 #     in: query
 #     description: Flag to set if only wanting enabled Challenges returned. Default value is true.
+#   - name: searchString
+#     in: query
+#     description: Only return challenges whose name contains this string.
+#   - name: onlyOwned
+#     in: query
+#     description: Whether to only return challenges owned by the authenticated user. Default value is false.
+#   - name: onlyArchived
+#     in: query
+#     description: Whether to only return archived challenges. Default value is false.
+#   - name: challengeIds
+#     in: query
+#     description: Comma-separated list of challenge ids to restrict the listing to. Default value is empty string, ie. no restriction.
 ###
-GET     /challenges/listing                         @org.maproulette.controllers.api.ChallengeController.listing(projectIds:String ?= "", limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= true)
+GET     /challenges/listing                         @org.maproulette.controllers.api.ChallengeController.listing(projectIds:String ?= "", limit:Int ?= 10, page:Int ?= 0, onlyEnabled:Boolean ?= true, searchString:String ?= "", onlyOwned:Boolean ?= false, onlyArchived:Boolean ?= false, challengeIds:String ?= "")
 ###
 # tags: [ Challenge ]
 # operationId: challenge_move_challenge_to_another_project
