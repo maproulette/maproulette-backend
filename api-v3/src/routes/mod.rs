@@ -1,4 +1,10 @@
+// The extractors and `Patch` have no users until the token and challenge endpoints land.
+#[cfg_attr(not(test), expect(dead_code))]
+mod extract;
 mod health;
+mod me;
+#[cfg_attr(not(test), expect(dead_code))]
+mod patch;
 
 use std::time::Duration;
 
@@ -12,12 +18,14 @@ use axum::routing::get;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::trace::{DefaultOnResponse, TraceLayer};
 use tracing::Level;
-use utoipa::OpenApi;
+use utoipa::openapi::security::{ApiKey, ApiKeyValue, HttpAuthScheme, HttpBuilder, SecurityScheme};
+use utoipa::{Modify, OpenApi};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
 use crate::AppState;
-use crate::error::Error;
+use crate::auth::{self, play};
+use crate::error::{self, Error};
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -25,15 +33,52 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 #[openapi(
     info(title = "MapRoulette API", version = "3"),
     servers((url = "/api/v3")),
+    modifiers(&SecuritySchemes),
 )]
 struct ApiDoc;
+
+struct SecuritySchemes;
+
+impl Modify for SecuritySchemes {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            "bearer",
+            SecurityScheme::Http(
+                HttpBuilder::new()
+                    .scheme(HttpAuthScheme::Bearer)
+                    .description(Some("A personal access token (`mrt_...`)"))
+                    .build(),
+            ),
+        );
+        components.add_security_scheme(
+            "session",
+            SecurityScheme::ApiKey(ApiKey::Cookie(ApiKeyValue::with_description(
+                play::COOKIE,
+                "The browser session from logging in to maproulette.org",
+            ))),
+        );
+    }
+}
 
 /// Every documented route. Paths are relative to `/api/v3`.
 fn api() -> OpenApiRouter<AppState> {
     OpenApiRouter::with_openapi(ApiDoc::openapi())
+        .merge(probes())
+        .merge(authenticated())
+}
+
+/// Routes that never look at credentials, so they keep working when the database is down.
+fn probes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
         .routes(routes!(health::live))
         .routes(routes!(health::ready))
         .routes(routes!(health::health))
+}
+
+/// Routes behind `auth::resolve`.
+fn authenticated() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new().routes(routes!(me::me))
 }
 
 /// The OpenAPI document for the routes in `api()`.
@@ -44,13 +89,15 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
 /// The whole service: every route under `/api/v3`, plus `/api/v3/openapi.json`, with the
 /// middleware that applies to all of them.
 pub fn router(state: AppState) -> Router {
-    let (api, spec) = api().split_for_parts();
-    let spec = Bytes::from(serde_json::to_vec(&spec).expect("OpenAPI document serializes"));
-    let api = api
+    let spec = Bytes::from(serde_json::to_vec(&openapi()).expect("OpenAPI document serializes"));
+    let (probes, _) = probes().split_for_parts();
+    let (authenticated, _) = authenticated().split_for_parts();
+    let api = probes
         .route(
             "/openapi.json",
             get(move || async move { ([(header::CONTENT_TYPE, "application/json")], spec) }),
         )
+        .merge(authenticated.layer(middleware::from_fn_with_state(state.clone(), auth::resolve)))
         .method_not_allowed_fallback(|| async { Error::MethodNotAllowed });
 
     // Layers run bottom to top on the way in.
@@ -58,6 +105,7 @@ pub fn router(state: AppState) -> Router {
         .nest("/api/v3", api)
         .fallback(|| async { Error::NotFound })
         .layer(middleware::from_fn(timeout))
+        .layer(middleware::from_fn(error::report))
         .layer(middleware::from_fn(route_header))
         .layer(PropagateRequestIdLayer::x_request_id())
         .layer(
@@ -74,6 +122,7 @@ pub fn router(state: AppState) -> Router {
                         uri = %req.uri(),
                         route = route(req),
                         request_id = id,
+                        auth = tracing::field::Empty,
                     )
                 })
                 .on_response(DefaultOnResponse::new().level(Level::INFO))
@@ -88,7 +137,10 @@ pub fn router(state: AppState) -> Router {
 async fn timeout(req: Request, next: Next) -> Response {
     match tokio::time::timeout(REQUEST_TIMEOUT, next.run(req)).await {
         Ok(res) => res,
-        Err(_) => Error::Timeout.into_response(),
+        Err(_) => Error::Unavailable(anyhow::anyhow!(
+            "request took longer than {REQUEST_TIMEOUT:?}"
+        ))
+        .into_response(),
     }
 }
 

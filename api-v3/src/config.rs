@@ -7,6 +7,8 @@ pub struct Config {
     pub database_url: String,
     pub database_max_connections: u32,
     pub listen_addr: SocketAddr,
+    /// The key that signs v2's session cookies (Play's `play.http.secret.key`).
+    pub session_secret: String,
 }
 
 impl Config {
@@ -20,10 +22,17 @@ impl Config {
             .unwrap_or_else(|_| "127.0.0.1:9001".into())
             .parse()
             .context("LISTEN_ADDR must be a socket address, like 127.0.0.1:9001")?;
+        let session_secret =
+            env::var("APPLICATION_SECRET").context("APPLICATION_SECRET must be set")?;
+        anyhow::ensure!(
+            session_secret.len() >= 32,
+            "APPLICATION_SECRET must be at least 32 bytes"
+        );
         Ok(Config {
             database_url,
             database_max_connections,
             listen_addr,
+            session_secret,
         })
     }
 }
