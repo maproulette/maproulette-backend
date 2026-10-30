@@ -5,6 +5,8 @@
 package org.maproulette.framework.controller
 
 import akka.util.ByteString
+import java.security.MessageDigest
+import java.util.HexFormat
 import javax.inject.Inject
 import org.maproulette.data.ActionManager
 import org.maproulette.framework.service.{
@@ -333,16 +335,24 @@ class TaskController @Inject() (
 
     // A tile is a pure function of (z, x, y) — nothing in it depends on the
     // requesting user or on any filter — so every non-empty tile is publicly
-    // cacheable. The window is kept short (≈ rebuild cadence) so mutations
-    // become visible quickly. Empty tiles aren't cached: they may start
-    // containing data on the next rebuild.
-    val cacheControl =
-      if (mvtBytes.isEmpty) "no-store"
-      else "public, max-age=10, must-revalidate"
-
-    Ok(mvtBytes)
-      .as("application/vnd.mapbox-vector-tile")
-      .withHeaders("Cache-Control" -> cacheControl)
+    // cacheable, but always revalidated so mutations become visible on the next
+    // request. Empty tiles aren't cached: they may start containing data on the
+    // next rebuild.
+    if (mvtBytes.isEmpty) {
+      Ok(mvtBytes)
+        .as("application/vnd.mapbox-vector-tile")
+        .withHeaders("Cache-Control" -> "no-store")
+    } else {
+      val etag =
+        s""""${HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(mvtBytes))}""""
+      if (request.headers.get("If-None-Match").contains(etag)) {
+        NotModified.withHeaders("ETag" -> etag, "Cache-Control" -> "public, no-cache")
+      } else {
+        Ok(mvtBytes)
+          .as("application/vnd.mapbox-vector-tile")
+          .withHeaders("ETag" -> etag, "Cache-Control" -> "public, no-cache")
+      }
+    }
   }
 
   /**
