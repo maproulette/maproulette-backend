@@ -2,9 +2,9 @@
 //! just take a Principal and a Resource and return whether the action named by the
 //! function is allowed; they do not touch the database (that's left for the caller).
 
-use crate::auth::{Principal, Scope};
+use crate::auth::{Principal, Via};
 use crate::error::Error;
-use crate::model::{ChallengeAccess, Role};
+use crate::model::{ChallengeAccess, Role, Scope};
 
 /// Is this user allowed to replace the set of tasks in the given challenge?
 pub fn upload_tasks(p: &Principal, access: ChallengeAccess) -> Result<(), Error> {
@@ -14,14 +14,28 @@ pub fn upload_tasks(p: &Principal, access: ChallengeAccess) -> Result<(), Error>
     p.require_scope(Scope::ChallengesWrite)?;
     match role {
         Some(role) if role.satisfies(Role::Write) => Ok(()),
-        _ => Err(Error::Forbidden),
+        _ => Err(Error::Forbidden(
+            "Uploading tasks needs write access to the challenge",
+        )),
+    }
+}
+
+/// Is this principal allowed to list, create or revoke their own personal access tokens?
+/// (Only if they authenticated via a session token; we don't allow PATs to be used to
+/// create other PATs)
+pub fn manage_tokens(p: &Principal) -> Result<(), Error> {
+    match p.via {
+        Via::Session => Ok(()),
+        Via::Token { .. } => Err(Error::Forbidden(
+            "Tokens can only be managed while logged in to MapRoulette, not with a token",
+        )),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::{TokenKind, Via};
+    use crate::auth::TokenKind;
     use crate::model::{CredentialId, UserId};
 
     fn session() -> Principal {
@@ -47,7 +61,7 @@ mod tests {
         match result {
             Ok(()) => "allowed",
             Err(Error::NotFound) => "not found",
-            Err(Error::Forbidden) => "forbidden",
+            Err(Error::Forbidden(_)) => "forbidden",
             Err(Error::InsufficientScope(_)) => "insufficient scope",
             Err(e) => panic!("unexpected policy error {e}"),
         }
@@ -79,5 +93,13 @@ mod tests {
                 "{principal:?} with {access:?}"
             );
         }
+    }
+
+    #[test]
+    fn manage_tokens_needs_a_session() {
+        assert_eq!(outcome(manage_tokens(&session())), "allowed");
+        let write = [Scope::ChallengesWrite];
+        assert_eq!(outcome(manage_tokens(&token(&write))), "forbidden");
+        assert_eq!(outcome(manage_tokens(&token(&[]))), "forbidden");
     }
 }
