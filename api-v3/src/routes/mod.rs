@@ -6,15 +6,17 @@ mod me;
 #[cfg_attr(not(test), expect(dead_code))]
 mod patch;
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use axum::Router;
 use axum::body::Bytes;
 use axum::extract::{MatchedPath, Request};
-use axum::http::{HeaderValue, header};
+use axum::http::{HeaderName, HeaderValue, Method, header};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
+use tower_http::cors::{AllowCredentials, AllowOrigin, CorsLayer};
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::trace::{DefaultOnResponse, TraceLayer};
 use tracing::Level;
@@ -89,6 +91,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
 /// The whole service: every route under `/api/v3`, plus `/api/v3/openapi.json`, with the
 /// middleware that applies to all of them.
 pub fn router(state: AppState) -> Router {
+    let cors = cors(state.allowed_origins.clone());
     let spec = Bytes::from(serde_json::to_vec(&openapi()).expect("OpenAPI document serializes"));
     let (probes, _) = probes().split_for_parts();
     let (authenticated, _) = authenticated().split_for_parts();
@@ -106,6 +109,7 @@ pub fn router(state: AppState) -> Router {
         .fallback(|| async { Error::NotFound })
         .layer(middleware::from_fn(timeout))
         .layer(middleware::from_fn(error::report))
+        .layer(cors)
         .layer(middleware::from_fn(route_header))
         .layer(PropagateRequestIdLayer::x_request_id())
         .layer(
@@ -131,6 +135,37 @@ pub fn router(state: AppState) -> Router {
         )
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
         .with_state(state)
+}
+
+/// Lets web pages on other origins call the API. Any origin may make requests
+/// without credentials, but only our own frontend can use cookies to make
+/// requests or read their responses.
+fn cors(allowed_origins: Arc<[HeaderValue]>) -> CorsLayer {
+    CorsLayer::new()
+        .allow_origin(AllowOrigin::mirror_request())
+        .allow_credentials(AllowCredentials::predicate(move |origin, _| {
+            allowed_origins.contains(origin)
+        }))
+        .allow_methods([
+            Method::GET,
+            Method::HEAD,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+        ])
+        .allow_headers([
+            header::AUTHORIZATION,
+            header::CONTENT_TYPE,
+            header::CONTENT_ENCODING,
+        ])
+        .expose_headers([
+            HeaderName::from_static("x-request-id"),
+            header::LOCATION,
+            header::RETRY_AFTER,
+            header::WWW_AUTHENTICATE,
+        ])
+        .max_age(Duration::from_secs(60 * 60))
 }
 
 /// Fails the request with a 503 if the handler takes longer than `REQUEST_TIMEOUT`.

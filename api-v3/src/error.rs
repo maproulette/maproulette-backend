@@ -23,6 +23,10 @@ pub enum Error {
     /// The caller can see the resource but may not do this to it.
     #[error("forbidden")]
     Forbidden,
+    /// A request authenticated by the session cookie tried to change state, but didn't come from
+    /// one of MapRoulette's frontends.
+    #[error("untrusted origin")]
+    UntrustedOrigin,
     /// No such resource, or the caller may not know that it exists.
     #[error("not found")]
     NotFound,
@@ -119,7 +123,9 @@ impl Error {
     fn status(&self) -> StatusCode {
         match self {
             Error::Unauthenticated | Error::InvalidToken => StatusCode::UNAUTHORIZED,
-            Error::InsufficientScope(_) | Error::Forbidden => StatusCode::FORBIDDEN,
+            Error::InsufficientScope(_) | Error::Forbidden | Error::UntrustedOrigin => {
+                StatusCode::FORBIDDEN
+            }
             Error::NotFound => StatusCode::NOT_FOUND,
             Error::MethodNotAllowed => StatusCode::METHOD_NOT_ALLOWED,
             Error::BadRequest(_) => StatusCode::BAD_REQUEST,
@@ -147,6 +153,11 @@ impl Error {
     fn detail(&self) -> Option<String> {
         match self {
             Error::InsufficientScope(scope) => Some(format!("The token lacks the {scope} scope")),
+            Error::UntrustedOrigin => Some(
+                "A request that uses the session cookie to change something must come from a \
+                 MapRoulette frontend. Scripts should use a personal access token."
+                    .into(),
+            ),
             Error::BadRequest(detail)
             | Error::Conflict(detail)
             | Error::UnsupportedMediaType(detail) => Some(detail.clone()),

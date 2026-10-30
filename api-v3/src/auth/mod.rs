@@ -3,7 +3,7 @@ pub mod token;
 
 use axum::extract::{FromRequestParts, OptionalFromRequestParts, Request, State};
 use axum::http::request::Parts;
-use axum::http::{HeaderMap, HeaderValue, header};
+use axum::http::{HeaderMap, HeaderValue, Method, header};
 use axum::middleware::Next;
 use axum::response::Response;
 use sha2::{Digest, Sha256};
@@ -99,6 +99,12 @@ pub async fn resolve(
     next: Next,
 ) -> Result<Response, Error> {
     let principal = principal(&state, req.headers()).await?;
+    if let Some(Principal {
+        via: Via::Session, ..
+    }) = &principal
+    {
+        check_origin(&state.allowed_origins, req.method(), req.headers())?;
+    }
     let x_auth = principal.as_ref().map(|p| {
         let x_auth = p.x_auth();
         tracing::Span::current().record("auth", &x_auth);
@@ -110,6 +116,21 @@ pub async fn resolve(
         res.headers_mut().insert("x-auth", x_auth);
     }
     Ok(res)
+}
+
+/// Defends session-authenticated requests against cross-site request forgery (CSRF).
+fn check_origin(
+    allowed: &[HeaderValue],
+    method: &Method,
+    headers: &HeaderMap,
+) -> Result<(), Error> {
+    if method.is_safe() {
+        return Ok(());
+    }
+    match headers.get(header::ORIGIN) {
+        Some(origin) if allowed.contains(origin) => Ok(()),
+        _ => Err(Error::UntrustedOrigin),
+    }
 }
 
 async fn principal(state: &AppState, headers: &HeaderMap) -> Result<Option<Principal>, Error> {
@@ -237,5 +258,45 @@ impl<S: Send + Sync> OptionalFromRequestParts<S> for Principal {
             .get::<Auth>()
             .expect("the resolve middleware runs on every route");
         Ok(principal.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn session_writes_need_a_trusted_origin() {
+        let allowed = [HeaderValue::from_static("https://maproulette.org")];
+        let check = |method: Method, origin: Option<&'static str>| {
+            let mut headers = HeaderMap::new();
+            if let Some(origin) = origin {
+                headers.insert(header::ORIGIN, HeaderValue::from_static(origin));
+            }
+            check_origin(&allowed, &method, &headers).is_ok()
+        };
+        for method in [Method::POST, Method::PUT, Method::PATCH, Method::DELETE] {
+            assert!(
+                check(method.clone(), Some("https://maproulette.org")),
+                "{method}"
+            );
+            for origin in [
+                None,
+                Some("null"),
+                Some("https://evil.example"),
+                Some("http://maproulette.org"),
+                Some("https://maproulette.org.evil.example"),
+                Some("https://beta.maproulette.org"),
+            ] {
+                assert!(!check(method.clone(), origin), "{method} from {origin:?}");
+            }
+        }
+        for method in [Method::GET, Method::HEAD, Method::OPTIONS] {
+            assert!(check(method.clone(), None), "{method}");
+            assert!(
+                check(method.clone(), Some("https://evil.example")),
+                "{method}"
+            );
+        }
     }
 }
