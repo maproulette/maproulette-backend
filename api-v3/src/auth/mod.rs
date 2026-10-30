@@ -12,7 +12,7 @@ use subtle::ConstantTimeEq;
 use crate::AppState;
 use crate::db;
 use crate::error::Error;
-use crate::model::{CredentialId, UserId};
+use crate::model::{CredentialId, Scope, UserId};
 use token::Token;
 
 #[derive(Clone, Debug)]
@@ -35,26 +35,6 @@ pub enum Via {
 pub enum TokenKind {
     Pat,
     Editor,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Scope {
-    ChallengesWrite,
-}
-
-impl Scope {
-    fn parse(s: &str) -> Option<Scope> {
-        match s {
-            "challenges:write" => Some(Scope::ChallengesWrite),
-            _ => None,
-        }
-    }
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Scope::ChallengesWrite => "challenges:write",
-        }
-    }
 }
 
 impl Principal {
@@ -129,7 +109,10 @@ fn check_origin(
     }
     match headers.get(header::ORIGIN) {
         Some(origin) if allowed.contains(origin) => Ok(()),
-        _ => Err(Error::UntrustedOrigin),
+        _ => Err(Error::Forbidden(
+            "A request that uses the session cookie to change something must come from a \
+             MapRoulette frontend. Scripts should use a personal access token.",
+        )),
     }
 }
 
@@ -186,12 +169,7 @@ async fn token_principal(state: &AppState, token: &Token) -> Result<Principal, E
         via: Via::Token {
             credential_id: credential.id,
             kind,
-            // filter out unrecognized scopes
-            scopes: credential
-                .scopes
-                .iter()
-                .filter_map(|s| Scope::parse(s))
-                .collect(),
+            scopes: credential.scopes,
         },
     })
 }

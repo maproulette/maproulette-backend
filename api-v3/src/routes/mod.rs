@@ -1,10 +1,10 @@
-// The extractors and `Patch` have no users until the token and challenge endpoints land.
-#[cfg_attr(not(test), expect(dead_code))]
 mod extract;
 mod health;
 mod me;
+// `Patch` has no users until the challenge endpoints land.
 #[cfg_attr(not(test), expect(dead_code))]
 mod patch;
+mod tokens;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -80,7 +80,10 @@ fn probes() -> OpenApiRouter<AppState> {
 
 /// Routes behind `auth::resolve`.
 fn authenticated() -> OpenApiRouter<AppState> {
-    OpenApiRouter::new().routes(routes!(me::me))
+    OpenApiRouter::new()
+        .routes(routes!(me::me))
+        .routes(routes!(tokens::list, tokens::create))
+        .routes(routes!(tokens::revoke))
 }
 
 /// The OpenAPI document for the routes in `api()`.
