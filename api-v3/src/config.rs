@@ -2,6 +2,7 @@ use std::env;
 use std::net::SocketAddr;
 
 use anyhow::Context;
+use axum::http::HeaderValue;
 
 pub struct Config {
     pub database_url: String,
@@ -9,6 +10,9 @@ pub struct Config {
     pub listen_addr: SocketAddr,
     /// The key that signs v2's session cookies (Play's `play.http.secret.key`).
     pub session_secret: String,
+    /// MapRoulette's own frontends, as origins (`https://maproulette.org`). Only these may make
+    /// credentialed cross-origin requests, or change state with the session cookie.
+    pub allowed_origins: Vec<HeaderValue>,
 }
 
 impl Config {
@@ -28,11 +32,31 @@ impl Config {
             session_secret.len() >= 32,
             "APPLICATION_SECRET must be at least 32 bytes"
         );
+        let allowed_origins = env::var("ALLOWED_ORIGINS")
+            .context("ALLOWED_ORIGINS must be set")?
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(origin)
+            .collect::<anyhow::Result<_>>()?;
         Ok(Config {
             database_url,
             database_max_connections,
             listen_addr,
             session_secret,
+            allowed_origins,
         })
     }
+}
+
+fn origin(s: &str) -> anyhow::Result<HeaderValue> {
+    let host = s
+        .strip_prefix("https://")
+        .or_else(|| s.strip_prefix("http://"))
+        .filter(|host| !host.is_empty() && !host.contains('/'));
+    anyhow::ensure!(
+        host.is_some(),
+        "ALLOWED_ORIGINS entries must be origins like https://maproulette.org, not {s:?}"
+    );
+    Ok(HeaderValue::try_from(s)?)
 }

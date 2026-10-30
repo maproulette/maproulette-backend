@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use axum::Router;
+use axum::http::HeaderValue;
 use tokio::net::TcpListener;
 use tokio::sync::Notify;
 
@@ -22,6 +23,8 @@ pub struct AppState {
     pub db: sqlx::PgPool,
     /// The key that signs v2's session cookies.
     pub session_secret: Arc<[u8]>,
+    /// MapRoulette's own frontends. See `Config::allowed_origins`.
+    pub allowed_origins: Arc<[HeaderValue]>,
 }
 
 /// How long in-flight requests get to finish after shutdown begins.
@@ -32,6 +35,7 @@ pub fn app(config: &Config) -> Result<Router, sqlx::Error> {
     Ok(router(AppState {
         db,
         session_secret: config.session_secret.as_bytes().into(),
+        allowed_origins: config.allowed_origins.as_slice().into(),
     }))
 }
 
