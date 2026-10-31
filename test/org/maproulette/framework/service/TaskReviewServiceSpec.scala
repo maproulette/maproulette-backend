@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.FiniteDuration
 import play.api.libs.json.Json
 
+import org.maproulette.data.TaskType
 import org.maproulette.exception.InvalidException
 import org.maproulette.session.{SearchParameters, SearchTaskParameters}
 import org.maproulette.framework.model._
@@ -414,6 +415,73 @@ class TaskReviewServiceSpec(implicit val application: Application) extends Frame
           Task.REVIEW_STATUS_APPROVED,
           reviewUser,
           None
+        )
+      }
+    }
+
+    "let a reviewer correct a task's completion status without altering the review" taggedAs (TaskReviewTag) in {
+      val newTask = this.taskDAL.insert(
+        this.getTestTask(UUID.randomUUID().toString, randomChallenge.id),
+        User.superUser
+      )
+      this.taskDAL.setTaskStatus(List(newTask), Task.STATUS_FIXED, randomUser, Some(true))
+
+      var taskWithReview = this.serviceManager.task.retrieve(newTask.id).get
+      taskWithReview = this.service.startTaskReview(reviewUser, taskWithReview).get
+
+      this.taskDAL
+        .setCompletionStatusForReview(List(taskWithReview), Task.STATUS_ALREADY_FIXED, reviewUser)
+
+      val correctedTask = this.serviceManager.task.retrieve(newTask.id).get
+      correctedTask.status.get mustEqual Task.STATUS_ALREADY_FIXED
+      correctedTask.completedBy.get mustEqual randomUser.id
+      correctedTask.review.reviewStatus.get mustEqual Task.REVIEW_STATUS_REQUESTED
+      correctedTask.review.reviewedBy mustEqual None
+      correctedTask.review.reviewClaimedBy.get mustEqual reviewUser.id
+
+      this.service.cancelTaskReview(reviewUser, correctedTask)
+    }
+
+    "keep a reviewer's claim when their bundle lock is refreshed" taggedAs (TaskReviewTag) in {
+      val underReview = this.taskDAL.insert(
+        this.getTestTask(UUID.randomUUID().toString, randomChallenge.id),
+        User.superUser
+      )
+      this.taskDAL.setTaskStatus(List(underReview), Task.STATUS_FIXED, randomUser, Some(true))
+
+      val claimed = this.service
+        .startTaskReview(reviewUser, this.serviceManager.task.retrieve(underReview.id).get)
+        .get
+
+      // The reviewer is also part way through mapping something else
+      val mappedElsewhere = this.taskDAL.insert(
+        this.getTestTask(UUID.randomUUID().toString, randomChallenge.id),
+        User.superUser
+      )
+      this.taskDAL.lockItem(reviewUser, mappedElsewhere) mustEqual reviewUser.id
+
+      // Refreshing the bundle lock must not be treated as a second edit lock
+      this.taskDAL.lockBundle(reviewUser, claimed, List()) mustEqual reviewUser.id
+
+      // and it must still be a review claim, so clearing edit locks leaves it alone
+      this.taskDAL.unlockAllItems(reviewUser, Some(TaskType())) mustEqual 1
+
+      this.service.cancelTaskReview(reviewUser, claimed)
+    }
+
+    "not let a non-reviewer correct a task's completion status" taggedAs (TaskReviewTag) in {
+      val newTask = this.taskDAL.insert(
+        this.getTestTask(UUID.randomUUID().toString, randomChallenge.id),
+        User.superUser
+      )
+      this.taskDAL.setTaskStatus(List(newTask), Task.STATUS_FIXED, randomUser, Some(true))
+
+      val taskWithReview = this.serviceManager.task.retrieve(newTask.id).get
+      intercept[IllegalAccessException] {
+        this.taskDAL.setCompletionStatusForReview(
+          List(taskWithReview),
+          Task.STATUS_ALREADY_FIXED,
+          randomUser
         )
       }
     }

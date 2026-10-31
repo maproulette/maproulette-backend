@@ -232,10 +232,6 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
       reviewClaim: Boolean = false
   )(implicit c: Option[Connection] = None): Long =
     this.withMRTransaction { implicit c =>
-      if (!reviewClaim) {
-        this.enforceSingleEditLock(user, primaryItem.id)
-      }
-
       val members = memberTaskIds.filterNot(_ == primaryItem.id).distinct
       // Avoid the curly-brace array literal ('{}') here - anorm's SQL() scans the raw query
       // text for {paramName} placeholders, and a literal {} in the empty case gets mistaken
@@ -248,18 +244,29 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
       // covering one of them would mean two rows cover the same task, which breaks the
       // singleOpt lookups in resolveLockHolder/resolveLockBundle.
       val existing =
-        SQL(s"""SELECT user_id, item_id FROM locked
+        SQL(s"""SELECT user_id, item_id, is_review_claim FROM locked
                 WHERE item_type = ${primaryItem.itemType.typeId}
                   AND (item_id = ANY($coveredLiteral) OR bundled_tasks && $coveredLiteral)
                 FOR UPDATE""")
-          .as((SqlParser.long("user_id") ~ SqlParser.long("item_id")).*)
-          .map { case userId ~ itemId => (userId, itemId) }
+          .as(
+            (SqlParser.long("user_id") ~ SqlParser.long("item_id") ~
+              SqlParser.bool("is_review_claim")).*
+          )
+          .map { case userId ~ itemId ~ isReviewClaim => (userId, itemId, isReviewClaim) }
 
-      existing.find { case (userId, _) => userId != user.id } match {
-        case Some((otherUserId, _)) => otherUserId
-        case None                   =>
+      val claimingForReview = reviewClaim || existing.exists {
+        case (userId, _, isReviewClaim) => userId == user.id && isReviewClaim
+      }
+
+      if (!claimingForReview) {
+        this.enforceSingleEditLock(user, primaryItem.id)
+      }
+
+      existing.find { case (userId, _, _) => userId != user.id } match {
+        case Some((otherUserId, _, _)) => otherUserId
+        case None                      =>
           // Fold any rows of our own that cover a member into the single primary row
-          if (existing.exists { case (_, itemId) => itemId != primaryItem.id }) {
+          if (existing.exists { case (_, itemId, _) => itemId != primaryItem.id }) {
             SQL(s"""DELETE FROM locked
                     WHERE user_id = ${user.id} AND item_type = ${primaryItem.itemType.typeId}
                       AND item_id != {itemId}
@@ -273,13 +280,13 @@ trait Locking[T <: BaseObject[_]] extends TransactionManager {
           }
 
           val query =
-            if (existing.exists { case (_, itemId) => itemId == primaryItem.id })
+            if (existing.exists { case (_, itemId, _) => itemId == primaryItem.id })
               s"""UPDATE locked
-                  SET locked_time = NOW(), bundled_tasks = $membersLiteral, is_review_claim = $reviewClaim
+                  SET locked_time = NOW(), bundled_tasks = $membersLiteral, is_review_claim = $claimingForReview
                   WHERE user_id = ${user.id} AND item_id = {itemId} AND item_type = ${primaryItem.itemType.typeId}"""
             else
               s"""INSERT INTO locked (item_type, item_id, user_id, bundled_tasks, is_review_claim)
-                  VALUES (${primaryItem.itemType.typeId}, {itemId}, ${user.id}, $membersLiteral, $reviewClaim)"""
+                  VALUES (${primaryItem.itemType.typeId}, {itemId}, ${user.id}, $membersLiteral, $claimingForReview)"""
 
           SQL(query)
             .on(
