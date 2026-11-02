@@ -292,6 +292,57 @@ class TaskBundleServiceSpec(implicit val application: Application) extends Frame
         this.service.unbundleTasks(randomUser, bundle.bundleId, List(task2.id))()
     }
 
+    "let the reviewer who claimed a bundle update it" taggedAs (TaskTag) in {
+      val task1 = taskDAL
+        .insert(
+          getTestTask(UUID.randomUUID().toString, challenge.id),
+          User.superUser
+        )
+      val task2 = taskDAL
+        .insert(
+          getTestTask(UUID.randomUUID().toString, challenge.id),
+          User.superUser
+        )
+
+      taskDAL.unlockAllItems(User.superUser)
+      val bundle = this.service
+        .createTaskBundle(
+          User.superUser,
+          "my bundle for review",
+          Some(task1.id),
+          List(task1.id, task2.id)
+        )
+
+      taskDAL.setTaskStatus(
+        List(task1, task2),
+        Task.STATUS_FIXED,
+        User.superUser,
+        Some(true),
+        bundleId = Some(bundle.bundleId),
+        primaryTaskId = Some(task1.id)
+      )
+
+      var reviewer = serviceManager.user.create(
+        this.getTestUser(1022346, "BundleReviewerUser"),
+        User.superUser
+      )
+      reviewer = serviceManager.user
+        .managedUpdate(
+          reviewer.id,
+          reviewer.settings.copy(isReviewer = Some(true)),
+          None,
+          reviewer
+        )
+        .get
+
+      this.serviceManager.taskReview
+        .startTaskReview(reviewer, this.serviceManager.task.retrieve(task1.id).get)
+
+      val updated = this.service.updateTaskBundle(reviewer, bundle.bundleId, List(task1.id))
+      updated.taskIds.length mustEqual 1
+      updated.taskIds.head mustEqual task1.id
+    }
+
   }
 
   override implicit val projectTestName: String = "TaskBundleSpecProject"
