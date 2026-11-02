@@ -37,6 +37,7 @@ import play.shaded.oauth.oauth.signpost.exception.OAuthNotAuthorizedException
 
 import scala.concurrent.Future
 import scala.io.Source
+import scala.util.Using
 
 /**
   * The challenge controller handles all operations for the Challenge objects.
@@ -1607,83 +1608,48 @@ class ChallengeController @Inject() (
 
               request.body.file("json") match {
                 case Some(f) if StringUtils.isNotEmpty(f.filename) =>
-                  if (removeUnmatched) {
-                    dalManager.challenge.removeIncompleteTasks(user)(challengeId)
-                  }
-
                   // todo this should probably be streamed instead of all pulled into memory
-                  val sourceData       = Source.fromFile(f.ref.getAbsoluteFile).getLines()
-                  val sourceDataLength = Source.fromFile(f.ref.getAbsoluteFile).getLines().length
-                  if (lineByLine) {
-                    val total = currentTaskCount + sourceDataLength;
-                    if (total > config.maxTasksPerChallenge) {
-                      logger.warn(
-                        "Cannot add {} tasks to challengeId='{}' because it would exceed the maximum tasks per challenge (count={} max={})",
-                        sourceDataLength,
-                        challengeId,
-                        currentTaskCount,
-                        config.maxTasksPerChallenge
-                      )
+                  val sourceData =
+                    Using.resource(Source.fromFile(f.ref.getAbsoluteFile))(_.getLines().toList)
+                  val sourceDataLength = sourceData.length
+                  if (lineByLine && currentTaskCount + sourceDataLength > config.maxTasksPerChallenge) {
+                    logger.warn(
+                      "Cannot add {} tasks to challengeId='{}' because it would exceed the maximum tasks per challenge (count={} max={})",
+                      sourceDataLength,
+                      challengeId,
+                      currentTaskCount,
+                      config.maxTasksPerChallenge
+                    )
 
-                      if (currentTaskCount == 0) {
-                        val statusMessage =
-                          s"Tasks were not accepted. Your total challenge tasks would exceed the ${config.maxTasksPerChallenge} cap."
-                        dalManager.challenge.update(
-                          Json.obj(
-                            "status"        -> Challenge.STATUS_FAILED,
-                            "statusMessage" -> statusMessage
-                          ),
-                          user
-                        )(challengeId)
-                        logger.error(
-                          s"${sourceDataLength} tasks failed to be created from json file.",
-                          statusMessage
-                        )
-                      } else {
-                        throw new InvalidException(
-                          s"Total challenge tasks would exceed cap of ${config.maxTasksPerChallenge}"
-                        )
-                      }
-                    } else {
-                      // Update the challenge once for the whole file instead of for every line. The
-                      // refresh time and bounding box are also updated when a bad line stops the
-                      // upload part way through, since the tasks before it were still created.
+                    if (currentTaskCount == 0) {
+                      val statusMessage =
+                        s"Tasks were not accepted. Your total challenge tasks would exceed the ${config.maxTasksPerChallenge} cap."
                       dalManager.challenge.update(
-                        Json.obj("status" -> Challenge.STATUS_BUILDING),
+                        Json.obj(
+                          "status"        -> Challenge.STATUS_FAILED,
+                          "statusMessage" -> statusMessage
+                        ),
                         user
                       )(challengeId)
-                      try {
-                        sourceData.foreach(
-                          challengeProvider.createTaskFromJson(
-                            user,
-                            c,
-                            _,
-                            deferChallengeUpdates = true
-                          )
-                        )
-                        dalManager.challenge.update(
-                          Json.obj("status" -> Challenge.STATUS_READY),
-                          user
-                        )(challengeId)
-                      } finally {
-                        dalManager.challenge.markTasksRefreshed()(challengeId)
-                        dalManager.challenge.updateBoundingBox()(challengeId)
-                      }
+                      logger.error(
+                        s"${sourceDataLength} tasks failed to be created from json file.",
+                        statusMessage
+                      )
+                    } else {
+                      throw new InvalidException(
+                        s"Total challenge tasks would exceed cap of ${config.maxTasksPerChallenge}"
+                      )
                     }
                   } else {
-                    challengeProvider.createTasksFromJson(
+                    challengeProvider.buildTasksFromUpload(
                       user,
                       c,
-                      sourceData.mkString,
-                      currentTaskCount
+                      sourceData,
+                      lineByLine,
+                      currentTaskCount,
+                      removeUnmatched,
+                      dataOriginDate.map(new DateTime(_))
                     )
-                  }
-                  dataOriginDate match {
-                    case Some(d) =>
-                      dalManager.challenge.markTasksRefreshed(true, Some(new DateTime(d)))(
-                        challengeId
-                      )
-                    case _ => // do nothing
                   }
                   NoContent
                 case _ =>

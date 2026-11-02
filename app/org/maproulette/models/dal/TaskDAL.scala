@@ -431,6 +431,62 @@ class TaskDAL @Inject() (
     }
   }
 
+  def upsertChallengeTasks(parent: Challenge, tasks: Seq[Task], user: User)(
+      implicit c: Connection
+  ): Unit = {
+    this.permission.hasObjectWriteAccess(parent, user)
+    val rows = tasks.reverse.distinctBy(_.name.toLowerCase).reverse.flatMap { task =>
+      Try {
+        this.validateGeoJson(task.geometries)
+        val (geometries, cooperativeWork) = this.extractCooperativeWork(
+          parent.id,
+          task.geometries + ("type" -> JsString("FeatureCollection")),
+          task.cooperativeWork
+        )(Some(c))
+        Json.obj(
+          "name"             -> task.name,
+          "instruction"      -> task.instruction.getOrElse[String](""),
+          "geojson"          -> Json.parse(geometries),
+          "cooperative_work" -> cooperativeWork.map(Json.parse),
+          "priority"         -> task.getTaskPriority(parent)
+        )
+      } match {
+        case Success(row) => Some(row)
+        case Failure(e) =>
+          logger.warn(s"Skipping task '${task.name}' in challenge ${parent.id}: ${e.getMessage}")
+          None
+      }
+    }
+
+    SQL(
+      """WITH input AS (
+           SELECT r.name, r.instruction, r.geojson, r.cooperative_work, r.priority,
+                  task_geometry_from_geojson(r.geojson) AS geom
+           FROM jsonb_to_recordset({rows}::jsonb)
+             AS r(name TEXT, instruction TEXT, geojson JSONB, cooperative_work JSONB, priority INTEGER)
+         ), upserted AS (
+           INSERT INTO tasks AS t (name, parent_id, status, instruction, priority, geojson, location, geom, cooperative_work_json)
+           SELECT name, {parentId}, 0, instruction, priority, geojson, ST_Centroid(geom), geom, cooperative_work
+           FROM input WHERE geom IS NOT NULL
+           ON CONFLICT (parent_id, lower(name)) DO UPDATE SET
+             name = EXCLUDED.name, instruction = EXCLUDED.instruction, priority = EXCLUDED.priority,
+             changeset_id = -1, geojson = EXCLUDED.geojson,
+             cooperative_work_json = EXCLUDED.cooperative_work_json,
+             location = EXCLUDED.location, geom = EXCLUDED.geom,
+             mapped_on = CASE WHEN t.status = 0 THEN NULL ELSE t.mapped_on END
+           RETURNING t.id, t.status, (t.xmax = 0) AS inserted
+         ), cleared_reviews AS (
+           DELETE FROM task_review
+           WHERE task_id IN (SELECT id FROM upserted WHERE NOT inserted AND status = 0)
+         )
+         SELECT name FROM input WHERE geom IS NULL"""
+    ).on("rows" -> Json.stringify(JsArray(rows)), "parentId" -> parent.id)
+      .as(str("name").*)
+      .foreach(name =>
+        logger.warn(s"Skipping task '$name' in challenge ${parent.id}: invalid geometry")
+      )
+  }
+
   /**
     * Ensure that the given JSON object is a valid and non-empty GeoJSON
     * FeatureCollection. Raises an error if not, which will be sent as
@@ -1683,4 +1739,5 @@ class TaskDAL @Inject() (
 
 object TaskDAL {
   val DEFAULT_NUMBER_OF_POINTS = 100
+  val UPSERT_BATCH_SIZE        = 5000
 }
