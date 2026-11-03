@@ -110,28 +110,6 @@ libraryDependencies ++= Seq(
   "com.github.tototoshi" %% "scala-csv"          % "1.3.10"
 )
 
-val jacksonVersion         = "2.13.4"
-val jacksonDatabindVersion = "2.13.4.2"
-
-val jacksonOverrides = Seq(
-  "com.fasterxml.jackson.core"     % "jackson-core",
-  "com.fasterxml.jackson.core"     % "jackson-annotations",
-  "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8",
-  "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310"
-).map(_ % jacksonVersion)
-
-val jacksonDatabindOverrides = Seq(
-  "com.fasterxml.jackson.core" % "jackson-databind" % jacksonDatabindVersion
-)
-
-val akkaSerializationJacksonOverrides = Seq(
-  "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor",
-  "com.fasterxml.jackson.module"     % "jackson-module-parameter-names",
-  "com.fasterxml.jackson.module"     %% "jackson-module-scala"
-).map(_ % jacksonVersion)
-
-libraryDependencies ++= jacksonDatabindOverrides ++ jacksonOverrides ++ akkaSerializationJacksonOverrides
-
 // Some suggested scalac compiler options. These will print but nothing will fail the build.
 // https://gist.githubusercontent.com/tabdulradi/aa7450921756cd22db6d278100b2dac8/raw/ad80d738758f81b576bac4fe6188625646cf4ddf/scalac-compiler-flags-2.13.sbt
 //
