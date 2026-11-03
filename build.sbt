@@ -79,8 +79,8 @@ libraryDependencies ++= Seq(
   specs2 % Test,
   filters,
   guice,
-  "com.typesafe.play"      %% "play-json-joda"     % "2.10.5",
-  "com.typesafe.play"      %% "play-json"          % "2.10.5",
+  "com.typesafe.play"      %% "play-json-joda"     % "2.10.8",
+  "com.typesafe.play"      %% "play-json"          % "2.10.8",
   "org.scalatestplus.play" %% "scalatestplus-play" % "5.1.0" % Test,
   "org.scalatestplus"      %% "mockito-4-5"        % "3.2.12.0" % Test,
   // NOTE: The swagger-ui package is used to obtain the static distribution of swagger-ui, the files included at runtime
@@ -109,28 +109,6 @@ libraryDependencies ++= Seq(
   "com.github.blemale"   %% "scaffeine"          % "5.2.1",
   "com.github.tototoshi" %% "scala-csv"          % "1.3.10"
 )
-
-val jacksonVersion         = "2.13.4"
-val jacksonDatabindVersion = "2.13.4.2"
-
-val jacksonOverrides = Seq(
-  "com.fasterxml.jackson.core"     % "jackson-core",
-  "com.fasterxml.jackson.core"     % "jackson-annotations",
-  "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8",
-  "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310"
-).map(_ % jacksonVersion)
-
-val jacksonDatabindOverrides = Seq(
-  "com.fasterxml.jackson.core" % "jackson-databind" % jacksonDatabindVersion
-)
-
-val akkaSerializationJacksonOverrides = Seq(
-  "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor",
-  "com.fasterxml.jackson.module"     % "jackson-module-parameter-names",
-  "com.fasterxml.jackson.module"     %% "jackson-module-scala"
-).map(_ % jacksonVersion)
-
-libraryDependencies ++= jacksonDatabindOverrides ++ jacksonOverrides ++ akkaSerializationJacksonOverrides
 
 // Some suggested scalac compiler options. These will print but nothing will fail the build.
 // https://gist.githubusercontent.com/tabdulradi/aa7450921756cd22db6d278100b2dac8/raw/ad80d738758f81b576bac4fe6188625646cf4ddf/scalac-compiler-flags-2.13.sbt
