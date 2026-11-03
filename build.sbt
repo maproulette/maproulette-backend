@@ -79,8 +79,8 @@ libraryDependencies ++= Seq(
   specs2 % Test,
   filters,
   guice,
-  "com.typesafe.play"      %% "play-json-joda"     % "2.10.5",
-  "com.typesafe.play"      %% "play-json"          % "2.10.5",
+  "com.typesafe.play"      %% "play-json-joda"     % "2.10.8",
+  "com.typesafe.play"      %% "play-json"          % "2.10.8",
   "org.scalatestplus.play" %% "scalatestplus-play" % "5.1.0" % Test,
   "org.scalatestplus"      %% "mockito-4-5"        % "3.2.12.0" % Test,
   // NOTE: The swagger-ui package is used to obtain the static distribution of swagger-ui, the files included at runtime
