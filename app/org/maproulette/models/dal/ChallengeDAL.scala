@@ -2845,6 +2845,7 @@ class ChallengeDAL @Inject() (
       val orderByClause = sortBy.toLowerCase match {
         case "name"       => "c.name ASC"
         case "created"    => "c.created DESC"
+        case "oldest"     => "c.created ASC"
         case "modified"   => "c.modified DESC"
         case "popularity" => "c.popularity DESC NULLS LAST"
         case "difficulty" => "c.difficulty ASC"
