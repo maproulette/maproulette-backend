@@ -449,6 +449,53 @@ class UserServiceSpec(implicit val application: Application) extends FrameworkHe
       )
     }
 
+    "not demote last admin of project" taggedAs UserTag in {
+      val user =
+        this.userService
+          .create(this.getTestUser(195838623, "DemoteLastAdminOfProjectTest"), User.superUser)
+      val project = this.serviceManager.project
+        .create(
+          Project(-1, user.osmProfile.id, "DemoteLastAdminOfProjectTestProject"),
+          user
+        )
+
+      an[InvalidException] should be thrownBy this.userService.addUserToProject(
+        user.osmProfile.id,
+        project.id,
+        Grant.ROLE_WRITE_ACCESS,
+        User.superUser,
+        clear = true
+      )
+    }
+
+    "demote an admin of project when another admin remains" taggedAs UserTag in {
+      val user =
+        this.userService
+          .create(this.getTestUser(195838624, "DemoteAdminOfProjectTest"), User.superUser)
+      val project = this.serviceManager.project
+        .create(
+          Project(-1, user.osmProfile.id, "DemoteAdminOfProjectTestProject"),
+          user
+        )
+      this.userService.addUserToProject(
+        this.defaultUser.osmProfile.id,
+        project.id,
+        Grant.ROLE_ADMIN,
+        User.superUser
+      )
+
+      val demoted = this.userService.addUserToProject(
+        this.defaultUser.osmProfile.id,
+        project.id,
+        Grant.ROLE_WRITE_ACCESS,
+        User.superUser,
+        clear = true
+      )
+      demoted.grants
+        .filter(_.target == GrantTarget.project(project.id))
+        .map(_.role) mustEqual List(Grant.ROLE_WRITE_ACCESS)
+    }
+
     "get user mappers for challenge" in {
       val result = this.userService.getChallengeMappers(randomChallenge.id)
 
