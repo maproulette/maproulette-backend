@@ -99,7 +99,7 @@ class ProjectServiceSpec(implicit val application: Application) extends Framewor
       updated.get.featured mustEqual false
     }
 
-    "update cannot change enabled or feature unless SuperUser" taggedAs ProjectTag in {
+    "update cannot change featured unless SuperUser or enabled unless project admin" taggedAs ProjectTag in {
       val randomUser =
         this.serviceManager.user.create(this.getTestUser(9876, "RANDOM_USER"), User.superUser)
       val updateProject = this.service
@@ -112,8 +112,18 @@ class ProjectServiceSpec(implicit val application: Application) extends Framewor
       val update3 =
         this.service.update(updateProject.id, Json.obj("enabled" -> true), User.superUser)
       update3.get.enabled mustEqual true
-      val update4 = this.service.update(updateProject.id, Json.obj("enabled" -> false), randomUser)
+      val writer =
+        this.serviceManager.user.create(this.getTestUser(9877, "WRITE_USER"), User.superUser)
+      this.serviceManager.user.addUserToProject(
+        writer.osmProfile.id,
+        updateProject.id,
+        Grant.ROLE_WRITE_ACCESS,
+        User.superUser
+      )
+      val update4 = this.service.update(updateProject.id, Json.obj("enabled" -> false), writer)
       update4.get.enabled mustEqual true
+      val update5 = this.service.update(updateProject.id, Json.obj("enabled" -> false), randomUser)
+      update5.get.enabled mustEqual false
     }
 
     "update cannot change virtual status" taggedAs ProjectTag in {
