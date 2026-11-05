@@ -219,11 +219,6 @@ case class User(
   def managedProjectIds(): List[Long] =
     grants.filter(_.target.objectType == ProjectType()).map(_.target.objectId)
 
-  def adminForProject(projectId: Long): Boolean =
-    this.grantsForProject(projectId).exists { g =>
-      g.role == Grant.ROLE_ADMIN
-    }
-
   def getUserLocale: Locale = new Locale(this.settings.locale.getOrElse("en"))
 
   def toSearchResult: UserSearchResult =
