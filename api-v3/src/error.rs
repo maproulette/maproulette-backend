@@ -34,6 +34,9 @@ pub enum Error {
     /// The request conflicts with the resource's current state, for the reason given.
     #[error("conflict: {0}")]
     Conflict(String),
+    /// The client took too long to send the request body.
+    #[error("request timeout")]
+    RequestTimeout,
     #[error("request body too large")]
     PayloadTooLarge,
     /// The body's media type or encoding isn't one the route accepts, for the reason given.
@@ -53,7 +56,8 @@ pub enum Error {
 
 #[derive(Clone, Debug, Serialize, ToSchema)]
 pub struct FieldError {
-    /// An RFC 6901 JSON Pointer into the request body.
+    /// An RFC 6901 JSON Pointer into the request body, or for an NDJSON body, into the document
+    /// on `line`.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(nullable = false)]
     pub pointer: Option<String>,
@@ -61,6 +65,14 @@ pub struct FieldError {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(nullable = false)]
     pub parameter: Option<String>,
+    /// For an NDJSON body: the line, counting from 1.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
+    pub line: Option<u64>,
+    /// For a task upload: the `id` of the feature on `line`, if it has one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
+    pub key: Option<String>,
     pub message: String,
 }
 
@@ -70,6 +82,8 @@ impl FieldError {
         FieldError {
             pointer: None,
             parameter: None,
+            line: None,
+            key: None,
             message: message.into(),
         }
     }
@@ -77,16 +91,30 @@ impl FieldError {
     pub fn pointer(pointer: impl Into<String>, message: impl Into<String>) -> FieldError {
         FieldError {
             pointer: Some(pointer.into()),
-            parameter: None,
-            message: message.into(),
+            ..FieldError::body(message)
         }
     }
 
     pub fn parameter(parameter: impl Into<String>, message: impl Into<String>) -> FieldError {
         FieldError {
-            pointer: None,
             parameter: Some(parameter.into()),
-            message: message.into(),
+            ..FieldError::body(message)
+        }
+    }
+
+    /// A problem with one line of an NDJSON body, and with the member at `pointer` within it if
+    /// there is one.
+    pub fn line(
+        line: u64,
+        key: Option<String>,
+        pointer: Option<String>,
+        message: impl Into<String>,
+    ) -> FieldError {
+        FieldError {
+            line: Some(line),
+            key,
+            pointer,
+            ..FieldError::body(message)
         }
     }
 }
@@ -124,6 +152,7 @@ impl Error {
             Error::MethodNotAllowed => StatusCode::METHOD_NOT_ALLOWED,
             Error::BadRequest(_) => StatusCode::BAD_REQUEST,
             Error::Conflict(_) => StatusCode::CONFLICT,
+            Error::RequestTimeout => StatusCode::REQUEST_TIMEOUT,
             Error::PayloadTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
             Error::UnsupportedMediaType(_) => StatusCode::UNSUPPORTED_MEDIA_TYPE,
             Error::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
