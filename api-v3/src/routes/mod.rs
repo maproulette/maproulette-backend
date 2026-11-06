@@ -1,6 +1,10 @@
+mod challenge_tasks;
+mod drain;
 mod extract;
+mod feature;
 mod health;
 mod me;
+mod ndjson;
 // `Patch` has no users until the challenge endpoints land.
 #[cfg_attr(not(test), expect(dead_code))]
 mod patch;
@@ -68,6 +72,7 @@ fn api() -> OpenApiRouter<AppState> {
     OpenApiRouter::with_openapi(ApiDoc::openapi())
         .merge(probes())
         .merge(authenticated())
+        .merge(uploads())
 }
 
 /// Routes that never look at credentials, so they keep working when the database is down.
@@ -86,6 +91,12 @@ fn authenticated() -> OpenApiRouter<AppState> {
         .routes(routes!(tokens::revoke))
 }
 
+/// Authenticated routes that take a long body, and so set their own timeouts rather than
+/// `REQUEST_TIMEOUT`.
+fn uploads() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new().routes(routes!(challenge_tasks::upload))
+}
+
 /// The OpenAPI document for the routes in `api()`.
 pub fn openapi() -> utoipa::openapi::OpenApi {
     api().split_for_parts().1
@@ -98,19 +109,26 @@ pub fn router(state: AppState) -> Router {
     let spec = Bytes::from(serde_json::to_vec(&openapi()).expect("OpenAPI document serializes"));
     let (probes, _) = probes().split_for_parts();
     let (authenticated, _) = authenticated().split_for_parts();
+    let (uploads, _) = uploads().split_for_parts();
+    let resolve = middleware::from_fn_with_state(state.clone(), auth::resolve);
     let api = probes
         .route(
             "/openapi.json",
             get(move || async move { ([(header::CONTENT_TYPE, "application/json")], spec) }),
         )
-        .merge(authenticated.layer(middleware::from_fn_with_state(state.clone(), auth::resolve)))
+        .merge(authenticated.layer(resolve.clone()))
+        .layer(middleware::from_fn(timeout))
+        .merge(
+            uploads
+                .layer(resolve)
+                .layer(middleware::from_fn(drain::drain_on_drop)),
+        )
         .method_not_allowed_fallback(|| async { Error::MethodNotAllowed });
 
     // Layers run bottom to top on the way in.
     Router::new()
         .nest("/api/v3", api)
         .fallback(|| async { Error::NotFound })
-        .layer(middleware::from_fn(timeout))
         .layer(middleware::from_fn(error::report))
         .layer(cors)
         .layer(middleware::from_fn(route_header))

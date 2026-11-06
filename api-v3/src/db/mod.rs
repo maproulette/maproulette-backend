@@ -1,5 +1,7 @@
 pub mod authz;
+pub mod challenges;
 pub mod credentials;
+pub mod uploads;
 pub mod users;
 
 use std::str::FromStr;
