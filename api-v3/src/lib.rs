@@ -5,6 +5,7 @@ pub mod db;
 pub mod error;
 pub mod model;
 mod routes;
+pub mod service;
 
 pub use routes::{openapi, router};
 
@@ -14,9 +15,9 @@ use std::time::Duration;
 use axum::Router;
 use axum::http::HeaderValue;
 use tokio::net::TcpListener;
-use tokio::sync::Notify;
+use tokio::sync::{Notify, Semaphore};
 
-use config::Config;
+use config::{Config, UploadLimits};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -25,6 +26,14 @@ pub struct AppState {
     pub session_secret: Arc<[u8]>,
     /// MapRoulette's own frontends. See `Config::allowed_origins`.
     pub allowed_origins: Arc<[HeaderValue]>,
+    pub uploads: Arc<Uploads>,
+}
+
+/// Task uploads in progress in this process, and their limits.
+pub struct Uploads {
+    pub limits: UploadLimits,
+    pub receiving: Semaphore,
+    pub applying: Semaphore,
 }
 
 /// How long in-flight requests get to finish after shutdown begins.
@@ -36,6 +45,11 @@ pub fn app(config: &Config) -> Result<Router, sqlx::Error> {
         db,
         session_secret: config.session_secret.as_bytes().into(),
         allowed_origins: config.allowed_origins.as_slice().into(),
+        uploads: Arc::new(Uploads {
+            limits: config.uploads.clone(),
+            receiving: Semaphore::new(config.uploads.receiving),
+            applying: Semaphore::new(config.uploads.applying),
+        }),
     }))
 }
 
