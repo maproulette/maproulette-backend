@@ -2733,7 +2733,9 @@ class ChallengeDAL @Inject() (
     *               featured, tag_fix, cooperative)
     * @param limit Maximum number of results to return
     * @param offset Number of results to skip for pagination
+    * @param categorizationKeywords Optional comma-separated keywords the challenge must all have
     * @param locationPolygon Optional GeoJSON Polygon/MultiPolygon the matching task must fall inside
+    * @param userId The signed-in user, whose saved challenges the default sort puts first
     * @param c Optional database connection
     * @return List of challenges matching the criteria
     */
@@ -2744,8 +2746,10 @@ class ChallengeDAL @Inject() (
       limit: Int,
       offset: Int = 0,
       keywords: Option[String] = None,
+      categorizationKeywords: Option[String] = None,
       difficulty: Option[Int] = None,
-      locationPolygon: Option[String] = None
+      locationPolygon: Option[String] = None,
+      userId: Option[Long] = None
   )(implicit c: Option[Connection] = None): List[Challenge] = {
     this.withMRConnection { implicit c =>
       val params = new ListBuffer[NamedParameter]()
@@ -2764,6 +2768,11 @@ class ChallengeDAL @Inject() (
       val keywordList = keywords match {
         case Some(kws) if kws.trim.nonEmpty =>
           kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty).toList
+        case _ => List.empty[String]
+      }
+      val categorizationKeywordList = categorizationKeywords match {
+        case Some(kws) if kws.trim.nonEmpty =>
+          kws.split(",").map(_.trim.toLowerCase).filter(_.nonEmpty).distinct.toList
         case _ => List.empty[String]
       }
 
@@ -2793,6 +2802,21 @@ class ChallengeDAL @Inject() (
                         WHERE toc.challenge_id = c.id
                           AND LOWER(t.name) IN (${placeholders.mkString(", ")})
                       )"""
+      }
+
+      if (categorizationKeywordList.nonEmpty) {
+        val placeholders = categorizationKeywordList.zipWithIndex.map {
+          case (kw, i) =>
+            params += NamedParameter(s"ckw$i", kw)
+            s"{ckw$i}"
+        }
+        query += s""" AND (
+                        SELECT COUNT(DISTINCT LOWER(t.name))
+                        FROM tags_on_challenges toc
+                        INNER JOIN tags t ON t.id = toc.tag_id
+                        WHERE toc.challenge_id = c.id
+                          AND LOWER(t.name) IN (${placeholders.mkString(", ")})
+                      ) = ${categorizationKeywordList.size}"""
       }
 
       // Filter by difficulty if provided
@@ -2850,6 +2874,14 @@ class ChallengeDAL @Inject() (
         case "popularity" => "c.popularity DESC NULLS LAST"
         case "difficulty" => "c.difficulty ASC"
         case "featured"   => "c.featured DESC, c.name ASC"
+        case "default" =>
+          val saved = userId match {
+            case Some(id) =>
+              params += NamedParameter("savedUserId", id)
+              "EXISTS (SELECT 1 FROM saved_challenges sc WHERE sc.challenge_id = c.id AND sc.user_id = {savedUserId})"
+            case None => "FALSE"
+          }
+          s"(CASE WHEN $saved THEN 2 ELSE 0 END + CASE WHEN c.featured THEN 1 ELSE 0 END) DESC, c.popularity DESC NULLS LAST, c.name ASC"
         case "tag_fix" =>
           s"(c.cooperative_type = ${Challenge.COOPERATIVE_TAGS}) DESC, c.name ASC"
         case "cooperative" | "cooperative_type" =>

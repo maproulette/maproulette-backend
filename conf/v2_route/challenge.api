@@ -406,7 +406,7 @@ GET     /challenges/extendedFind                    @org.maproulette.controllers
 #     required: false
 #     schema:
 #       type: string
-#       enum: [name, created, oldest, modified, popularity, difficulty, featured, tag_fix, cooperative]
+#       enum: [default, name, created, oldest, modified, popularity, difficulty, featured, tag_fix, cooperative]
 #       default: name
 #   - name: limit
 #     in: query
@@ -429,6 +429,13 @@ GET     /challenges/extendedFind                    @org.maproulette.controllers
 #     schema:
 #       type: string
 #       example: "roads,signs"
+#   - name: categorizationKeywords
+#     in: query
+#     description: Comma-separated list of keywords that a challenge must all have
+#     required: false
+#     schema:
+#       type: string
+#       example: "buildings,import"
 #   - name: difficulty
 #     in: query
 #     description: Filter by difficulty (1=Easy, 2=Normal, 3=Expert)
@@ -446,7 +453,7 @@ GET     /challenges/extendedFind                    @org.maproulette.controllers
 #           items:
 #             $ref: '#/components/schemas/org.maproulette.framework.model.Challenge'
 ###
-GET     /challenges/exploreChallenges                    @org.maproulette.controllers.api.ChallengeController.exploreChallenges(global:Boolean ?= false, bounds:Option[String] ?= None, sortBy:String ?= "name", limit:Int ?= 50, offset:Int ?= 0, keywords:Option[String] ?= None, difficulty:Option[Int] ?= None)
+GET     /challenges/exploreChallenges                    @org.maproulette.controllers.api.ChallengeController.exploreChallenges(global:Boolean ?= false, bounds:Option[String] ?= None, sortBy:String ?= "name", limit:Int ?= 50, offset:Int ?= 0, keywords:Option[String] ?= None, categorizationKeywords:Option[String] ?= None, difficulty:Option[Int] ?= None)
 ###
 # tags: [ Challenge ]
 # operationId: challenge_explore_challenges_within_polygon
@@ -473,7 +480,7 @@ GET     /challenges/exploreChallenges                    @org.maproulette.contro
 #     required: false
 #     schema:
 #       type: string
-#       enum: [name, created, oldest, modified, popularity, difficulty, featured, tag_fix, cooperative]
+#       enum: [default, name, created, oldest, modified, popularity, difficulty, featured, tag_fix, cooperative]
 #       default: name
 #   - name: limit
 #     in: query
@@ -496,6 +503,13 @@ GET     /challenges/exploreChallenges                    @org.maproulette.contro
 #     schema:
 #       type: string
 #       example: "roads,signs"
+#   - name: categorizationKeywords
+#     in: query
+#     description: Comma-separated list of keywords that a challenge must all have
+#     required: false
+#     schema:
+#       type: string
+#       example: "buildings,import"
 #   - name: difficulty
 #     in: query
 #     description: Filter by difficulty (1=Easy, 2=Normal, 3=Expert)
@@ -526,7 +540,7 @@ GET     /challenges/exploreChallenges                    @org.maproulette.contro
 #   '400':
 #     description: The supplied polygon is not a GeoJSON Polygon or MultiPolygon
 ###
-POST    /challenges/exploreChallenges                    @org.maproulette.controllers.api.ChallengeController.exploreChallenges(global:Boolean ?= false, bounds:Option[String] ?= None, sortBy:String ?= "name", limit:Int ?= 50, offset:Int ?= 0, keywords:Option[String] ?= None, difficulty:Option[Int] ?= None)
+POST    /challenges/exploreChallenges                    @org.maproulette.controllers.api.ChallengeController.exploreChallenges(global:Boolean ?= false, bounds:Option[String] ?= None, sortBy:String ?= "name", limit:Int ?= 50, offset:Int ?= 0, keywords:Option[String] ?= None, categorizationKeywords:Option[String] ?= None, difficulty:Option[Int] ?= None)
 ###
 # tags: [ Challenge ]
 # operationId: challenge_list_challenges_in_specified_projects
