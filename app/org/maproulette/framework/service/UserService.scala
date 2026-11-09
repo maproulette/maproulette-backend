@@ -615,16 +615,7 @@ class UserService @Inject() (
 
     this.cacheManager
       .withUpdatingCache(this.retrieveByOSMId) { cachedUser =>
-        // Don't remove the last administrator from the project
-        if (!this.grantService
-              .retrieveMatchingGrants(
-                role = Some(Grant.ROLE_ADMIN),
-                target = Some(GrantTarget.project(projectId)),
-                user = User.superUser
-              )
-              .exists { g =>
-                g.grantee.granteeType == UserType() && g.grantee != Grantee.user(cachedUser.id)
-              }) {
+        if (role.forall(_ == Grant.ROLE_ADMIN) && this.isLastProjectAdmin(projectId, cachedUser.id)) {
           throw new InvalidException(
             "Cannot remove user from project: projects must have at least one administrator"
           )
@@ -687,6 +678,22 @@ class UserService @Inject() (
   }
 
   /**
+    * Whether the user is the only user holding the Admin role on the project
+    */
+  private def isLastProjectAdmin(projectId: Long, userId: Long): Boolean = {
+    val adminGrantees = this.grantService
+      .retrieveMatchingGrants(
+        role = Some(Grant.ROLE_ADMIN),
+        target = Some(GrantTarget.project(projectId)),
+        user = User.superUser
+      )
+      .map(_.grantee)
+      .filter(_.granteeType == UserType())
+    adminGrantees.contains(Grantee.user(userId)) &&
+    adminGrantees.forall(_ == Grantee.user(userId))
+  }
+
+  /**
     * Adds a user to a project
     *
     * @param osmId     The OSM ID of the user to add to the project
@@ -705,6 +712,11 @@ class UserService @Inject() (
     Grant.validateRole(role, GrantTarget.project(projectId))
     val addedUser = this.cacheManager
       .withUpdatingCache(this.retrieveByOSMId) { cachedUser =>
+        if (clear && role != Grant.ROLE_ADMIN && this.isLastProjectAdmin(projectId, cachedUser.id)) {
+          throw new InvalidException(
+            "Cannot change user's project role: projects must have at least one administrator"
+          )
+        }
         if (clear) {
           this.grantService.deleteMatchingGrants(
             grantee = Some(Grantee.user(cachedUser.id)),

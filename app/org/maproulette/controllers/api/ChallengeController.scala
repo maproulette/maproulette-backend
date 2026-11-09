@@ -1163,10 +1163,11 @@ class ChallengeController @Inject() (
     *
     * @param global Whether to include global challenges (default: false)
     * @param bounds Bounding box as [left,bottom,right,top] to filter challenges by location
-    * @param sortBy Column to sort by (name, created, modified, popularity, difficulty,
+    * @param sortBy Column to sort by (default, name, created, modified, popularity, difficulty,
     *               featured, tag_fix, cooperative)
     * @param limit Maximum number of results to return
     * @param offset Number of results to skip for pagination
+    * @param categorizationKeywords Comma-separated keywords a challenge must all have
     * @return A list of challenges matching the criteria
     */
   def exploreChallenges(
@@ -1176,6 +1177,7 @@ class ChallengeController @Inject() (
       limit: Int,
       offset: Int,
       keywords: Option[String],
+      categorizationKeywords: Option[String],
       difficulty: Option[Int]
   ): Action[AnyContent] =
     // Parsed with its own body limit: the default (100k) is smaller than a
@@ -1197,8 +1199,10 @@ class ChallengeController @Inject() (
           limit = limit,
           offset = offset,
           keywords = keywords,
+          categorizationKeywords = categorizationKeywords,
           difficulty = difficulty,
-          locationPolygon = this.locationPolygon(request)
+          locationPolygon = this.locationPolygon(request),
+          userId = user.map(_.id)
         )
 
         Ok(insertProjectJSON(challenges))

@@ -417,9 +417,12 @@ class ProjectService @Inject() (
         val description =
           (updates \ "description").asOpt[String].getOrElse(cachedItem.description.getOrElse(""))
         val enabled = (updates \ "enabled").asOpt[Boolean] match {
-          case Some(_) if !permission.isSuperUser(user) && !user.adminForProject(id) =>
+          case Some(_)
+              if !this.permission
+                .effectiveRole(cachedItem, user)
+                .exists(_ <= Grant.ROLE_ADMIN) =>
             logger.warn(
-              s"User [${user.name} - ${user.id}] is not a super user and cannot enable or disable projects"
+              s"User [${user.name} - ${user.id}] is not a project admin and cannot enable or disable projects"
             )
             cachedItem.enabled
           case Some(e) => e
