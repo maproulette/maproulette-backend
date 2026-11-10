@@ -51,6 +51,7 @@ It reads its configuration from these environment variables:
 
 - `DATABASE_URL` (required)
 - `DATABASE_MAX_CONNECTIONS` (default 10). Remember when setting this that the database is shared with the Scala backend's connection pools.
+- `DATABASE_LOCK_TIMEOUT_MS` (default 5000): how long a statement waits for a row or advisory lock before giving up. The request then fails with a 503, which the client can retry.
 - `APPLICATION_SECRET` (required): for authenticating session cookies; in production this must match v2's value
 - `ALLOWED_ORIGINS` (required): a comma-separated list of frontend origins, such as `https://maproulette.org,https://beta.maproulette.org`. Only these origins can authenticate using session cookies, to protect agains cross site request forgery.
 - `LISTEN_ADDR` (default `127.0.0.1:9001`).

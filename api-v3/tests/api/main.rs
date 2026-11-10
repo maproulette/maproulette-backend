@@ -9,3 +9,4 @@ mod db;
 mod health;
 mod routing;
 mod tokens;
+mod uploads;

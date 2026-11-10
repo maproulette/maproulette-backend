@@ -40,7 +40,11 @@ pub struct Uploads {
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub fn app(config: &Config) -> Result<Router, sqlx::Error> {
-    let db = db::connect(&config.database_url, config.database_max_connections)?;
+    let db = db::connect(
+        &config.database_url,
+        config.database_max_connections,
+        config.database_lock_timeout,
+    )?;
     Ok(router(AppState {
         db,
         session_secret: config.session_secret.as_bytes().into(),

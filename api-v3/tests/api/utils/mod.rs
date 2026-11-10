@@ -2,7 +2,9 @@ mod database;
 mod fixtures;
 pub mod play;
 
-pub use fixtures::{Grantee, Object, TeamId};
+pub use fixtures::{Grantee, Object, TeamId, User};
+
+use std::time::Duration;
 
 use axum::body::Bytes;
 use axum::http::{HeaderMap, Method, StatusCode};
@@ -26,23 +28,30 @@ pub struct TestApp {
 impl TestApp {
     /// Starts the service with a new database of its own. Needs `TEST_DATABASE_URL`.
     pub async fn spawn() -> TestApp {
-        TestApp::start(database::create().await).await
+        TestApp::spawn_with(|_| {}).await
+    }
+
+    /// Like `spawn`, but lets the test change the config first.
+    pub async fn spawn_with(configure: impl FnOnce(&mut Config)) -> TestApp {
+        TestApp::start(database::create().await, configure).await
     }
 
     /// Starts the service with a database URL that refuses connections.
     pub async fn without_db() -> TestApp {
-        TestApp::start("postgres://nobody@127.0.0.1:1/nothing".into()).await
+        TestApp::start("postgres://nobody@127.0.0.1:1/nothing".into(), |_| {}).await
     }
 
-    async fn start(database_url: String) -> TestApp {
-        let config = Config {
+    async fn start(database_url: String, configure: impl FnOnce(&mut Config)) -> TestApp {
+        let mut config = Config {
             database_url,
             database_max_connections: 10,
+            database_lock_timeout: Duration::from_secs(5),
             listen_addr: "127.0.0.1:0".parse().unwrap(),
             session_secret: SECRET.into(),
             allowed_origins: vec![ORIGIN.parse().unwrap()],
             uploads: UploadLimits::default(),
         };
+        configure(&mut config);
         let listener = TcpListener::bind(config.listen_addr).await.unwrap();
         let base_url = format!("http://{}", listener.local_addr().unwrap());
         let app = maproulette::app(&config).unwrap();
@@ -50,7 +59,7 @@ impl TestApp {
         TestApp {
             base_url,
             client: reqwest::Client::builder().no_proxy().build().unwrap(),
-            db: db::connect(&config.database_url, 2).unwrap(),
+            db: db::connect(&config.database_url, 2, config.database_lock_timeout).unwrap(),
         }
     }
 
