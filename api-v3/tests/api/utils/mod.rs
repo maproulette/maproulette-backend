@@ -1,4 +1,6 @@
 mod database;
+mod fixtures;
+pub mod play;
 
 use axum::body::Bytes;
 use axum::http::{HeaderMap, Method, StatusCode};
