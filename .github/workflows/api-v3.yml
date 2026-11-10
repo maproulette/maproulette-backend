@@ -1,0 +1,66 @@
+name: API v3
+
+on:
+  push:
+    branches: [ "main" ]
+    paths: [ "api-v3/**", ".github/workflows/api-v3.yml" ]
+  pull_request:
+    paths: [ "api-v3/**", ".github/workflows/api-v3.yml" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api-v3
+    services:
+      postgis:
+        image: postgis/postgis:17-3.5
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: osm
+          POSTGRES_PASSWORD: osm
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U osm -d postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      CARGO_TERM_COLOR: always
+      # For the sqlx query macros, and `cargo sqlx prepare --check`
+      DATABASE_URL: postgres://osm:osm@localhost:5432/maproulette
+      # For the test suite (each test creates its own database on this server)
+      TEST_DATABASE_URL: postgres://osm:osm@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v6
+      - name: Update Rust
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+          rustup component add rustfmt clippy
+      - uses: actions/cache@v4
+        with:
+          # The .crates files are how `cargo install` knows that sqlx-cli is already installed.
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin/sqlx
+            ~/.cargo/bin/cargo-sqlx
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            api-v3/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('api-v3/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --version 0.9.0 --locked --no-default-features --features postgres,rustls
+      - name: Load schema.sql
+        run: |
+          psql() { docker exec -i ${{ job.services.postgis.id }} psql -q -v ON_ERROR_STOP=1 -U osm "$@"; }
+          psql -d postgres -c 'CREATE DATABASE maproulette'
+          psql -d maproulette <schema.sql
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - name: Check that .sqlx matches the queries and the schema
+        run: cargo sqlx prepare --check -- --all-targets
+      - run: cargo test

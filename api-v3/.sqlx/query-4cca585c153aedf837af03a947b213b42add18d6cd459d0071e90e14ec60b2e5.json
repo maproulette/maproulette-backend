@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO credentials (user_id, kind, token_hash, hint, name, scopes, expires_at) VALUES ($1, $2, $3, $4, 'test', $5, now() + interval '1 day') RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "credentials",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Bytea",
+        "Text",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4cca585c153aedf837af03a947b213b42add18d6cd459d0071e90e14ec60b2e5"
+}

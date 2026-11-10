@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH team_roles AS (\n            SELECT g.object_id AS team_id, min(g.role) AS role\n            FROM grants g\n            JOIN group_members m\n              ON m.group_id = g.object_id\n             AND m.member_type = 5\n             AND m.member_id = $1\n             AND m.status <> 1\n            WHERE g.grantee_type = 5 AND g.grantee_id = $1 AND g.object_type = 6\n            GROUP BY g.object_id\n            HAVING min(g.role) <= 2\n        ),\n        target AS (\n            SELECT c.id AS challenge_id, c.owner_team_id AS challenge_team_id,\n                   p.id AS project_id, p.owner_team_id AS project_team_id,\n                   coalesce(c.deleted, false) OR coalesce(p.deleted, false) AS deleted\n            FROM challenges c\n            JOIN projects p ON p.id = c.parent_id\n            WHERE c.id = $2\n        ),\n        challenge_roles AS (\n            SELECT g.role\n            FROM grants g, target t\n            WHERE g.grantee_type = 5 AND g.grantee_id = $1\n              AND g.object_type = 1 AND g.object_id = t.challenge_id\n            UNION ALL\n            SELECT r.role\n            FROM team_roles r, target t\n            WHERE r.team_id = t.challenge_team_id\n               OR r.team_id IN (\n                   SELECT g.grantee_id FROM grants g\n                   WHERE g.grantee_type = 6 AND g.object_type = 1 AND g.object_id = t.challenge_id\n               )\n        ),\n        project_roles AS (\n            SELECT g.role\n            FROM grants g, target t\n            WHERE g.grantee_type = 5 AND g.grantee_id = $1\n              AND g.object_type = 0 AND g.object_id = t.project_id\n            UNION ALL\n            SELECT r.role\n            FROM team_roles r, target t\n            WHERE r.team_id = t.project_team_id\n               OR r.team_id IN (\n                   SELECT g.grantee_id FROM grants g\n                   WHERE g.grantee_type = 6 AND g.object_type = 0 AND g.object_id = t.project_id\n               )\n        )\n        SELECT\n            t.deleted AS \"deleted!\",\n            CASE\n                WHEN EXISTS (\n                    SELECT 1 FROM grants\n                    WHERE grantee_type = 5 AND grantee_id = $1\n                      AND role = -1 AND object_type = 0 AND object_id = 0\n                ) THEN -1\n                ELSE coalesce(\n                    (SELECT min(role) FROM challenge_roles),\n                    (SELECT min(role) FROM project_roles)\n                )\n            END AS role\n        FROM target t\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "deleted!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "role",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "ad2507da0e6b32b21122eb341895b73652c75c56559586b0ac733c3a32f3c61b"
+}

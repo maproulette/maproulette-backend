@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE tasks SET status = $2 WHERE parent_id = $1 AND name = 'b'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b6c380aa2c366f4d549ec9c8ae52c6237a1be4ce147cba4d90662fed6f8eed59"
+}

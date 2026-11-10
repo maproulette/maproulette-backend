@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE credentials SET revoked_at = now() WHERE id = $1 AND user_id = $2 AND kind = 'pat' AND revoked_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "aa0c6caa5656119bf2804181d1247e82b30df266ed4d50f77e40356c8c37b44d"
+}

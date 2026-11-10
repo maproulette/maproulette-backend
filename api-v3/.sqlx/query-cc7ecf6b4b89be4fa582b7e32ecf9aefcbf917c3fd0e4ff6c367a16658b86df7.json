@@ -1,0 +1,37 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT coalesce(c.default_priority, 0) AS \"default_priority!\",\n               coalesce(trim(c.overpass_ql), '') <> '' AS \"overpass!\",\n               coalesce(c.cooperative_type, 0) <> 0 AS \"cooperative!\"\n        FROM challenges c\n        JOIN projects p ON p.id = c.parent_id\n        WHERE c.id = $1 AND NOT coalesce(c.deleted, false) AND NOT coalesce(p.deleted, false)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "default_priority!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "overpass!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "cooperative!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "cc7ecf6b4b89be4fa582b7e32ecf9aefcbf917c3fd0e4ff6c367a16658b86df7"
+}

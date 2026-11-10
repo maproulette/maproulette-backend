@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO group_members (group_id, member_type, member_id, status) VALUES ($1, 5, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "517d622f0df0dcb99ae5f93acb5ea30621f90344330df7173b1cb2dd7c5d714d"
+}
