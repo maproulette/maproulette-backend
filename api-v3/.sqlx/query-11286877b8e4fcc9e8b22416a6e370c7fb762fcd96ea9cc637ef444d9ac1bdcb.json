@@ -1,0 +1,97 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT status AS \"status!\", status_message, overpass_ql, remote_geo_json,\n                   last_task_refresh IS NOT NULL AS \"refreshed!\",\n                   data_origin_date IS NOT NULL AS \"dated!\",\n                   ST_AsText(bounding) AS bounding, completion_metrics\n            FROM challenges WHERE id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "status!",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "challenges",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "status_message",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "challenges",
+            "name": "status_message"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "overpass_ql",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "challenges",
+            "name": "overpass_ql"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "remote_geo_json",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "challenges",
+            "name": "remote_geo_json"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "refreshed!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "dated!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "bounding",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "completion_metrics",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "challenges",
+            "name": "completion_metrics"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      null,
+      null,
+      null,
+      false
+    ]
+  },
+  "hash": "11286877b8e4fcc9e8b22416a6e370c7fb762fcd96ea9cc637ef444d9ac1bdcb"
+}

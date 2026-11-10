@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT name, geojson, ST_AsText(geom) AS \"geom!\"\n           FROM tasks WHERE parent_id = $1 AND name NOT LIKE '%missing'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "tasks",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "geojson",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "tasks",
+            "name": "geojson"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "geom!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "325f42cb5a2afe9ce719f6817ca5216cd58d49f9f382514acce717833241cb66"
+}

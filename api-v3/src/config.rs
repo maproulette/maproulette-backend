@@ -8,6 +8,8 @@ use axum::http::HeaderValue;
 pub struct Config {
     pub database_url: String,
     pub database_max_connections: u32,
+    /// How long a statement waits for a lock before failing (and the request gets a 503).
+    pub database_lock_timeout: Duration,
     pub listen_addr: SocketAddr,
     /// The key that signs v2's session cookies (Play's `play.http.secret.key`).
     pub session_secret: String,
@@ -58,6 +60,11 @@ impl Config {
             .unwrap_or_else(|_| "10".into())
             .parse()
             .context("DATABASE_MAX_CONNECTIONS must be a positive integer")?;
+        let database_lock_timeout = env::var("DATABASE_LOCK_TIMEOUT_MS")
+            .unwrap_or_else(|_| "5000".into())
+            .parse()
+            .map(Duration::from_millis)
+            .context("DATABASE_LOCK_TIMEOUT_MS must be a non-negative integer")?;
         let listen_addr = env::var("LISTEN_ADDR")
             .unwrap_or_else(|_| "127.0.0.1:9001".into())
             .parse()
@@ -78,6 +85,7 @@ impl Config {
         Ok(Config {
             database_url,
             database_max_connections,
+            database_lock_timeout,
             listen_addr,
             session_secret,
             allowed_origins,
