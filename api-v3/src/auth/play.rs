@@ -46,6 +46,14 @@ struct Claims {
 /// session, or None if the cookie is invalid, expired, or belongs to a session
 /// with nobody logged in (v2 stores the OAuth state there during login).
 pub fn decode(cookie: &str, secret: &[u8]) -> Option<Session> {
+    let now_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock is after 1970")
+        .as_millis() as i64;
+    decode_at(cookie, secret, now_ms)
+}
+
+fn decode_at(cookie: &str, secret: &[u8], now_ms: i64) -> Option<Session> {
     let (signed, signature) = cookie.rsplit_once('.')?;
     let (header, claims) = signed.split_once('.')?;
 
@@ -59,10 +67,6 @@ pub fn decode(cookie: &str, secret: &[u8]) -> Option<Session> {
         .ok()?;
 
     let claims: Claims = serde_json::from_slice(&URL_SAFE_NO_PAD.decode(claims).ok()?).ok()?;
-    let now_ms = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("clock is after 1970")
-        .as_millis() as i64;
     let now = now_ms / 1000;
     if claims.nbf.is_some_and(|nbf| nbf > now + CLOCK_SKEW_S)
         || claims.exp.is_some_and(|exp| exp <= now - CLOCK_SKEW_S)
@@ -78,4 +82,41 @@ pub fn decode(cookie: &str, secret: &[u8]) -> Option<Session> {
         user_id: UserId(claims.data.get("userId")?.parse().ok()?),
         token_hash: claims.data.get("tokenHash")?.clone(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SECRET: &[u8] = b"test-secret-at-least-thirty-two-bytes-long";
+    /// Made by Play 2.9.11's `DefaultJWTCookieDataCodec` with the default JWT settings
+    const COOKIE: &str = "eyJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7InRva2VuSGFzaCI6IjZiODZiMjczZmYzNGZjZTE5YzZiODA0ZWZmNWEzZjU3NDdhZGE0ZWFhMjJmMWQ0OWMwMWU1MmRkYjc4NzViNGIiLCJ1c2VySWQiOiIxMiIsIm9zbUlkIjoiMzQ1IiwidXNlclRpY2siOiIxNzkzMDAwMDAwMDAwIn0sIm5iZiI6MTc5NDI3MzM5MSwiaWF0IjoxNzk0MjczMzkxfQ._rApRmGABDUg3lfP_rOo0ZzvH3Fp-yVncF5FbMRIEIc";
+    /// When Play made `COOKIE` (its `iat`).
+    const ISSUED_MS: i64 = 1_794_273_391_000;
+    /// The `userTick` in `COOKIE`.
+    const LOGIN_MS: i64 = 1_793_000_000_000;
+
+    #[test]
+    fn decodes_a_cookie_made_by_play() {
+        assert_eq!(
+            decode_at(COOKIE, SECRET, ISSUED_MS),
+            Some(Session {
+                user_id: UserId(12),
+                token_hash: "6b86b273ff34fce19c6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+                    .into(),
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_a_cookie_made_by_play_with_another_secret() {
+        let other = b"another-secret-at-least-thirty-two-bytes";
+        assert_eq!(decode_at(COOKIE, other, ISSUED_MS), None);
+    }
+
+    #[test]
+    fn rejects_a_cookie_made_by_play_after_thirty_days() {
+        assert!(decode_at(COOKIE, SECRET, LOGIN_MS + LIFETIME_MS - 1).is_some());
+        assert_eq!(decode_at(COOKIE, SECRET, LOGIN_MS + LIFETIME_MS + 1), None);
+    }
 }
