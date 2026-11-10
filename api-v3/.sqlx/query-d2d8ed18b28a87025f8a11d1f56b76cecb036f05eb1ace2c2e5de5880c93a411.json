@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH open AS (\n            SELECT count(*) AS n FROM tasks WHERE parent_id = $1 AND status IN (0, 3, 6)\n        )\n        UPDATE challenges c SET\n            last_task_refresh = now(),\n            data_origin_date = now(),\n            -- clear any stored Overpass QL query or remote GeoJSON URL; turning\n            -- this challenge into what v2 calls a \"local geojson challenge\"\n            -- (one created by direct upload)\n            overpass_ql = NULL,\n            remote_geo_json = NULL,\n            -- this matches v2's logic in ChallengeDAL.updateBoundingBox\n            bounding = coalesce(\n                (\n                    SELECT ST_Envelope(\n                        ST_Buffer((ST_SetSRID(ST_Extent(location), 4326))::geography, 2)::geometry\n                    )\n                    FROM tasks\n                    WHERE parent_id = $1 AND location IS NOT NULL\n                ),\n                c.bounding\n            ),\n            --- 3 is \"ready\", 5 is \"finished\"\n            status = CASE WHEN open.n > 0 THEN 3 ELSE 5 END,\n            status_message = NULL\n        FROM open\n        WHERE c.id = $1\n        RETURNING open.n AS \"open!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "open!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "d2d8ed18b28a87025f8a11d1f56b76cecb036f05eb1ace2c2e5de5880c93a411"
+}

@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO credentials (user_id, kind, token_hash, hint, name, scopes, expires_at)\n        SELECT $1, 'pat', $2, $3, $4, $5, $6\n        WHERE (\n            SELECT count(*) FROM credentials\n            WHERE user_id = $1 AND kind = 'pat' AND revoked_at IS NULL\n              AND (expires_at IS NULL OR expires_at > now())\n              AND last_used_at > now() - interval '90 days'\n        ) < $7\n        RETURNING id, created_at, last_used_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "credentials",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "credentials",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "last_used_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "credentials",
+            "name": "last_used_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Bytea",
+        "Text",
+        "Text",
+        "TextArray",
+        "Timestamptz",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7abeefee3197a49f71bd5ac63c106874d5d45fb1e8aeb7fe27b0569a678e5ae6"
+}
