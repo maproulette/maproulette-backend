@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE credentials SET last_used_at = now() WHERE id = $1 AND last_used_at < now() - interval '5 minutes'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6fe410f20f85bedf33ff221912aaa666509b58e2b6b8a3a6762247fefcd3378b"
+}
