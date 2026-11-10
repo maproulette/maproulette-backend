@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO grants (name, grantee_type, grantee_id, role, object_type, object_id) VALUES ('test', $1, $2, $3, $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3ce993ce746dac3c4e2426d8cb9e7ffd7646e31eed0dd06b232d02dac9075408"
+}
