@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE challenges SET overpass_ql = '', remote_geo_json = 'https://example.com/t.json', status = $2, status_message = 'stuck' WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f644d525f85f631b1ad8593e94c68939f582886b918ddb0bced32337ff1871de"
+}

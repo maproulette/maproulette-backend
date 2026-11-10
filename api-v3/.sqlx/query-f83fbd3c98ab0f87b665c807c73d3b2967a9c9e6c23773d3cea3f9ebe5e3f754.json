@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT EXISTS (\n                    SELECT FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid\n                    WHERE NOT l.granted AND a.datname = current_database()\n                ) AS \"waiting!\"\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "waiting!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "f83fbd3c98ab0f87b665c807c73d3b2967a9c9e6c23773d3cea3f9ebe5e3f754"
+}
