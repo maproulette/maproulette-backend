@@ -51,3 +51,16 @@ impl Scope {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stronger_roles_satisfy_weaker_requirements() {
+        assert!(Role::SuperUser.satisfies(Role::Write));
+        assert!(Role::Owner.satisfies(Role::Admin));
+        assert!(Role::Write.satisfies(Role::Write));
+        assert!(!Role::Read.satisfies(Role::Write));
+    }
+}

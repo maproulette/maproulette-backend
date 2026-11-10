@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO groups (id, name, group_type) VALUES ($1, gen_random_uuid()::text, 1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "43bb85e4634c7f26b9701853f06daae0dba8b0fde26b3ee1456629d3c6cf084a"
+}

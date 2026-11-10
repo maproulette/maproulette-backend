@@ -2,6 +2,8 @@ mod database;
 mod fixtures;
 pub mod play;
 
+pub use fixtures::{Grantee, Object, TeamId};
+
 use axum::body::Bytes;
 use axum::http::{HeaderMap, Method, StatusCode};
 use serde_json::Value;

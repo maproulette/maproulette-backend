@@ -3,6 +3,7 @@
 mod utils;
 
 mod auth;
+mod challenge_access;
 mod cors;
 mod db;
 mod health;
