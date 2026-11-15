@@ -59,6 +59,53 @@ object SQLUtils {
     if (value.nonEmpty) s"$firstChar$value%" else "%"
   }
 
+  /**
+    * SQL for matching a search box query against `column` word by word, in any order and ignoring
+    * case. Words of one or two letters only match at the start of a word (unless they're in certain
+    * scripts where words are very short or where spaces aren't used between words).
+    *
+    * @param all    Every word appears in the column
+    * @param approx Every word appears or is a close trigram match.
+    * @param score  Mean trigram similarity of the words, for ordering approximate matches
+    */
+  case class WordMatch(all: String, approx: String, score: String, params: Seq[NamedParameter])
+
+  private val unspacedScripts = {
+    import Character.UnicodeScript._
+    Set(HAN, HANGUL, HIRAGANA, KATAKANA, THAI, LAO, KHMER, MYANMAR)
+  }
+
+  def wordMatch(column: String, query: String): WordMatch = {
+    // Each word adds a predicate and a similarity term, so cap them to bound the query's cost
+    val words = query.trim.split("\\s+").filter(_.nonEmpty).take(10).toSeq
+    val parts = words.zipWithIndex.map {
+      case (word, i) =>
+        val isShort = word.codePointCount(0, word.length) <= 2
+        val unspaced =
+          word.codePoints.anyMatch(cp => unspacedScripts(Character.UnicodeScript.of(cp)))
+        if (isShort && !unspaced) {
+          val exact = s"$column ~* {pattern$i}"
+          (exact, exact, "\\m" + word.replaceAll("(\\p{Punct})", "\\\\$1"))
+        } else {
+          val exact  = s"$column ILIKE {pattern$i}"
+          val approx = if (isShort) exact else s"($exact OR {word$i} <% $column)"
+          (exact, approx, "%" + word.replaceAll("([\\\\%_])", "\\\\$1") + "%")
+        }
+    }
+    val params = parts.zipWithIndex.flatMap {
+      case ((_, _, pattern), i) =>
+        Seq[NamedParameter](s"pattern$i" -> pattern, s"word$i" -> words(i))
+    }
+    WordMatch(
+      all = parts.map(_._1).mkString(" AND "),
+      approx = parts.map(_._2).mkString(" AND "),
+      score = words.indices
+        .map(i => s"word_similarity({word$i}, $column)")
+        .mkString("(", " + ", s") / ${words.size}"),
+      params = params
+    )
+  }
+
   def toParameterValue[T](value: T): ParameterValue =
     ToParameterValue.apply[T](p = toStatement).apply(value)
 
