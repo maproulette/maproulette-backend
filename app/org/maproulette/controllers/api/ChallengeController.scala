@@ -1225,14 +1225,12 @@ class ChallengeController @Inject() (
     }
 
   /**
-    * Fuzzy search for challenges by ID or name
-    * Returns a single challenge if found (first match)
-    * Searches by ID if the search string is numeric, otherwise searches by name using fuzzy matching
+    * Searches challenges by name, for the header search box. See ChallengeDAL.search for how
+    * results are matched and ordered.
     *
-    * @param search The search string (can be ID or name)
-    * @param onlyEnabled Only include enabled challenges
+    * @param search The search string
+    * @param onlyEnabled Only include enabled (discoverable) challenges
     * @param limit Maximum number of results to return
-    * @return A single challenge matching the search criteria, or empty list if not found
     */
   def search(
       search: String,
@@ -1240,7 +1238,7 @@ class ChallengeController @Inject() (
       limit: Int = 25
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
-      val results = this.dal.search(search, limit, onlyEnabled)
+      val results = this.dal.search(search, limit.max(1).min(50), onlyEnabled)
       Ok(Json.toJson(results))
     }
   }

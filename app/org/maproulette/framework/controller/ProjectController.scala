@@ -212,14 +212,12 @@ class ProjectController @Inject() (
   }
 
   /**
-    * Fuzzy search for projects by ID or name
-    * Returns a single project if found (first match)
-    * Searches by ID if the search string is numeric, otherwise searches by name using fuzzy matching
+    * Searches projects by name, for the header search box. See ProjectService.search for how
+    * results are matched and ordered.
     *
-    * @param search The search string (can be ID or name)
-    * @param onlyEnabled Only include enabled projects
+    * @param search The search string
+    * @param onlyEnabled Only include enabled (discoverable) projects
     * @param limit Maximum number of results to return
-    * @return A single project matching the search criteria, or empty list if not found
     */
   def search(
       search: String,
@@ -227,7 +225,7 @@ class ProjectController @Inject() (
       limit: Int = 25
   ): Action[AnyContent] = Action.async { implicit request =>
     this.sessionManager.userAwareRequest { implicit user =>
-      val results = this.projectService.search(search, limit, onlyEnabled)
+      val results = this.projectService.search(search, limit.max(1).min(50), onlyEnabled)
       Ok(Json.toJson(results))
     }
   }

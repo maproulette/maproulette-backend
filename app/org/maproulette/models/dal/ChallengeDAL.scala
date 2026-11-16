@@ -1570,53 +1570,32 @@ class ChallengeDAL @Inject() (
   def search(
       search: String,
       limit: Int = 25,
-      onlyEnabled: Boolean = false
+      onlyEnabled: Boolean = true
   )(implicit c: Option[Connection] = None): List[Challenge] = {
-    this.withMRConnection { implicit c =>
-      val isNumeric     = search.matches("^\\d+$")
-      val searchLong    = if (isNumeric) Some(search.toLong) else None
-      val searchPattern = if (search.nonEmpty) s"%$search%" else "%"
-      val enabledClause = if (onlyEnabled) " AND c.enabled = true AND p.enabled = true" else ""
-
-      if (isNumeric && searchLong.isDefined) {
+    val query = search.trim
+    if (query.isEmpty) {
+      List.empty
+    } else {
+      this.withMRConnection { implicit c =>
+        val words         = SQLUtils.wordMatch("c.name", query)
+        val enabledClause = if (onlyEnabled) "AND c.enabled AND p.enabled" else ""
         SQL(s"""SELECT ${this.retrieveColumns} FROM challenges c
                INNER JOIN projects p ON p.id = c.parent_id
-               WHERE c.deleted = false AND p.deleted = false AND c.id = {id}$enabledClause""")
-          .on("id" -> searchLong.get)
-          .as(this.parser.*)
-      } else if (search.nonEmpty) {
-        SQL(s"""SELECT ${this.retrieveColumns} FROM challenges c
-               INNER JOIN projects p ON p.id = c.parent_id
-               WHERE c.deleted = false AND p.deleted = false$enabledClause
-               AND (
-                 LOWER(c.name) LIKE LOWER({search})
-                 OR (c.name <> '' AND octet_length(LEFT(c.name, 255)) <= 255 AND octet_length({exact}) <= 255 AND (
-                   LEVENSHTEIN(LOWER(LEFT(c.name, 255)), LOWER(LEFT({exact}, 255))) < 3 OR
-                   METAPHONE(LOWER(LEFT(c.name, 255)), 4) = METAPHONE(LOWER(LEFT({exact}, 255)), 4)
-                 ))
-                 OR (c.name <> '' AND (
-                   SOUNDEX(LOWER(c.name)) = SOUNDEX(LOWER({exact}))
-                 ))
-               )
+               WHERE NOT c.deleted AND NOT p.deleted AND NOT c.is_archived AND NOT p.is_archived
+               $enabledClause
+               AND COALESCE(c.status, ${Challenge.STATUS_NA}) NOT IN
+                 (${Challenge.STATUS_BUILDING}, ${Challenge.STATUS_FAILED}, ${Challenge.STATUS_DELETING_TASKS})
+               AND ${words.approx}
                ORDER BY
-                 CASE
-                   WHEN LOWER(c.name) = LOWER({exact}) THEN 0
-                   WHEN LOWER(c.name) LIKE LOWER({prefix}) THEN 1
-                   WHEN LOWER(c.name) LIKE LOWER({search}) THEN 2
-                   ELSE CASE WHEN c.name <> '' AND octet_length(LEFT(c.name, 255)) <= 255 AND octet_length({exact}) <= 255
-                        THEN LEVENSHTEIN(LOWER(LEFT(c.name, 255)), LOWER(LEFT({exact}, 255))) ELSE 999 END + 3
-                 END ASC,
-                 c.name ASC
+                 LOWER(c.name) = LOWER({query}) DESC,
+                 (${words.all}) DESC,
+                 COALESCE(c.status, ${Challenge.STATUS_NA}) = ${Challenge.STATUS_FINISHED},
+                 CASE WHEN ${words.all} THEN 1 ELSE ${words.score} END DESC,
+                 c.popularity DESC NULLS LAST,
+                 c.id DESC
                LIMIT {limit}""")
-          .on(
-            "search" -> searchPattern,
-            "exact"  -> search,
-            "prefix" -> (search + "%"),
-            "limit"  -> limit
-          )
+          .on(words.params ++ Seq[NamedParameter]("query" -> query, "limit" -> limit): _*)
           .as(this.parser.*)
-      } else {
-        List.empty
       }
     }
   }

@@ -280,11 +280,11 @@ GET     /challenges/find                            @org.maproulette.controllers
 ###
 # tags: [ Challenge ]
 # operationId: challenge_search_fuzzy
-# summary: Fuzzy search for challenges by ID or name
-# description: Searches for a single challenge by ID (if search string is numeric) or by name using fuzzy matching. Returns the first match if found. Supports typos and partial matches (e.g., "afri" or "afreca tourny" will find "african tourney").
+# summary: Search for challenges by name
+# description: Returns challenges whose name contains every word of the search string (in any order), plus close fuzzy matches that catch typos. Exact name matches come first.
 # responses:
 #   '200':
-#     description: A list containing at most one challenge matching the search criteria
+#     description: The matching challenges, best match first
 #     content:
 #       application/json:
 #         schema:
@@ -294,7 +294,7 @@ GET     /challenges/find                            @org.maproulette.controllers
 # parameters:
 #   - name: search
 #     in: query
-#     description: The search string (can be challenge ID or name). Supports fuzzy matching for names.
+#     description: The search string
 #     required: true
 #   - name: onlyEnabled
 #     in: query
@@ -303,7 +303,7 @@ GET     /challenges/find                            @org.maproulette.controllers
 #     in: query
 #     description: Maximum number of results to return
 ###
-GET     /challenges/search                          @org.maproulette.controllers.api.ChallengeController.search(search:String, onlyEnabled:Boolean ?= false, limit:Int ?= 25)
+GET     /challenges/search                          @org.maproulette.controllers.api.ChallengeController.search(search:String, onlyEnabled:Boolean ?= true, limit:Int ?= 25)
 ###
 # tags: [ Challenge ]
 # operationId: challenge_extendedFind
