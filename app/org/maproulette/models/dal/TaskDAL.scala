@@ -468,7 +468,7 @@ class TaskDAL @Inject() (
            INSERT INTO tasks AS t (name, parent_id, status, instruction, priority, geojson, location, geom, cooperative_work_json)
            SELECT name, {parentId}, 0, instruction, priority, geojson, ST_Centroid(geom), geom, cooperative_work
            FROM input WHERE geom IS NOT NULL
-           ON CONFLICT (parent_id, lower(name)) DO UPDATE SET
+           ON CONFLICT (parent_id, md5(lower(name))) DO UPDATE SET
              name = EXCLUDED.name, instruction = EXCLUDED.instruction, priority = EXCLUDED.priority,
              changeset_id = -1, geojson = EXCLUDED.geojson,
              cooperative_work_json = EXCLUDED.cooperative_work_json,
