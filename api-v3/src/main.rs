@@ -5,6 +5,10 @@ use tracing_subscriber::filter::LevelFilter;
 
 use maproulette::config::Config;
 
+// Release builds target musl, whose allocator is slow under contention from many threads
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let filter = EnvFilter::builder()
