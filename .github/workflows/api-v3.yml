@@ -6,6 +6,8 @@ on:
     paths: [ "api-v3/**", ".github/workflows/api-v3.yml" ]
   pull_request:
     paths: [ "api-v3/**", ".github/workflows/api-v3.yml" ]
+  release:
+    types: [ published ]
 
 jobs:
   test:
@@ -64,3 +66,48 @@ jobs:
       - name: Check that .sqlx matches the queries and the schema
         run: cargo sqlx prepare --check -- --all-targets
       - run: cargo test
+
+  # Builds the server as a static Linux binary. If this workflow was triggered
+  # by a release, the binary is uploaded and attached to the release page.
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: api-v3
+    env:
+      CARGO_TERM_COLOR: always
+      # Use the query metadata committed in .sqlx/ instead of a database
+      SQLX_OFFLINE: "true"
+      TARGET: x86_64-unknown-linux-musl
+      ASSET: maproulette-api-v3-x86_64-linux
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Rust and the musl toolchain
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+          rustup target add "$TARGET"
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+      - run: cargo build --release --locked --target "$TARGET"
+      - name: Check that the binary is static and starts
+        run: |
+          bin="target/$TARGET/release/maproulette-backend"
+          info=$(file "$bin")
+          echo "$info"
+          grep -q "static" <<<"$info"
+          # Without any config it should exit with an error about the first missing variable
+          out=$("$bin" 2>&1 || true)
+          echo "$out"
+          grep -q "DATABASE_URL must be set" <<<"$out"
+      - name: Upload the binary to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          cp "target/$TARGET/release/maproulette-backend" "$ASSET"
+          sha256sum "$ASSET" > "$ASSET.sha256"
+          gh release upload "$TAG" "$ASSET" "$ASSET.sha256" --clobber
